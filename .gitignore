@@ -39,3 +39,6 @@ scripts/automation/.venv/
 .claude/
 
 .vercel
+
+# Artefatos da Lovable
+.lovable/
