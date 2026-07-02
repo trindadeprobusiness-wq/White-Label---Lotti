@@ -11,6 +11,16 @@ import {
   Preferencias
 } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
+
+// Feedback padrão para falhas de escrita: sem isso o erro morre no console
+// e o usuário assume que os dados foram salvos.
+const toastErro = (titulo: string) =>
+  toast({
+    variant: 'destructive',
+    title: titulo,
+    description: 'Verifique sua conexão e tente novamente.',
+  });
 
 interface CRMStore {
   // Data
@@ -34,9 +44,9 @@ interface CRMStore {
 
   // Cliente actions
   addCliente: (cliente: Omit<Cliente, 'id' | 'created_at' | 'documentos' | 'imoveis_interesse'>) => Promise<string | null>;
-  updateCliente: (id: string, data: Partial<Cliente>) => Promise<void>;
+  updateCliente: (id: string, data: Partial<Cliente>) => Promise<boolean>;
   updateClienteStatus: (id: string, status: StatusFunil) => Promise<void>;
-  removeCliente: (id: string) => Promise<{ success: boolean; error?: any }>;
+  removeCliente: (id: string) => Promise<{ success: boolean; error?: unknown }>;
 
   // Imovel actions
   addImovel: (imovel: Omit<Imovel, 'id' | 'created_at' | 'clientes_interessados'>) => void;
@@ -238,6 +248,7 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       return data.id;
     } catch (error) {
       console.error('Erro ao adicionar cliente:', error);
+      toastErro('Erro ao cadastrar cliente');
       return null;
     }
   },
@@ -251,12 +262,23 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
       if (error) throw error;
       get().fetchClientes();
+      return true;
     } catch (error) {
       console.error('Erro ao atualizar cliente:', error);
+      toastErro('Erro ao atualizar cliente');
+      return false;
     }
   },
 
   updateClienteStatus: async (id, status) => {
+    // Atualização otimista: move o card imediatamente e reverte se falhar
+    const clientesAnteriores = get().clientes;
+    set({
+      clientes: clientesAnteriores.map((c) =>
+        c.id === id ? { ...c, status_funil: status } : c
+      ),
+    });
+
     try {
       const { error } = await supabase
         .from('clientes')
@@ -264,9 +286,10 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
         .eq('id', id);
 
       if (error) throw error;
-      get().fetchClientes();
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      set({ clientes: clientesAnteriores });
+      toastErro('Erro ao mover cliente no funil');
     }
   },
 
@@ -322,6 +345,7 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       get().fetchHistorico(historico.cliente_id);
     } catch (error) {
       console.error('Erro ao adicionar histórico:', error);
+      toastErro('Erro ao registrar contato');
     }
   },
 
@@ -415,6 +439,7 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       get().fetchClientes();
     } catch (error) {
       console.error('Erro ao vincular cliente ao imóvel:', error);
+      toastErro('Erro ao vincular imóvel ao cliente');
     }
   },
 
@@ -432,6 +457,7 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       set({ corretor: { ...corretor, ...data } as Corretor });
     } catch (error) {
       console.error('Erro ao atualizar corretor:', error);
+      toastErro('Erro ao salvar configurações');
     }
   },
 

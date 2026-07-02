@@ -1,42 +1,158 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useCRMStore } from '@/stores/crmStore';
-import { StatusFunil, STATUS_FUNIL_LABELS } from '@/types/crm';
+import { StatusFunil, Cliente, Imovel } from '@/types/crm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, GripVertical } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  DndContext,
+  DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
 
 const funnelColumns: { status: StatusFunil; label: string; color: string; bgColor: string }[] = [
-  { 
-    status: 'QUALIFICACAO', 
-    label: 'Qualificação', 
+  {
+    status: 'QUALIFICACAO',
+    label: 'Qualificação',
     color: 'text-primary',
-    bgColor: 'bg-funnel-qualification' 
+    bgColor: 'bg-funnel-qualification'
   },
-  { 
-    status: 'VISITA_PROPOSTA', 
-    label: 'Visita/Proposta', 
+  {
+    status: 'VISITA_PROPOSTA',
+    label: 'Visita/Proposta',
     color: 'text-warning',
-    bgColor: 'bg-funnel-visit' 
+    bgColor: 'bg-funnel-visit'
   },
-  { 
-    status: 'DOCUMENTACAO', 
-    label: 'Documentação', 
+  {
+    status: 'DOCUMENTACAO',
+    label: 'Documentação',
     color: 'text-orange-500',
-    bgColor: 'bg-funnel-documentation' 
+    bgColor: 'bg-funnel-documentation'
   },
-  { 
-    status: 'FECHADO_GANHO', 
-    label: 'Fechamento', 
+  {
+    status: 'FECHADO_GANHO',
+    label: 'Fechamento',
     color: 'text-success',
-    bgColor: 'bg-funnel-closing' 
+    bgColor: 'bg-funnel-closing'
   },
 ];
 
+const formatValor = (valor: number) =>
+  valor > 10000
+    ? `R$ ${(valor / 1000).toFixed(0)}k`
+    : `R$ ${valor.toLocaleString('pt-BR')}/mês`;
+
+function DroppableColumn({
+  status,
+  bgColor,
+  children,
+}: {
+  status: StatusFunil;
+  bgColor: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-lg p-3 min-h-[500px] transition-shadow',
+        bgColor,
+        isOver && 'ring-2 ring-primary/50'
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableCard({
+  cliente,
+  imovel,
+  alert,
+}: {
+  cliente: Cliente;
+  imovel: Imovel | null;
+  alert: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: cliente.id,
+  });
+
+  // Após um drag, o navegador ainda dispara o click no card — sem este guard
+  // soltar o card navegaria para a página do cliente.
+  const wasDragged = useRef(false);
+  if (isDragging) wasDragged.current = true;
+
+  return (
+    <Link
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      to={`/clientes/${cliente.id}`}
+      onClick={(e) => {
+        if (wasDragged.current) {
+          e.preventDefault();
+          wasDragged.current = false;
+        }
+      }}
+      style={{
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        touchAction: 'manipulation',
+      }}
+      className={cn(
+        'block bg-card rounded-lg p-3 shadow-sm border cursor-grab active:cursor-grabbing',
+        'hover:shadow-md transition-shadow',
+        isDragging && 'opacity-80 shadow-lg relative z-50'
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {alert && (
+              <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+            )}
+            <p className="font-medium text-sm truncate">
+              {cliente.nome}
+            </p>
+          </div>
+          {imovel && (
+            <p className="text-xs text-muted-foreground truncate mt-1">
+              {imovel.titulo}
+            </p>
+          )}
+          {imovel && (
+            <p className="text-xs font-medium text-primary mt-0.5">
+              {formatValor(imovel.valor)}
+            </p>
+          )}
+        </div>
+        <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+      </div>
+    </Link>
+  );
+}
+
 export default function FunilVendas() {
   const { clientes, imoveis, alertas, updateClienteStatus } = useCRMStore();
-  const [draggedClientId, setDraggedClientId] = useState<string | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  // Mouse: começa o drag após 8px (cliques simples continuam navegando).
+  // Touch: segurar 250ms inicia o drag; toque rápido navega e o scroll funciona.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  );
 
   const getClientesByStatus = (status: StatusFunil) => {
     return clientes.filter((c) => c.status_funil === status);
@@ -46,32 +162,30 @@ export default function FunilVendas() {
     return alertas.some((a) => a.cliente_id === clienteId && !a.lido);
   };
 
-  const getImovelPrincipal = (clienteId: string) => {
+  const getImovelPrincipal = (cliente: Cliente) => {
+    if (cliente.imoveis_interesse.length === 0) return null;
+    return imoveis.find((i) => i.id === cliente.imoveis_interesse[0]) || null;
+  };
+
+  const getValorColuna = (status: StatusFunil) => {
+    return getClientesByStatus(status).reduce((total, cliente) => {
+      const imovel = getImovelPrincipal(cliente);
+      return total + (imovel?.valor || 0);
+    }, 0);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const clienteId = String(active.id);
+    const newStatus = over.id as StatusFunil;
     const cliente = clientes.find((c) => c.id === clienteId);
-    if (!cliente || cliente.imoveis_interesse.length === 0) return null;
-    return imoveis.find((i) => i.id === cliente.imoveis_interesse[0]);
-  };
 
-  const handleDragStart = (e: React.DragEvent, clienteId: string) => {
-    setDraggedClientId(clienteId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, newStatus: StatusFunil) => {
-    e.preventDefault();
-    if (draggedClientId) {
-      updateClienteStatus(draggedClientId, newStatus);
-      setDraggedClientId(null);
+    if (cliente && cliente.status_funil !== newStatus) {
+      updateClienteStatus(clienteId, newStatus);
     }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedClientId(null);
   };
 
   return (
@@ -85,88 +199,64 @@ export default function FunilVendas() {
       </div>
 
       {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {funnelColumns.map((column) => {
-          const columnClientes = getClientesByStatus(column.status);
-          
-          return (
-            <div
-              key={column.status}
-              className={cn(
-                'rounded-lg p-3 min-h-[500px]',
-                column.bgColor
-              )}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, column.status)}
-            >
-              {/* Column Header */}
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={cn('font-semibold', column.color)}>
-                  {column.label}
-                </h3>
-                <Badge variant="secondary" className="font-bold">
-                  {columnClientes.length}
-                </Badge>
-              </div>
+      <DndContext
+        sensors={sensors}
+        onDragStart={(e) => setActiveDragId(String(e.active.id))}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveDragId(null)}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {funnelColumns.map((column) => {
+            const columnClientes = getClientesByStatus(column.status);
+            const valorColuna = getValorColuna(column.status);
 
-              {/* Cards */}
-              <div className="space-y-2">
-                {columnClientes.map((cliente) => {
-                  const imovel = getImovelPrincipal(cliente.id);
-                  const alert = hasAlert(cliente.id);
+            return (
+              <DroppableColumn
+                key={column.status}
+                status={column.status}
+                bgColor={column.bgColor}
+              >
+                {/* Column Header */}
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className={cn('font-semibold', column.color)}>
+                    {column.label}
+                  </h3>
+                  <Badge variant="secondary" className="font-bold">
+                    {columnClientes.length}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4 h-4">
+                  {valorColuna > 0 &&
+                    `R$ ${valorColuna.toLocaleString('pt-BR')} em negociação`}
+                </p>
 
-                  return (
-                    <Link
+                {/* Cards */}
+                <div className="space-y-2">
+                  {columnClientes.map((cliente) => (
+                    <DraggableCard
                       key={cliente.id}
-                      to={`/clientes/${cliente.id}`}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, cliente.id)}
-                      onDragEnd={handleDragEnd}
+                      cliente={cliente}
+                      imovel={getImovelPrincipal(cliente)}
+                      alert={hasAlert(cliente.id)}
+                    />
+                  ))}
+
+                  {columnClientes.length === 0 && (
+                    <div
                       className={cn(
-                        'block bg-card rounded-lg p-3 shadow-sm border cursor-grab active:cursor-grabbing',
-                        'hover:shadow-md transition-shadow',
-                        draggedClientId === cliente.id && 'opacity-50'
+                        'text-center py-8 text-muted-foreground text-sm rounded-lg',
+                        activeDragId && 'border-2 border-dashed border-primary/30'
                       )}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            {alert && (
-                              <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
-                            )}
-                            <p className="font-medium text-sm truncate">
-                              {cliente.nome}
-                            </p>
-                          </div>
-                          {imovel && (
-                            <p className="text-xs text-muted-foreground truncate mt-1">
-                              {imovel.titulo}
-                            </p>
-                          )}
-                          {imovel && (
-                            <p className="text-xs font-medium text-primary mt-0.5">
-                              {imovel.valor > 10000
-                                ? `R$ ${(imovel.valor / 1000).toFixed(0)}k`
-                                : `R$ ${imovel.valor.toLocaleString('pt-BR')}/mês`}
-                            </p>
-                          )}
-                        </div>
-                        <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
-                      </div>
-                    </Link>
-                  );
-                })}
-
-                {columnClientes.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
-                    Nenhum cliente
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                      {activeDragId ? 'Solte aqui' : 'Nenhum cliente'}
+                    </div>
+                  )}
+                </div>
+              </DroppableColumn>
+            );
+          })}
+        </div>
+      </DndContext>
 
       {/* Closed Lost Section */}
       <Card className="bg-muted/50">

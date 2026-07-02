@@ -78,7 +78,8 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
 
     try {
       if (clienteToEdit) {
-        await updateCliente(clienteToEdit.id, form);
+        const ok = await updateCliente(clienteToEdit.id, form);
+        if (!ok) return; // o store já exibiu o toast de erro
         if (selectedImovel) {
           await vincularClienteImovel(clienteToEdit.id, selectedImovel);
         }
@@ -92,7 +93,9 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
           tracking_data: trackingData || {}
         });
 
-        if (newId && selectedImovel) {
+        if (!newId) return; // o store já exibiu o toast de erro
+
+        if (selectedImovel) {
           await vincularClienteImovel(newId, selectedImovel);
         }
 

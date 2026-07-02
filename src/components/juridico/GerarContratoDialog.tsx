@@ -12,9 +12,10 @@ import { TipoContrato, TIPO_CONTRATO_LABELS } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, Sparkles, Download, FileText, Loader2, X, Edit3, Check, Upload, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { generateContractDocx, formatContractForPreview } from '@/services/contractDocxService';
-import { generateContractPdf } from '@/services/contractPdfService';
+import { formatContractForPreview } from '@/utils/contractPreview';
 import { generateLocalContract } from '@/utils/contractTemplate';
+// Geradores de .docx/.pdf (libs docx e pdf-lib, ~800 kB) são importados
+// dinamicamente dentro de baixarDocx/baixarPdf para não inflar este chunk.
 
 interface GerarContratoDialogProps {
   open: boolean;
@@ -298,6 +299,7 @@ export function GerarContratoDialog({ open, onOpenChange, clienteId }: GerarCont
         ? form.tipoPersonalizado
         : TIPO_CONTRATO_LABELS[form.tipo];
 
+      const { generateContractDocx } = await import('@/services/contractDocxService');
       await generateContractDocx(conteudoFinal, {
         clienteNome: selectedCliente.nome,
         tipoContrato: tipoContratoFinal,
@@ -330,6 +332,7 @@ export function GerarContratoDialog({ open, onOpenChange, clienteId }: GerarCont
         ? form.tipoPersonalizado
         : TIPO_CONTRATO_LABELS[form.tipo];
 
+      const { generateContractPdf } = await import('@/services/contractPdfService');
       await generateContractPdf(conteudoFinal, {
         clienteNome: selectedCliente.nome,
         tipoContrato: tipoContratoFinal,

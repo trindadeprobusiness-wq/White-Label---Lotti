@@ -300,17 +300,6 @@ function parseContractText(text: string): Paragraph[] {
   return paragraphs;
 }
 
-// Export function to preview contract as formatted text
-export function formatContractForPreview(text: string): string {
-  // Remove any markdown-like formatting
-  return text
-    .replace(/\*\*/g, "")
-    .replace(/\*/g, "")
-    .replace(/#{1,6}\s/g, "")
-    .replace(/`/g, "")
-    .trim();
-}
-
 // Helper function to convert base64 to Uint8Array
 function base64ToUint8Array(base64: string): Uint8Array {
   const base64Data = base64.includes(",") ? base64.split(",")[1] : base64;
