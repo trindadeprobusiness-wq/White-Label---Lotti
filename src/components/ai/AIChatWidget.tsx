@@ -64,7 +64,7 @@ export function AIChatWidget() {
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-3">
       {isOpen && (
-        <Card className="w-[400px] h-[620px] flex flex-col shadow-2xl border-primary/20 animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <Card className="w-[min(400px,calc(100vw-2rem))] h-[min(620px,calc(100dvh-6rem))] flex flex-col shadow-2xl border-primary/20 animate-in slide-in-from-bottom-10 fade-in duration-300">
           <CardHeader className="bg-primary/5 p-3 flex flex-row items-center justify-between space-y-0 rounded-t-lg">
             <div className="flex items-center gap-2">
               <div className="bg-primary/10 p-1.5 rounded-full">
@@ -182,9 +182,15 @@ export function AIChatWidget() {
         <Button
           onClick={() => setIsOpen(true)}
           size="lg"
-          className="h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 transition-all hover:scale-110"
+          aria-label="Abrir assistente IA"
+          className="relative h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 transition-all hover:scale-110"
         >
           <Bot className="h-7 w-7" />
+          {/* Indicador sutil de IA disponível */}
+          <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-60" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-gold" />
+          </span>
         </Button>
       )}
     </div>

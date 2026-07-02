@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCRMStore } from '@/stores/crmStore';
-import { TipoImovel } from '@/types/crm';
+import { TipoImovel, Imovel } from '@/types/crm';
 import { NovoImovelDialog } from '@/components/imoveis/NovoImovelDialog';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,7 +32,7 @@ export default function Imoveis() {
   const [tipoFilter, setTipoFilter] = useState<string>('TODOS');
   const [statusAnuncioFilter, setStatusAnuncioFilter] = useState<string>('TODOS');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [imovelToEdit, setImovelToEdit] = useState<any>(null);
+  const [imovelToEdit, setImovelToEdit] = useState<Imovel | null>(null);
   const [fotosPrincipais, setFotosPrincipais] = useState<Record<string, string>>({});
 
   // Fetch main photos for all properties
@@ -140,10 +140,18 @@ export default function Imoveis() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredImoveis.length === 0 ? (
           <Card className="col-span-full">
-            <CardContent className="py-12 text-center text-muted-foreground">
-              {search || tipoFilter !== 'TODOS'
-                ? 'Nenhum imóvel encontrado com os filtros aplicados.'
-                : 'Nenhum imóvel cadastrado ainda.'}
+            <CardContent className="py-12 flex flex-col items-center gap-4 text-center text-muted-foreground">
+              <p>
+                {search || tipoFilter !== 'TODOS'
+                  ? 'Nenhum imóvel encontrado com os filtros aplicados.'
+                  : 'Nenhum imóvel cadastrado ainda.'}
+              </p>
+              {!search && tipoFilter === 'TODOS' && statusAnuncioFilter === 'TODOS' && (
+                <Button onClick={() => setDialogOpen(true)} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Cadastrar primeiro imóvel
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -158,6 +166,8 @@ export default function Imoveis() {
                   <img
                     src={fotosPrincipais[imovel.id]}
                     alt={imovel.titulo}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (

@@ -64,6 +64,8 @@ export function ImovelGaleria({
             <img
               src={foto.arquivo_url}
               alt={`Foto ${index + 1}`}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover rounded-lg"
             />
             {foto.principal && (

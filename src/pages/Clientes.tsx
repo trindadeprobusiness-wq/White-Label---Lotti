@@ -143,10 +143,18 @@ export default function Clientes() {
       <div className="space-y-3">
         {filteredClientes.length === 0 ? (
           <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              {search || statusFilter !== 'TODOS'
-                ? 'Nenhum cliente encontrado com os filtros aplicados.'
-                : 'Nenhum cliente cadastrado ainda.'}
+            <CardContent className="py-12 flex flex-col items-center gap-4 text-center text-muted-foreground">
+              <p>
+                {search || statusFilter !== 'TODOS'
+                  ? 'Nenhum cliente encontrado com os filtros aplicados.'
+                  : 'Nenhum cliente cadastrado ainda.'}
+              </p>
+              {!search && statusFilter === 'TODOS' && (
+                <Button onClick={handleOpenNew} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Cadastrar primeiro cliente
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (

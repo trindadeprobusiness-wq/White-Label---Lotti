@@ -75,7 +75,7 @@ export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
   return (
     <>
       <DesktopSidebar {...props} />
-      <MobileSidebar {...(props as any)} />
+      <MobileSidebar {...(props as React.ComponentProps<"div">)} />
     </>
   );
 };
@@ -157,16 +157,26 @@ export const MobileSidebar = ({
 export const SidebarLink = ({
   link,
   className,
+  onClick,
   ...props
 }: {
   link: Links;
   className?: string;
-  props?: LinkProps;
-}) => {
-  const { open, animate } = useSidebar();
+} & Omit<LinkProps, "to">) => {
+  const { open, animate, setOpen } = useSidebar();
+
+  // No mobile o menu é um overlay em tela cheia: precisa fechar ao navegar
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    onClick?.(e);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      setOpen(false);
+    }
+  };
+
   return (
     <Link
       to={link.href}
+      onClick={handleClick}
       className={cn(
         "flex items-center justify-start gap-2 group/sidebar py-2",
         className

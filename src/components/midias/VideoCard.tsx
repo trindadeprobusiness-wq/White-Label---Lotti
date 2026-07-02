@@ -68,6 +68,8 @@ export function VideoCard({ video, imovelNome, onPlay, onEdit, onDelete, onShare
           <img
             src={video.thumbnail_url}
             alt={video.titulo}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
             onError={() => setImageError(true)}
           />

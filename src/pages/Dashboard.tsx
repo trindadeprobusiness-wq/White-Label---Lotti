@@ -147,7 +147,7 @@ export default function Dashboard() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className={cn(
               "text-center p-4 rounded-lg",
               "bg-funnel-qualification"
@@ -225,8 +225,9 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {imoveis.slice(0, 4).map((imovel) => (
-              <div
+              <Link
                 key={imovel.id}
+                to={`/imoveis/${imovel.id}`}
                 className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <div>
@@ -243,7 +244,7 @@ export default function Dashboard() {
                     Exclusiva
                   </Badge>
                 )}
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>

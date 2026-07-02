@@ -3,7 +3,7 @@ import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, L
 import { useState } from 'react';
 import oliverLogo from '@/assets/oliver-logo.png';
 import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
@@ -12,6 +12,10 @@ import { useAuth } from '@/hooks/useAuth';
 export function AppSidebar() {
   const [open, setOpen] = useState(false);
   const { signOut } = useAuth();
+  const { pathname } = useLocation();
+
+  const isActive = (href: string) =>
+    href === '/' ? pathname === '/' : pathname.startsWith(href);
 
   const links = [
     { label: 'Início', href: '/', icon: <Home className="h-5 w-5 flex-shrink-0" /> },
@@ -33,13 +37,16 @@ export function AppSidebar() {
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
             <Logo open={open} />
             <div className="mt-8 flex flex-col gap-2">
-              {links.map((link, idx) => (
+              {links.map((link) => (
                 <SidebarLink
-                  key={idx}
+                  key={link.href}
                   link={link}
+                  aria-current={isActive(link.href) ? 'page' : undefined}
                   className={cn(
                     "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md px-2",
-                    "transition-all duration-200"
+                    "transition-all duration-200",
+                    isActive(link.href) &&
+                      "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm ring-1 ring-sidebar-border [&_svg]:text-primary"
                   )}
                 />
               ))}

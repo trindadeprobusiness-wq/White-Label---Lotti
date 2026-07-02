@@ -171,7 +171,13 @@ export function useAIChat(): UseAIChatReturn {
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      const message = err instanceof Error ? err.message : 'Erro ao enviar mensagem';
+      // "Failed to fetch" = falha de rede/CORS (ex.: Edge Function fora do ar)
+      const message =
+        err instanceof TypeError
+          ? 'Não foi possível conectar ao assistente. Tente novamente em instantes.'
+          : err instanceof Error
+            ? err.message
+            : 'Erro ao enviar mensagem';
       setError(message);
       setMessages(prev => prev.filter(m => m.id !== assistantId));
     } finally {
