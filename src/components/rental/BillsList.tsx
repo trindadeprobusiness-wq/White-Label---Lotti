@@ -6,17 +6,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { parseContratoContent } from "@/types/rental";
 
 export function BillsList() {
     const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [referenceDate, setReferenceDate] = useState(new Date());
+    const [contractViewerUrl, setContractViewerUrl] = useState<string | null>(null);
+    const [contractViewerTitle, setContractViewerTitle] = useState("");
+    const [contractViewerDetails, setContractViewerDetails] = useState<any>(null);
+    const [loadingContractId, setLoadingContractId] = useState<string | null>(null);
 
     const referenceMonthStr = format(referenceDate, 'MM/yyyy');
     const refYear = referenceDate.getFullYear();
@@ -39,18 +44,29 @@ export function BillsList() {
         },
     });
 
-    // 2. Load generated bills for the current reference month
-    const { data: monthlyBills, isLoading: loadingBills } = useQuery({
-        queryKey: ["rental-bills-monthly", referenceMonthStr],
+    // 2. Load generated bills for ALL months — a aba "Atrasadas" precisa
+    // enxergar competências antigas, não só o mês selecionado
+    const { data: allBills, isLoading: loadingBills } = useQuery({
+        queryKey: ["rental-bills-all"],
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("faturas_aluguel")
-                .select('*')
-                .eq('mes_referencia', referenceMonthStr);
+                .select('*');
             if (error) throw error;
             return data;
         },
     });
+
+    const monthlyBills = useMemo(
+        () => allBills?.filter((b: { mes_referencia: string }) => b.mes_referencia === referenceMonthStr),
+        [allBills, referenceMonthStr]
+    );
+
+    // Vencimento seguro para meses curtos (ex.: dia 31 em fevereiro)
+    const makeDueDate = (year: number, month: number, day: number) => {
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        return new Date(year, month, Math.min(day, lastDay));
+    };
 
     const isLoading = loadingContracts || loadingBills;
 
@@ -63,7 +79,7 @@ export function BillsList() {
             const existingBill = monthlyBills?.find(b => b.contrato_id === contract.id);
 
             const dueDay = contract.dia_vencimento || 10;
-            const dueDate = new Date(refYear, refMonth, dueDay);
+            const dueDate = makeDueDate(refYear, refMonth, dueDay);
             const isLate = dueDate < now;
 
             // If bill exists in DB, use its data. Otherwise, project a virtual bill.
@@ -79,19 +95,68 @@ export function BillsList() {
                 dueDate,
                 status,
                 valor_total: valor,
-                boletoUrl
+                boletoUrl,
+                mesReferencia: referenceMonthStr,
             };
         }).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-    }, [activeContracts, monthlyBills, refMonth, refYear]);
+    }, [activeContracts, monthlyBills, refMonth, refYear, referenceMonthStr]);
 
-    // 4. Filtering
-    const filteredBills = smartBills.filter(bill => {
+    // Faturas atrasadas de TODOS os meses: percorre as competências desde o
+    // início de cada contrato e considera atrasada toda competência vencida
+    // sem fatura PAGA/CANCELADA registrada no banco.
+    const overdueBills = useMemo(() => {
+        if (!activeContracts) return [] as typeof smartBills;
+        const now = new Date();
+        const MAX_MONTHS_BACK = 24;
+        const result: typeof smartBills = [];
+
+        for (const contract of activeContracts) {
+            const dueDay = contract.dia_vencimento || 10;
+            const start = contract.data_inicio ? new Date(contract.data_inicio) : subMonths(now, 11);
+            const earliest = subMonths(now, MAX_MONTHS_BACK);
+            const cursor = new Date(Math.max(start.getTime(), earliest.getTime()));
+            cursor.setDate(1);
+            cursor.setHours(0, 0, 0, 0);
+
+            while (cursor <= now) {
+                const mesRef = format(cursor, 'MM/yyyy');
+                const dueDate = makeDueDate(cursor.getFullYear(), cursor.getMonth(), dueDay);
+
+                if (dueDate < now) {
+                    const dbBill = allBills?.find(
+                        (b: { contrato_id: string; mes_referencia: string; status: string }) =>
+                            b.contrato_id === contract.id && b.mes_referencia === mesRef
+                    );
+                    if (!dbBill || (dbBill.status !== 'PAGO' && dbBill.status !== 'CANCELADO')) {
+                        result.push({
+                            id: dbBill ? dbBill.id : `virtual_${contract.id}_${mesRef}`,
+                            isVirtual: !dbBill,
+                            contract,
+                            dueDate,
+                            status: 'ATRASADO',
+                            valor_total: dbBill ? dbBill.valor_total : contract.valor,
+                            boletoUrl: dbBill ? dbBill.boleto_url : null,
+                            mesReferencia: mesRef,
+                        });
+                    }
+                }
+                cursor.setMonth(cursor.getMonth() + 1);
+            }
+        }
+
+        return result.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    }, [activeContracts, allBills]);
+
+    // 4. Filtering — "Atrasadas" cobre todos os meses; as demais abas, o mês selecionado
+    const sourceBills = statusFilter === 'ATRASADO' ? overdueBills : smartBills;
+    const filteredBills = sourceBills.filter(bill => {
         const matchesSearch =
             bill.contract.imoveis?.titulo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             bill.contract.clientes?.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             bill.contract.imoveis?.proprietario_nome?.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus = statusFilter === "ALL" ? true : bill.status === statusFilter;
+        const matchesStatus =
+            statusFilter === "ALL" || statusFilter === "ATRASADO" ? true : bill.status === statusFilter;
 
         return matchesSearch && matchesStatus;
     });
@@ -120,6 +185,57 @@ export function BillsList() {
         }
     };
 
+    // Open contract viewer panel
+    const handleOpenContractViewer = async (bill: any) => {
+        const contract = bill.contract;
+        setLoadingContractId(bill.id);
+
+        try {
+            // Prepare contract details for the panel
+            const content = parseContratoContent(contract.conteudo);
+            const taxaPct = content.taxa_administracao || contract.taxa_administracao_percentual || 10;
+
+            setContractViewerTitle(contract.imoveis?.titulo || 'Contrato');
+            setContractViewerDetails({
+                proprietario: contract.imoveis?.proprietario_nome || '—',
+                inquilino: contract.clientes?.nome || '—',
+                endereco: contract.imoveis?.endereco || '—',
+                valor: contract.valor,
+                taxaAdm: taxaPct,
+                diaVencimento: contract.dia_vencimento,
+                diaRepasse: content.dia_repasse || (contract.dia_vencimento + 5),
+                dataInicio: contract.data_inicio,
+                dataFim: content.data_fim_calculada,
+                mesesDuracao: content.meses_duracao,
+                multaAtraso: content.multa_atraso,
+                jurosMora: content.juros_mora,
+                obs: content.obs,
+                garantia: (content as any).garantia_tipo,
+                status: contract.status,
+            });
+
+            // Try to load the PDF if there's an arquivo_url
+            if (contract.arquivo_url) {
+                const { data, error } = await supabase.storage
+                    .from('documentos')
+                    .createSignedUrl(contract.arquivo_url, 60 * 60); // 1h
+
+                if (!error && data?.signedUrl) {
+                    setContractViewerUrl(data.signedUrl);
+                } else {
+                    setContractViewerUrl(null);
+                }
+            } else {
+                setContractViewerUrl(null);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar contrato:', err);
+            setContractViewerUrl(null);
+        } finally {
+            setLoadingContractId(null);
+        }
+    };
+
     // Actions
     const handleConfirmPayment = async (bill: any) => {
         if (!confirm("Confirmar o recebimento desta fatura?")) return;
@@ -144,7 +260,7 @@ export function BillsList() {
                         valor_aluguel: bill.contract.valor, // Base value
                         status: 'PAGO',                     // Paid right away
                         data_vencimento: bill.dueDate.toISOString(),
-                        mes_referencia: referenceMonthStr,
+                        mes_referencia: bill.mesReferencia || referenceMonthStr,
                         data_pagamento: new Date().toISOString(),
                         valor_pago: bill.contract.valor
                     })
@@ -201,7 +317,7 @@ export function BillsList() {
 
             toast.dismiss(loadingToast);
             toast.success("Pagamento confirmado com sucesso!");
-            queryClient.invalidateQueries({ queryKey: ["rental-bills-monthly", referenceMonthStr] });
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
         } catch (error: any) {
             console.error("Erro ao baixar fatura:", error);
             toast.dismiss(loadingToast);
@@ -219,6 +335,7 @@ export function BillsList() {
     }
 
     return (
+        <>
         <div className="space-y-6">
             {/* KPI Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -302,16 +419,31 @@ export function BillsList() {
                                 <TabsTrigger value="ALL">Todas</TabsTrigger>
                                 <TabsTrigger value="PENDENTE">Pendentes</TabsTrigger>
                                 <TabsTrigger value="PAGO">Pagas</TabsTrigger>
-                                <TabsTrigger value="ATRASADO">Atrasadas</TabsTrigger>
+                                <TabsTrigger value="ATRASADO">
+                                    Atrasadas{overdueBills.length > 0 ? ` (${overdueBills.length})` : ''}
+                                </TabsTrigger>
                             </TabsList>
                         </div>
+
+                        {statusFilter === 'ATRASADO' && filteredBills.length > 0 && (
+                            <div className="px-4 py-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 border-b flex items-center gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                Exibindo faturas vencidas de todos os meses, independente do mês selecionado acima.
+                            </div>
+                        )}
 
                         <div>
                             {!filteredBills?.length ? (
                                 <div className="text-center py-16 text-muted-foreground bg-muted/10">
                                     <FileText className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
-                                    <h3 className="text-lg font-medium text-foreground">Nenhuma fatura encontrada</h3>
-                                    <p className="text-sm">Tente ajustar os filtros de busca no mês atual.</p>
+                                    <h3 className="text-lg font-medium text-foreground">
+                                        {statusFilter === 'ATRASADO' ? 'Nenhuma fatura atrasada' : 'Nenhuma fatura encontrada'}
+                                    </h3>
+                                    <p className="text-sm">
+                                        {statusFilter === 'ATRASADO'
+                                            ? 'Tudo em dia! Nenhum aluguel vencido em aberto, em nenhum mês.'
+                                            : 'Tente ajustar os filtros de busca no mês atual.'}
+                                    </p>
                                 </div>
                             ) : (
                                 <Table>
@@ -377,7 +509,23 @@ export function BillsList() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-2">
+                                                    <div className="flex justify-end gap-1.5">
+                                                        {/* Ver Contrato */}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                            title="Ver Contrato"
+                                                            onClick={() => handleOpenContractViewer(bill)}
+                                                            disabled={loadingContractId === bill.id}
+                                                        >
+                                                            {loadingContractId === bill.id ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <Eye className="h-4 w-4" />
+                                                            )}
+                                                        </Button>
+
                                                         {bill.status === 'PENDENTE' || bill.status === 'ATRASADO' ? (
                                                             <Button
                                                                 size="sm"
@@ -418,5 +566,184 @@ export function BillsList() {
                 </CardContent>
             </Card>
         </div>
+
+        {/* Contract Viewer Side Panel */}
+        {contractViewerDetails && (
+            <div className="fixed inset-0 z-50 flex justify-end" onClick={() => { setContractViewerDetails(null); setContractViewerUrl(null); }}>
+                {/* Backdrop */}
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                {/* Panel */}
+                <div
+                    className="relative w-full max-w-2xl bg-background shadow-2xl border-l animate-in slide-in-from-right-5 duration-300 flex flex-col"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-base">{contractViewerTitle}</h3>
+                                <p className="text-xs text-muted-foreground">Detalhes do contrato de locação</p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => { setContractViewerDetails(null); setContractViewerUrl(null); }}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    {/* Contract Info Cards */}
+                    <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                        {/* Partes envolvidas */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Proprietário</p>
+                                <p className="text-sm font-medium">{contractViewerDetails.proprietario}</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Inquilino</p>
+                                <p className="text-sm font-medium">{contractViewerDetails.inquilino}</p>
+                            </div>
+                        </div>
+
+                        {/* Endereço */}
+                        <div className="p-3 rounded-lg bg-muted/30 border">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Endereço do Imóvel</p>
+                            <p className="text-sm">{contractViewerDetails.endereco}</p>
+                        </div>
+
+                        {/* Financeiro */}
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30">
+                                <p className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold mb-1">Aluguel</p>
+                                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                                    R$ {contractViewerDetails.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30">
+                                <p className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-semibold mb-1">Taxa Adm</p>
+                                <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                                    {contractViewerDetails.taxaAdm}%
+                                </p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30">
+                                <p className="text-[10px] uppercase tracking-wider text-green-600 dark:text-green-400 font-semibold mb-1">Líquido</p>
+                                <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                                    R$ {(contractViewerDetails.valor - (contractViewerDetails.valor * contractViewerDetails.taxaAdm / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Datas e detalhes */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Dia Vencimento</p>
+                                <p className="text-sm font-medium">Todo dia {contractViewerDetails.diaVencimento}</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Dia Repasse</p>
+                                <p className="text-sm font-medium">Todo dia {contractViewerDetails.diaRepasse}</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Início</p>
+                                <p className="text-sm font-medium">
+                                    {contractViewerDetails.dataInicio
+                                        ? format(new Date(contractViewerDetails.dataInicio), "dd/MM/yyyy", { locale: ptBR })
+                                        : '—'}
+                                </p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Fim</p>
+                                <p className="text-sm font-medium">
+                                    {contractViewerDetails.dataFim
+                                        ? format(new Date(contractViewerDetails.dataFim), "dd/MM/yyyy", { locale: ptBR })
+                                        : contractViewerDetails.mesesDuracao
+                                            ? `${contractViewerDetails.mesesDuracao} meses`
+                                            : '—'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Multas e Juros */}
+                        {(contractViewerDetails.multaAtraso || contractViewerDetails.jurosMora) && (
+                            <div className="grid grid-cols-2 gap-3">
+                                {contractViewerDetails.multaAtraso != null && (
+                                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30">
+                                        <p className="text-[10px] uppercase tracking-wider text-red-600 dark:text-red-400 font-semibold mb-1">Multa Atraso</p>
+                                        <p className="text-sm font-bold text-red-700 dark:text-red-300">{contractViewerDetails.multaAtraso}%</p>
+                                    </div>
+                                )}
+                                {contractViewerDetails.jurosMora != null && (
+                                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30">
+                                        <p className="text-[10px] uppercase tracking-wider text-red-600 dark:text-red-400 font-semibold mb-1">Juros Mora (diário)</p>
+                                        <p className="text-sm font-bold text-red-700 dark:text-red-300">{contractViewerDetails.jurosMora}%</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Observações */}
+                        {contractViewerDetails.obs && (
+                            <div className="p-3 rounded-lg bg-muted/30 border">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Observações</p>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{contractViewerDetails.obs}</p>
+                            </div>
+                        )}
+
+                        {/* Status Badge */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Status do contrato:</span>
+                            <Badge
+                                variant="outline"
+                                className={`
+                                    ${contractViewerDetails.status === 'ATIVO' ? 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20' : ''}
+                                    ${contractViewerDetails.status === 'ENCERRADO' ? 'border-slate-500 text-slate-600 bg-slate-50 dark:bg-slate-900/20' : ''}
+                                    ${contractViewerDetails.status === 'CANCELADO' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-900/20' : ''}
+                                `}
+                            >
+                                {contractViewerDetails.status}
+                            </Badge>
+                        </div>
+
+                        {/* PDF Viewer */}
+                        {contractViewerUrl ? (
+                            <div className="rounded-lg overflow-hidden border bg-white dark:bg-slate-900">
+                                <div className="flex items-center justify-between p-2 bg-muted/50 border-b">
+                                    <span className="text-xs font-medium text-muted-foreground">📄 Documento do Contrato</span>
+                                    <a
+                                        href={contractViewerUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                                            Abrir em nova aba
+                                        </Button>
+                                    </a>
+                                </div>
+                                <iframe
+                                    src={contractViewerUrl}
+                                    className="w-full border-0"
+                                    style={{ height: '500px' }}
+                                    title="Contrato PDF"
+                                />
+                            </div>
+                        ) : (
+                            <div className="p-6 text-center text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
+                                <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                                <p className="text-sm font-medium">Nenhum arquivo de contrato anexado</p>
+                                <p className="text-xs mt-1">Você pode anexar o PDF do contrato na aba Contratos.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 }

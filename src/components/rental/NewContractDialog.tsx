@@ -485,11 +485,11 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                                         <Select value={dueDay} onValueChange={(val) => {
                                             setDueDay(val);
                                             const next = parseInt(val) + 5;
-                                            setPayoutDay(next <= 30 ? next.toString() : "1");
+                                            setPayoutDay(next <= 31 ? next.toString() : "1");
                                         }}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                {[5, 10, 15, 20, 25, 30].map(d => (
+                                            <SelectContent className="max-h-60">
+                                                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                                                     <SelectItem key={d} value={d.toString()}>{d}</SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -499,8 +499,8 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                                         <Label>Dia Repasse</Label>
                                         <Select value={payoutDay} onValueChange={setPayoutDay}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                {[1, 5, 10, 15, 20, 25, 28].map(d => (
+                                            <SelectContent className="max-h-60">
+                                                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                                                     <SelectItem key={d} value={d.toString()}>{d}</SelectItem>
                                                 ))}
                                             </SelectContent>
