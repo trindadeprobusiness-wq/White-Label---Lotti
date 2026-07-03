@@ -24,6 +24,8 @@ const Financeiro = lazy(() => import("@/pages/Financeiro"));
 const Configuracoes = lazy(() => import("@/pages/Configuracoes"));
 const RentalManagement = lazy(() => import("@/pages/RentalManagement"));
 const Assistente = lazy(() => import("@/pages/Assistente"));
+const FachadasInteligentes = lazy(() => import("@/pages/FachadasInteligentes"));
+const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -65,7 +67,11 @@ const App = () => (
             <Route path="/configuracoes" element={<Configuracoes />} />
             <Route path="/alugueis" element={<RentalManagement />} />
             <Route path="/assistente" element={<Assistente />} />
+            <Route path="/fachadas" element={<FachadasInteligentes />} />
           </Route>
+
+          {/* Public route — QR Code landing page (no auth required) */}
+          <Route path="/p/:fachadaId" element={<FachadaPublica />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
