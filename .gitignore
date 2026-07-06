@@ -42,3 +42,6 @@ scripts/automation/.venv/
 
 # Artefatos da Lovable
 .lovable/
+
+# Artefatos incrementais do TypeScript
+*.tsbuildinfo
