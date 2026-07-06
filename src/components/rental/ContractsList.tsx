@@ -8,10 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calculator, User as UserIcon, Building2, FileText, CalendarDays, ArrowUpRight, ArrowDownLeft, MoreHorizontal, Search, DollarSign, PowerOff } from "lucide-react";
+import { Calculator, User as UserIcon, Building2, FileText, CalendarDays, ArrowUpRight, ArrowDownLeft, MoreHorizontal, Search, DollarSign, PowerOff, Plus, PenLine, Sparkles, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NewContractDialog } from "./NewContractDialog";
+import { AutoContractDialog } from "./AutoContractDialog";
 import { parseContratoContent } from "@/types/rental";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -21,6 +22,7 @@ export function ContractsList() {
     const queryClient = useQueryClient(); // Ensure this hook is used or imported if checking logic
     const [isCalcOpen, setIsCalcOpen] = useState(false);
     const [isNewContractOpen, setIsNewContractOpen] = useState(false);
+    const [isAutoContractOpen, setIsAutoContractOpen] = useState(false);
     const [selectedContract, setSelectedContract] = useState<any>(null);
     const [contractToTerminate, setContractToTerminate] = useState<any>(null);
     const [contractToFinish, setContractToFinish] = useState<any>(null);
@@ -161,9 +163,29 @@ export function ContractsList() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <Button onClick={() => setIsNewContractOpen(true)} size="sm" className="h-9 shadow-sm">
-                                <UserIcon className="mr-2 h-4 w-4" /> Novo Contrato
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button size="sm" className="h-9 shadow-sm">
+                                        <Plus className="mr-2 h-4 w-4" /> Novo Contrato <ChevronDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-64">
+                                    <DropdownMenuItem onClick={() => setIsNewContractOpen(true)} className="cursor-pointer">
+                                        <PenLine className="mr-2 h-4 w-4" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">Adicionar Manualmente</span>
+                                            <span className="text-xs text-muted-foreground">Preencha os dados do contrato</span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setIsAutoContractOpen(true)} className="cursor-pointer">
+                                        <Sparkles className="mr-2 h-4 w-4 text-primary" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">Automático com IA</span>
+                                            <span className="text-xs text-muted-foreground">Envie o contrato e a IA cria tudo</span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     </div>
                 </CardHeader>
@@ -374,6 +396,11 @@ export function ContractsList() {
                     if (!open) setSelectedContract(null);
                 }}
                 contractToEdit={selectedContract}
+            />
+
+            <AutoContractDialog
+                open={isAutoContractOpen}
+                onOpenChange={setIsAutoContractOpen}
             />
 
             <Dialog open={isCalcOpen} onOpenChange={setIsCalcOpen}>
