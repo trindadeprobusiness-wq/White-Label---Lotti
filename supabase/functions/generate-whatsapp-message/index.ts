@@ -12,10 +12,10 @@ serve(async (req) => {
 
     try {
         const { clientName, messageType, details, tone } = await req.json()
-        const GROK_API_KEY = Deno.env.get('GROK_API_KEY')
+        const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
-        if (!GROK_API_KEY) {
-            throw new Error('GROK_API_KEY not configured')
+        if (!GEMINI_API_KEY) {
+            throw new Error('GEMINI_API_KEY not configured')
         }
 
         const systemPrompt = `Você é um assistente profissional de corretor de imóveis. Escreva mensagens curtas e claras para WhatsApp em português brasileiro.
@@ -34,14 +34,14 @@ Contexto:
 - Tom: ${tone === 'friendly' ? 'Amigável' : tone === 'formal' ? 'Profissional' : 'Incisivo'}
 - Detalhes: ${JSON.stringify(details)}`
 
-        const response = await fetch("https://api.x.ai/v1/chat/completions", {
+        const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${GROK_API_KEY}`,
+                "Authorization": `Bearer ${GEMINI_API_KEY}`,
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "grok-4.20-reasoning",
+                model: "gemini-2.5-flash",
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: userPrompt }
@@ -63,7 +63,7 @@ Contexto:
                 )
             }
             const errorText = await response.text()
-            console.error("xAI Grok error:", response.status, errorText)
+            console.error("Gemini API error:", response.status, errorText)
             throw new Error("Erro ao gerar mensagem com IA")
         }
 

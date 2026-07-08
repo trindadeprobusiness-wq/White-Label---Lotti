@@ -90,9 +90,9 @@ serve(async (req) => {
       );
     }
 
-    const GROK_API_KEY = Deno.env.get("GROK_API_KEY");
-    if (!GROK_API_KEY) {
-      throw new Error("GROK_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     const body: ContratoRequest = await req.json();
@@ -222,17 +222,17 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
 14. FECHO com local e data por extenso
 15. ESPAÇOS PARA ASSINATURAS com linhas e identificação`;
 
-    console.log("Calling xAI Grok...");
+    console.log("Calling Gemini...");
     const startTime = Date.now();
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GROK_API_KEY}`,
+        Authorization: `Bearer ${GEMINI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-4.20-reasoning",
+        model: "gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -247,7 +247,7 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("xAI Grok error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -284,7 +284,7 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
     return new Response(
       JSON.stringify({
         contrato: contratoGerado,
-        modelo_ia: "grok-4.20-reasoning",
+        modelo_ia: "gemini-2.5-flash",
         tempo_geracao_ms: tempoGeracaoMs,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

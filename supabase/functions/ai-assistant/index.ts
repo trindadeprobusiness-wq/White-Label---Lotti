@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GROK_API_URL = "https://api.x.ai/v1/chat/completions";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const MAX_MESSAGES_PER_MINUTE = 30;
 const MAX_INPUT_LENGTH = 4000;
 const MAX_CONTEXT_MESSAGES = 20;
@@ -557,8 +557,8 @@ serve(async (req) => {
       }
     }
 
-    const GROK_API_KEY = Deno.env.get("GROK_API_KEY");
-    if (!GROK_API_KEY) throw { status: 500, message: "GROK_API_KEY not configured" };
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw { status: 500, message: "GEMINI_API_KEY not configured" };
 
     // --- Streaming response with tool loop ---
     const encoder = new TextEncoder();
@@ -569,30 +569,30 @@ serve(async (req) => {
           let currentMessages = [...messages];
 
           while (continueLoop) {
-            const grokResponse = await fetch(GROK_API_URL, {
+            const aiResponse = await fetch(GEMINI_API_URL, {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${GROK_API_KEY}`,
+                Authorization: `Bearer ${GEMINI_API_KEY}`,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "grok-4.20-reasoning",
+                model: "gemini-2.5-flash",
                 messages: currentMessages,
                 tools: TOOLS,
                 stream: true,
               }),
             });
 
-            if (!grokResponse.ok) {
-              const errorText = await grokResponse.text();
-              console.error("Grok API error:", grokResponse.status, errorText);
+            if (!aiResponse.ok) {
+              const errorText = await aiResponse.text();
+              console.error("Gemini API error:", aiResponse.status, errorText);
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify({ type: "error", error: "Erro ao comunicar com IA" })}\n\n`),
               );
               break;
             }
 
-            const reader = grokResponse.body!.getReader();
+            const reader = aiResponse.body!.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
             let fullContent = "";
@@ -626,7 +626,10 @@ serve(async (req) => {
                   if (delta?.tool_calls) {
                     hasToolCalls = true;
                     for (const tc of delta.tool_calls) {
-                      const idx = tc.index ?? 0;
+                      // OpenAI/xAI fragmentam a chamada em chunks com 'index'; o endpoint
+                      // OpenAI-compat do Gemini envia cada chamada completa e sem 'index' —
+                      // nesse caso cada entrada é uma chamada nova.
+                      const idx = typeof tc.index === "number" ? tc.index : toolCalls.length;
                       if (!toolCalls[idx]) {
                         toolCalls[idx] = { id: tc.id || "", type: "function", function: { name: "", arguments: "" } };
                       }
