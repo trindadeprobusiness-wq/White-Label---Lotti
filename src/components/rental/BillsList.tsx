@@ -200,6 +200,7 @@ export function BillsList() {
             setContractViewerTitle(contract.imoveis?.titulo || 'Contrato');
             setContractViewerDetails({
                 id: contract.id,
+                corretorId: contract.corretor_id,
                 proprietario: contract.imoveis?.proprietario_nome || '—',
                 inquilino: contract.clientes?.nome || '—',
                 endereco: contract.imoveis?.endereco || '—',
@@ -241,7 +242,7 @@ export function BillsList() {
 
     const handleContractUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file || !contractViewerDetails?.id) return;
+        if (!file || !contractViewerDetails?.id || !contractViewerDetails?.corretorId) return;
 
         setIsUploadingContract(true);
         const toastId = toast.loading("Fazendo upload do contrato...");
@@ -249,7 +250,8 @@ export function BillsList() {
         try {
             const fileExt = file.name.split('.').pop();
             const fileName = `${contractViewerDetails.id}_${Date.now()}.${fileExt}`;
-            const filePath = `contratos_aluguel/${fileName}`;
+            // A policy do bucket 'documentos' exige que a primeira pasta seja o corretor_id
+            const filePath = `${contractViewerDetails.corretorId}/contratos_aluguel/${fileName}`;
 
             // Upload the file
             const { error: uploadError } = await supabase.storage

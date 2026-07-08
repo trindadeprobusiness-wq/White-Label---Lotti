@@ -48,3 +48,6 @@ scripts/automation/.venv/
 
 # Segredos locais (nunca commitar)
 segredos.local.env
+
+# Artefatos temporários do Supabase CLI
+supabase/.temp/
