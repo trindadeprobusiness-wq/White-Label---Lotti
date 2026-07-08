@@ -376,6 +376,12 @@ BEGIN
 END;
 $function$;
 
+-- Fecha o EXECUTE público herdado de 20260122085228 (achado da security
+-- review): a função é SECURITY DEFINER e gera faturas de TODOS os tenants —
+-- só o cron (postgres) e o service_role podem chamá-la.
+REVOKE EXECUTE ON FUNCTION public.generate_monthly_rent_bills(date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.generate_monthly_rent_bills(date) TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- 7. pg_cron + pg_net e agendamentos da Fase 1
 -- ---------------------------------------------------------------------------
