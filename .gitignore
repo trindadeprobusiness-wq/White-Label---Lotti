@@ -45,3 +45,6 @@ scripts/automation/.venv/
 
 # Artefatos incrementais do TypeScript
 *.tsbuildinfo
+
+# Segredos locais (nunca commitar)
+segredos.local.env

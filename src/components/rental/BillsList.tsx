@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ export function BillsList() {
     const [contractViewerTitle, setContractViewerTitle] = useState("");
     const [contractViewerDetails, setContractViewerDetails] = useState<any>(null);
     const [loadingContractId, setLoadingContractId] = useState<string | null>(null);
+    const [isUploadingContract, setIsUploadingContract] = useState(false);
+    const contractFileInputRef = useRef<HTMLInputElement>(null);
 
     const referenceMonthStr = format(referenceDate, 'MM/yyyy');
     const refYear = referenceDate.getFullYear();
@@ -197,6 +199,7 @@ export function BillsList() {
 
             setContractViewerTitle(contract.imoveis?.titulo || 'Contrato');
             setContractViewerDetails({
+                id: contract.id,
                 proprietario: contract.imoveis?.proprietario_nome || '—',
                 inquilino: contract.clientes?.nome || '—',
                 endereco: contract.imoveis?.endereco || '—',
@@ -233,6 +236,55 @@ export function BillsList() {
             setContractViewerUrl(null);
         } finally {
             setLoadingContractId(null);
+        }
+    };
+
+    const handleContractUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !contractViewerDetails?.id) return;
+
+        setIsUploadingContract(true);
+        const toastId = toast.loading("Fazendo upload do contrato...");
+
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${contractViewerDetails.id}_${Date.now()}.${fileExt}`;
+            const filePath = `contratos_aluguel/${fileName}`;
+
+            // Upload the file
+            const { error: uploadError } = await supabase.storage
+                .from('documentos')
+                .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+            if (uploadError) throw uploadError;
+
+            // Update contract record
+            const { error: updateError } = await supabase
+                .from('contratos')
+                .update({ arquivo_url: filePath })
+                .eq('id', contractViewerDetails.id);
+
+            if (updateError) throw updateError;
+
+            // Fetch the signed URL immediately to show in the viewer
+            const { data: urlData } = await supabase.storage
+                .from('documentos')
+                .createSignedUrl(filePath, 60 * 60);
+
+            if (urlData?.signedUrl) {
+                setContractViewerUrl(urlData.signedUrl);
+            }
+
+            toast.success("Contrato anexado com sucesso!", { id: toastId });
+            queryClient.invalidateQueries({ queryKey: ["rental-contracts"] });
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-monthly", referenceMonthStr] });
+
+        } catch (error: any) {
+            console.error("Erro no upload:", error);
+            toast.error("Erro ao anexar contrato: " + error.message, { id: toastId });
+        } finally {
+            setIsUploadingContract(false);
+            if (event.target) event.target.value = ''; // reset input
         }
     };
 
@@ -567,31 +619,31 @@ export function BillsList() {
             </Card>
         </div>
 
-        {/* Contract Viewer Side Panel */}
+        {/* Contract Viewer Modal (Centered) */}
         {contractViewerDetails && (
-            <div className="fixed inset-0 z-50 flex justify-end" onClick={() => { setContractViewerDetails(null); setContractViewerUrl(null); }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setContractViewerDetails(null); setContractViewerUrl(null); }}>
                 {/* Backdrop */}
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-                {/* Panel */}
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                {/* Modal */}
                 <div
-                    className="relative w-full max-w-2xl bg-background shadow-2xl border-l animate-in slide-in-from-right-5 duration-300 flex flex-col"
+                    className="relative w-full max-w-3xl max-h-[90vh] bg-background shadow-2xl rounded-2xl border animate-in zoom-in-95 fade-in duration-200 flex flex-col overflow-hidden"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+                    <div className="flex items-center justify-between p-5 border-b bg-muted/30">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                            <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
                                 <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
-                                <h3 className="font-semibold text-base">{contractViewerTitle}</h3>
+                                <h3 className="font-semibold text-lg">{contractViewerTitle}</h3>
                                 <p className="text-xs text-muted-foreground">Detalhes do contrato de locação</p>
                             </div>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-full"
+                            className="h-9 w-9 rounded-full hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => { setContractViewerDetails(null); setContractViewerUrl(null); }}
                         >
                             <X className="h-4 w-4" />
@@ -599,7 +651,7 @@ export function BillsList() {
                     </div>
 
                     {/* Contract Info Cards */}
-                    <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                    <div className="p-5 space-y-4 overflow-y-auto flex-1">
                         {/* Partes envolvidas */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="p-3 rounded-lg bg-muted/30 border">
@@ -641,14 +693,14 @@ export function BillsList() {
                         </div>
 
                         {/* Datas e detalhes */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-4 gap-3">
                             <div className="p-3 rounded-lg bg-muted/30 border">
-                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Dia Vencimento</p>
-                                <p className="text-sm font-medium">Todo dia {contractViewerDetails.diaVencimento}</p>
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Vencimento</p>
+                                <p className="text-sm font-medium">Dia {contractViewerDetails.diaVencimento}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-muted/30 border">
-                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Dia Repasse</p>
-                                <p className="text-sm font-medium">Todo dia {contractViewerDetails.diaRepasse}</p>
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Repasse</p>
+                                <p className="text-sm font-medium">Dia {contractViewerDetails.diaRepasse}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-muted/30 border">
                                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Início</p>
@@ -734,10 +786,34 @@ export function BillsList() {
                                 />
                             </div>
                         ) : (
-                            <div className="p-6 text-center text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
-                                <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                                <p className="text-sm font-medium">Nenhum arquivo de contrato anexado</p>
-                                <p className="text-xs mt-1">Você pode anexar o PDF do contrato na aba Contratos.</p>
+                            <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed flex flex-col items-center justify-center">
+                                <FileText className="h-12 w-12 mb-3 opacity-30 text-blue-600" />
+                                <h4 className="text-sm font-semibold text-foreground mb-1">Nenhum arquivo de contrato anexado</h4>
+                                <p className="text-xs mb-5 max-w-sm text-balance">
+                                    Você pode fazer o upload do PDF do contrato assinado agora mesmo para tê-lo sempre à mão na hora de conferir as faturas.
+                                </p>
+
+                                <input
+                                    type="file"
+                                    accept=".pdf"
+                                    className="hidden"
+                                    ref={contractFileInputRef}
+                                    onChange={handleContractUpload}
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-2 h-9 border-blue-200 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                                    onClick={() => contractFileInputRef.current?.click()}
+                                    disabled={isUploadingContract}
+                                >
+                                    {isUploadingContract ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <UploadCloud className="h-4 w-4" />
+                                    )}
+                                    {isUploadingContract ? "Enviando arquivo..." : "Anexar PDF do Contrato"}
+                                </Button>
                             </div>
                         )}
                     </div>

@@ -6,6 +6,21 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Comparação em tempo constante via digests SHA-256 (evita timing attack no token)
+async function tokenValido(fornecido: string | null, esperado: string): Promise<boolean> {
+    if (!fornecido) return false;
+    const enc = new TextEncoder();
+    const [a, b] = await Promise.all([
+        crypto.subtle.digest('SHA-256', enc.encode(fornecido)),
+        crypto.subtle.digest('SHA-256', enc.encode(esperado)),
+    ]);
+    const va = new Uint8Array(a);
+    const vb = new Uint8Array(b);
+    let diff = 0;
+    for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+    return diff === 0;
+}
+
 serve(async (req) => {
     // CORS Handling
     if (req.method === 'OPTIONS') {
@@ -14,7 +29,9 @@ serve(async (req) => {
 
     try {
         // 1. Validate Token (Immediate 401 if invalid)
-        const requestToken = req.headers.get('x-hook-token');
+        // O Asaas envia o token configurado no painel no header 'asaas-access-token';
+        // 'x-hook-token' fica como fallback para testes manuais.
+        const requestToken = req.headers.get('asaas-access-token') ?? req.headers.get('x-hook-token');
         const secretToken = Deno.env.get('ASAAS_WEBHOOK_TOKEN');
         if (!secretToken) {
             console.error("ASAAS_WEBHOOK_TOKEN não configurado nas variáveis de ambiente");
@@ -24,7 +41,7 @@ serve(async (req) => {
             });
         }
 
-        if (requestToken !== secretToken) {
+        if (!(await tokenValido(requestToken, secretToken))) {
             console.error("Invalid Webhook Token");
             return new Response(JSON.stringify({ error: "Unauthorized" }), {
                 status: 401,
@@ -67,6 +84,10 @@ serve(async (req) => {
                 console.warn(`Fatura not found via external_id ${payment.id}. Trying fallback via ID mapping?`);
                 // Fallback logic if needed (e.g. search by value + date) could go here
                 // For now, just return success to Asaas to avoid retries on non-mapped items
+            } else if (fatura.status === 'PAGO') {
+                // Idempotência: o Asaas envia CONFIRMED e depois RECEIVED para o mesmo
+                // pagamento (e reentrega em caso de timeout) — processar uma única vez.
+                console.log(`Fatura ${fatura.id} já está PAGO — evento ${event} ignorado`);
             } else {
                 // Update Fatura to PAID
                 await supabase.from('faturas_aluguel').update({

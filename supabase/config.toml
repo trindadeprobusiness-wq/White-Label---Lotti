@@ -11,3 +11,8 @@ verify_jwt = false
 
 [functions.lead-capture]
 verify_jwt = false
+
+# O Asaas não envia Authorization: Bearer — a autenticação é feita pelo
+# token do webhook (header asaas-access-token) dentro da própria função.
+[functions.asaas-webhook]
+verify_jwt = false
