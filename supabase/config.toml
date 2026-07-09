@@ -16,3 +16,8 @@ verify_jwt = false
 # token do webhook (header asaas-access-token) dentro da própria função.
 [functions.asaas-webhook]
 verify_jwt = false
+
+# asaas-sync valida a sessão do corretor in-code (auth.getUser); mantém o
+# padrão das demais funções voltadas ao usuário.
+[functions.asaas-sync]
+verify_jwt = false

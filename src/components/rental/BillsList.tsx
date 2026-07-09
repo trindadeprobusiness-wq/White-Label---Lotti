@@ -87,7 +87,7 @@ export function BillsList() {
             // If bill exists in DB, use its data. Otherwise, project a virtual bill.
             const status = existingBill ? existingBill.status : (isLate ? 'ATRASADO' : 'PENDENTE');
             const valor = existingBill ? existingBill.valor_total : contract.valor;
-            const boletoUrl = existingBill ? (existingBill as any).boleto_url : null;
+            const boletoUrl = existingBill ? ((existingBill as any).boleto_url_asaas || (existingBill as any).boleto_url) : null;
             const id = existingBill ? existingBill.id : `virtual_${contract.id}`;
 
             return {
@@ -98,6 +98,8 @@ export function BillsList() {
                 status,
                 valor_total: valor,
                 boletoUrl,
+                externalId: existingBill ? (existingBill as any).external_id : null,
+                pixText: existingBill ? (existingBill as any).pix_qrcode_text : null,
                 mesReferencia: referenceMonthStr,
             };
         }).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
@@ -137,7 +139,9 @@ export function BillsList() {
                             dueDate,
                             status: 'ATRASADO',
                             valor_total: dbBill ? dbBill.valor_total : contract.valor,
-                            boletoUrl: dbBill ? dbBill.boleto_url : null,
+                            boletoUrl: dbBill ? (dbBill.boleto_url_asaas || dbBill.boleto_url) : null,
+                            externalId: dbBill ? dbBill.external_id : null,
+                            pixText: dbBill ? dbBill.pix_qrcode_text : null,
                             mesReferencia: mesRef,
                         });
                     }
@@ -290,84 +294,50 @@ export function BillsList() {
         }
     };
 
+    const [emittingId, setEmittingId] = useState<string | null>(null);
+
+    // Garante que a fatura exista no banco (persiste virtuais como PENDENTE) e
+    // devolve o id real. A transição para PAGO é feita à parte para o trigger
+    // handle_bill_payment() rodar uma única vez.
+    const ensureFatura = async (bill: any): Promise<string> => {
+        if (!bill.isVirtual) return bill.id;
+        const { data, error } = await (supabase as any)
+            .from('faturas_aluguel')
+            .insert({
+                contrato_id: bill.contract.id,
+                cliente_id: bill.contract.cliente_id,
+                imovel_id: bill.contract.imovel_id,
+                corretor_id: bill.contract.corretor_id,
+                valor_aluguel: bill.contract.valor,
+                status: 'PENDENTE',
+                data_vencimento: bill.dueDate.toISOString().split('T')[0],
+                mes_referencia: bill.mesReferencia || referenceMonthStr,
+                gerada_por: 'manual',
+            })
+            .select('id')
+            .single();
+        if (error) throw error;
+        return data.id;
+    };
+
     // Actions
     const handleConfirmPayment = async (bill: any) => {
         if (!confirm("Confirmar o recebimento desta fatura?")) return;
 
         const loadingToast = toast.loading("Processando pagamento...");
         try {
-            let faturaId = bill.id;
-            const taxaAdmPercentual = bill.contract.taxa_administracao_percentual || 10;
-            const valorBase = bill.contract.valor || bill.valor_total; // comissão incide sobre o valor do aluguel
-            const valorTaxaAdm = (valorBase * taxaAdmPercentual) / 100;
-            const valorLiquido = bill.valor_total - valorTaxaAdm;
-
-            if (bill.isVirtual) {
-                // Fatura não existe no banco (virtual), vamos CRIAR e já marcar como PAGA.
-                const { data: newFatura, error } = await (supabase as any)
-                    .from('faturas_aluguel')
-                    .insert({
-                        contrato_id: bill.contract.id,
-                        cliente_id: bill.contract.cliente_id,
-                        imovel_id: bill.contract.imovel_id,
-                        corretor_id: bill.contract.corretor_id,
-                        valor_aluguel: bill.contract.valor, // Base value
-                        status: 'PAGO',                     // Paid right away
-                        data_vencimento: bill.dueDate.toISOString(),
-                        mes_referencia: bill.mesReferencia || referenceMonthStr,
-                        data_pagamento: new Date().toISOString(),
-                        valor_pago: bill.contract.valor
-                    })
-                    .select()
-                    .single();
-                if (error) throw error;
-                faturaId = newFatura.id;
-            } else {
-                // Fatura já existe no banco, apenas atualiza o status
-                const { error } = await (supabase as any)
-                    .from("faturas_aluguel")
-                    .update({
-                        status: 'PAGO',
-                        data_pagamento: new Date().toISOString(),
-                        valor_pago: bill.valor_total
-                    })
-                    .eq('id', bill.id);
-                if (error) throw error;
-            }
-
-            // 1. Lançamento Financeiro (Receita / Comissão Administrativa)
-            const { error: finError } = await supabase.from('lancamentos_financeiros').insert({
-                tipo: 'RECEITA',
-                categoria: 'COMISSAO_LOCACAO',
-                descricao: `Comissão Adm (${taxaAdmPercentual}%) - ${bill.contract.imoveis?.titulo || 'Imóvel'}`,
-                valor: valorTaxaAdm,
-                data: new Date().toISOString().split('T')[0],
-                corretor_id: bill.contract.corretor_id,
-                imovel_id: bill.contract.imovel_id,
-                contrato_id: bill.contract.id
-            });
-            if (finError) console.error("Erro ao gerar lançamento financeiro:", finError);
-
-            // 2. Repasse ao Proprietário
-            const diaRepasse = bill.contract.dia_repasse_proprietario || 15;
-            const dataRepasse = new Date(bill.dueDate);
-            dataRepasse.setDate(diaRepasse);
-            if (dataRepasse <= bill.dueDate) {
-                dataRepasse.setMonth(dataRepasse.getMonth() + 1);
-            }
-
-            const { error: repasseError } = await (supabase.from as any)('repasses_proprietario').insert({
-                fatura_origem_id: faturaId,
-                contrato_id: bill.contract.id,
-                corretor_id: bill.contract.corretor_id,
-                proprietario_nome: bill.contract.imoveis?.proprietario_nome || 'Não Informado',
-                data_prevista: dataRepasse.toISOString().split('T')[0],
-                valor_bruto_recebido: bill.valor_total,
-                valor_taxa_adm: valorTaxaAdm,
-                valor_liquido_repasse: valorLiquido,
-                status: 'AGENDADO'
-            });
-            if (repasseError) console.error("Erro ao gerar repasse:", repasseError);
+            const faturaId = await ensureFatura(bill);
+            // Apenas transiciona para PAGO. O trigger handle_bill_payment() cria o
+            // repasse ao proprietário e o lançamento de comissão (fonte única).
+            const { error } = await (supabase as any)
+                .from("faturas_aluguel")
+                .update({
+                    status: 'PAGO',
+                    data_pagamento: new Date().toISOString().split('T')[0],
+                    valor_pago: bill.valor_total,
+                })
+                .eq('id', faturaId);
+            if (error) throw error;
 
             toast.dismiss(loadingToast);
             toast.success("Pagamento confirmado com sucesso!");
@@ -376,6 +346,47 @@ export function BillsList() {
             console.error("Erro ao baixar fatura:", error);
             toast.dismiss(loadingToast);
             toast.error("Erro ao confirmar pagamento: " + error.message);
+        }
+    };
+
+    // Emite a cobrança no Asaas (boleto/PIX) via Edge Function asaas-sync.
+    const handleEmitCharge = async (bill: any) => {
+        setEmittingId(bill.id);
+        const loadingToast = toast.loading("Emitindo cobrança no Asaas...");
+        try {
+            const faturaId = await ensureFatura(bill);
+            const { data, error } = await supabase.functions.invoke('asaas-sync', {
+                body: { action: 'emitir_cobranca', fatura_id: faturaId },
+            });
+            if (error) {
+                // Erro HTTP da função traz o corpo em error.context
+                let msg = error.message;
+                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
+                throw new Error(msg);
+            }
+            if (data?.error) throw new Error(data.error);
+
+            toast.dismiss(loadingToast);
+            toast.success(
+                data?.already ? "Cobrança já estava emitida." : "Cobrança emitida! O inquilino já pode pagar por boleto ou PIX.",
+                data?.boleto_url ? { action: { label: "Abrir boleto", onClick: () => window.open(data.boleto_url, "_blank") } } : undefined,
+            );
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao emitir cobrança:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Erro ao emitir cobrança: " + error.message);
+        } finally {
+            setEmittingId(null);
+        }
+    };
+
+    const copyPix = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.success("PIX copia-e-cola copiado!");
+        } catch {
+            toast.error("Não foi possível copiar o PIX.");
         }
     };
 
@@ -580,6 +591,35 @@ export function BillsList() {
                                                             )}
                                                         </Button>
 
+                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && !bill.externalId && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                                onClick={() => handleEmitCharge(bill)}
+                                                                disabled={emittingId === bill.id}
+                                                                title="Emitir cobrança no Asaas (boleto/PIX ao inquilino)"
+                                                            >
+                                                                {emittingId === bill.id ? (
+                                                                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                                                ) : (
+                                                                    <ArrowUpRight className="h-4 w-4 mr-1.5" />
+                                                                )}
+                                                                Emitir cobrança
+                                                            </Button>
+                                                        )}
+
+                                                        {bill.pixText && (
+                                                            <Button
+                                                                variant="ghost" size="icon"
+                                                                className="h-8 w-8 rounded-full text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                                                title="Copiar PIX copia-e-cola"
+                                                                onClick={() => copyPix(bill.pixText)}
+                                                            >
+                                                                <Wallet className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+
                                                         {bill.status === 'PENDENTE' || bill.status === 'ATRASADO' ? (
                                                             <Button
                                                                 size="sm"
@@ -603,7 +643,7 @@ export function BillsList() {
 
                                                         {bill.boletoUrl && (
                                                             <a href={bill.boletoUrl} target="_blank" rel="noopener noreferrer">
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50">
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50" title="Abrir boleto/fatura">
                                                                     <FileText className="h-4 w-4" />
                                                                 </Button>
                                                             </a>
