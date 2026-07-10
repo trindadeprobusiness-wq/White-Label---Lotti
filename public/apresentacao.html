@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Oliver CRM — apresentação institucional para a capacitação empreendedora do Sebrae Goiás">
+<title>Oliver CRM — Apresentação Institucional</title>
+<style>
+  :root{
+    --ground:#FAFBFD; --panel:#EFF3FA; --card:#FFFFFF;
+    --ink:#182238; --muted:#5B6880; --line:#D8E0EC;
+    --brand:#2563EB; --brand-soft:#DCE7FB; --ok:#1A7F4E;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#0C1220; --panel:#141D32; --card:#101828;
+      --ink:#E8EEF9; --muted:#96A3BC; --line:#26314A;
+      --brand:#6D97FF; --brand-soft:#1C2A4D; --ok:#4CC38A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0C1220; --panel:#141D32; --card:#101828;
+    --ink:#E8EEF9; --muted:#96A3BC; --line:#26314A;
+    --brand:#6D97FF; --brand-soft:#1C2A4D; --ok:#4CC38A;
+  }
+  :root[data-theme="light"]{
+    --ground:#FAFBFD; --panel:#EFF3FA; --card:#FFFFFF;
+    --ink:#182238; --muted:#5B6880; --line:#D8E0EC;
+    --brand:#2563EB; --brand-soft:#DCE7FB; --ok:#1A7F4E;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:16.5px; line-height:1.65;
+  }
+  .wrap{max-width:76ch; margin:0 auto; padding:0 24px 96px}
+  a{color:var(--brand); text-decoration:none}
+  a:hover,a:focus-visible{text-decoration:underline}
+  a:focus-visible{outline:2px solid var(--brand); outline-offset:2px; border-radius:2px}
+
+  header.doc{padding:64px 0 36px; border-bottom:3px solid var(--brand)}
+  .eyebrow{font-size:12px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)}
+  h1{
+    font-family:Georgia,"Times New Roman",serif; font-weight:700;
+    font-size:clamp(38px,6vw,54px); line-height:1.08; margin:14px 0 6px; text-wrap:balance;
+  }
+  .tagline{font-family:Georgia,serif; font-style:italic; font-size:20px; color:var(--muted); margin:0 0 20px}
+  .meta{font-size:13.5px; color:var(--muted)}
+  .meta b{color:var(--ink); font-weight:600}
+
+  nav.toc{margin:36px 0 8px; padding:22px 24px; background:var(--panel); border:1px solid var(--line); border-radius:10px}
+  nav.toc .t{font-size:12px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:12px}
+  nav.toc ol{margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:6px 24px; font-size:14.5px}
+  nav.toc li{display:flex; gap:8px}
+  nav.toc .n{color:var(--muted); font-variant-numeric:tabular-nums; min-width:2ch; text-align:right}
+
+  section{margin-top:56px}
+  .sec-head{display:flex; align-items:baseline; gap:14px; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:20px}
+  .sec-head .num{
+    font-family:Georgia,serif; font-size:15px; color:var(--brand);
+    font-variant-numeric:tabular-nums; letter-spacing:.05em;
+  }
+  h2{font-family:Georgia,"Times New Roman",serif; font-size:27px; line-height:1.2; margin:0; text-wrap:balance}
+  h3{font-size:16px; margin:26px 0 8px}
+  p{margin:0 0 14px}
+  ul,ol.list{margin:0 0 14px; padding-left:22px}
+  li{margin-bottom:6px}
+  .lead{font-size:18.5px}
+  strong{font-weight:650}
+
+  .kv{margin:0 0 14px}
+  .kv dt{font-weight:650; margin-top:14px}
+  .kv dd{margin:2px 0 0}
+
+  .tablewrap{overflow-x:auto; margin:18px 0}
+  table{border-collapse:collapse; width:100%; font-size:15px}
+  th,td{border:1px solid var(--line); padding:10px 14px; text-align:left; vertical-align:top}
+  th{background:var(--panel); font-size:12.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  td:first-child{color:var(--muted)}
+  td:last-child{background:color-mix(in srgb, var(--brand-soft) 35%, transparent)}
+
+  .pitch{
+    background:var(--card); border:1px solid var(--line); border-left:4px solid var(--brand);
+    border-radius:0 10px 10px 0; padding:26px 30px; margin:18px 0;
+    font-family:Georgia,"Times New Roman",serif; font-size:17.5px; line-height:1.75;
+  }
+  .pitch p{margin-bottom:14px}
+  .pitch p:last-child{margin-bottom:0}
+  .pitch .cue{font-family:-apple-system,"Segoe UI",sans-serif; font-size:11.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:14px}
+
+  .tag{display:inline-block; font-size:11px; font-weight:650; letter-spacing:.1em; text-transform:uppercase;
+       padding:3px 9px; border-radius:99px; vertical-align:2px; margin-left:6px}
+  .tag.hoje{background:color-mix(in srgb, var(--ok) 14%, transparent); color:var(--ok)}
+  .tag.roadmap{background:var(--brand-soft); color:var(--brand)}
+
+  .onepager{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:30px 32px; margin-top:18px}
+  .onepager h3:first-child{margin-top:0}
+  .frase{
+    font-family:Georgia,serif; font-style:italic; font-size:19px; text-align:center;
+    border-top:1px solid var(--line); margin-top:22px; padding-top:18px;
+  }
+  footer{margin-top:72px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+  @media (prefers-reduced-motion:no-preference){
+    html{scroll-behavior:smooth}
+  }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header class="doc">
+  <div class="eyebrow">Documento Institucional · Capacitação Empreendedora Sebrae Goiás</div>
+  <h1>Oliver CRM</h1>
+  <p class="tagline">Negócios Inteligentes — gestão imobiliária com inteligência artificial</p>
+  <p class="meta"><b>Oliver Negócios Inteligentes</b> · Julho de 2026 · Elaborado a partir da análise integral do projeto: código, documentação técnica, roadmap e decisões registradas</p>
+</header>
+
+<nav class="toc" aria-label="Sumário">
+  <div class="t">Sumário</div>
+  <ol>
+    <li><span class="n">1</span><a href="#s1">Resumo Executivo</a></li>
+    <li><span class="n">2</span><a href="#s2">Principal Objetivo</a></li>
+    <li><span class="n">3</span><a href="#s3">Principal Finalidade</a></li>
+    <li><span class="n">4</span><a href="#s4">Problema do Mercado</a></li>
+    <li><span class="n">5</span><a href="#s5">Nossa Solução</a></li>
+    <li><span class="n">6</span><a href="#s6">Público-Alvo</a></li>
+    <li><span class="n">7</span><a href="#s7">Proposta de Valor</a></li>
+    <li><span class="n">8</span><a href="#s8">Diferenciais Competitivos</a></li>
+    <li><span class="n">9</span><a href="#s9">Modelo de Negócio</a></li>
+    <li><span class="n">10</span><a href="#s10">Pitch Institucional (2 min)</a></li>
+    <li><span class="n">11</span><a href="#s11">Pitch Curto (30 s)</a></li>
+    <li><span class="n">12</span><a href="#s12">Visão de Futuro</a></li>
+    <li><span class="n">13</span><a href="#s13">Resumo para a Equipe</a></li>
+  </ol>
+</nav>
+
+<section id="s1">
+  <div class="sec-head"><span class="num">1</span><h2>Resumo Executivo</h2></div>
+  <p class="lead">O <strong>Oliver CRM</strong> é uma plataforma SaaS de gestão imobiliária inteligente criada para o <strong>corretor de imóveis autônomo e a pequena imobiliária brasileira</strong>.</p>
+  <p>Em um único sistema, o corretor gerencia clientes e funil de vendas, imóveis, contratos, aluguéis, finanças, documentos jurídicos e captação de leads — com <strong>inteligência artificial embutida em cada etapa</strong>: contratos são gerados ou importados automaticamente por IA, fotos de imóveis são melhoradas por IA, placas físicas de "aluga-se/vende-se" viram canais digitais de captação com QR Code, e um assistente conversacional responde perguntas sobre os dados reais do negócio.</p>
+  <p>O propósito do Oliver é dar ao corretor individual o poder operacional de uma grande administradora: menos tempo em tarefas manuais, nenhum lead perdido e o financeiro do aluguel funcionando sozinho.</p>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="num">2</span><h2>Principal Objetivo do Projeto</h2></div>
+  <dl class="kv">
+    <dt>Missão</dt>
+    <dd>Automatizar a operação do corretor de imóveis brasileiro de ponta a ponta — da captação do lead ao repasse do aluguel ao proprietário — para que ele gaste seu tempo no que gera valor: relacionamento e fechamento de negócios.</dd>
+    <dt>Visão</dt>
+    <dd>Ser a plataforma de referência do corretor autônomo e da pequena imobiliária no Brasil, reconhecida por um tripé que nenhum concorrente do nicho entrega junto: <strong>contratos por IA, financeiro de aluguéis autônomo e inteligência de captação e inadimplência</strong>.</dd>
+    <dt>Impacto que queremos causar</dt>
+    <dd>Profissionalizar a base do mercado imobiliário: o corretor que hoje opera com caderno, planilha e WhatsApp pessoal passa a operar com o mesmo nível de organização, rastreabilidade e automação de uma grande administradora.</dd>
+    <dt>Resultado para o cliente</dt>
+    <dd>Mais negócios fechados por leads capturados e acompanhados; contratos prontos em minutos em vez de dias; aluguéis cobrados, baixados e repassados com trilha de auditoria completa; e visão financeira real do negócio em tempo real.</dd>
+  </dl>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="num">3</span><h2>Principal Finalidade</h2></div>
+  <p>O Oliver existe porque a gestão imobiliária de pequeno porte no Brasil ainda é <strong>artesanal</strong>. O projeto nasceu para transformar essa realidade em três frentes:</p>
+  <ol class="list">
+    <li><strong>Captação</strong> — a placa na fachada do imóvel, símbolo máximo do método tradicional, vira um canal digital mensurável: QR Code, página do imóvel, captura do lead e alerta imediato ao corretor.</li>
+    <li><strong>Burocracia</strong> — o contrato, gargalo jurídico e operacional, passa a ser gerado por IA em minutos ou importado de um PDF/foto com extração automática de todos os dados.</li>
+    <li><strong>Financeiro</strong> — a cobrança do aluguel, a baixa do pagamento e o cálculo do repasse ao proprietário deixam de depender de memória e planilha e passam a rodar de forma automática, auditável e à prova de erro de digitação.</li>
+  </ol>
+  <p>Queremos melhorar a vida das empresas do setor eliminando o retrabalho invisível que consome a semana do corretor e destrói margem sem que ele perceba.</p>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="num">4</span><h2>Problema que o Mercado Enfrenta</h2></div>
+  <h3>Captação que evapora</h3>
+  <p>A placa física gera interessados que ligam ou passam na frente do imóvel — mas não há registro, não há métrica e não há follow-up. Cada curioso que olhou e foi embora é um lead perdido para sempre, sem que o corretor sequer saiba que ele existiu.</p>
+  <h3>Gestão de relacionamento na memória</h3>
+  <p>Clientes acompanhados por caderno, planilha e conversas soltas de WhatsApp: follow-ups esquecidos, negociações que esfriam por falta de retorno, nenhuma visão de quanto dinheiro está parado em cada etapa da negociação.</p>
+  <h3>Burocracia que trava o fechamento</h3>
+  <p>Cada contrato é redigido manualmente ou adaptado de um modelo antigo — processo lento, sujeito a erro jurídico e que atrasa exatamente o momento mais sensível do negócio. Documentos de clientes e imóveis (certidões, procurações, matrículas) vencem sem ninguém perceber.</p>
+  <h3>Financeiro de aluguel manual e arriscado</h3>
+  <p>Emissão de cobrança, conferência de pagamento, cálculo de taxa de administração, repasse ao proprietário — tudo feito à mão, mês a mês. O resultado, documentado no próprio diagnóstico técnico do projeto, é conhecido: pagamentos sem baixa, repasses duplicados, inadimplência descoberta tarde demais e nenhuma trilha de auditoria quando o proprietário questiona um valor.</p>
+  <h3>Desperdício silencioso</h3>
+  <p>Horas semanais em tarefas repetitivas que não geram receita; oportunidades perdidas por falta de resposta rápida; prejuízo direto quando um repasse sai errado ou uma cobrança não é emitida.</p>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="num">5</span><h2>Nossa Solução</h2></div>
+  <p>O Oliver centraliza toda a operação em uma única plataforma, com automação e IA aplicadas onde o método tradicional sangra tempo e dinheiro.</p>
+  <h3>Gestão de clientes e funil de vendas <span class="tag hoje">Disponível</span></h3>
+  <p>Kanban visual com arrastar-e-soltar (Qualificação → Visita/Proposta → Documentação → Fechamento), valor em negociação somado por etapa, histórico de contatos e follow-ups agendados com alertas.</p>
+  <h3>Fachadas Inteligentes — captação <span class="tag hoje">Disponível</span></h3>
+  <p>O corretor gera em 3 passos uma placa/banner com QR Code (formatos prontos para impressão). Quem escaneia cai numa página profissional do imóvel, deixa nome e telefone, vira lead automaticamente no funil — com rastreamento de origem, deduplicação por telefone, alerta de "lead quente" e painel de métricas (escaneamentos, leads, taxa de conversão). Com o Modo Conversão ativo, o WhatsApp do corretor abre na hora com mensagem pronta.</p>
+  <h3>Contratos com IA em duas vias <span class="tag hoje">Disponível</span></h3>
+  <p><strong>Geração:</strong> a IA redige contratos completos de locação, venda e outras modalidades, com cláusulas numeradas e valores por extenso. <strong>Importação:</strong> o corretor fotografa ou sobe o PDF de um contrato existente e a IA extrai inquilino, proprietário, imóvel, valor, prazo e taxa de administração, criando tudo no sistema de uma vez.</p>
+  <h3>Aluguéis com financeiro autônomo <span class="tag hoje">Disponível</span></h3>
+  <p>Faturas mensais geradas automaticamente pelo sistema, baixa automática de pagamento via integração com o <strong>Asaas</strong> (instituição de pagamento), cálculo automático do repasse ao proprietário, proteção matemática contra repasse duplicado e <strong>trilha de auditoria imutável</strong> de toda operação financeira. A emissão automática de boleto/PIX na conta do inquilino está em desenvolvimento. <span class="tag roadmap">Roadmap</span></p>
+  <h3>Assistente de IA <span class="tag hoje">Disponível</span></h3>
+  <p>Chat que consulta os dados reais do CRM (clientes, imóveis, contratos, finanças, funil, alertas) e sugere ações concretas — criar cliente, mudar etapa do funil, agendar follow-up — sempre com confirmação do corretor.</p>
+  <h3>Módulos de apoio <span class="tag hoje">Disponível</span></h3>
+  <p>Financeiro com KPIs e gráficos; Jurídico com gestão de documentos e controle de vencimento; Mídias com banco de vídeos e melhoria de fotos por IA; vitrine pública de imóveis; mensagens de WhatsApp redigidas por IA; e infraestrutura de atendimento automatizado por WhatsApp em preparação. <span class="tag roadmap">Roadmap</span></p>
+  <p><strong>Por que é superior ao método tradicional?</strong> Porque cada informação entra uma única vez e alimenta tudo: o lead da placa já nasce no funil; o contrato importado já cria o inquilino, o imóvel e a primeira fatura; o pagamento confirmado já calcula o repasse e lança a comissão. Centralização, automação e rastreabilidade — em vez de retrabalho, memória e planilha.</p>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="num">6</span><h2>Público-Alvo</h2></div>
+  <p><strong>Cliente ideal:</strong> o <strong>corretor de imóveis autônomo</strong> (CRECI ativo, pessoa física) e a <strong>pequena imobiliária</strong> (CNPJ, equipe enxuta), no Brasil.</p>
+  <ul>
+    <li><strong>Perfil:</strong> profissional que acumula funções — capta, vende, aluga, administra e cobra — sem equipe de suporte administrativo.</li>
+    <li><strong>Segmento:</strong> intermediação e administração imobiliária (venda e locação residencial/comercial).</li>
+    <li><strong>Porte:</strong> individual a pequeno (sistema multi-inquilino, uma conta por corretor, cadastro self-service com CRECI).</li>
+    <li><strong>Necessidades:</strong> organização do funil, resposta rápida a leads, contratos sem gargalo jurídico, gestão de aluguéis sem planilha, visão financeira real.</li>
+    <li><strong>Dores principais:</strong> leads perdidos, follow-up esquecido, burocracia contratual, cobrança e repasse manuais, inadimplência descoberta tarde.</li>
+    <li><strong>Momento ideal de contratação:</strong> quando o corretor passa a administrar as primeiras locações, ou quando decide profissionalizar a captação além da indicação e da placa comum.</li>
+  </ul>
+</section>
+
+<section id="s7">
+  <div class="sec-head"><span class="num">7</span><h2>Proposta de Valor</h2></div>
+  <p class="lead"><strong>Entregamos ao corretor individual a capacidade operacional de uma grande administradora.</strong></p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Antes do Oliver</th><th>Depois do Oliver</th></tr></thead>
+      <tbody>
+        <tr><td>Placa na fachada gera curiosos invisíveis</td><td>Cada escaneamento vira métrica; cada interessado vira lead no funil com alerta imediato</td></tr>
+        <tr><td>Clientes no caderno e no WhatsApp; follow-up de memória</td><td>Funil visual com valor por etapa, histórico e follow-ups agendados</td></tr>
+        <tr><td>Contrato redigido à mão em dias</td><td>Contrato completo por IA em minutos — ou importado de um PDF com um clique</td></tr>
+        <tr><td>Cobrança, baixa e repasse na planilha</td><td>Fatura gerada sozinha, pagamento baixado sozinho, repasse calculado sozinho — com auditoria de cada centavo</td></tr>
+        <tr><td>"Quanto vou receber este mês?" é um chute</td><td>KPIs em tempo real: a receber, repasses, comissões, inadimplência</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A transformação, em uma frase: <strong>o corretor deixa de ser o operador manual do próprio negócio e passa a ser o gestor dele.</strong></p>
+</section>
+
+<section id="s8">
+  <div class="sec-head"><span class="num">8</span><h2>Diferenciais Competitivos</h2></div>
+  <ol class="list">
+    <li><strong>IA aplicada de verdade, não como enfeite</strong> — geração <em>e</em> importação de contratos, assistente com acesso aos dados reais, qualificação de leads, melhoria de fotos e redação de mensagens: cinco aplicações de IA já funcionais no produto.</li>
+    <li><strong>Fachadas Inteligentes</strong> — o único elo entre o mundo físico (a placa, ferramenta nº&nbsp;1 do corretor) e o CRM digital, com métrica de conversão por imóvel. Um custo tradicional vira canal de aquisição mensurável.</li>
+    <li><strong>Financeiro autônomo com auditoria imutável</strong> — integração com instituição de pagamento, baixa automática, proteção contra repasse duplicado por travas de banco de dados e trilha de auditoria em que cada cálculo é registrado e não pode ser alterado.</li>
+    <li><strong>O tripé que o nicho não tem</strong> — conforme a tese registrada no planejamento: <em>contrato por IA + financeiro autônomo + inteligência de inadimplência — nenhum concorrente no nicho de corretor autônomo/pequena imobiliária fecha esse tripé</em>.</li>
+    <li><strong>Tecnologia moderna e escalável</strong> — arquitetura em nuvem com isolamento de dados por corretor, IA Google Gemini, processamento financeiro orientado a eventos — projetada para escalar de dezenas a milhares de contratos.</li>
+    <li><strong>Experiência simples</strong> — cadastro self-service em minutos, interface em português, tema claro/escuro, uso confortável no celular.</li>
+    <li><strong>Segurança levada a sério desde cedo</strong> — isolamento total entre corretores, revisões de segurança recorrentes documentadas, integrações autenticadas e segredos fora do código.</li>
+  </ol>
+</section>
+
+<section id="s9">
+  <div class="sec-head"><span class="num">9</span><h2>Modelo de Negócio</h2></div>
+  <dl class="kv">
+    <dt>Como geramos valor</dt>
+    <dd>Economizamos as horas operacionais do corretor e protegemos sua receita: leads que não se perdem, repasses sem erro, inadimplência visível a tempo.</dd>
+    <dt>Como geramos receita</dt>
+    <dd>O modelo principal pretendido é a <strong>assinatura mensal (SaaS)</strong> por corretor/imobiliária — em fase final de definição e validação junto aos primeiros usuários. O roadmap prevê degraus de expansão: <strong>portal do proprietário</strong>, <strong>portal do inquilino</strong>, <strong>régua de cobrança multicanal</strong> e serviços financeiros integrados (split de pagamento e antecipação de recebíveis).</dd>
+    <dt>Como crescemos</dt>
+    <dd>Aquisição direta no nicho, com o próprio produto como vetor — cada Fachada Inteligente exposta na rua e cada página pública de imóvel carrega a presença da plataforma.</dd>
+    <dt>Como escalamos</dt>
+    <dd>Arquitetura multi-inquilino em nuvem sem custo marginal relevante por cliente; automações que fazem o mesmo corretor administrar cada vez mais contratos sem aumentar esforço.</dd>
+    <dt>Como retemos</dt>
+    <dd>O Oliver vira o sistema operacional do negócio do corretor — funil, contratos, financeiro e histórico em um só lugar. Ninguém volta para a planilha depois que o aluguel se cobra sozinho.</dd>
+  </dl>
+</section>
+
+<section id="s10">
+  <div class="sec-head"><span class="num">10</span><h2>Pitch Institucional</h2></div>
+  <div class="pitch">
+    <div class="cue">Roteiro de apresentação · aproximadamente 2 minutos</div>
+    <p>No Brasil, o mercado imobiliário é movido por corretores autônomos e pequenas imobiliárias — profissionais que captam, vendem, alugam, administram e cobram, tudo ao mesmo tempo, e quase sempre no caderno, na planilha e no WhatsApp.</p>
+    <p>O resultado? Leads que somem sem deixar rastro. Contratos que levam dias. Aluguéis cobrados de memória. Repasses errados. E um profissional talentoso preso em tarefas que não geram um real de comissão.</p>
+    <p>Nós criamos o <strong>Oliver</strong> — o CRM imobiliário inteligente que dá ao corretor individual o poder operacional de uma grande administradora.</p>
+    <p>Com o Oliver, a placa de "aluga-se" na fachada ganha um QR Code: quem escaneia vê o imóvel, deixa o contato e vira lead na hora, com alerta no celular do corretor. O funil de vendas é visual, com follow-ups que não se perdem. O contrato? A inteligência artificial redige em minutos — ou importa um PDF antigo e cadastra inquilino, imóvel e fatura com um clique. E o financeiro do aluguel roda sozinho: fatura gerada automaticamente, pagamento baixado na hora pela integração bancária, repasse ao proprietário calculado ao centavo — com trilha de auditoria imutável.</p>
+    <p>Tudo isso com um assistente de IA que conhece os dados reais do negócio e responde: "quanto tenho a receber este mês?", "quais clientes estão parados no funil?".</p>
+    <p>Nenhum concorrente do nosso nicho fecha esse tripé: contrato por inteligência artificial, financeiro autônomo e inteligência de captação. O Oliver já está em operação — e com um roadmap claro rumo ao aluguel 100% automático.</p>
+    <p>Somos a <strong>Oliver Negócios Inteligentes</strong>, e estamos profissionalizando a base do mercado imobiliário brasileiro — um corretor de cada vez.</p>
+  </div>
+</section>
+
+<section id="s11">
+  <div class="sec-head"><span class="num">11</span><h2>Pitch Curto</h2></div>
+  <div class="pitch">
+    <div class="cue">Networking · aproximadamente 30 segundos</div>
+    <p>O Oliver é o CRM que dá ao corretor de imóveis autônomo o poder de uma grande administradora. A placa da fachada vira captação digital com QR Code, a inteligência artificial redige o contrato em minutos e o aluguel se cobra sozinho — fatura, baixa de pagamento e repasse ao proprietário, tudo automático e auditável. Funil, contratos, financeiro e IA em um só lugar. <strong>Oliver: negócios inteligentes para quem faz o mercado imobiliário acontecer.</strong></p>
+  </div>
+</section>
+
+<section id="s12">
+  <div class="sec-head"><span class="num">12</span><h2>Nossa Visão de Futuro</h2></div>
+  <p><strong>Onde queremos chegar:</strong> ser a plataforma padrão do corretor autônomo e da pequena imobiliária no Brasil — o "sistema operacional" completo desse profissional.</p>
+  <h3>Próximos degraus (roadmap registrado no projeto)</h3>
+  <ul>
+    <li><strong>Aluguel 100% autônomo</strong> — emissão automática de boleto/PIX, repasse automático via PIX ao proprietário e régua de cobrança multicanal para inadimplência.</li>
+    <li><strong>Portais de transparência</strong> — portal do proprietário (prestação de contas, extratos) e portal do inquilino (2ª via, histórico), diferenciais que hoje só grandes administradoras oferecem.</li>
+    <li><strong>Atendimento por WhatsApp com IA</strong> — qualificação automática de leads 24/7, já em preparação na infraestrutura do projeto.</li>
+    <li><strong>Inteligência de negócio</strong> — score de risco de inadimplência, relatórios DRE por proprietário e por imóvel, projeção de fluxo de caixa.</li>
+  </ul>
+  <p><strong>Como queremos ser reconhecidos:</strong> como a empresa que provou que o pequeno do mercado imobiliário pode operar com tecnologia de ponta — simples de usar, honesta no preço e séria com o dinheiro e os dados dos clientes.</p>
+</section>
+
+<section id="s13">
+  <div class="sec-head"><span class="num">13</span><h2>Resumo para Compartilhar com a Equipe</h2></div>
+  <div class="onepager">
+    <h3>O que é</h3>
+    <p>Oliver CRM — plataforma SaaS de gestão imobiliária com inteligência artificial, da Oliver Negócios Inteligentes.</p>
+    <h3>Para quem</h3>
+    <p>Corretores de imóveis autônomos e pequenas imobiliárias do Brasil.</p>
+    <h3>O problema</h3>
+    <p>Esse profissional faz tudo sozinho — captação, vendas, contratos, aluguéis, cobrança — usando caderno, planilha e WhatsApp. Perde leads, perde tempo com burocracia e corre risco real de erro financeiro.</p>
+    <h3>A solução</h3>
+    <ul>
+      <li><strong>Funil de vendas</strong> visual com arrastar-e-soltar e follow-ups com alerta;</li>
+      <li><strong>Fachadas Inteligentes:</strong> placa com QR Code → página do imóvel → lead capturado, com métricas de conversão;</li>
+      <li><strong>Contratos por IA:</strong> gerados em minutos ou importados de PDF/foto;</li>
+      <li><strong>Aluguéis autônomos:</strong> faturas automáticas, baixa via integração Asaas, repasse calculado sozinho, auditoria imutável;</li>
+      <li><strong>Assistente de IA</strong> sobre os dados reais do negócio;</li>
+      <li>Apoio completo: financeiro, jurídico, mídias com IA, mensagens de WhatsApp.</li>
+    </ul>
+    <h3>Diferencial</h3>
+    <p>Nenhum concorrente do nicho reúne contrato por IA + financeiro autônomo + captação inteligente — sobre uma base técnica de gente grande.</p>
+    <h3>Modelo de negócio</h3>
+    <p>Assinatura mensal (em validação), com expansão por recursos premium.</p>
+    <h3>Status</h3>
+    <p>Produto em operação; núcleo financeiro automatizado em produção; roadmap ativo rumo ao aluguel 100% automático.</p>
+    <p class="frase">"O Oliver transforma o corretor que opera o próprio negócio no gestor dele."</p>
+  </div>
+</section>
+
+<footer>
+  Documento elaborado a partir da análise integral do projeto (código, documentação técnica, roadmap e decisões registradas). Funcionalidades citadas como disponíveis estão implementadas no produto; itens de futuro estão identificados como roadmap. · Oliver Negócios Inteligentes · Julho/2026
+</footer>
+</div>
+
+</body>
+</html>
