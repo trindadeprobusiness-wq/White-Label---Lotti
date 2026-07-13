@@ -1,10 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Download, Box, Home, Lock, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { DEFAULT_TEMPLATES, TIPO_NEGOCIO_LABELS, CTA_LABELS } from '@/types/fachada';
 import type { FachadaComImovel, TemplateConfig } from '@/types/fachada';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FachadaPreviewProps {
   fachada: FachadaComImovel | null;
@@ -30,6 +31,42 @@ function getTemplateConfig(templateId: string): TemplateConfig {
 
 export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // QR position from custom template config
+  const [customQrPosition, setCustomQrPosition] = useState<{ x: number; y: number } | null>(null);
+  const [customQrSize, setCustomQrSize] = useState<number | null>(null);
+
+  const isCustomTemplate = (fachada?.template_id || '').startsWith('http');
+
+  // Fetch custom template QR position when template is a URL
+  useEffect(() => {
+    if (!fachada || !isCustomTemplate) {
+      setCustomQrPosition(null);
+      setCustomQrSize(null);
+      return;
+    }
+
+    const fetchTemplateConfig = async () => {
+      try {
+        const { data } = await supabase
+          .from('fachada_templates')
+          .select('config')
+          .filter('config->>imagem_url', 'eq', fachada.template_id)
+          .limit(1)
+          .maybeSingle();
+
+        if (data?.config) {
+          const cfg = data.config as any;
+          if (cfg.qrPosition) setCustomQrPosition(cfg.qrPosition);
+          if (cfg.qrSize) setCustomQrSize(cfg.qrSize);
+        }
+      } catch {
+        // Silently ignore — will use default position
+      }
+    };
+
+    fetchTemplateConfig();
+  }, [fachada?.template_id, isCustomTemplate]);
 
   if (!fachada) return null;
 
@@ -76,29 +113,49 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
         <div ref={previewRef}>
           {fachada.template_id === 'oliver-premium' ? (
             <OliverPremiumLayout fachada={fachada} qrUrl={qrUrl} />
+          ) : isCustomTemplate ? (
+            /* ─── Custom Template: Arte + QR posicionado ─── */
+            <div
+              className="rounded-xl overflow-hidden shadow-2xl mx-auto relative"
+              style={{ maxWidth: 420 }}
+            >
+              <img
+                src={fachada.template_id}
+                alt="Fachada"
+                className="w-full object-contain"
+                style={{ display: 'block' }}
+              />
+              {/* QR Code real posicionado */}
+              <div
+                className="absolute z-20"
+                style={{
+                  left: `${customQrPosition?.x ?? 50}%`,
+                  top: `${customQrPosition?.y ?? 50}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: `${customQrSize || 20}%`,
+                }}
+              >
+                <div className="bg-white rounded-lg p-1.5 shadow-2xl aspect-square flex items-center justify-center">
+                  <QRCodeGenerator value={qrUrl} size={160} className="w-full h-full" />
+                </div>
+              </div>
+            </div>
           ) : (
+            /* ─── Template Padrão ─── */
             <div
               className="rounded-xl overflow-hidden shadow-2xl mx-auto relative"
               style={{
                 maxWidth: 420,
-                background: (fachada.template_id || '').startsWith('http')
-                  ? `url(${fachada.template_id}) center/cover no-repeat`
-                  : `linear-gradient(135deg, ${config.corFundo}, ${config.corPrimaria})`,
+                background: `linear-gradient(135deg, ${config.corFundo}, ${config.corPrimaria})`,
                 color: config.corTexto,
                 fontFamily: 'system-ui, -apple-system, sans-serif',
-                minHeight: (fachada.template_id || '').startsWith('http') ? '600px' : 'auto',
               }}
             >
-            {/* Opcional: overlay escuro para garantir leitura caso a imagem de fundo seja clara */}
-            {(fachada.template_id || '').startsWith('http') && (
-              <div className="absolute inset-0 bg-black/40 z-0"></div>
-            )}
-            
             <div className="relative z-10 h-full flex flex-col justify-between">
               {/* Header com tipo */}
               <div
                 className="px-6 py-4 text-center"
-                style={{ borderBottom: (fachada.template_id || '').startsWith('http') ? 'none' : `3px solid ${config.corSecundaria}30` }}
+                style={{ borderBottom: `3px solid ${config.corSecundaria}30` }}
               >
                 <span
                   className="text-xs font-bold uppercase tracking-[0.2em] px-4 py-1 rounded-full shadow-md"
@@ -162,30 +219,28 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
               </div>
 
               {/* CTA */}
-              {!(fachada.template_id || '').startsWith('http') && (
-                <div
-                  className="px-6 py-3 text-center"
-                  style={{
-                    background: config.corSecundaria,
-                    color: config.corPrimaria,
-                  }}
-                >
-                  <p className="text-sm font-bold">
-                    {CTA_LABELS[fachada.cta_principal]}
-                  </p>
-                </div>
-              )}
+              <div
+                className="px-6 py-3 text-center"
+                style={{
+                  background: config.corSecundaria,
+                  color: config.corPrimaria,
+                }}
+              >
+                <p className="text-sm font-bold">
+                  {CTA_LABELS[fachada.cta_principal]}
+                </p>
+              </div>
 
               {/* Footer — dados do corretor */}
               <div
-                className="px-6 py-3 text-center text-xs opacity-90 text-white font-medium"
-                style={{ borderTop: (fachada.template_id || '').startsWith('http') ? 'none' : `1px solid ${config.corTexto}20` }}
+                className="px-6 py-3 text-center text-xs opacity-90 font-medium"
+                style={{ borderTop: `1px solid ${config.corTexto}20` }}
               >
-                <p className="font-semibold text-sm drop-shadow-md">
+                <p className="font-semibold text-sm">
                   {fachada.corretor?.razao_social ?? fachada.corretor?.nome}
                 </p>
-                <p className="drop-shadow-md">{fachada.corretor?.telefone}</p>
-                <p className="drop-shadow-md">CRECI {fachada.corretor?.creci}</p>
+                <p>{fachada.corretor?.telefone}</p>
+                <p>CRECI {fachada.corretor?.creci}</p>
               </div>
             </div>
           </div>

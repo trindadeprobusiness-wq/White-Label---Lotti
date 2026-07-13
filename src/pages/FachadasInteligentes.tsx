@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { QrCodePositioner } from '@/components/fachadas/QrCodePositioner';
 import { Plus, QrCode, BarChart3, Users, LayoutTemplate, Upload, ImagePlus, Trash2, Eye, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,8 @@ interface CustomTemplate {
   id: string;
   nome: string;
   imagem_url: string;
+  qrPosition?: { x: number; y: number };
+  qrSize?: number;
   created_at: string;
 }
 
@@ -48,6 +51,8 @@ export default function FachadasInteligentes() {
   const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewCustomUrl, setPreviewCustomUrl] = useState<string | null>(null);
+  const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [qrSizePercent, setQrSizePercent] = useState(20);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload, uploading } = useFileUpload('imoveis-fotos');
 
@@ -75,6 +80,8 @@ export default function FachadasInteligentes() {
             id: t.id,
             nome: t.nome,
             imagem_url: t.config?.imagem_url || '',
+            qrPosition: t.config?.qrPosition || undefined,
+            qrSize: t.config?.qrSize || undefined,
             created_at: t.created_at,
           }))
         );
@@ -119,6 +126,8 @@ export default function FachadasInteligentes() {
               corFundo: '#000000',
               estilo: 'profissional',
               layout: 'vertical',
+              qrPosition: { x: qrPosition.x, y: qrPosition.y },
+              qrSize: qrSizePercent,
             },
           } as any);
         }
@@ -132,6 +141,8 @@ export default function FachadasInteligentes() {
           id: `local-${Date.now()}`,
           nome: templateNome.trim(),
           imagem_url: result.url,
+          qrPosition: { x: qrPosition.x, y: qrPosition.y },
+          qrSize: qrSizePercent,
           created_at: new Date().toISOString(),
         },
         ...prev,
@@ -156,6 +167,8 @@ export default function FachadasInteligentes() {
     setTemplateFile(null);
     if (templatePreviewUrl) URL.revokeObjectURL(templatePreviewUrl);
     setTemplatePreviewUrl(null);
+    setQrPosition({ x: 50, y: 50 });
+    setQrSizePercent(20);
   };
 
   const handleDeleteCustomTemplate = async (template: CustomTemplate) => {
@@ -387,6 +400,7 @@ export default function FachadasInteligentes() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={createFachada}
+        customTemplates={customTemplates}
       />
 
       {/* Dialog de preview */}
@@ -435,30 +449,25 @@ export default function FachadasInteligentes() {
               <Label>Arte / Imagem *</Label>
               <div className="mt-1.5">
                 {templatePreviewUrl ? (
-                  <div className="relative rounded-xl overflow-hidden border-2 border-primary/30 bg-black">
-                    <img
-                      src={templatePreviewUrl}
-                      alt="Preview"
-                      className="w-full max-h-80 object-contain mx-auto"
-                    />
-                    {/* QR Code position indicator */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="border-2 border-dashed border-white/50 rounded-xl p-4 flex flex-col items-center bg-black/30 backdrop-blur-sm">
-                        <QrCode className="h-10 w-10 text-white/70 mb-1" />
-                        <p className="text-[10px] text-white/70 font-medium">QR Code aqui</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setTemplateFile(null);
-                        URL.revokeObjectURL(templatePreviewUrl);
-                        setTemplatePreviewUrl(null);
-                      }}
-                      className="absolute top-2 right-2 p-1.5 bg-red-500/80 rounded-lg hover:bg-red-600 transition"
-                    >
-                      <Trash2 className="h-4 w-4 text-white" />
-                    </button>
-                  </div>
+                  <QrCodePositioner
+                    imageSrc={templatePreviewUrl}
+                    position={qrPosition}
+                    onPositionChange={setQrPosition}
+                    qrSizePercent={qrSizePercent}
+                    onSizeChange={setQrSizePercent}
+                    removeButton={
+                      <button
+                        onClick={() => {
+                          setTemplateFile(null);
+                          URL.revokeObjectURL(templatePreviewUrl);
+                          setTemplatePreviewUrl(null);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-red-500/80 rounded-lg hover:bg-red-600 transition z-50"
+                      >
+                        <Trash2 className="h-4 w-4 text-white" />
+                      </button>
+                    }
+                  />
                 ) : (
                   <button
                     onClick={() => fileInputRef.current?.click()}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, MessageCircle, Zap } from 'lucide-react';
+import { Building2, MessageCircle, Zap, ImagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,9 +27,18 @@ import {
 } from '@/types/fachada';
 import type { TipoNegocio, CTAPrincipal } from '@/types/fachada';
 
+interface CustomTemplateOption {
+  id: string;
+  nome: string;
+  imagem_url: string;
+  qrPosition?: { x: number; y: number };
+  qrSize?: number;
+}
+
 interface CriarFachadaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  customTemplates?: CustomTemplateOption[];
   onSubmit: (data: {
     imovel_id: string;
     tipo_negocio: TipoNegocio;
@@ -44,6 +53,7 @@ export function CriarFachadaDialog({
   open,
   onOpenChange,
   onSubmit,
+  customTemplates = [],
 }: CriarFachadaDialogProps) {
   const { imoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
@@ -203,7 +213,43 @@ export function CriarFachadaDialog({
           <div className="space-y-4">
             <Label>Escolha um Template</Label>
             <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
-              {/* Opção Customizada */}
+              {/* Meus Templates Personalizados */}
+              {customTemplates.map((ct) => {
+                const isSelected = templateId === ct.imagem_url;
+                return (
+                  <button
+                    key={ct.id}
+                    onClick={() => setTemplateId(ct.imagem_url)}
+                    className={`relative rounded-xl overflow-hidden text-center transition-all border-2 ${
+                      isSelected
+                        ? 'border-primary ring-2 ring-primary/20'
+                        : 'border-transparent hover:border-muted-foreground/20'
+                    }`}
+                  >
+                    <div className="h-20 bg-black">
+                      <img
+                        src={ct.imagem_url}
+                        alt={ct.nome}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="p-2 bg-card">
+                      <p className="text-xs font-bold truncate">{ct.nome}</p>
+                      <p className="text-[9px] text-primary opacity-80 flex items-center justify-center gap-0.5 mt-0.5">
+                        <ImagePlus className="h-2.5 w-2.5" />
+                        Personalizado
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Opção Upload Avulso */}
               <button
                 onClick={() => setTemplateId('custom')}
                 className={`relative rounded-xl p-4 text-center transition-all border-2 bg-muted/30 ${
@@ -215,7 +261,7 @@ export function CriarFachadaDialog({
                 <div className="flex flex-col items-center justify-center space-y-2">
                   <span className="text-2xl">🖼️</span>
                   <p className="text-sm font-bold">Fazer Upload</p>
-                  <p className="text-[10px] opacity-60">Meu Template</p>
+                  <p className="text-[10px] opacity-60">Upload Avulso</p>
                 </div>
                 {templateId === 'custom' && (
                   <div className="absolute top-1 right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center">

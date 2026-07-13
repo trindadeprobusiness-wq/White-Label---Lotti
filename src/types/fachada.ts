@@ -118,6 +118,10 @@ export interface TemplateConfig {
   corFundo: string;
   estilo: 'classico' | 'moderno' | 'luxo' | 'vibrante' | 'natural' | 'profissional';
   layout: 'vertical' | 'horizontal';
+  /** Posição do QR Code em % (0–100) relativa ao container. Usado em templates personalizados. */
+  qrPosition?: { x: number; y: number };
+  /** Tamanho do QR Code em % da largura do container. Ex: 20 = 20%. */
+  qrSize?: number;
 }
 
 // Configurações padrão dos 6 templates
