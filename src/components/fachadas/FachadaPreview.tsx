@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Box, Home, Lock, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { QRCodeGenerator } from './QRCodeGenerator';
@@ -74,18 +74,21 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
 
         {/* Preview visual */}
         <div ref={previewRef}>
-          <div
-            className="rounded-xl overflow-hidden shadow-2xl mx-auto relative"
-            style={{
-              maxWidth: 420,
-              background: (fachada.template_id || '').startsWith('http')
-                ? `url(${fachada.template_id}) center/cover no-repeat`
-                : `linear-gradient(135deg, ${config.corFundo}, ${config.corPrimaria})`,
-              color: config.corTexto,
-              fontFamily: 'system-ui, -apple-system, sans-serif',
-              minHeight: (fachada.template_id || '').startsWith('http') ? '600px' : 'auto',
-            }}
-          >
+          {fachada.template_id === 'oliver-premium' ? (
+            <OliverPremiumLayout fachada={fachada} qrUrl={qrUrl} />
+          ) : (
+            <div
+              className="rounded-xl overflow-hidden shadow-2xl mx-auto relative"
+              style={{
+                maxWidth: 420,
+                background: (fachada.template_id || '').startsWith('http')
+                  ? `url(${fachada.template_id}) center/cover no-repeat`
+                  : `linear-gradient(135deg, ${config.corFundo}, ${config.corPrimaria})`,
+                color: config.corTexto,
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                minHeight: (fachada.template_id || '').startsWith('http') ? '600px' : 'auto',
+              }}
+            >
             {/* Opcional: overlay escuro para garantir leitura caso a imagem de fundo seja clara */}
             {(fachada.template_id || '').startsWith('http') && (
               <div className="absolute inset-0 bg-black/40 z-0"></div>
@@ -186,6 +189,7 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Botões */}
@@ -202,5 +206,93 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OliverPremiumLayout({ fachada, qrUrl }: { fachada: FachadaComImovel; qrUrl: string }) {
+  const corretorTelefone = fachada.corretor?.telefone || '62 9407-2862';
+
+  return (
+    <div
+      className="mx-auto relative flex flex-col items-center bg-black text-[#d4af37]"
+      style={{
+        width: '420px',
+        minHeight: '740px',
+        border: '2px solid #d4af37',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}
+    >
+      {/* Top Logo */}
+      <div className="mt-8 flex flex-col items-center">
+        {/* Placeholder for the Oliver Logo */}
+        <div className="w-16 h-16 rounded-full border-2 border-[#d4af37] flex items-center justify-center mb-2">
+           <svg className="w-8 h-8 text-[#d4af37]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13.5h-13L12 6.5z"/></svg>
+        </div>
+        <h1 className="text-3xl tracking-widest font-serif" style={{ fontFamily: 'Times New Roman, serif' }}>OLIVER</h1>
+        <p className="text-[10px] tracking-[0.3em] font-light mt-1">NEGÓCIOS INTELIGENTES</p>
+      </div>
+
+      {/* Decorative line */}
+      <div className="flex items-center w-64 my-6 opacity-60">
+        <div className="flex-1 border-t border-[#d4af37]"></div>
+        <div className="mx-2 rotate-45 w-2 h-2 bg-[#d4af37]"></div>
+        <div className="flex-1 border-t border-[#d4af37]"></div>
+      </div>
+
+      {/* Call to action text */}
+      <div className="text-center space-y-1">
+        <p className="text-xs tracking-widest font-semibold">ESCANEIE E DESCUBRA</p>
+        <p className="text-2xl font-bold text-white tracking-wide">VEJA ESSE IMÓVEL</p>
+        <p className="text-3xl font-bold text-[#d4af37] tracking-wide">POR DENTRO</p>
+      </div>
+
+      {/* QR Code */}
+      <div className="mt-8 bg-white p-2 rounded-xl border-4 border-[#d4af37]">
+        <QRCodeGenerator value={qrUrl} size={180} />
+      </div>
+
+      {/* 3 Icons */}
+      <div className="flex justify-between w-full px-8 mt-10">
+        <div className="flex flex-col items-center text-center w-24">
+          <Box className="w-6 h-6 mb-2" strokeWidth={1.5} />
+          <p className="text-[8px] font-semibold leading-tight">TOUR VIRTUAL EXCLUSIVO</p>
+        </div>
+        <div className="w-px h-10 bg-[#d4af37]/30"></div>
+        <div className="flex flex-col items-center text-center w-24">
+          <Home className="w-6 h-6 mb-2" strokeWidth={1.5} />
+          <p className="text-[8px] font-semibold leading-tight">ACESSE TODOS OS DETALHES</p>
+        </div>
+        <div className="w-px h-10 bg-[#d4af37]/30"></div>
+        <div className="flex flex-col items-center text-center w-24">
+          <Lock className="w-6 h-6 mb-2" strokeWidth={1.5} />
+          <p className="text-[8px] font-semibold leading-tight">INFORMAÇÕES EXCLUSIVAS</p>
+        </div>
+      </div>
+
+      {/* Spacer to push skyline to bottom */}
+      <div className="flex-grow"></div>
+
+      {/* Skyline & Phone */}
+      <div className="w-full flex flex-col items-center mt-6">
+        <div className="flex items-center w-3/4 mb-2 opacity-60">
+           <div className="flex-1 border-t border-[#d4af37]"></div>
+           <div className="mx-2 rotate-45 w-2 h-2 bg-[#d4af37]"></div>
+           <div className="flex-1 border-t border-[#d4af37]"></div>
+        </div>
+        
+        {/* Simple skyline SVG placeholder */}
+        <div className="w-full px-8 opacity-80 flex justify-center items-end h-16">
+           <svg viewBox="0 0 100 20" className="w-full h-full text-[#d4af37]" fill="currentColor" preserveAspectRatio="none">
+              <path d="M0,20 L0,15 L5,15 L5,10 L10,10 L10,18 L15,18 L15,8 L20,8 L20,13 L25,13 L25,5 L30,5 L30,17 L35,17 L35,12 L40,12 L40,7 L45,7 L45,19 L50,19 L50,3 L55,3 L55,16 L60,16 L60,9 L65,9 L65,15 L70,15 L70,6 L75,6 L75,14 L80,14 L80,11 L85,11 L85,18 L90,18 L90,8 L95,8 L95,15 L100,15 L100,20 Z" />
+           </svg>
+        </div>
+        <div className="w-full border-t border-[#d4af37]/50 mt-1 mb-4"></div>
+
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <Phone className="w-6 h-6 text-[#d4af37]" />
+          <p className="text-3xl font-bold tracking-wider">{corretorTelefone}</p>
+        </div>
+      </div>
+    </div>
   );
 }

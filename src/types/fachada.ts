@@ -200,6 +200,19 @@ export const DEFAULT_TEMPLATES: Omit<FachadaTemplate, 'id' | 'corretor_id' | 'cr
       layout: 'vertical',
     },
   },
+  {
+    nome: 'Oliver Premium',
+    categoria: 'ALTO_PADRAO',
+    padrao: true,
+    config: {
+      corPrimaria: '#d4af37', // Gold
+      corSecundaria: '#1a1a1a', // Dark Gray
+      corTexto: '#d4af37', // Gold text
+      corFundo: '#000000', // Black
+      estilo: 'luxo',
+      layout: 'vertical',
+    },
+  },
 ];
 
 // Métricas do dashboard
