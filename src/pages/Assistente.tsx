@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, RotateCcw, AlertCircle, Sparkles } from 'lucide-react';
+import { Send, RotateCcw, AlertCircle, Sparkles, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAIChat } from '@/hooks/useAIChat';
 import { AIMessageBubble } from '@/components/ai/AIMessageBubble';
 import { AITypingIndicator } from '@/components/ai/AITypingIndicator';
@@ -29,8 +30,12 @@ export default function Assistente() {
     confirmAction,
     rejectAction,
     retry,
+    pinConversation,
+    deleteConversation,
     pendingActions,
   } = useAIChat();
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,14 +77,41 @@ export default function Assistente() {
           onSelect={loadConversation}
           onNew={startConversation}
           onLoad={loadConversations}
+          onPin={pinConversation}
+          onDelete={deleteConversation}
         />
       </div>
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="border-b px-4 py-3 flex items-center gap-2 bg-background/80 backdrop-blur">
-          <div className="bg-primary/10 p-1.5 rounded-full">
+        <div className="border-b px-4 py-3 flex items-center gap-3 bg-background/80 backdrop-blur">
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden shrink-0">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-80">
+              <AIConversationList
+                conversations={conversations}
+                activeId={activeConversation}
+                onSelect={(id) => {
+                  loadConversation(id);
+                  setIsMobileMenuOpen(false);
+                }}
+                onNew={() => {
+                  startConversation();
+                  setIsMobileMenuOpen(false);
+                }}
+                onLoad={loadConversations}
+                onPin={pinConversation}
+                onDelete={deleteConversation}
+              />
+            </SheetContent>
+          </Sheet>
+          
+          <div className="bg-primary/10 p-1.5 rounded-full shrink-0">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div>

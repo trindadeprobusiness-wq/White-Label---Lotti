@@ -9,7 +9,7 @@ export function AppLayout() {
     <div className="flex h-screen w-full bg-background overflow-hidden relative">
       <AppSidebar />
       <main className="flex-1 h-full overflow-y-auto">
-        <div className="container py-6 px-4 md:px-6 lg:px-8 max-w-7xl">
+        <div className="container py-4 md:py-6 px-3 md:px-6 lg:px-8 max-w-7xl mx-auto">
           {/* Suspense aqui: a sidebar fica fixa enquanto a página (lazy) carrega */}
           <Suspense fallback={
             <div className="flex h-[60vh] w-full items-center justify-center">

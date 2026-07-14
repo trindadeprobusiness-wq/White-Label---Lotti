@@ -80,12 +80,8 @@ const Configuracoes = () => {
     setValue('cnpj_cpf', formatted, { shouldValidate: true });
   };
 
-  // Sync theme preference with next-themes
-  useEffect(() => {
-    if (preferencias.tema) {
-      setTheme(preferencias.tema);
-    }
-  }, [preferencias.tema, setTheme]);
+  // Theme preference is managed globally by next-themes
+  // Removing local useEffect to prevent overriding theme when entering settings
 
   const onSubmit = (data: CorretorFormData) => {
     updateCorretor(data);

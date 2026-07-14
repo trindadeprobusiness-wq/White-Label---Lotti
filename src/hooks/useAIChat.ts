@@ -16,6 +16,8 @@ interface UseAIChatReturn {
   confirmAction: (action: AISuggestedAction) => Promise<void>;
   rejectAction: (actionId: string) => void;
   retry: () => Promise<void>;
+  pinConversation: (id: string, isPinned: boolean) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   pendingActions: AISuggestedAction[];
 }
 
@@ -34,6 +36,7 @@ export function useAIChat(): UseAIChatReturn {
     const { data } = await supabase
       .from('ai_conversations')
       .select('*')
+      .order('is_pinned', { ascending: false })
       .order('updated_at', { ascending: false })
       .limit(50);
     setConversations((data || []) as AIConversation[]);
@@ -264,6 +267,27 @@ export function useAIChat(): UseAIChatReturn {
           });
           break;
         }
+        case 'save_document': {
+          const p = action.params as {
+            client_id?: string;
+            imovel_id?: string;
+            tipo: string;
+            titulo: string;
+            file_url: string;
+          };
+          if (!p.client_id && !p.imovel_id) throw new Error('Precisa vincular a um cliente ou imóvel');
+          
+          await supabase.from('documentos').insert({
+            cliente_id: p.client_id || null,
+            imovel_id: p.imovel_id || null,
+            tipo: p.tipo || 'OUTROS',
+            titulo: p.titulo,
+            arquivo_url: p.file_url,
+            corretor_id: corretorData,
+            status: 'VIGENTE'
+          });
+          break;
+        }
       }
 
       setPendingActions(prev =>
@@ -286,6 +310,43 @@ export function useAIChat(): UseAIChatReturn {
     }
   }, [sendMessage]);
 
+  const pinConversation = useCallback(async (id: string, isPinned: boolean) => {
+    try {
+      await supabase
+        .from('ai_conversations')
+        .update({ is_pinned: isPinned })
+        .eq('id', id);
+      
+      setConversations(prev => 
+        prev.map(c => c.id === id ? { ...c, is_pinned: isPinned } : c)
+          .sort((a, b) => {
+            if (a.is_pinned === b.is_pinned) {
+              return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+            }
+            return a.is_pinned ? -1 : 1;
+          })
+      );
+    } catch (err) {
+      console.error('Error pinning conversation:', err);
+    }
+  }, []);
+
+  const deleteConversation = useCallback(async (id: string) => {
+    try {
+      await supabase
+        .from('ai_conversations')
+        .delete()
+        .eq('id', id);
+      
+      setConversations(prev => prev.filter(c => c.id !== id));
+      if (activeConversation === id) {
+        startConversation();
+      }
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
+    }
+  }, [activeConversation, startConversation]);
+
   return {
     messages,
     conversations,
@@ -300,6 +361,8 @@ export function useAIChat(): UseAIChatReturn {
     confirmAction,
     rejectAction,
     retry,
+    pinConversation,
+    deleteConversation,
     pendingActions,
   };
 }

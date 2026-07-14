@@ -198,181 +198,331 @@ export function ContractsList() {
                         </div>
                     ) : (
                         <div className="rounded-md border-t overflow-hidden">
-                            <Table>
-                                <TableHeader className="bg-muted/50">
-                                    <TableRow className="hover:bg-transparent">
-                                        <TableHead className="w-[300px]">Imóvel</TableHead>
-                                        <TableHead>Envolvidos</TableHead>
-                                        <TableHead className="text-right">Financeiro</TableHead>
-                                        <TableHead className="text-center">Repasse</TableHead>
-                                        <TableHead className="text-center">Vigência</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                        <TableHead className="w-[50px]"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredContracts.map((contract: any) => {
-                                        const content = parseContratoContent(contract.conteudo);
-                                        const contractFeePct = content.taxa_administracao || contract.taxa_administracao_percentual || 10;
-                                        const currentFee = contract.valor * (contractFeePct / 100);
-                                        const currentNet = contract.valor - currentFee;
-                                        const startDate = new Date(contract.data_inicio);
+                            <div className="hidden md:block">
+                              <Table>
+                                  <TableHeader className="bg-muted/50">
+                                      <TableRow className="hover:bg-transparent">
+                                          <TableHead className="w-[300px]">Imóvel</TableHead>
+                                          <TableHead>Envolvidos</TableHead>
+                                          <TableHead className="text-right">Financeiro</TableHead>
+                                          <TableHead className="text-center">Repasse</TableHead>
+                                          <TableHead className="text-center">Vigência</TableHead>
+                                          <TableHead className="text-center">Status</TableHead>
+                                          <TableHead className="w-[50px]"></TableHead>
+                                      </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                      {filteredContracts.map((contract: any) => {
+                                          const content = parseContratoContent(contract.conteudo);
+                                          const contractFeePct = content.taxa_administracao || contract.taxa_administracao_percentual || 10;
+                                          const currentFee = contract.valor * (contractFeePct / 100);
+                                          const currentNet = contract.valor - currentFee;
+                                          const startDate = new Date(contract.data_inicio);
 
-                                        return (
-                                            <TableRow key={contract.id} className="group hover:bg-muted/30 transition-colors">
-                                                <TableCell>
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-900/50">
-                                                            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                          return (
+                                              <TableRow key={contract.id} className="group hover:bg-muted/30 transition-colors">
+                                                  <TableCell>
+                                                      <div className="flex items-start gap-3">
+                                                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-900/50">
+                                                              <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                          </div>
+                                                          <div>
+                                                              <div className="font-medium text-sm text-foreground">
+                                                                  {contract.imoveis?.titulo}
+                                                              </div>
+                                                              <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                                                  {contract.imoveis?.endereco || "Endereço não informado"}
+                                                              </div>
+                                                          </div>
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <div className="flex flex-col gap-1.5 text-xs">
+                                                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                                                              <ArrowUpRight className="h-3 w-3 text-red-400" />
+                                                              <span className="font-medium text-foreground">Prop:</span> {contract.imoveis?.proprietario_nome}
+                                                          </div>
+                                                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                                                              <ArrowDownLeft className="h-3 w-3 text-green-500" />
+                                                              <span className="font-medium text-foreground">Inq:</span> {contract.clientes?.nome}
+                                                          </div>
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell className="text-right">
+                                                      <div className="flex flex-col items-end gap-0.5">
+                                                          <div className="font-semibold text-sm">
+                                                              R$ {contract.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                          </div>
+                                                          <div className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                                                              Taxa: {contractFeePct}% (- R$ {currentFee.toLocaleString("pt-BR", { minimumFractionDigits: 0 })})
+                                                          </div>
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <div className="flex flex-col items-center justify-center gap-0.5">
+                                                          <div className="font-medium text-green-600 dark:text-green-400 text-sm">
+                                                              R$ {currentNet.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                          </div>
+                                                          <div className="text-xs text-muted-foreground flex items-center">
+                                                              Dia {content.dia_repasse || contract.dia_vencimento + 5}
+                                                          </div>
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <div className="flex flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
+                                                          <div className="flex items-center gap-1">
+                                                              <CalendarDays className="h-3 w-3" />
+                                                              {format(startDate, "dd/MM/yyyy", { locale: ptBR })}
+                                                          </div>
+                                                          <div className="opacity-75" title={`Fim: ${content.data_fim_calculada ? format(new Date(content.data_fim_calculada), "dd/MM/yyyy", { locale: ptBR }) : 'Não informado'}`}>
+                                                              Vence dia {contract.dia_vencimento}
+                                                          </div>
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell className="text-center">
+                                                      <div className="flex flex-col gap-1 items-center">
+                                                          <Badge
+                                                              variant="outline"
+                                                              className={`
+                                                                  ${contract.status === 'ATIVO' ? 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20' : ''}
+                                                                  ${contract.status === 'PENDENTE' ? 'border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-900/20' : ''}
+                                                                  ${contract.status === 'CANCELADO' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-900/20' : ''}
+                                                                  ${contract.status === 'ENCERRADO' ? 'border-slate-500 text-slate-600 bg-slate-50 dark:bg-slate-900/20' : ''}
+                                                              `}
+                                                          >
+                                                              {contract.status}
+                                                          </Badge>
+                                                          {/* Asaas Badge - Checks if content has Asaas metadata or simply mocks it if user tagged it */}
+                                                          {(content.asaas_integrated) && (
+                                                              <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 whitespace-nowrap px-2">
+                                                                  Asaas (Manual)
+                                                              </Badge>
+                                                          )}
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <DropdownMenu>
+                                                          <DropdownMenuTrigger asChild>
+                                                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                  <MoreHorizontal className="h-4 w-4" />
+                                                              </Button>
+                                                          </DropdownMenuTrigger>
+                                                          <DropdownMenuContent align="end">
+                                                              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                              <DropdownMenuItem onClick={() => handleOpenCalculator(contract)}>
+                                                                  <Calculator className="mr-2 h-4 w-4" /> Simular Repasse
+                                                              </DropdownMenuItem>
+                                                              <DropdownMenuItem onClick={() => {
+                                                                  setSelectedContract(contract);
+                                                                  setIsNewContractOpen(true);
+                                                              }}>
+                                                                  <MoreHorizontal className="mr-2 h-4 w-4" /> Editar Contrato
+                                                              </DropdownMenuItem>
+
+                                                              <DropdownMenuItem onClick={async () => {
+                                                                  try {
+                                                                      const currentIntegrated = !!content.asaas_integrated;
+                                                                      const newIntegrated = !currentIntegrated;
+
+                                                                      // Clean up legacy string if exists to avoid confusion, but main logic is the boolean
+                                                                      const newObs = (content.obs || '').replace(/\[?Asaas\]?/gi, '').trim();
+
+                                                                      const newContent = {
+                                                                          ...content,
+                                                                          obs: newObs,
+                                                                          asaas_integrated: newIntegrated
+                                                                      };
+
+                                                                      const { error } = await supabase
+                                                                          .from('contratos')
+                                                                          .update({ conteudo: JSON.stringify(newContent) })
+                                                                          .eq('id', contract.id);
+
+                                                                      if (error) throw error;
+
+                                                                      // Optimistic update or refetch would be better, but for now relying on query invalidation if setup
+                                                                      window.location.reload(); // Quick refresh to show change
+                                                                  } catch (err) {
+                                                                      console.error('Erro ao alternar Asaas:', err);
+                                                                      alert('Erro ao atualizar status Asaas');
+                                                                  }
+                                                              }}>
+                                                                  <div className="flex items-center w-full">
+                                                                      <DollarSign className="mr-2 h-4 w-4 text-secondary-foreground" />
+                                                                      {content.asaas_integrated ? 'Desmarcar Asaas' : 'Marcar como Asaas'}
+                                                                  </div>
+                                                              </DropdownMenuItem>
+                                                              {contract.arquivo_url && (
+                                                                  <DropdownMenuItem onClick={() => handleViewContract(contract.arquivo_url)}>
+                                                                      <FileText className="mr-2 h-4 w-4" /> Ver Contrato
+                                                                  </DropdownMenuItem>
+                                                              )}
+                                                              <DropdownMenuItem onClick={() => setContractToFinish(contract)}>
+                                                                  <PowerOff className="mr-2 h-4 w-4" /> Encerrar Contrato
+                                                              </DropdownMenuItem>
+                                                              <DropdownMenuItem
+                                                                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                                                  onClick={() => setContractToTerminate(contract)}
+                                                              >
+                                                                  Excluir Contrato
+                                                              </DropdownMenuItem>
+                                                          </DropdownMenuContent>
+                                                      </DropdownMenu>
+                                                  </TableCell>
+                                              </TableRow>
+                                          );
+                                      })}
+                                  </TableBody>
+                              </Table>
+                            </div>
+                            <div className="md:hidden flex flex-col divide-y">
+                                {filteredContracts.map((contract: any) => {
+                                    const content = parseContratoContent(contract.conteudo);
+                                    const contractFeePct = content.taxa_administracao || contract.taxa_administracao_percentual || 10;
+                                    const currentFee = contract.valor * (contractFeePct / 100);
+                                    const currentNet = contract.valor - currentFee;
+                                    const startDate = new Date(contract.data_inicio);
+
+                                    return (
+                                        <div key={contract.id} className="p-4 flex flex-col gap-4">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-900/50 shrink-0">
+                                                        <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="font-medium text-sm text-foreground truncate">
+                                                            {contract.imoveis?.titulo}
                                                         </div>
-                                                        <div>
-                                                            <div className="font-medium text-sm text-foreground">
-                                                                {contract.imoveis?.titulo}
-                                                            </div>
-                                                            <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                                                {contract.imoveis?.endereco || "Endereço não informado"}
-                                                            </div>
+                                                        <div className="text-xs text-muted-foreground truncate">
+                                                            {contract.imoveis?.endereco || "Endereço não informado"}
                                                         </div>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col gap-1.5 text-xs">
-                                                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                            <ArrowUpRight className="h-3 w-3 text-red-400" />
-                                                            <span className="font-medium text-foreground">Prop:</span> {contract.imoveis?.proprietario_nome}
+                                                </div>
+                                                <div className="flex flex-col gap-1 items-end shrink-0">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`
+                                                            ${contract.status === 'ATIVO' ? 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20' : ''}
+                                                            ${contract.status === 'PENDENTE' ? 'border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-900/20' : ''}
+                                                            ${contract.status === 'CANCELADO' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-900/20' : ''}
+                                                            ${contract.status === 'ENCERRADO' ? 'border-slate-500 text-slate-600 bg-slate-50 dark:bg-slate-900/20' : ''}
+                                                        `}
+                                                    >
+                                                        {contract.status}
+                                                    </Badge>
+                                                    {(content.asaas_integrated) && (
+                                                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 whitespace-nowrap px-2">
+                                                            Asaas
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4 text-sm bg-muted/20 p-3 rounded-lg">
+                                                <div>
+                                                    <div className="text-xs text-muted-foreground mb-1">Envolvidos</div>
+                                                    <div className="flex flex-col gap-1 text-xs">
+                                                        <div className="flex items-center gap-1.5 truncate">
+                                                            <ArrowUpRight className="h-3 w-3 text-red-400 shrink-0" />
+                                                            <span className="truncate">{contract.imoveis?.proprietario_nome}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                            <ArrowDownLeft className="h-3 w-3 text-green-500" />
-                                                            <span className="font-medium text-foreground">Inq:</span> {contract.clientes?.nome}
+                                                        <div className="flex items-center gap-1.5 truncate">
+                                                            <ArrowDownLeft className="h-3 w-3 text-green-500 shrink-0" />
+                                                            <span className="truncate">{contract.clientes?.nome}</span>
                                                         </div>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex flex-col items-end gap-0.5">
-                                                        <div className="font-semibold text-sm">
-                                                            R$ {contract.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                                                        </div>
-                                                        <div className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                                                            Taxa: {contractFeePct}% (- R$ {currentFee.toLocaleString("pt-BR", { minimumFractionDigits: 0 })})
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col items-center justify-center gap-0.5">
-                                                        <div className="font-medium text-green-600 dark:text-green-400 text-sm">
-                                                            R$ {currentNet.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                                                        </div>
-                                                        <div className="text-xs text-muted-foreground flex items-center">
-                                                            Dia {content.dia_repasse || contract.dia_vencimento + 5}
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-xs text-muted-foreground mb-1">Vigência</div>
+                                                    <div className="flex flex-col gap-0.5 items-end text-xs">
                                                         <div className="flex items-center gap-1">
                                                             <CalendarDays className="h-3 w-3" />
                                                             {format(startDate, "dd/MM/yyyy", { locale: ptBR })}
                                                         </div>
-                                                        <div className="opacity-75" title={`Fim: ${content.data_fim_calculada ? format(new Date(content.data_fim_calculada), "dd/MM/yyyy", { locale: ptBR }) : 'Não informado'}`}>
+                                                        <div className="text-muted-foreground">
                                                             Vence dia {contract.dia_vencimento}
                                                         </div>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex flex-col gap-1 items-center">
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={`
-                                                                ${contract.status === 'ATIVO' ? 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20' : ''}
-                                                                ${contract.status === 'PENDENTE' ? 'border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-900/20' : ''}
-                                                                ${contract.status === 'CANCELADO' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-900/20' : ''}
-                                                                ${contract.status === 'ENCERRADO' ? 'border-slate-500 text-slate-600 bg-slate-50 dark:bg-slate-900/20' : ''}
-                                                            `}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between items-center bg-muted/10 p-3 rounded-lg border border-border/50">
+                                                <div>
+                                                    <div className="text-xs text-muted-foreground">Aluguel</div>
+                                                    <div className="font-semibold">R$ {contract.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-xs text-muted-foreground">Repasse (Dia {content.dia_repasse || contract.dia_vencimento + 5})</div>
+                                                    <div className="font-medium text-green-600 dark:text-green-400">R$ {currentNet.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end gap-2">
+                                                {contract.arquivo_url && (
+                                                    <Button variant="outline" size="sm" onClick={() => handleViewContract(contract.arquivo_url)}>
+                                                        <FileText className="mr-2 h-4 w-4" /> Ver
+                                                    </Button>
+                                                )}
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="outline" size="sm">
+                                                            Ações <ChevronDown className="ml-2 h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                        <DropdownMenuItem onClick={() => handleOpenCalculator(contract)}>
+                                                            <Calculator className="mr-2 h-4 w-4" /> Simular Repasse
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => {
+                                                            setSelectedContract(contract);
+                                                            setIsNewContractOpen(true);
+                                                        }}>
+                                                            <MoreHorizontal className="mr-2 h-4 w-4" /> Editar Contrato
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={async () => {
+                                                            try {
+                                                                const currentIntegrated = !!content.asaas_integrated;
+                                                                const newIntegrated = !currentIntegrated;
+                                                                const newObs = (content.obs || '').replace(/\[?Asaas\]?/gi, '').trim();
+                                                                const newContent = {
+                                                                    ...content,
+                                                                    obs: newObs,
+                                                                    asaas_integrated: newIntegrated
+                                                                };
+                                                                const { error } = await supabase
+                                                                    .from('contratos')
+                                                                    .update({ conteudo: JSON.stringify(newContent) })
+                                                                    .eq('id', contract.id);
+                                                                if (error) throw error;
+                                                                window.location.reload(); 
+                                                            } catch (err) {
+                                                                console.error('Erro ao alternar Asaas:', err);
+                                                                alert('Erro ao atualizar status Asaas');
+                                                            }
+                                                        }}>
+                                                            <div className="flex items-center w-full">
+                                                                <DollarSign className="mr-2 h-4 w-4 text-secondary-foreground" />
+                                                                {content.asaas_integrated ? 'Desmarcar Asaas' : 'Marcar como Asaas'}
+                                                            </div>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => setContractToFinish(contract)}>
+                                                            <PowerOff className="mr-2 h-4 w-4" /> Encerrar Contrato
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                                            onClick={() => setContractToTerminate(contract)}
                                                         >
-                                                            {contract.status}
-                                                        </Badge>
-                                                        {/* Asaas Badge - Checks if content has Asaas metadata or simply mocks it if user tagged it */}
-                                                        {(content.asaas_integrated) && (
-                                                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 whitespace-nowrap px-2">
-                                                                Asaas (Manual)
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                                            <DropdownMenuItem onClick={() => handleOpenCalculator(contract)}>
-                                                                <Calculator className="mr-2 h-4 w-4" /> Simular Repasse
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => {
-                                                                setSelectedContract(contract);
-                                                                setIsNewContractOpen(true);
-                                                            }}>
-                                                                <MoreHorizontal className="mr-2 h-4 w-4" /> Editar Contrato
-                                                            </DropdownMenuItem>
-
-                                                            <DropdownMenuItem onClick={async () => {
-                                                                try {
-                                                                    const currentIntegrated = !!content.asaas_integrated;
-                                                                    const newIntegrated = !currentIntegrated;
-
-                                                                    // Clean up legacy string if exists to avoid confusion, but main logic is the boolean
-                                                                    const newObs = (content.obs || '').replace(/\[?Asaas\]?/gi, '').trim();
-
-                                                                    const newContent = {
-                                                                        ...content,
-                                                                        obs: newObs,
-                                                                        asaas_integrated: newIntegrated
-                                                                    };
-
-                                                                    const { error } = await supabase
-                                                                        .from('contratos')
-                                                                        .update({ conteudo: JSON.stringify(newContent) })
-                                                                        .eq('id', contract.id);
-
-                                                                    if (error) throw error;
-
-                                                                    // Optimistic update or refetch would be better, but for now relying on query invalidation if setup
-                                                                    window.location.reload(); // Quick refresh to show change
-                                                                } catch (err) {
-                                                                    console.error('Erro ao alternar Asaas:', err);
-                                                                    alert('Erro ao atualizar status Asaas');
-                                                                }
-                                                            }}>
-                                                                <div className="flex items-center w-full">
-                                                                    <DollarSign className="mr-2 h-4 w-4 text-secondary-foreground" />
-                                                                    {content.asaas_integrated ? 'Desmarcar Asaas' : 'Marcar como Asaas'}
-                                                                </div>
-                                                            </DropdownMenuItem>
-                                                            {contract.arquivo_url && (
-                                                                <DropdownMenuItem onClick={() => handleViewContract(contract.arquivo_url)}>
-                                                                    <FileText className="mr-2 h-4 w-4" /> Ver Contrato
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            <DropdownMenuItem onClick={() => setContractToFinish(contract)}>
-                                                                <PowerOff className="mr-2 h-4 w-4" /> Encerrar Contrato
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                                                                onClick={() => setContractToTerminate(contract)}
-                                                            >
-                                                                Excluir Contrato
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
+                                                            Excluir Contrato
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                             <div className="bg-muted/30 p-4 border-t flex justify-between items-center text-sm">
                                 <span className="text-muted-foreground">
                                     Total de <strong>{totalActive}</strong> contratos ativos

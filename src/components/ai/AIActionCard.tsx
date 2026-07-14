@@ -15,6 +15,7 @@ const ACTION_LABELS: Record<string, string> = {
   schedule_followup: 'Agendar Follow-up',
   create_alert: 'Criar Alerta',
   register_contact: 'Registrar Contato',
+  save_document: 'Salvar Documento',
 };
 
 export function AIActionCard({ action, onConfirm, onReject }: AIActionCardProps) {

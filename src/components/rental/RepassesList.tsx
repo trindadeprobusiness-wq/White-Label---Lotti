@@ -164,66 +164,134 @@ export function RepassesList() {
                                     <p className="text-sm">Os repasses gerados aparecerão aqui.</p>
                                 </div>
                             ) : (
-                                <Table>
-                                    <TableHeader className="bg-muted/50">
-                                        <TableRow>
-                                            <TableHead>Data Prevista</TableHead>
-                                            <TableHead>Proprietário / Imóvel</TableHead>
-                                            <TableHead>Valor Bruto</TableHead>
-                                            <TableHead>Taxa Adm</TableHead>
-                                            <TableHead>Valor Líquido</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead className="text-right">Ação</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {filteredPayouts.map((payout: any) => (
-                                            <TableRow key={payout.id} className="hover:bg-muted/30 transition-colors">
-                                                <TableCell>
-                                                    <div className="flex items-center gap-2 font-medium">
-                                                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                                                        {format(new Date(payout.data_prevista), "dd/MM/yyyy", { locale: ptBR })}
+                                <>
+                                <div className="hidden md:block">
+                                  <Table>
+                                      <TableHeader className="bg-muted/50">
+                                          <TableRow>
+                                              <TableHead>Data Prevista</TableHead>
+                                              <TableHead>Proprietário / Imóvel</TableHead>
+                                              <TableHead>Valor Bruto</TableHead>
+                                              <TableHead>Taxa Adm</TableHead>
+                                              <TableHead>Valor Líquido</TableHead>
+                                              <TableHead>Status</TableHead>
+                                              <TableHead className="text-right">Ação</TableHead>
+                                          </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                          {filteredPayouts.map((payout: any) => (
+                                              <TableRow key={payout.id}>
+                                                  <TableCell>
+                                                      <div className="flex items-center gap-2">
+                                                          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                                          {format(new Date(payout.data_prevista), "dd/MM/yyyy", { locale: ptBR })}
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <div className="flex flex-col">
+                                                          <span className="font-medium text-foreground">{payout.proprietario_nome}</span>
+                                                          <span className="text-sm text-muted-foreground">{payout.contratos?.imoveis?.titulo}</span>
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <div className="flex items-center gap-2">
+                                                          <TrendingUp className="h-4 w-4 text-green-500" />
+                                                          R$ {Number(payout.valor_bruto_recebido).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <div className="flex items-center gap-2">
+                                                          <TrendingDown className="h-4 w-4 text-red-500" />
+                                                          R$ {Number(payout.valor_taxa_adm).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                      </div>
+                                                  </TableCell>
+                                                  <TableCell className="font-semibold">
+                                                      R$ {Number(payout.valor_liquido_repasse).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                  </TableCell>
+                                                  <TableCell>
+                                                      <Badge variant="outline" className={getStatusStyle(payout.status)}>
+                                                          {payout.status}
+                                                      </Badge>
+                                                  </TableCell>
+                                                  <TableCell className="text-right">
+                                                      {payout.status === 'AGUARDANDO_PAGAMENTO' ? (
+                                                          <Button
+                                                              size="sm"
+                                                              className="bg-green-600 hover:bg-green-700 text-white"
+                                                              onClick={() => handleConfirmar(payout.id)}
+                                                          >
+                                                              <CheckCircle className="h-4 w-4 mr-1.5" />
+                                                              Confirmar Repasse
+                                                          </Button>
+                                                      ) : (
+                                                          <span className="text-xs text-muted-foreground">-</span>
+                                                      )}
+                                                  </TableCell>
+                                              </TableRow>
+                                          ))}
+                                      </TableBody>
+                                  </Table>
+                                </div>
+                                <div className="md:hidden flex flex-col divide-y">
+                                    {filteredPayouts.map((payout: any) => (
+                                        <div key={payout.id} className="p-4 flex flex-col gap-3">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex flex-col min-w-0 pr-4">
+                                                    <span className="font-medium text-foreground truncate">{payout.proprietario_nome}</span>
+                                                    <span className="text-xs text-muted-foreground truncate">{payout.contratos?.imoveis?.titulo}</span>
+                                                </div>
+                                                <Badge variant="outline" className={`shrink-0 ${getStatusStyle(payout.status)}`}>
+                                                    {payout.status}
+                                                </Badge>
+                                            </div>
+                                            
+                                            <div className="flex justify-between items-center text-sm">
+                                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                                    <CalendarDays className="h-4 w-4" />
+                                                    {format(new Date(payout.data_prevista), "dd/MM/yyyy", { locale: ptBR })}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-2 gap-2 text-sm bg-muted/20 p-3 rounded-lg border border-border/50">
+                                                <div>
+                                                    <span className="text-muted-foreground text-xs block">Valor Bruto</span>
+                                                    <div className="flex items-center gap-1.5 text-green-600 font-medium">
+                                                        <TrendingUp className="h-3 w-3" />
+                                                        R$ {Number(payout.valor_bruto_recebido).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-foreground">{payout.proprietario_nome}</span>
-                                                        <span className="text-xs text-muted-foreground">{payout.contratos?.imoveis?.titulo}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-muted-foreground text-xs block">Taxa Adm</span>
+                                                    <div className="flex items-center gap-1.5 text-red-500 font-medium">
+                                                        <TrendingDown className="h-3 w-3" />
+                                                        R$ {Number(payout.valor_taxa_adm).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                     </div>
-                                                </TableCell>
-                                                <TableCell className="text-muted-foreground">
-                                                    R$ {payout.valor_bruto_recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </TableCell>
-                                                <TableCell className="text-red-500 text-xs">
-                                                    - R$ {payout.valor_taxa_adm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="font-bold text-green-600">
-                                                        R$ {payout.valor_liquido_repasse.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className={getStatusStyle(payout.status)}>
-                                                        {payout.status}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {payout.status === 'AGENDADO' || payout.status === 'ERRO' ? (
-                                                        <Button
-                                                            size="sm"
-                                                            className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                                                            onClick={() => handleConfirmPayout(payout.id, payout.valor_liquido_repasse)}
-                                                        >
-                                                            Confirmar Envio
-                                                        </Button>
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground">-</span>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex justify-between items-center mt-1">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs text-muted-foreground">Líquido a Pagar</span>
+                                                    <span className="font-semibold text-lg">
+                                                        R$ {Number(payout.valor_liquido_repasse).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                                
+                                                {payout.status === 'AGUARDANDO_PAGAMENTO' && (
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-green-600 hover:bg-green-700 text-white shadow-sm h-9"
+                                                        onClick={() => handleConfirmar(payout.id)}
+                                                    >
+                                                        <CheckCircle className="h-4 w-4 mr-1.5" />
+                                                        Confirmar
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                </>
                             )}
                         </div>
                     </Tabs>
