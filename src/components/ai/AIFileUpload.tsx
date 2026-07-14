@@ -13,10 +13,20 @@ export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUp
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-
+  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setPreview(null);
+    }
+  };
 
   const handleUpload = async () => {
     if (!selectedFile) return;
@@ -33,41 +43,6 @@ export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUp
     setSelectedFile(null);
     setPreview(null);
     if (inputRef.current) inputRef.current.value = '';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      handleFileSet(file);
-    }
-  };
-
-  const handleFileSet = (file: File) => {
-    setSelectedFile(file);
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setPreview(null);
-    }
-  };
-
-  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFileSet(file);
   };
 
   const FileIcon = selectedFile?.type.startsWith('image/')
@@ -87,15 +62,15 @@ export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUp
       />
 
       {selectedFile && (
-        <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-lg border text-xs w-full shadow-sm mb-2 absolute bottom-full left-0 mb-4 z-10 w-64 max-w-full">
+        <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-lg border text-xs w-full">
           {preview ? (
             <img src={preview} alt="Preview" className="h-10 w-10 object-cover rounded" />
           ) : (
-            <FileIcon className="h-8 w-8 text-muted-foreground shrink-0 p-1 bg-background rounded" />
+            <FileIcon className="h-5 w-5 text-muted-foreground shrink-0" />
           )}
-          <span className="truncate flex-1 font-medium">{selectedFile.name}</span>
+          <span className="truncate flex-1">{selectedFile.name}</span>
           {uploading ? (
-            <Loader2 className="h-4 w-4 animate-spin shrink-0 text-primary" />
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           ) : (
             <>
               <Button size="sm" variant="default" className="h-6 text-xs px-2" onClick={handleUpload}>
@@ -109,27 +84,17 @@ export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUp
         </div>
       )}
 
-      <div 
-        className="relative"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="shrink-0"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled || uploading}
+        title="Anexar arquivo"
       >
-        <Button
-          type="button"
-          variant={isDragging ? 'default' : 'outline'}
-          size="icon"
-          className="shrink-0 transition-colors"
-          onClick={() => inputRef.current?.click()}
-          disabled={disabled || uploading}
-          title="Anexar arquivo"
-        >
-          <Paperclip className="h-4 w-4" />
-        </Button>
-        {isDragging && (
-          <div className="absolute inset-0 bg-primary/20 animate-pulse rounded-md pointer-events-none" />
-        )}
-      </div>
+        <Paperclip className="h-4 w-4" />
+      </Button>
     </>
   );
 }

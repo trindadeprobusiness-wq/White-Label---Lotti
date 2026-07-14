@@ -83,7 +83,7 @@ const defaultPreferencias: Preferencias = {
   },
   antecedencia_exclusividade_dias: 7,
   antecedencia_documento_dias: 15,
-  tema: 'dark',
+  tema: 'light',
   sidebar_expandida: true,
   formato_moeda: 'completo',
   ordenacao_clientes: 'ultimo_contato',

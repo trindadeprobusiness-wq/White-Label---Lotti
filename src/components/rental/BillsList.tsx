@@ -403,26 +403,26 @@ export function BillsList() {
         <>
         <div className="space-y-6">
             {/* KPI Stats */}
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="shadow-sm border-l-4 border-l-yellow-500">
-                    <CardContent className="p-3 sm:p-4 flex items-center justify-between">
+                    <CardContent className="p-4 flex items-center justify-between">
                         <div>
-                            <p className="text-xs sm:text-sm font-medium text-muted-foreground">A Receber</p>
-                            <h3 className="text-lg sm:text-2xl font-bold text-yellow-600">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <p className="text-sm font-medium text-muted-foreground">A Receber</p>
+                            <h3 className="text-2xl font-bold text-yellow-600">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                         </div>
-                        <div className="p-1.5 sm:p-2 bg-yellow-100 rounded-full text-yellow-600">
-                            <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">
+                            <AlertCircle className="h-5 w-5" />
                         </div>
                     </CardContent>
                 </Card>
                 <Card className="shadow-sm border-l-4 border-l-green-500">
-                    <CardContent className="p-3 sm:p-4 flex items-center justify-between">
+                    <CardContent className="p-4 flex items-center justify-between">
                         <div>
-                            <p className="text-xs sm:text-sm font-medium text-muted-foreground">Recebido</p>
-                            <h3 className="text-lg sm:text-2xl font-bold text-green-600">R$ {totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <p className="text-sm font-medium text-muted-foreground">Recebido</p>
+                            <h3 className="text-2xl font-bold text-green-600">R$ {totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                         </div>
-                        <div className="p-1.5 sm:p-2 bg-green-100 rounded-full text-green-600">
-                            <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <div className="p-2 bg-green-100 rounded-full text-green-600">
+                            <CheckCircle className="h-5 w-5" />
                         </div>
                     </CardContent>
                 </Card>
@@ -430,42 +430,42 @@ export function BillsList() {
 
             <Card className="border shadow-sm bg-card/50">
                 <CardHeader className="pb-4 border-b">
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+                            <CardTitle className="text-xl flex items-center gap-2">
                                 <Wallet className="h-5 w-5 text-primary" />
                                 Gestão de Faturas
                             </CardTitle>
-                            <CardDescription className="text-xs sm:text-sm">
+                            <CardDescription>
                                 Controle financeiro sincronizado automaticamente com seus contratos ativos.
                             </CardDescription>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+                        <div className="flex items-center gap-4">
                             {/* Month Selector */}
                             <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1 border">
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground shrink-0"
+                                    className="h-8 w-8 text-muted-foreground"
                                     onClick={() => setReferenceDate(subMonths(referenceDate, 1))}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
-                                <div className="flex-1 sm:w-32 text-center font-medium text-sm capitalize">
+                                <div className="w-32 text-center font-medium text-sm capitalize">
                                     {format(referenceDate, "MMMM 'de' yyyy", { locale: ptBR })}
                                 </div>
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground shrink-0"
+                                    className="h-8 w-8 text-muted-foreground"
                                     onClick={() => setReferenceDate(addMonths(referenceDate, 1))}
                                 >
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
 
-                            <div className="relative flex-1">
+                            <div className="relative flex-1 md:w-64">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Buscar por fatura, imóvel..."
@@ -479,12 +479,12 @@ export function BillsList() {
                 </CardHeader>
                 <CardContent className="p-0">
                     <Tabs defaultValue="ALL" onValueChange={setStatusFilter} className="w-full">
-                        <div className="px-3 sm:px-4 py-3 bg-muted/20 border-b overflow-x-auto">
-                            <TabsList className="grid w-full grid-cols-4 min-w-[300px] md:w-[400px]">
-                                <TabsTrigger value="ALL" className="text-xs sm:text-sm">Todas</TabsTrigger>
-                                <TabsTrigger value="PENDENTE" className="text-xs sm:text-sm">Pendentes</TabsTrigger>
-                                <TabsTrigger value="PAGO" className="text-xs sm:text-sm">Pagas</TabsTrigger>
-                                <TabsTrigger value="ATRASADO" className="text-xs sm:text-sm">
+                        <div className="px-4 py-3 bg-muted/20 border-b">
+                            <TabsList className="grid w-full grid-cols-4 md:w-[400px]">
+                                <TabsTrigger value="ALL">Todas</TabsTrigger>
+                                <TabsTrigger value="PENDENTE">Pendentes</TabsTrigger>
+                                <TabsTrigger value="PAGO">Pagas</TabsTrigger>
+                                <TabsTrigger value="ATRASADO">
                                     Atrasadas{overdueBills.length > 0 ? ` (${overdueBills.length})` : ''}
                                 </TabsTrigger>
                             </TabsList>
@@ -511,16 +511,13 @@ export function BillsList() {
                                     </p>
                                 </div>
                             ) : (
-                                <>
-                                {/* ─── Desktop: Table ─── */}
-                                <div className="hidden md:block overflow-x-auto">
                                 <Table>
                                     <TableHeader className="bg-muted/50">
                                         <TableRow>
-                                            <TableHead className="w-[250px]">Imóvel</TableHead>
+                                            <TableHead className="w-[300px]">Imóvel</TableHead>
                                             <TableHead>Envolvidos</TableHead>
                                             <TableHead>Vencimento</TableHead>
-                                            <TableHead>Valor</TableHead>
+                                            <TableHead>Valor Estimado</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead className="text-right">Ações</TableHead>
                                         </TableRow>
@@ -530,11 +527,11 @@ export function BillsList() {
                                             <TableRow key={bill.id} className="hover:bg-muted/30 transition-colors">
                                                 <TableCell>
                                                     <div className="flex items-start gap-3">
-                                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-900/50 shrink-0">
+                                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-900/50">
                                                             <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <div className="font-medium text-sm text-foreground truncate">
+                                                        <div>
+                                                            <div className="font-medium text-sm text-foreground">
                                                                 {bill.contract.imoveis?.titulo}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground truncate max-w-[200px]">
@@ -546,18 +543,18 @@ export function BillsList() {
                                                 <TableCell>
                                                     <div className="flex flex-col gap-1.5 text-xs">
                                                         <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                            <ArrowUpRight className="h-3 w-3 text-red-400 shrink-0" />
-                                                            <span className="font-medium text-foreground">Prop:</span> <span className="truncate max-w-[120px]">{bill.contract.imoveis?.proprietario_nome}</span>
+                                                            <ArrowUpRight className="h-3 w-3 text-red-400" />
+                                                            <span className="font-medium text-foreground">Prop:</span> {bill.contract.imoveis?.proprietario_nome}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                            <ArrowDownLeft className="h-3 w-3 text-green-500 shrink-0" />
-                                                            <span className="font-medium text-foreground">Inq:</span> <span className="truncate max-w-[120px]">{bill.contract.clientes?.nome}</span>
+                                                            <ArrowDownLeft className="h-3 w-3 text-green-500" />
+                                                            <span className="font-medium text-foreground">Inq:</span> {bill.contract.clientes?.nome}
                                                         </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2 text-sm text-foreground/80">
-                                                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
                                                         {format(bill.dueDate, "dd/MM/yyyy", { locale: ptBR })}
                                                         {bill.isVirtual && (
                                                             <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground ml-1" title="Fatura estimativa, ainda não efetivada no banco">
@@ -567,7 +564,7 @@ export function BillsList() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="font-semibold text-foreground whitespace-nowrap">
+                                                    <div className="font-semibold text-foreground">
                                                         R$ {bill.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                     </div>
                                                 </TableCell>
@@ -577,7 +574,7 @@ export function BillsList() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1.5 flex-wrap">
+                                                    <div className="flex justify-end gap-1.5">
                                                         {/* Ver Contrato */}
                                                         <Button
                                                             size="sm"
@@ -598,7 +595,7 @@ export function BillsList() {
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                                className="h-8 border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                                                 onClick={() => handleEmitCharge(bill)}
                                                                 disabled={emittingId === bill.id}
                                                                 title="Emitir cobrança no Asaas (boleto/PIX ao inquilino)"
@@ -627,11 +624,11 @@ export function BillsList() {
                                                             <Button
                                                                 size="sm"
                                                                 variant="default"
-                                                                className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                                                                className="h-8 bg-green-600 hover:bg-green-700 text-white shadow-sm"
                                                                 onClick={() => handleConfirmPayment(bill)}
                                                                 title="Confirmar Pagamento (Baixar Fatura)"
                                                             >
-                                                                <CheckCircle className="h-4 w-4 mr-1" />
+                                                                <CheckCircle className="h-4 w-4 mr-1.5" />
                                                                 Baixar Fatura
                                                             </Button>
                                                         ) : (
@@ -657,116 +654,6 @@ export function BillsList() {
                                         ))}
                                     </TableBody>
                                 </Table>
-                                </div>
-
-                                {/* ─── Mobile: Cards ─── */}
-                                <div className="md:hidden divide-y">
-                                    {filteredBills.map((bill) => (
-                                        <div key={bill.id} className="p-4 space-y-3">
-                                            {/* Header: Imóvel + Status */}
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="flex items-start gap-2.5 min-w-0">
-                                                    <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-900/50 shrink-0 mt-0.5">
-                                                        <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="font-medium text-sm truncate">{bill.contract.imoveis?.titulo}</p>
-                                                        <p className="text-xs text-muted-foreground truncate">{bill.contract.imoveis?.endereco}</p>
-                                                    </div>
-                                                </div>
-                                                <Badge variant="outline" className={`shrink-0 text-[10px] ${getBadgeStyle(bill.status)}`}>
-                                                    {getStatusLabel(bill.status)}
-                                                </Badge>
-                                            </div>
-
-                                            {/* Envolvidos */}
-                                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                    <ArrowUpRight className="h-3 w-3 text-red-400 shrink-0" />
-                                                    <span className="truncate"><span className="font-medium text-foreground">Prop:</span> {bill.contract.imoveis?.proprietario_nome}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                    <ArrowDownLeft className="h-3 w-3 text-green-500 shrink-0" />
-                                                    <span className="truncate"><span className="font-medium text-foreground">Inq:</span> {bill.contract.clientes?.nome}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Valor + Vencimento */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="font-semibold text-foreground">
-                                                    R$ {bill.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </div>
-                                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                    <CalendarDays className="h-3 w-3" />
-                                                    {format(bill.dueDate, "dd/MM/yyyy", { locale: ptBR })}
-                                                    {bill.isVirtual && (
-                                                        <span className="text-[10px] bg-muted px-1 py-0.5 rounded">A Gerar</span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-7 w-7 p-0 text-blue-600"
-                                                    title="Ver Contrato"
-                                                    onClick={() => handleOpenContractViewer(bill)}
-                                                    disabled={loadingContractId === bill.id}
-                                                >
-                                                    {loadingContractId === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
-                                                </Button>
-
-                                                {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && !bill.externalId && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-7 text-[11px] px-2 border-blue-300 text-blue-700"
-                                                        onClick={() => handleEmitCharge(bill)}
-                                                        disabled={emittingId === bill.id}
-                                                    >
-                                                        {emittingId === bill.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ArrowUpRight className="h-3 w-3 mr-1" />}
-                                                        Emitir
-                                                    </Button>
-                                                )}
-
-                                                {bill.pixText && (
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => copyPix(bill.pixText)}>
-                                                        <Wallet className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                )}
-
-                                                {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="default"
-                                                        className="h-7 text-[11px] px-2 bg-green-600 hover:bg-green-700 text-white ml-auto"
-                                                        onClick={() => handleConfirmPayment(bill)}
-                                                    >
-                                                        <CheckCircle className="h-3 w-3 mr-1" />
-                                                        Baixar Fatura
-                                                    </Button>
-                                                )}
-
-                                                {bill.status === 'PAGO' && (
-                                                    <span className="text-xs text-green-600 flex items-center ml-auto">
-                                                        <CheckCircle className="h-3 w-3 mr-1" /> Pago
-                                                    </span>
-                                                )}
-
-                                                {bill.boletoUrl && (
-                                                    <a href={bill.boletoUrl} target="_blank" rel="noopener noreferrer">
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600">
-                                                            <FileText className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                </>
                             )}
                         </div>
                     </Tabs>
@@ -826,7 +713,7 @@ export function BillsList() {
                         </div>
 
                         {/* Financeiro */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                             <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30">
                                 <p className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold mb-1">Aluguel</p>
                                 <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
@@ -848,7 +735,7 @@ export function BillsList() {
                         </div>
 
                         {/* Datas e detalhes */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-4 gap-3">
                             <div className="p-3 rounded-lg bg-muted/30 border">
                                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Vencimento</p>
                                 <p className="text-sm font-medium">Dia {contractViewerDetails.diaVencimento}</p>
