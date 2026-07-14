@@ -26,6 +26,8 @@ export default function Assistente() {
     startConversation,
     loadConversation,
     loadConversations,
+    togglePin,
+    deleteConversation,
     confirmAction,
     rejectAction,
     retry,
@@ -72,6 +74,8 @@ export default function Assistente() {
           onSelect={loadConversation}
           onNew={startConversation}
           onLoad={loadConversations}
+          onTogglePin={togglePin}
+          onDelete={deleteConversation}
         />
       </div>
 
@@ -83,9 +87,9 @@ export default function Assistente() {
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold">IA Assistant</h1>
+            <h1 className="text-sm font-semibold">Assistente IA</h1>
             <p className="text-[10px] text-muted-foreground">
-              Powered by Grok &middot; grok-4.20-reasoning
+              Integrado ao seu CRM &middot; Gemini 2.5 Flash
             </p>
           </div>
         </div>

@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
+import { useCRMStore } from '@/stores/crmStore';
 
 export function AppSidebar() {
   const [open, setOpen] = useState(false);
@@ -89,10 +90,14 @@ const Logo = ({ open }: { open: boolean }) => {
 
 const ThemeToggleButton = ({ open }: { open: boolean }) => {
   const { resolvedTheme, setTheme } = useTheme();
+  const updatePreferencias = useCRMStore((s) => s.updatePreferencias);
   const isDark = resolvedTheme === 'dark';
 
   const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
+    const next = isDark ? 'light' : 'dark';
+    setTheme(next);
+    // Espelha no store para manter o seletor de Configurações consistente.
+    updatePreferencias({ tema: next });
   };
 
   const button = (

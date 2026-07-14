@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from 'next-themes';
@@ -31,6 +30,8 @@ import type { TemaAparencia, FormatoMoeda, OrdenacaoClientes } from '@/types/crm
 
 const Configuracoes = () => {
   const { toast } = useToast();
+  // next-themes é a ÚNICA fonte de verdade do tema aplicado (persistido em localStorage).
+  // `theme` pode ser 'light' | 'dark' | 'system'. Usamos como valor do seletor abaixo.
   const { theme, setTheme } = useTheme();
   const { 
     corretor, 
@@ -80,12 +81,10 @@ const Configuracoes = () => {
     setValue('cnpj_cpf', formatted, { shouldValidate: true });
   };
 
-  // Sync theme preference with next-themes
-  useEffect(() => {
-    if (preferencias.tema) {
-      setTheme(preferencias.tema);
-    }
-  }, [preferencias.tema, setTheme]);
+  // (removido) O antigo useEffect forçava setTheme(preferencias.tema) a cada
+  // montagem desta página, sobrescrevendo a escolha feita no toggle da sidebar —
+  // era exatamente o bug do "volta pro claro ao abrir Configurações".
+  // Agora o next-themes é a fonte única e o store apenas espelha a escolha.
 
   const onSubmit = (data: CorretorFormData) => {
     updateCorretor(data);
@@ -467,7 +466,7 @@ const Configuracoes = () => {
             </CardHeader>
             <CardContent>
               <RadioGroup
-                value={preferencias.tema}
+                value={(theme as TemaAparencia) ?? preferencias.tema}
                 onValueChange={(value) => handleAlterarTema(value as TemaAparencia)}
                 className="grid grid-cols-3 gap-4"
               >

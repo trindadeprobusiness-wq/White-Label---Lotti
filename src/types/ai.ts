@@ -4,6 +4,7 @@ export interface AIConversation {
   title: string;
   model: string;
   total_tokens: number;
+  pinned?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -46,7 +47,9 @@ export type AIActionType =
   | 'update_client_status'
   | 'schedule_followup'
   | 'create_alert'
-  | 'register_contact';
+  | 'register_contact'
+  | 'create_property'
+  | 'create_financial_entry';
 
 export interface AISuggestedAction {
   id: string;

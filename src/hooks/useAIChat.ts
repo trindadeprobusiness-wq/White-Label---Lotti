@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { AIConversation, AIMessage, AISuggestedAction, AIStreamChunk } from '@/types/ai';
 
@@ -13,10 +14,20 @@ interface UseAIChatReturn {
   startConversation: () => void;
   loadConversation: (id: string) => Promise<void>;
   loadConversations: () => Promise<void>;
+  togglePin: (id: string, pinned: boolean) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   confirmAction: (action: AISuggestedAction) => Promise<void>;
   rejectAction: (actionId: string) => void;
   retry: () => Promise<void>;
   pendingActions: AISuggestedAction[];
+}
+
+// Ordena fixadas primeiro; dentro de cada grupo o Array.sort estável do V8
+// preserva a ordem por updated_at desc que já veio do banco.
+function sortConversations(list: AIConversation[]): AIConversation[] {
+  return [...list].sort(
+    (a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false)
+  );
 }
 
 export function useAIChat(): UseAIChatReturn {
@@ -36,8 +47,42 @@ export function useAIChat(): UseAIChatReturn {
       .select('*')
       .order('updated_at', { ascending: false })
       .limit(50);
-    setConversations((data || []) as AIConversation[]);
+    setConversations(sortConversations((data || []) as AIConversation[]));
   }, []);
+
+  const togglePin = useCallback(async (id: string, pinned: boolean) => {
+    // Atualização otimista (reordena na hora)
+    setConversations((prev) =>
+      sortConversations(prev.map((c) => (c.id === id ? { ...c, pinned } : c)))
+    );
+    const { error } = await supabase
+      .from('ai_conversations')
+      .update({ pinned })
+      .eq('id', id);
+    if (error) {
+      toast.error('Não foi possível fixar a conversa.');
+      await loadConversations(); // reverte para o estado real
+    }
+  }, [loadConversations]);
+
+  const deleteConversation = useCallback(async (id: string) => {
+    const snapshot = conversations;
+    // Otimista: some da lista imediatamente
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (activeConversation === id) {
+      setActiveConversation(null);
+      setMessages([]);
+      setPendingActions([]);
+      setError(null);
+    }
+    const { error } = await supabase.from('ai_conversations').delete().eq('id', id);
+    if (error) {
+      toast.error('Não foi possível excluir a conversa.');
+      setConversations(snapshot); // restaura
+      return;
+    }
+    toast.success('Conversa excluída.');
+  }, [conversations, activeConversation]);
 
   const loadConversation = useCallback(async (id: string) => {
     setActiveConversation(id);
@@ -264,13 +309,69 @@ export function useAIChat(): UseAIChatReturn {
           });
           break;
         }
+        case 'create_property': {
+          // Cadastra um imóvel na aba Imóveis (mesmas colunas do NovoImovelDialog).
+          const p = action.params as {
+            titulo: string;
+            tipo?: string;
+            valor?: number;
+            area_m2?: number;
+            dormitorios?: number;
+            garagem?: number;
+            endereco?: string;
+            bairro?: string;
+            cidade?: string;
+            proprietario_nome?: string;
+          };
+          const tiposValidos = ['APARTAMENTO', 'CASA', 'COMERCIAL', 'TERRENO'];
+          const { error: insErr } = await supabase.from('imoveis').insert({
+            titulo: p.titulo,
+            tipo: tiposValidos.includes(p.tipo || '') ? p.tipo : 'APARTAMENTO',
+            valor: Number(p.valor) || 0,
+            area_m2: Number(p.area_m2) || 0,
+            dormitorios: Number(p.dormitorios) || 0,
+            garagem: Number(p.garagem) || 0,
+            endereco: p.endereco || '',
+            bairro: p.bairro || '',
+            cidade: p.cidade || '',
+            proprietario_nome: p.proprietario_nome || '',
+            corretor_id: corretorData,
+          });
+          if (insErr) throw insErr;
+          break;
+        }
+        case 'create_financial_entry': {
+          // Lança uma receita/despesa na aba Financeiro.
+          const p = action.params as {
+            tipo?: string;
+            categoria?: string;
+            descricao: string;
+            valor?: number;
+            data?: string;
+            recorrente?: boolean;
+          };
+          const { error: insErr } = await supabase.from('lancamentos_financeiros').insert({
+            tipo: p.tipo === 'RECEITA' ? 'RECEITA' : 'DESPESA',
+            categoria: p.categoria || 'OUTROS',
+            descricao: p.descricao,
+            valor: Number(p.valor) || 0,
+            data: p.data || new Date().toISOString().slice(0, 10),
+            recorrente: p.recorrente ?? false,
+            corretor_id: corretorData,
+          });
+          if (insErr) throw insErr;
+          break;
+        }
       }
 
       setPendingActions(prev =>
         prev.map(a => (a.id === action.id ? { ...a, status: 'confirmed' as const } : a))
       );
+      toast.success('Ação executada com sucesso.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao executar ação');
+      const msg = err instanceof Error ? err.message : 'Erro ao executar ação';
+      setError(msg);
+      toast.error(msg);
     }
   }, []);
 
@@ -297,6 +398,8 @@ export function useAIChat(): UseAIChatReturn {
     startConversation,
     loadConversation,
     loadConversations,
+    togglePin,
+    deleteConversation,
     confirmAction,
     rejectAction,
     retry,

@@ -15,6 +15,8 @@ const ACTION_LABELS: Record<string, string> = {
   schedule_followup: 'Agendar Follow-up',
   create_alert: 'Criar Alerta',
   register_contact: 'Registrar Contato',
+  create_property: 'Cadastrar Imóvel',
+  create_financial_entry: 'Lançar no Financeiro',
 };
 
 export function AIActionCard({ action, onConfirm, onReject }: AIActionCardProps) {
