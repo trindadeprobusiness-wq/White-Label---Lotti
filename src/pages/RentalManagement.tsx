@@ -9,21 +9,21 @@ import { DashboardCharts } from "@/components/rental/DashboardCharts";
 const RentalManagement = () => {
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Gestão de Aluguéis</h1>
-                    <p className="text-muted-foreground">
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestão de Aluguéis</h1>
+                    <p className="text-sm text-muted-foreground">
                         Gerencie faturas e repasses de forma automatizada.
                     </p>
                 </div>
             </div>
 
             <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-                    <TabsTrigger value="bills">Faturas</TabsTrigger>
-                    <TabsTrigger value="transfers">Repasses</TabsTrigger>
-                    <TabsTrigger value="contracts">Contratos</TabsTrigger>
+                <TabsList className="w-full grid grid-cols-4 h-auto">
+                    <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Visão Geral</TabsTrigger>
+                    <TabsTrigger value="bills" className="text-xs sm:text-sm py-2">Faturas</TabsTrigger>
+                    <TabsTrigger value="transfers" className="text-xs sm:text-sm py-2">Repasses</TabsTrigger>
+                    <TabsTrigger value="contracts" className="text-xs sm:text-sm py-2">Contratos</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview">
