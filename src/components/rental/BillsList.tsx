@@ -28,7 +28,7 @@ export function BillsList() {
     // Saldo da conta Asaas (buscado via Edge Function asaas-sync; a chave nunca vem ao front)
     const [saldoAsaas, setSaldoAsaas] = useState<number | null>(null);
     const [saldoLoading, setSaldoLoading] = useState(true);
-    const [saldoError, setSaldoError] = useState(false);
+    const [saldoNote, setSaldoNote] = useState<string | null>(null);
 
     const referenceMonthStr = format(referenceDate, 'MM/yyyy');
     const refYear = referenceDate.getFullYear();
@@ -403,7 +403,7 @@ export function BillsList() {
     // Busca o saldo da conta Asaas (mesmo padrão de sessão explícita da emissão).
     const fetchSaldo = async () => {
         setSaldoLoading(true);
-        setSaldoError(false);
+        setSaldoNote(null);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("no session");
@@ -417,9 +417,16 @@ export function BillsList() {
                 throw new Error(msg);
             }
             if (data?.error) throw new Error(data.error);
-            setSaldoAsaas(Number(data?.balance ?? 0));
+            // Saldo indisponível por falta de permissão na chave → nota amigável, não é erro.
+            if (data?.unavailable || data?.balance == null) {
+                setSaldoAsaas(null);
+                setSaldoNote(data?.message || "Saldo indisponível no momento.");
+            } else {
+                setSaldoAsaas(Number(data.balance));
+            }
         } catch {
-            setSaldoError(true);
+            setSaldoAsaas(null);
+            setSaldoNote("Não foi possível carregar o saldo agora.");
         } finally {
             setSaldoLoading(false);
         }
@@ -484,14 +491,19 @@ export function BillsList() {
                                 <h3 className="text-2xl font-bold text-blue-600 flex items-center h-8">
                                     <Loader2 className="h-5 w-5 animate-spin" />
                                 </h3>
-                            ) : saldoError ? (
-                                <button onClick={fetchSaldo} className="text-sm text-destructive hover:underline text-left">
-                                    Erro ao carregar — tentar de novo
-                                </button>
-                            ) : (
+                            ) : saldoAsaas != null ? (
                                 <h3 className="text-2xl font-bold text-blue-600">
-                                    R$ {(saldoAsaas ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    R$ {saldoAsaas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </h3>
+                            ) : (
+                                <button onClick={fetchSaldo} className="text-left" title={saldoNote ?? undefined}>
+                                    <span className="text-lg font-semibold text-muted-foreground">Indisponível</span>
+                                    {saldoNote && (
+                                        <span className="block text-[10px] text-muted-foreground/80 leading-tight max-w-[15rem] mt-0.5">
+                                            {saldoNote}
+                                        </span>
+                                    )}
+                                </button>
                             )}
                         </div>
                         <div className="p-2 bg-blue-100 rounded-full text-blue-600">

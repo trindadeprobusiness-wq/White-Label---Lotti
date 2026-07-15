@@ -42,8 +42,20 @@ serve(async (req) => {
 
         // Ação: consultar o saldo da conta Asaas (não depende de fatura).
         if (action === "saldo") {
-            const bal = await asaasGet("/finance/balance");
-            return json({ balance: Number(bal?.balance ?? 0) });
+            try {
+                const bal = await asaasGet("/finance/balance");
+                return json({ balance: Number(bal?.balance ?? 0) });
+            } catch (e) {
+                // Chave Asaas sem escopo FINANCIAL_TRANSACTION:READ → não é erro do app.
+                if (e instanceof AsaasError && (e.status === 403 || e.status === 401)) {
+                    return json({
+                        balance: null,
+                        unavailable: true,
+                        message: "Ative a permissão de leitura de saldo (FINANCIAL_TRANSACTION:READ) na sua chave de API do Asaas para ver o saldo aqui.",
+                    });
+                }
+                throw e;
+            }
         }
 
         if (action !== "emitir_cobranca" || !fatura_id) {
