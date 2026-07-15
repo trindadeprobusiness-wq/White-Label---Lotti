@@ -24,15 +24,28 @@ serve(async (req) => {
         const authHeader = req.headers.get("Authorization");
         if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
+        // Extrai o token do header e valida explicitamente (mais robusto que getUser()
+        // sem argumento, que depende do parsing do header global). O front envia
+        // `Authorization: Bearer <access_token>` da sessão do corretor.
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
         const userClient = createClient(
             Deno.env.get("SUPABASE_URL") ?? "",
             Deno.env.get("SUPABASE_ANON_KEY") ?? "",
             { global: { headers: { Authorization: authHeader } } },
         );
-        const { data: { user }, error: authError } = await userClient.auth.getUser();
-        if (authError || !user) return json({ error: "Invalid session" }, 401);
+        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+        if (authError || !user) {
+            return json({ error: "Sua sessão expirou. Entre novamente para continuar." }, 401);
+        }
 
         const { action, fatura_id } = await req.json();
+
+        // Ação: consultar o saldo da conta Asaas (não depende de fatura).
+        if (action === "saldo") {
+            const bal = await asaasGet("/finance/balance");
+            return json({ balance: Number(bal?.balance ?? 0) });
+        }
+
         if (action !== "emitir_cobranca" || !fatura_id) {
             return json({ error: "Requisição inválida" }, 400);
         }

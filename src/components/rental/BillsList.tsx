@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,11 @@ export function BillsList() {
     const [loadingContractId, setLoadingContractId] = useState<string | null>(null);
     const [isUploadingContract, setIsUploadingContract] = useState(false);
     const contractFileInputRef = useRef<HTMLInputElement>(null);
+
+    // Saldo da conta Asaas (buscado via Edge Function asaas-sync; a chave nunca vem ao front)
+    const [saldoAsaas, setSaldoAsaas] = useState<number | null>(null);
+    const [saldoLoading, setSaldoLoading] = useState(true);
+    const [saldoError, setSaldoError] = useState(false);
 
     const referenceMonthStr = format(referenceDate, 'MM/yyyy');
     const refYear = referenceDate.getFullYear();
@@ -355,8 +360,13 @@ export function BillsList() {
         const loadingToast = toast.loading("Emitindo cobrança no Asaas...");
         try {
             const faturaId = await ensureFatura(bill);
+            // Passa o token da sessão explicitamente (o invoke sozinho não anexa o JWT
+            // do corretor de forma confiável — mesmo padrão robusto do ai-assistant).
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Sua sessão expirou. Entre novamente para emitir a cobrança.');
             const { data, error } = await supabase.functions.invoke('asaas-sync', {
                 body: { action: 'emitir_cobranca', fatura_id: faturaId },
+                headers: { Authorization: `Bearer ${session.access_token}` },
             });
             if (error) {
                 // Erro HTTP da função traz o corpo em error.context
@@ -389,6 +399,36 @@ export function BillsList() {
             toast.error("Não foi possível copiar o PIX.");
         }
     };
+
+    // Busca o saldo da conta Asaas (mesmo padrão de sessão explícita da emissão).
+    const fetchSaldo = async () => {
+        setSaldoLoading(true);
+        setSaldoError(false);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("no session");
+            const { data, error } = await supabase.functions.invoke('asaas-sync', {
+                body: { action: 'saldo' },
+                headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (error) {
+                let msg = error.message;
+                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
+                throw new Error(msg);
+            }
+            if (data?.error) throw new Error(data.error);
+            setSaldoAsaas(Number(data?.balance ?? 0));
+        } catch {
+            setSaldoError(true);
+        } finally {
+            setSaldoLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchSaldo();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     if (isLoading) {
         return (
@@ -423,6 +463,39 @@ export function BillsList() {
                         </div>
                         <div className="p-2 bg-green-100 rounded-full text-green-600">
                             <CheckCircle className="h-5 w-5" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="shadow-sm border-l-4 border-l-blue-500">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-medium text-muted-foreground">Saldo Asaas</p>
+                                <button
+                                    onClick={fetchSaldo}
+                                    disabled={saldoLoading}
+                                    aria-label="Atualizar saldo"
+                                    className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                                >
+                                    <RefreshCw className={`h-3 w-3 ${saldoLoading ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
+                            {saldoLoading ? (
+                                <h3 className="text-2xl font-bold text-blue-600 flex items-center h-8">
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                </h3>
+                            ) : saldoError ? (
+                                <button onClick={fetchSaldo} className="text-sm text-destructive hover:underline text-left">
+                                    Erro ao carregar — tentar de novo
+                                </button>
+                            ) : (
+                                <h3 className="text-2xl font-bold text-blue-600">
+                                    R$ {(saldoAsaas ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </h3>
+                            )}
+                        </div>
+                        <div className="p-2 bg-blue-100 rounded-full text-blue-600">
+                            <Landmark className="h-5 w-5" />
                         </div>
                     </CardContent>
                 </Card>
