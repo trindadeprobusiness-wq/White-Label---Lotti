@@ -31,7 +31,12 @@ export function GenerateMessageDialog({ open, onOpenChange, bill, clientName }: 
         setGeneratedMessage(""); // Clear previous
 
         try {
+            // Token da sessão explícito: o invoke sozinho não anexa o JWT do corretor
+            // de forma confiável (mesmo padrão usado na emissão de cobrança).
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
             const { data, error } = await supabase.functions.invoke('generate-whatsapp-message', {
+                headers: { Authorization: `Bearer ${session.access_token}` },
                 body: {
                     clientName: clientName || "Cliente",
                     messageType,

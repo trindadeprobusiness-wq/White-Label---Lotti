@@ -153,12 +153,16 @@ serve(async (req) => {
     }
 
     // --- Verificar duplicata por telefone ---
+    // SEGURANÇA: este endpoint é PÚBLICO e roda com service_role. O match usava só os
+    // 8 últimos dígitos, o que é facilmente colidível/adivinhável — um terceiro acertava
+    // o sufixo e caía no registro de um cliente real. Agora casa pelo número local
+    // completo (DDD + número = 11 dígitos), reduzindo drasticamente colisão e chute.
     const phoneLookup = clienteTelefone.replace(/\D/g, '')
     const { data: existingCliente } = await supabaseClient
       .from('clientes')
       .select('id, nome, tracking_data')
       .eq('corretor_id', corretor_id)
-      .ilike('telefone', `%${phoneLookup.slice(-8)}%`) // Busca pelos últimos 8 dígitos
+      .ilike('telefone', `%${phoneLookup.slice(-11)}%`)
       .limit(1)
       .maybeSingle()
 
@@ -169,15 +173,18 @@ serve(async (req) => {
       // Atualizar cliente existente
       const mergedTracking = {
         ...(existingCliente.tracking_data || {}),
-        ultimo_retorno: trackingData,
+        ultimo_retorno: { ...trackingData, email_informado: clienteEmail || undefined },
       }
 
+      // SEGURANÇA: nunca sobrescrever PII de um cliente já existente por via anônima.
+      // Antes, um POST público conseguia trocar o e-mail de um cliente real. O e-mail
+      // enviado fica registrado apenas dentro de tracking_data (append), para o corretor
+      // revisar manualmente, sem adulterar o cadastro.
       const { error: updateError } = await supabaseClient
         .from('clientes')
         .update({
           ultimo_contato: new Date().toISOString(),
           tracking_data: mergedTracking,
-          ...(clienteEmail ? { email: clienteEmail } : {}),
         })
         .eq('id', existingCliente.id)
 

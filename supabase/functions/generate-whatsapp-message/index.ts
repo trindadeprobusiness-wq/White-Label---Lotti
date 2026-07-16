@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,28 @@ serve(async (req) => {
     }
 
     try {
+        // Auth: sem isto, esta função era um proxy ABERTO para a API paga do Gemini
+        // (qualquer um na internet gerava texto com prompt próprio à custa da chave).
+        // Mesmo padrão robusto da asaas-sync: valida a sessão do corretor in-code.
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+        }
+        const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+        const userClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+            { global: { headers: { Authorization: authHeader } } },
+        )
+        const { data: { user }, error: authError } = await userClient.auth.getUser(token)
+        if (authError || !user) {
+            return new Response(JSON.stringify({ error: 'Sua sessão expirou. Entre novamente para continuar.' }), {
+                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+        }
+
         const { clientName, messageType, details, tone } = await req.json()
         const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
