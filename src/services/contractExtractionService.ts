@@ -84,7 +84,14 @@ class FunctionUnavailableError extends Error {
 async function analyzeViaEdgeFunction(file: File): Promise<ExtractedContractData> {
     const fileBase64 = await fileToBase64(file);
 
+    // Token da sessão explícito: o invoke sozinho não anexa o JWT do corretor de
+    // forma confiável — era isso que derrubava a leitura por IA e fazia cair no
+    // fallback do navegador (que não lê contrato escaneado).
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Sua sessão expirou. Entre novamente.");
+
     const { data, error } = await supabase.functions.invoke("analisar-contrato", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
         body: { fileBase64, mimeType: file.type },
     });
 

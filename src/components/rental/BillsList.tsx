@@ -11,7 +11,16 @@ import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { parseContratoContent } from "@/types/rental";
+import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
 
 export function BillsList() {
     const queryClient = useQueryClient();
@@ -24,6 +33,12 @@ export function BillsList() {
     const [loadingContractId, setLoadingContractId] = useState<string | null>(null);
     const [isUploadingContract, setIsUploadingContract] = useState(false);
     const contractFileInputRef = useRef<HTMLInputElement>(null);
+
+    // Leitura do contrato por IA: extrai o CPF do inquilino do PDF anexado.
+    // Nada é gravado sem o corretor confirmar (CPF errado = cobrança errada).
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [extraido, setExtraido] = useState<ExtractedContractData | null>(null);
+    const [savingCpf, setSavingCpf] = useState(false);
 
     // Saldo da conta Asaas (buscado via Edge Function asaas-sync; a chave nunca vem ao front)
     const [saldoAsaas, setSaldoAsaas] = useState<number | null>(null);
@@ -210,6 +225,7 @@ export function BillsList() {
             setContractViewerDetails({
                 id: contract.id,
                 corretorId: contract.corretor_id,
+                clienteId: contract.cliente_id,
                 proprietario: contract.imoveis?.proprietario_nome || '—',
                 inquilino: contract.clientes?.nome || '—',
                 endereco: contract.imoveis?.endereco || '—',
@@ -290,12 +306,89 @@ export function BillsList() {
             queryClient.invalidateQueries({ queryKey: ["rental-contracts"] });
             queryClient.invalidateQueries({ queryKey: ["rental-bills-monthly", referenceMonthStr] });
 
+            // Com o PDF em mãos, a IA lê o contrato e propõe os dados do inquilino
+            // (principalmente o CPF, que o Asaas exige para emitir a cobrança).
+            void readContractWithAI(file);
+
         } catch (error: any) {
             console.error("Erro no upload:", error);
             toast.error("Erro ao anexar contrato: " + error.message, { id: toastId });
         } finally {
             setIsUploadingContract(false);
             if (event.target) event.target.value = ''; // reset input
+        }
+    };
+
+    // Lê o contrato com IA (Gemini lê o PDF direto, inclusive escaneado) e abre a
+    // confirmação. Falha aqui não desfaz o upload — o anexo já valeu por si.
+    const readContractWithAI = async (file: File) => {
+        setIsExtracting(true);
+        const toastId = toast.loading("Lendo o contrato com IA...");
+        try {
+            const dados = await extractContractData(file);
+            if (!dados.inquilino?.cpf) {
+                toast.info("A IA leu o contrato, mas não encontrou o CPF do inquilino nele.", { id: toastId });
+                return;
+            }
+            toast.dismiss(toastId);
+            setExtraido(dados);
+        } catch (err: any) {
+            toast.error("Não foi possível ler o contrato: " + (err?.message ?? "erro desconhecido"), { id: toastId });
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
+    // Validação de CPF (dígitos verificadores). A IA pode ler um dígito errado —
+    // um CPF inválido aqui viraria uma cobrança errada lá na frente.
+    const cpfValido = (cpf: string): boolean => {
+        const d = cpf.replace(/\D/g, '');
+        if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+        const calc = (base: number) => {
+            let soma = 0;
+            for (let i = 0; i < base; i++) soma += Number(d[i]) * (base + 1 - i);
+            const resto = (soma * 10) % 11;
+            return resto === 10 ? 0 : resto;
+        };
+        return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
+    };
+
+    const formatCpf = (cpf: string) => {
+        const d = cpf.replace(/\D/g, '');
+        return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : cpf;
+    };
+
+    // Grava o CPF (e completa telefone/e-mail apenas se estiverem vazios — nunca
+    // sobrescreve dado que o corretor já cadastrou).
+    const handleConfirmCpf = async () => {
+        const inq = extraido?.inquilino;
+        const clienteId = contractViewerDetails?.clienteId;
+        if (!inq?.cpf || !clienteId) return;
+
+        setSavingCpf(true);
+        try {
+            const { data: atual, error: readErr } = await (supabase as any)
+                .from('clientes')
+                .select('telefone, email')
+                .eq('id', clienteId)
+                .single();
+            if (readErr) throw readErr;
+
+            const patch: Record<string, unknown> = { cpf: inq.cpf.replace(/\D/g, '') };
+            if (!atual?.telefone && inq.telefone) patch.telefone = inq.telefone;
+            if (!atual?.email && inq.email) patch.email = inq.email;
+
+            const { error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId);
+            if (error) throw error;
+
+            toast.success("CPF preenchido! Agora é possível emitir a cobrança deste inquilino.");
+            setExtraido(null);
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+            queryClient.invalidateQueries({ queryKey: ["active-contracts-for-bills"] });
+        } catch (err: any) {
+            toast.error("Erro ao salvar o CPF: " + (err?.message ?? "erro desconhecido"));
+        } finally {
+            setSavingCpf(false);
         }
     };
 
@@ -932,14 +1025,18 @@ export function BillsList() {
                                     size="sm"
                                     className="gap-2 h-9 border-blue-200 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-700 dark:text-blue-400"
                                     onClick={() => contractFileInputRef.current?.click()}
-                                    disabled={isUploadingContract}
+                                    disabled={isUploadingContract || isExtracting}
                                 >
-                                    {isUploadingContract ? (
+                                    {isUploadingContract || isExtracting ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                         <UploadCloud className="h-4 w-4" />
                                     )}
-                                    {isUploadingContract ? "Enviando arquivo..." : "Anexar PDF do Contrato"}
+                                    {isUploadingContract
+                                        ? "Enviando arquivo..."
+                                        : isExtracting
+                                            ? "Lendo o contrato com IA..."
+                                            : "Anexar PDF do Contrato"}
                                 </Button>
                             </div>
                         )}
@@ -947,6 +1044,79 @@ export function BillsList() {
                 </div>
             </div>
         )}
+
+        {/* Confirmação do que a IA leu no contrato. Nada é gravado sem o corretor conferir. */}
+        <Dialog open={!!extraido} onOpenChange={(open) => !open && setExtraido(null)}>
+            <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                    <DialogTitle>Dados lidos do contrato</DialogTitle>
+                    <DialogDescription>
+                        A IA leu o PDF e encontrou os dados abaixo. Confira antes de salvar — o CPF
+                        é o que o Asaas usa para emitir a cobrança.
+                    </DialogDescription>
+                </DialogHeader>
+
+                {extraido && (() => {
+                    const inq = extraido.inquilino;
+                    const cpfOk = inq.cpf ? cpfValido(inq.cpf) : false;
+                    return (
+                        <div className="space-y-3">
+                            <div className="rounded-lg border p-3 space-y-2 text-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <span className="text-muted-foreground">Inquilino</span>
+                                    <span className="font-medium text-right">{inq.nome || '—'}</span>
+                                </div>
+                                <div className="flex items-start justify-between gap-3">
+                                    <span className="text-muted-foreground">CPF</span>
+                                    <span className={cpfOk ? 'font-semibold text-right' : 'font-semibold text-right text-destructive'}>
+                                        {inq.cpf ? formatCpf(inq.cpf) : '—'}
+                                    </span>
+                                </div>
+                                {inq.telefone && (
+                                    <div className="flex items-start justify-between gap-3">
+                                        <span className="text-muted-foreground">Telefone</span>
+                                        <span className="text-right">{inq.telefone}</span>
+                                    </div>
+                                )}
+                                {inq.email && (
+                                    <div className="flex items-start justify-between gap-3">
+                                        <span className="text-muted-foreground">E-mail</span>
+                                        <span className="text-right break-all">{inq.email}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {!cpfOk && (
+                                <p className="text-xs text-destructive">
+                                    Este CPF não passou na validação dos dígitos verificadores — a IA pode ter
+                                    lido um número errado. Corrija no cadastro do cliente manualmente.
+                                </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                                Telefone e e-mail só serão preenchidos se estiverem vazios no cadastro.
+                                Seu cadastro atual nunca é sobrescrito.
+                            </p>
+                        </div>
+                    );
+                })()}
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setExtraido(null)} disabled={savingCpf}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        onClick={handleConfirmCpf}
+                        disabled={savingCpf || !extraido?.inquilino?.cpf || !cpfValido(extraido.inquilino.cpf)}
+                    >
+                        {savingCpf ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando...</>
+                        ) : (
+                            <><CheckCircle className="h-4 w-4 mr-2" /> Confirmar e salvar CPF</>
+                        )}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         </>
     );
 }

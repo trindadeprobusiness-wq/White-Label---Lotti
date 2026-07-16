@@ -113,13 +113,18 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401);
 
+    // Valida o token explicitamente (getUser() sem argumento não é confiável e
+    // derrubava esta função com "Invalid session" — mesmo padrão da asaas-sync).
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) return jsonResponse({ error: "Invalid session" }, 401);
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    if (authError || !user) {
+      return jsonResponse({ error: "Sua sessão expirou. Entre novamente para continuar." }, 401);
+    }
 
     const { fileBase64, mimeType } = await req.json();
 
