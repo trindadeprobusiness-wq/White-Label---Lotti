@@ -8,6 +8,7 @@ import { corsHeaders, assertN8nSecret, json } from '../_shared/auth.ts'
 
 interface LeadPayload {
   telefone: string
+  corretor_id?: string
   nome?: string
   email?: string
   tipo_interesse?: 'COMPRA' | 'ALUGUEL' | 'AMBOS' | 'PROPRIETARIO'
@@ -36,10 +37,24 @@ serve(async (req) => {
     const payload = (await req.json()) as LeadPayload
     if (!payload.telefone) return json({ error: 'telefone é obrigatório' }, 400)
 
-    // Corretor padrão (primeiro da tabela) caso não haja vínculo
-    const { data: corretor } = await supabase.from('corretores').select('id').limit(1).single()
-    const corretor_id = corretor?.id
-    if (!corretor_id) return json({ error: 'nenhum corretor cadastrado' }, 500)
+    // Resolve o corretor dono do lead.
+    // Antes usava "o primeiro corretor da tabela" como padrão: com um único
+    // corretor isso funciona, mas a partir do segundo o lead cairia no tenant
+    // ERRADO, silenciosamente. Agora: usa o corretor_id explícito quando vier;
+    // senão só assume o padrão se existir exatamente UM corretor; havendo mais,
+    // falha alto pedindo o corretor_id em vez de adivinhar.
+    let corretor_id = payload.corretor_id
+    if (corretor_id) {
+      const { data: alvo } = await supabase.from('corretores').select('id').eq('id', corretor_id).maybeSingle()
+      if (!alvo) return json({ error: 'corretor_id informado não existe' }, 400)
+    } else {
+      const { data: corretores } = await supabase.from('corretores').select('id').limit(2)
+      if (!corretores?.length) return json({ error: 'nenhum corretor cadastrado' }, 500)
+      if (corretores.length > 1) {
+        return json({ error: 'Há mais de um corretor cadastrado: informe corretor_id no payload.' }, 400)
+      }
+      corretor_id = corretores[0].id
+    }
 
     const statusFunil =
       payload.classificacao === 'quente'

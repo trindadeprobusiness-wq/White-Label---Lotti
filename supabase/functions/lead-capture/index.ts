@@ -139,17 +139,25 @@ serve(async (req) => {
       if (imovelData) corretor_id = imovelData.corretor_id
     }
 
+    // Sem imóvel no payload, cai no corretor padrão. Antes era "o primeiro da
+    // tabela": com um único corretor funciona, mas a partir do segundo o lead
+    // iria para o tenant ERRADO, sem ninguém perceber. Agora só assume o padrão
+    // se existir exatamente UM corretor; havendo mais, falha explicitamente.
     if (!corretor_id) {
-      const { data: corretorData } = await supabaseClient
+      const { data: corretores } = await supabaseClient
         .from('corretores')
         .select('id')
-        .limit(1)
-        .single()
-      corretor_id = corretorData?.id
-    }
+        .limit(2)
 
-    if (!corretor_id) {
-      throw new Error('Não foi possível encontrar um corretor para atribuir.')
+      if (!corretores?.length) {
+        throw new Error('Não foi possível encontrar um corretor para atribuir.')
+      }
+      if (corretores.length > 1) {
+        throw new Error(
+          'Há mais de um corretor cadastrado: envie imovel_id (ou imovel_interesse_id) para identificar o destinatário do lead.',
+        )
+      }
+      corretor_id = corretores[0].id
     }
 
     // --- Verificar duplicata por telefone ---
