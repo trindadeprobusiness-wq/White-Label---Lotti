@@ -173,7 +173,19 @@ export default function Imoveis() {
                 ) : (
                   <div className="flex flex-col items-center gap-1 text-muted-foreground/50">
                     <Image className="w-8 h-8" />
-                    <span className="text-xs">Sem foto</span>
+                    <span className="text-xs mb-1">Sem foto</span>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="h-6 text-[10px] px-2 bg-background/50 hover:bg-background/80"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImovelToEdit(imovel);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Adicionar
+                    </Button>
                   </div>
                 )}
               </div>

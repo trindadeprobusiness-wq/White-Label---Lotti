@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2, Building2, Mail, Lock, User, Phone, CreditCard } from 'lucide-react';
 import { z } from 'zod';
-import oliverLogo from '@/assets/oliver-logo.png';
+import oliverLogo from '@/assets/oliver-logo-completa.png';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -129,9 +129,7 @@ export default function Auth() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src={oliverLogo} alt="Oliver" className="h-16 w-auto mb-4" />
-          <h1 className="text-2xl font-bold text-foreground">Oliver</h1>
-          <p className="text-muted-foreground">Negócios Inteligentes</p>
+          <img src={oliverLogo} alt="Oliver Negócios Inteligentes" className="h-20 w-auto mb-4" />
         </div>
 
         <Card className="border-border/50 shadow-xl">

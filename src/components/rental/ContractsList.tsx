@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calculator, User as UserIcon, Building2, FileText, CalendarDays, ArrowUpRight, ArrowDownLeft, MoreHorizontal, Search, DollarSign, PowerOff, Plus, PenLine, Sparkles, ChevronDown } from "lucide-react";
+import { Calculator, User as UserIcon, Building2, FileText, CalendarDays, ArrowUpRight, ArrowDownLeft, MoreHorizontal, Search, DollarSign, PowerOff, Plus, PenLine, Sparkles, ChevronDown, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NewContractDialog } from "./NewContractDialog";
@@ -291,10 +291,11 @@ export function ContractsList() {
                                                         >
                                                             {contract.status}
                                                         </Badge>
-                                                        {/* Asaas Badge - Checks if content has Asaas metadata or simply mocks it if user tagged it */}
-                                                        {(content.asaas_integrated) && (
-                                                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 whitespace-nowrap px-2">
-                                                                Asaas (Manual)
+                                                        {/* Alerta de Contrato sem Anexo */}
+                                                        {!contract.arquivo_url && (
+                                                            <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] h-5 whitespace-nowrap px-2 flex items-center gap-1 mt-1">
+                                                                <AlertCircle className="h-3 w-3" />
+                                                                Pendente Anexo
                                                             </Badge>
                                                         )}
                                                     </div>
@@ -318,39 +319,7 @@ export function ContractsList() {
                                                                 <MoreHorizontal className="mr-2 h-4 w-4" /> Editar Contrato
                                                             </DropdownMenuItem>
 
-                                                            <DropdownMenuItem onClick={async () => {
-                                                                try {
-                                                                    const currentIntegrated = !!content.asaas_integrated;
-                                                                    const newIntegrated = !currentIntegrated;
 
-                                                                    // Clean up legacy string if exists to avoid confusion, but main logic is the boolean
-                                                                    const newObs = (content.obs || '').replace(/\[?Asaas\]?/gi, '').trim();
-
-                                                                    const newContent = {
-                                                                        ...content,
-                                                                        obs: newObs,
-                                                                        asaas_integrated: newIntegrated
-                                                                    };
-
-                                                                    const { error } = await supabase
-                                                                        .from('contratos')
-                                                                        .update({ conteudo: JSON.stringify(newContent) })
-                                                                        .eq('id', contract.id);
-
-                                                                    if (error) throw error;
-
-                                                                    // Optimistic update or refetch would be better, but for now relying on query invalidation if setup
-                                                                    window.location.reload(); // Quick refresh to show change
-                                                                } catch (err) {
-                                                                    console.error('Erro ao alternar Asaas:', err);
-                                                                    alert('Erro ao atualizar status Asaas');
-                                                                }
-                                                            }}>
-                                                                <div className="flex items-center w-full">
-                                                                    <DollarSign className="mr-2 h-4 w-4 text-secondary-foreground" />
-                                                                    {content.asaas_integrated ? 'Desmarcar Asaas' : 'Marcar como Asaas'}
-                                                                </div>
-                                                            </DropdownMenuItem>
                                                             {contract.arquivo_url && (
                                                                 <DropdownMenuItem onClick={() => handleViewContract(contract.arquivo_url)}>
                                                                     <FileText className="mr-2 h-4 w-4" /> Ver Contrato

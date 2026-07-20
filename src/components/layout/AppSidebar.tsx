@@ -1,7 +1,8 @@
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode } from 'lucide-react';
 import { useState } from 'react';
-import oliverLogo from '@/assets/oliver-logo.png';
+import oliverLogoCompleta from '@/assets/oliver-logo-completa.png';
+import oliverLogoResumida from '@/assets/oliver-logo-resumida.png';
 import { cn } from '@/lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -68,22 +69,14 @@ export function AppSidebar() {
 
 const Logo = ({ open }: { open: boolean }) => {
   return (
-    <div className="font-normal flex space-x-2 items-center text-sm py-1 relative z-20 px-1">
-      <Link to="/" className='flex-shrink-0'>
+    <div className="font-normal flex items-center justify-center text-sm py-1 relative z-20 px-1 w-full">
+      <Link to="/" className='flex items-center justify-center'>
         <img
-          src={oliverLogo}
-          className="h-8 w-auto flex-shrink-0"
+          src={open ? oliverLogoCompleta : oliverLogoResumida}
+          className={cn("w-auto transition-all duration-300", open ? "h-12" : "h-8")}
           alt="Oliver Negócios Inteligentes"
         />
       </Link>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: open ? 1 : 0 }}
-        className="font-medium text-sidebar-foreground whitespace-pre flex flex-col overflow-hidden"
-      >
-        <span className="font-semibold text-sm">OLIVER</span>
-        <span className="text-xs text-sidebar-foreground/70">Negócios Inteligentes</span>
-      </motion.div>
     </div>
   );
 };
