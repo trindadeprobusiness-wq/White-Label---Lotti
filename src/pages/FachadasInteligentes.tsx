@@ -27,6 +27,54 @@ interface CustomTemplate {
   created_at: string;
 }
 
+function ProcessingTimer({ createdAt }: { createdAt: string }) {
+  const [progress, setProgress] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    const createdTime = new Date(createdAt).getTime();
+    const now = Date.now();
+    const processingTime = 3000; // 3 segundos de processamento
+    if (now - createdTime < processingTime) {
+      setIsProcessing(true);
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const p = Math.min(100, Math.floor((elapsed / processingTime) * 100));
+        setProgress(p);
+        if (p >= 100) {
+          clearInterval(interval);
+          setIsProcessing(false);
+        }
+      }, 50);
+      return () => clearInterval(interval);
+    }
+  }, [createdAt]);
+
+  if (!isProcessing) {
+    return (
+      <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center gap-1 animate-in fade-in">
+        <QrCode className="h-3 w-3 text-white" />
+        <span className="text-[9px] text-white font-medium">QR será aplicado</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm rounded-lg px-2 py-1.5 flex flex-col gap-1 w-28">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] text-white font-medium flex items-center gap-1">
+          <Loader2 className="h-2.5 w-2.5 animate-spin" /> Preparando...
+        </span>
+        <span className="text-[9px] text-white font-bold">{progress}%</span>
+      </div>
+      <div className="w-full bg-white/20 rounded-full h-1 overflow-hidden">
+        <div className="bg-primary h-full transition-all duration-75" style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function FachadasInteligentes() {
   const {
     fachadas,
@@ -50,10 +98,11 @@ export default function FachadasInteligentes() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
-  const [previewCustomUrl, setPreviewCustomUrl] = useState<string | null>(null);
+  const [previewCustomTemplate, setPreviewCustomTemplate] = useState<CustomTemplate | null>(null);
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [qrSizePercent, setQrSizePercent] = useState(20);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const { upload, uploading } = useFileUpload('imoveis-fotos');
 
   useEffect(() => {
@@ -97,6 +146,31 @@ export default function FachadasInteligentes() {
     setTemplateFile(file);
     const url = URL.createObjectURL(file);
     setTemplatePreviewUrl(url);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        setTemplateFile(file);
+        const url = URL.createObjectURL(file);
+        setTemplatePreviewUrl(url);
+      } else {
+        toast({ variant: 'destructive', title: 'Formato inválido', description: 'Por favor, envie uma imagem.' });
+      }
+    }
   };
 
   const handleSaveCustomTemplate = async () => {
@@ -298,29 +372,44 @@ export default function FachadasInteligentes() {
                   {customTemplates.map((ct) => (
                     <div
                       key={ct.id}
-                      className="rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all group relative border border-border"
+                      className="rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all group relative border border-border cursor-pointer"
+                      onClick={() => setPreviewCustomTemplate(ct)}
                     >
-                      <div className="h-40 overflow-hidden bg-black relative">
-                        <img
-                          src={ct.imagem_url}
-                          alt={ct.nome}
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-                        />
-                        {/* QR Code overlay indicator */}
-                        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center gap-1">
-                          <QrCode className="h-3 w-3 text-white" />
-                          <span className="text-[9px] text-white font-medium">QR será aplicado</span>
+                      <div className="h-40 overflow-hidden bg-black relative flex items-center justify-center">
+                        <div className="relative w-full h-full group-hover:scale-105 transition-transform duration-500">
+                          <img
+                            src={ct.imagem_url}
+                            alt={ct.nome}
+                            className="w-full h-full object-contain"
+                          />
+                          {/* Mock QR Code Overlay */}
+                          {ct.qrPosition && ct.qrSize && (
+                            <div
+                              className="absolute bg-white flex flex-col items-center justify-center shadow-lg rounded-sm"
+                              style={{
+                                left: `${ct.qrPosition.x}%`,
+                                top: `${ct.qrPosition.y}%`,
+                                transform: 'translate(-50%, -50%)',
+                                width: `${ct.qrSize}%`,
+                                aspectRatio: '1',
+                              }}
+                            >
+                              <QrCode className="w-1/2 h-1/2 text-black opacity-80" />
+                            </div>
+                          )}
                         </div>
+                        {/* QR Code overlay indicator (with processing timer) */}
+                        <ProcessingTimer createdAt={ct.created_at} />
                         {/* Hover actions */}
                         <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={() => setPreviewCustomUrl(ct.imagem_url)}
+                            onClick={(e) => { e.stopPropagation(); setPreviewCustomTemplate(ct); }}
                             className="p-1.5 bg-black/60 backdrop-blur-sm rounded-lg hover:bg-black/80 transition"
                           >
                             <Eye className="h-3.5 w-3.5 text-white" />
                           </button>
                           <button
-                            onClick={() => handleDeleteCustomTemplate(ct)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCustomTemplate(ct); }}
                             className="p-1.5 bg-red-500/80 backdrop-blur-sm rounded-lg hover:bg-red-600 transition"
                           >
                             <Trash2 className="h-3.5 w-3.5 text-white" />
@@ -470,8 +559,16 @@ export default function FachadasInteligentes() {
                   />
                 ) : (
                   <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-48 border-2 border-dashed border-muted-foreground/30 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group ${
+                      isDragging 
+                        ? 'border-primary bg-primary/10' 
+                        : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5'
+                    }`}
                   >
                     <div className="p-4 rounded-full bg-primary/10 group-hover:bg-primary/20 transition">
                       <Upload className="h-8 w-8 text-primary" />
@@ -536,18 +633,37 @@ export default function FachadasInteligentes() {
       </Dialog>
 
       {/* Dialog de preview de template customizado (imagem ampliada) */}
-      <Dialog open={!!previewCustomUrl} onOpenChange={(o) => { if (!o) setPreviewCustomUrl(null); }}>
-        <DialogContent className="max-w-3xl">
+      <Dialog open={!!previewCustomTemplate} onOpenChange={(o) => { if (!o) setPreviewCustomTemplate(null); }}>
+        <DialogContent className="max-w-md sm:max-w-lg lg:max-w-3xl border-border p-4 sm:p-6 overflow-hidden">
           <DialogHeader>
             <DialogTitle>Preview do Template</DialogTitle>
           </DialogHeader>
-          {previewCustomUrl && (
-            <div className="bg-black rounded-xl overflow-hidden">
-              <img
-                src={previewCustomUrl}
-                alt="Preview"
-                className="w-full max-h-[70vh] object-contain mx-auto"
-              />
+          {previewCustomTemplate && (
+            <div className="relative w-full flex items-center justify-center bg-black rounded-xl overflow-hidden min-h-[50vh] max-h-[75vh]">
+              <div className="relative w-full h-full flex items-center justify-center">
+                <img
+                  src={previewCustomTemplate.imagem_url}
+                  alt={previewCustomTemplate.nome}
+                  className="w-full max-h-[75vh] object-contain mx-auto"
+                />
+                {previewCustomTemplate.qrPosition && previewCustomTemplate.qrSize && (
+                  <div
+                    className="absolute bg-white flex flex-col items-center justify-center shadow-2xl rounded-sm sm:rounded-md lg:rounded-lg"
+                    style={{
+                      left: `${previewCustomTemplate.qrPosition.x}%`,
+                      top: `${previewCustomTemplate.qrPosition.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: `${previewCustomTemplate.qrSize}%`,
+                      aspectRatio: '1',
+                    }}
+                  >
+                    <QrCode className="w-1/2 h-1/2 text-black opacity-80" />
+                    {previewCustomTemplate.qrSize >= 15 && (
+                      <p className="text-[10px] text-black font-semibold mt-1">QR CODE</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

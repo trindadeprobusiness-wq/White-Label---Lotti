@@ -15,43 +15,24 @@ export function useFachadaPublica() {
   const fetchFachadaPublica = useCallback(async (fachadaId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('fachadas')
-        .select(`
-          *,
-          imovel:imoveis(titulo, tipo, valor, area_m2, dormitorios, garagem, endereco, bairro, cidade, descricao),
-          corretor:corretores(nome, telefone, email, creci, foto_url, razao_social)
-        `)
-        .eq('id', fachadaId)
-        .eq('ativo', true)
-        .single();
+      // Busca via Edge Function (service_role): o RLS esconde do anônimo os imóveis
+      // não-anunciados e a tabela corretores inteira, o que deixava a landing VAZIA.
+      // A função devolve só campos seguros (sem PII de proprietário).
+      const { data, error } = await supabase.functions.invoke('fachada-publica', {
+        body: { fachadaId },
+      });
 
       if (error) throw error;
+      if (!data?.fachada) throw new Error(data?.error || 'Fachada não encontrada');
 
-      const mapped = {
-        ...data,
-        imovel: data.imovel ?? undefined,
-        corretor: data.corretor ?? undefined,
-      } as FachadaComImovel;
+      const f = data.fachada;
+      setFachada({
+        ...f,
+        imovel: f.imovel ?? undefined,
+        corretor: f.corretor ?? undefined,
+      } as FachadaComImovel);
 
-      setFachada(mapped);
-
-      // Buscar fotos do imóvel
-      if (data.imovel_id) {
-        const { data: fotosData } = await supabase
-          .from('imovel_fotos')
-          .select('id, arquivo_url, principal')
-          .eq('imovel_id', data.imovel_id)
-          .order('ordem', { ascending: true });
-
-        setFotos(
-          (fotosData || []).map((f: any) => ({
-            id: f.id,
-            arquivo_url: f.arquivo_url,
-            principal: !!f.principal,
-          })),
-        );
-      }
+      setFotos(Array.isArray(data.fotos) ? data.fotos : []);
     } catch (err) {
       console.error('Erro ao buscar fachada pública:', err);
       setFachada(null);

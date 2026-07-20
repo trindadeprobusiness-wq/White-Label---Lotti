@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TIPO_NEGOCIO_LABELS, CTA_LABELS } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
+import { getFachadaPublicUrl } from '@/lib/publicBaseUrl';
 
 interface FachadaCardProps {
   fachada: FachadaComImovel;
@@ -23,8 +24,7 @@ export function FachadaCard({ fachada, onPreview, onDeactivate }: FachadaCardPro
       ? Math.round((fachada.total_leads / fachada.total_escaneamentos) * 100)
       : 0;
 
-  const baseUrl = window.location.origin;
-  const qrUrl = `${baseUrl}/p/${fachada.id}`;
+  const qrUrl = getFachadaPublicUrl(fachada.id);
 
   return (
     <Card className="hover:shadow-lg transition-all duration-300 overflow-hidden group">
@@ -76,7 +76,7 @@ export function FachadaCard({ fachada, onPreview, onDeactivate }: FachadaCardPro
                 className="text-destructive"
                 onClick={() => onDeactivate(fachada.id)}
               >
-                <Power className="h-4 w-4 mr-2" /> Desativar
+                <Trash2 className="h-4 w-4 mr-2" /> Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

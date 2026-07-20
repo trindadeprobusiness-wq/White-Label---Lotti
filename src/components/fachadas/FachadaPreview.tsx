@@ -6,6 +6,9 @@ import { QRCodeGenerator } from './QRCodeGenerator';
 import { DEFAULT_TEMPLATES, TIPO_NEGOCIO_LABELS, CTA_LABELS } from '@/types/fachada';
 import type { FachadaComImovel, TemplateConfig } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
+import { getFachadaPublicUrl } from '@/lib/publicBaseUrl';
+import { baixarFachadaComQr } from './fachadaExport';
+import { toast } from 'sonner';
 
 interface FachadaPreviewProps {
   fachada: FachadaComImovel | null;
@@ -71,13 +74,37 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
   if (!fachada) return null;
 
   const config = getTemplateConfig(fachada.template_id);
-  const baseUrl = window.location.origin;
-  const qrUrl = `${baseUrl}/p/${fachada.id}`;
+  // Sempre aponta para o domínio público — nunca localhost (senão o QR não escaneia).
+  const qrUrl = getFachadaPublicUrl(fachada.id);
 
   const formatPrice = (valor: number) => `R$ ${valor.toLocaleString('pt-BR')}`;
 
-  const handleDownload = () => {
-    // Simple approach: open print dialog for the preview
+  const [baixando, setBaixando] = useState(false);
+
+  const handleDownload = async () => {
+    // Template personalizado: compõe a arte + QR num PNG único (escaneável). O print
+    // com innerHTML perdia o CSS e desgrudava o QR da arte.
+    if (isCustomTemplate) {
+      setBaixando(true);
+      const toastId = toast.loading('Gerando a fachada com o QR...');
+      try {
+        await baixarFachadaComQr({
+          artUrl: fachada.template_id,
+          qrValue: qrUrl,
+          qrPosition: customQrPosition ?? { x: 50, y: 50 },
+          qrSizePercent: customQrSize || 20,
+          fileName: `fachada-${(fachada.imovel?.titulo || 'imovel').replace(/[^\w-]+/g, '_').slice(0, 40)}.png`,
+        });
+        toast.success('Fachada baixada! O QR já está na arte, pronto para imprimir.', { id: toastId });
+      } catch (err: any) {
+        toast.error('Não foi possível gerar a imagem: ' + (err?.message ?? 'erro'), { id: toastId });
+      } finally {
+        setBaixando(false);
+      }
+      return;
+    }
+
+    // Templates padrão (HTML/CSS): mantém a impressão.
     const content = previewRef.current;
     if (!content) return;
 
@@ -249,8 +276,13 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
 
         {/* Botões */}
         <div className="flex gap-3 pt-4">
-          <Button className="flex-1" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" /> Baixar / Imprimir PDF
+          <Button className="flex-1" onClick={handleDownload} disabled={baixando}>
+            {baixando ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {isCustomTemplate ? 'Baixar imagem (PNG)' : 'Baixar / Imprimir PDF'}
           </Button>
           <Button
             variant="outline"

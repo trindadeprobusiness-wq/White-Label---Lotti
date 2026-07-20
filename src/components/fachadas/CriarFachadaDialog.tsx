@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, MessageCircle, Zap, ImagePlus } from 'lucide-react';
+import { Building2, MessageCircle, Zap, ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { QrCodePositioner } from './QrCodePositioner';
 import {
   Select,
   SelectContent,
@@ -68,6 +69,11 @@ export function CriarFachadaDialog({
   const [ctaPrincipal, setCtaPrincipal] = useState<CTAPrincipal>('WHATSAPP');
   const [modoConversao, setModoConversao] = useState(false);
   const [mensagemWhatsapp, setMensagemWhatsapp] = useState('');
+  
+  // Custom Template (Upload Avulso) States
+  const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
+  const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [qrSizePercent, setQrSizePercent] = useState(20);
 
   const selectedImovel = imoveis.find((i) => i.id === imovelId);
 
@@ -80,6 +86,10 @@ export function CriarFachadaDialog({
     setCtaPrincipal('WHATSAPP');
     setModoConversao(false);
     setMensagemWhatsapp('');
+    if (templatePreviewUrl) URL.revokeObjectURL(templatePreviewUrl);
+    setTemplatePreviewUrl(null);
+    setQrPosition({ x: 50, y: 50 });
+    setQrSizePercent(20);
   };
 
   const handleSubmit = async () => {
@@ -95,6 +105,31 @@ export function CriarFachadaDialog({
         const result = await upload(customTemplateFile, `fachadas/${fileName}`);
         if (result?.url) {
           finalTemplateId = result.url;
+          
+          try {
+            const { data: corretorId } = await supabase.rpc('get_corretor_id');
+            if (corretorId) {
+              await supabase.from('fachada_templates').insert({
+                corretor_id: corretorId,
+                nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
+                categoria: tipoNegocio,
+                padrao: false,
+                config: {
+                  imagem_url: result.url,
+                  qrPosition: { x: qrPosition.x, y: qrPosition.y },
+                  qrSize: qrSizePercent,
+                  corPrimaria: '#000000',
+                  corSecundaria: '#ffffff',
+                  corTexto: '#ffffff',
+                  corFundo: '#000000',
+                  estilo: 'profissional',
+                  layout: 'vertical',
+                },
+              } as any);
+            }
+          } catch (e) {
+            console.error('Erro ao salvar template avulso:', e);
+          }
         }
       }
 
@@ -302,14 +337,45 @@ export function CriarFachadaDialog({
 
             {templateId === 'custom' && (
               <div className="mt-4 p-4 border rounded-lg bg-muted/20">
-                <Label className="mb-2 block">Upload do Template (Imagem)</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setCustomTemplateFile(e.target.files?.[0] || null)}
-                />
+                <Label className="mb-2 block">Upload do Template (Imagem) *</Label>
+                {templatePreviewUrl ? (
+                  <QrCodePositioner
+                    imageSrc={templatePreviewUrl}
+                    position={qrPosition}
+                    onPositionChange={setQrPosition}
+                    qrSizePercent={qrSizePercent}
+                    onSizeChange={setQrSizePercent}
+                    removeButton={
+                      <button
+                        onClick={() => {
+                          setCustomTemplateFile(null);
+                          URL.revokeObjectURL(templatePreviewUrl);
+                          setTemplatePreviewUrl(null);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-red-500/80 rounded-lg hover:bg-red-600 transition z-50"
+                      >
+                        <Trash2 className="h-4 w-4 text-white" />
+                      </button>
+                    }
+                  />
+                ) : (
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setCustomTemplateFile(file);
+                        setTemplatePreviewUrl(URL.createObjectURL(file));
+                      } else {
+                        setCustomTemplateFile(null);
+                        setTemplatePreviewUrl(null);
+                      }
+                    }}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground mt-2">
-                  Você pode fazer o upload da imagem inteira do seu template. O sistema usará essa imagem como fundo e adicionará o QR code por cima.
+                  Faça o upload da arte da sua fachada. Ajuste o tamanho e a posição do QR Code arrastando a marcação na imagem.
                 </p>
               </div>
             )}

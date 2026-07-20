@@ -26,7 +26,9 @@ export function QrCodePositioner({
 }: QrCodePositionerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
+  const resizeStart = useRef({ x: 0, size: 0, containerWidth: 0 });
 
   // ─── Convert mouse/touch coords to % position ───
   const getPercentPosition = useCallback(
@@ -89,6 +91,36 @@ export function QrCodePositioner({
     };
   }, [isDragging, getPercentPosition, onPositionChange]);
 
+  // ─── Resize handlers ───
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+      const dx = clientX - resizeStart.current.x;
+      // Since it scales from center, dragging right by dx increases total width by dx * 2
+      const percentChange = (dx * 2 / resizeStart.current.containerWidth) * 100;
+      const newSize = Math.max(5, Math.min(80, resizeStart.current.size + percentChange));
+      onSizeChange(Math.round(newSize));
+    };
+
+    const handleUp = () => {
+      setIsResizing(false);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchend', handleUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchend', handleUp);
+    };
+  }, [isResizing, onSizeChange]);
+
   // ─── Touch handlers ───
   useEffect(() => {
     if (!isDragging) return;
@@ -136,9 +168,28 @@ export function QrCodePositioner({
     [],
   );
 
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setIsResizing(true);
+    resizeStart.current = { x: e.clientX, size: qrSizePercent, containerWidth: rect.width };
+  };
+
+  const handleResizeTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setIsResizing(true);
+    resizeStart.current = { x: touch.clientX, size: qrSizePercent, containerWidth: rect.width };
+  };
+
   // ─── Size presets ───
-  const decreaseSize = () => onSizeChange(Math.max(8, qrSizePercent - 4));
-  const increaseSize = () => onSizeChange(Math.min(50, qrSizePercent + 4));
+  const decreaseSize = () => onSizeChange(Math.max(5, qrSizePercent - 1));
+  const increaseSize = () => onSizeChange(Math.min(80, qrSizePercent + 1));
 
   return (
     <div className="space-y-2">
@@ -159,8 +210,8 @@ export function QrCodePositioner({
         <div
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
-          className={`absolute flex flex-col items-center justify-center transition-shadow ${
-            isDragging
+          className={`absolute flex flex-col items-center justify-center transition-shadow group ${
+            isDragging || isResizing
               ? 'shadow-2xl shadow-primary/50 scale-105 z-50'
               : 'shadow-lg hover:shadow-xl z-40'
           }`}
@@ -170,13 +221,13 @@ export function QrCodePositioner({
             transform: 'translate(-50%, -50%)',
             width: `${qrSizePercent}%`,
             aspectRatio: '1',
-            cursor: isDragging ? 'grabbing' : 'grab',
+            cursor: isDragging ? 'grabbing' : (isResizing ? 'nwse-resize' : 'grab'),
           }}
         >
           {/* Visual overlay */}
           <div
             className={`w-full h-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center backdrop-blur-sm transition-all ${
-              isDragging
+              isDragging || isResizing
                 ? 'border-primary bg-primary/20'
                 : 'border-white/60 bg-black/40 hover:border-primary/70 hover:bg-black/50'
             }`}
@@ -193,9 +244,20 @@ export function QrCodePositioner({
             )}
 
             {/* Move icon hint */}
-            <div className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5 shadow-md">
-              <Move className="h-2.5 w-2.5 text-white" />
+            <div className="absolute -top-3 -right-3 bg-primary/80 backdrop-blur-sm rounded-full p-1.5 shadow-md pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+              <Move className="h-3 w-3 text-white" />
             </div>
+
+            {/* Resize handle (bottom-right) */}
+            <div 
+              onMouseDown={handleResizeMouseDown}
+              onTouchStart={handleResizeTouchStart}
+              className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary border-2 border-white rounded-full shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
+            />
+            {/* Other handles for visual balance */}
+            <div className="absolute -top-1.5 -left-1.5 w-2.5 h-2.5 bg-white/50 border border-white/80 rounded-full pointer-events-none" />
+            <div className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 bg-white/50 border border-white/80 rounded-full pointer-events-none" />
+            <div className="absolute -bottom-1.5 -left-1.5 w-2.5 h-2.5 bg-white/50 border border-white/80 rounded-full pointer-events-none" />
           </div>
         </div>
 

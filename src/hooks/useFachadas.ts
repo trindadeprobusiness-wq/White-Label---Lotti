@@ -147,16 +147,16 @@ export function useFachadas() {
       try {
         const { error } = await supabase
           .from('fachadas')
-          .update({ ativo: false } as any)
+          .delete()
           .eq('id', id);
 
         if (error) throw error;
 
-        toast({ title: 'Fachada desativada' });
+        toast({ title: 'Fachada excluída com sucesso' });
         await fetchFachadas();
         return true;
       } catch (err) {
-        console.error('Erro ao desativar fachada:', err);
+        console.error('Erro ao excluir fachada:', err);
         return false;
       }
     },
