@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DataLoader } from "@/components/DataLoader";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
@@ -42,6 +43,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public route */}
@@ -76,6 +78,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

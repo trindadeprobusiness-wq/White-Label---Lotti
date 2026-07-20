@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Download, Box, Home, Lock, Phone } from 'lucide-react';
+import { Download, Box, Home, Lock, Phone, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { QRCodeGenerator } from './QRCodeGenerator';
@@ -38,6 +38,7 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
   // QR position from custom template config
   const [customQrPosition, setCustomQrPosition] = useState<{ x: number; y: number } | null>(null);
   const [customQrSize, setCustomQrSize] = useState<number | null>(null);
+  const [baixando, setBaixando] = useState(false);
 
   const isCustomTemplate = (fachada?.template_id || '').startsWith('http');
 
@@ -78,8 +79,6 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
   const qrUrl = getFachadaPublicUrl(fachada.id);
 
   const formatPrice = (valor: number) => `R$ ${valor.toLocaleString('pt-BR')}`;
-
-  const [baixando, setBaixando] = useState(false);
 
   const handleDownload = async () => {
     // Template personalizado: compõe a arte + QR num PNG único (escaneável). O print
