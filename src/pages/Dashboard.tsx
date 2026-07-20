@@ -29,13 +29,13 @@ export default function Dashboard() {
   const hoje = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-10 animate-fade-in-up">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">
+        <h1 className="text-3xl font-semibold text-foreground tracking-tight">
           Bem-vindo, {corretor?.nome || 'Corretor'}
         </h1>
-        <p className="text-muted-foreground capitalize">{hoje}</p>
+        <p className="text-muted-foreground capitalize mt-1 font-medium">{hoje}</p>
       </div>
 
       {/* Critical Alerts */}
@@ -138,7 +138,7 @@ export default function Dashboard() {
       {/* Funnel Summary */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Resumo do Funil</CardTitle>
+          <CardTitle className="text-xl tracking-tight">Resumo do Funil</CardTitle>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/funil" className="flex items-center gap-1">
               Ver Funil Completo
@@ -184,7 +184,7 @@ export default function Dashboard() {
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Clientes Recentes</CardTitle>
+            <CardTitle className="text-xl tracking-tight">Clientes Recentes</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/clientes">Ver Todos</Link>
             </Button>
@@ -218,7 +218,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Imóveis em Destaque</CardTitle>
+            <CardTitle className="text-xl tracking-tight">Imóveis em Destaque</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/imoveis">Ver Todos</Link>
             </Button>

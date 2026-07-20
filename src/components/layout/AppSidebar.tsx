@@ -1,5 +1,5 @@
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
-import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode } from 'lucide-react';
+import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/sidebar';
+import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import oliverLogoCompleta from '@/assets/oliver-logo-completa.png';
 import oliverLogoResumida from '@/assets/oliver-logo-resumida.png';
@@ -38,18 +38,21 @@ export function AppSidebar() {
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10 bg-sidebar border-r border-sidebar-border">
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            <Logo open={open} />
-            <div className="mt-8 flex flex-col gap-2">
+            <div className="relative flex items-center justify-center py-2">
+              <Logo open={open} />
+              <PinButton />
+            </div>
+            <div className="mt-8 flex flex-col gap-1 px-2">
               {links.map((link) => (
                 <SidebarLink
                   key={link.href}
                   link={link}
                   aria-current={isActive(link.href) ? 'page' : undefined}
                   className={cn(
-                    "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md px-2",
-                    "transition-all duration-200",
+                    "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground rounded-md px-3 py-2.5",
+                    "transition-all duration-300 ease-out group flex items-center w-full",
                     isActive(link.href) &&
-                      "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm ring-1 ring-sidebar-border [&_svg]:text-primary"
+                      "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm ring-1 ring-border/50 [&_svg]:text-primary"
                   )}
                 />
               ))}
@@ -69,15 +72,31 @@ export function AppSidebar() {
 
 const Logo = ({ open }: { open: boolean }) => {
   return (
-    <div className="font-normal flex items-center justify-center text-sm py-1 relative z-20 px-1 w-full">
-      <Link to="/" className='flex items-center justify-center'>
+    <div className="font-normal flex items-center justify-center text-sm relative z-20 px-1 w-full">
+      <Link to="/" className='flex items-center justify-center w-full'>
         <img
           src={open ? oliverLogoCompleta : oliverLogoResumida}
-          className={cn("w-auto transition-all duration-300", open ? "h-12" : "h-8")}
+          className={cn("w-auto object-contain transition-all duration-300", open ? "h-10 md:h-12 lg:h-14 mt-2" : "h-7 mt-1")}
           alt="Oliver Negócios Inteligentes"
         />
       </Link>
     </div>
+  );
+};
+
+const PinButton = () => {
+  const { isPinned, setIsPinned, open } = useSidebar();
+  
+  if (!open) return null;
+  
+  return (
+    <button 
+      onClick={() => setIsPinned(!isPinned)}
+      className="absolute right-0 top-1 p-1 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground transition-all z-30 ring-1 ring-border/50 bg-background shadow-sm"
+      title={isPinned ? "Desafixar menu" : "Fixar menu"}
+    >
+      {isPinned ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+    </button>
   );
 };
 
