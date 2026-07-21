@@ -52,7 +52,7 @@ export function AppSidebar() {
                     "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground rounded-md px-3 py-2.5",
                     "transition-all duration-300 ease-out group flex items-center w-full",
                     isActive(link.href) &&
-                      "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm ring-1 ring-border/50 [&_svg]:text-gold"
+                      "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm ring-1 ring-border/50 [&_svg]:text-primary"
                   )}
                 />
               ))}
