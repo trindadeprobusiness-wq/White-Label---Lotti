@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { ContractUpload } from "./ContractUpload";
 import { parseContratoContent } from "@/types/rental";
+import { validarCPF, formatarCPF } from "@/lib/validators";
 import { Database } from "@/integrations/supabase/types";
 import { NovoImovelDialog } from "@/components/imoveis/NovoImovelDialog";
 import { NovoClienteDialog } from "@/components/clientes/NovoClienteDialog";
@@ -31,6 +32,7 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
 
     // Form States
     const [clientId, setClientId] = useState("");
+    const [inquilinoCpf, setInquilinoCpf] = useState(""); // CPF do inquilino (grava em clientes.cpf)
     const [propertyId, setPropertyId] = useState("");
     const [rentValue, setRentValue] = useState("");
     const [adminFee, setAdminFee] = useState("10");
@@ -66,14 +68,21 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
         }
     }, [contractToEdit, open]);
 
-    // Fetch Clients
+    // Fetch Clients (inclui cpf p/ pré-preencher o campo do inquilino)
     const { data: clients } = useQuery({
         queryKey: ["clients-select"],
         queryFn: async () => {
-            const { data } = await supabase.from("clientes").select("id, nome").order("nome");
+            const { data } = await supabase.from("clientes").select("id, nome, cpf").order("nome");
             return data || [];
         }
     });
+
+    // Pré-preenche o CPF com o do inquilino selecionado (cobre seleção manual e edição)
+    useEffect(() => {
+        if (!clientId) { setInquilinoCpf(""); return; }
+        const cli = clients?.find((c: any) => c.id === clientId);
+        setInquilinoCpf(cli?.cpf ? formatarCPF(cli.cpf) : "");
+    }, [clientId, clients]);
 
     // Fetch Properties
     const { data: properties } = useQuery({
@@ -105,6 +114,11 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
     const feePct = parseFloat(adminFee) || 0;
     const feeVal = rent * (feePct / 100);
     const netVal = rent - feeVal;
+
+    // Validade do CPF do inquilino
+    const cpfDigits = inquilinoCpf.replace(/\D/g, '');
+    const cpfOk = validarCPF(inquilinoCpf);
+    const cpfInvalido = cpfDigits.length > 0 && !cpfOk;
 
     // Mutation
     const upsertContractMutation = useMutation({
@@ -258,11 +272,28 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                 }
             }
 
+            // Persiste o CPF no cadastro do inquilino (destrava a emissão no Asaas).
+            // Idempotente; só grava quando tem 11 dígitos. RLS já permite o corretor
+            // atualizar o próprio cliente.
+            const cpfClean = inquilinoCpf.replace(/\D/g, '');
+            if (clientId && cpfClean.length === 11) {
+                const { error: cpfError } = await supabase
+                    .from('clientes')
+                    .update({ cpf: cpfClean })
+                    .eq('id', clientId);
+                if (cpfError) {
+                    console.error("Erro ao salvar CPF do inquilino:", cpfError);
+                    toast.error("Contrato salvo, mas não foi possível gravar o CPF do inquilino.");
+                }
+            }
+
             return result;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["rental-contracts"] });
             queryClient.invalidateQueries({ queryKey: ["rental-bills"] });
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+            queryClient.invalidateQueries({ queryKey: ["clients-select"] });
             onOpenChange(false);
 
             if (!isEditing) {
@@ -278,7 +309,8 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
         }
     });
 
-    const isValid = clientId && propertyId && rentValue && startDate;
+    // CPF é opcional no contrato (exigido só na emissão), mas se preenchido deve ser válido.
+    const isValid = clientId && propertyId && rentValue && startDate && !cpfInvalido;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -394,6 +426,27 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                                             ))}
                                         </SelectContent>
                                     </Select>
+
+                                    {clientId && (
+                                        <div className="space-y-1 pt-1">
+                                            <Label className="text-xs">CPF do Inquilino</Label>
+                                            <Input
+                                                value={inquilinoCpf}
+                                                onChange={(e) => setInquilinoCpf(formatarCPF(e.target.value))}
+                                                placeholder="000.000.000-00"
+                                                inputMode="numeric"
+                                                maxLength={14}
+                                                className={cpfInvalido ? "border-destructive focus-visible:ring-destructive" : (cpfOk ? "border-green-500" : "")}
+                                            />
+                                            {cpfInvalido ? (
+                                                <p className="text-[11px] text-destructive">CPF inválido — confira os dígitos.</p>
+                                            ) : (
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Necessário para emitir a cobrança no Asaas.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
