@@ -15,12 +15,20 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Fraunces', 'Georgia', 'Times New Roman', 'serif'],
+        display: ['Fraunces', 'Georgia', 'serif'],
       },
       boxShadow: {
         'premium': '0 4px 24px -2px rgba(0, 0, 0, 0.04), 0 0 4px rgba(0,0,0,0.02)',
         'premium-hover': '0 8px 32px -4px rgba(0, 0, 0, 0.08), 0 0 4px rgba(0,0,0,0.02)',
         'premium-dark': '0 4px 24px -2px rgba(0, 0, 0, 0.2), 0 0 4px rgba(0,0,0,0.1)',
         'premium-dark-hover': '0 8px 32px -4px rgba(0, 0, 0, 0.3), 0 0 4px rgba(0,0,0,0.1)',
+        /* Escala de elevação tingida de grafite (refina todos os shadow-* do app) */
+        'sm': '0 1px 2px hsl(var(--shadow-color) / 0.05), 0 1px 3px hsl(var(--shadow-color) / 0.05)',
+        'DEFAULT': '0 1px 3px hsl(var(--shadow-color) / 0.07), 0 4px 12px hsl(var(--shadow-color) / 0.05)',
+        'md': '0 2px 6px hsl(var(--shadow-color) / 0.06), 0 10px 24px hsl(var(--shadow-color) / 0.07)',
+        'lg': '0 4px 12px hsl(var(--shadow-color) / 0.07), 0 18px 40px hsl(var(--shadow-color) / 0.09)',
+        'xl': '0 8px 24px hsl(var(--shadow-color) / 0.09), 0 28px 60px hsl(var(--shadow-color) / 0.12)',
       },
       colors: {
         border: "hsl(var(--border))",
@@ -84,7 +92,10 @@ export default {
           documentation: "hsl(var(--funnel-documentation))",
           closing: "hsl(var(--funnel-closing))",
         },
-        gold: "hsl(var(--gold))",
+        gold: {
+          DEFAULT: "hsl(var(--gold))",
+          bright: "hsl(var(--gold-bright))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -127,5 +138,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 } satisfies Config;
