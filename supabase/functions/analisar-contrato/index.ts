@@ -155,7 +155,11 @@ serve(async (req) => {
           generationConfig: {
             response_mime_type: "application/json",
             temperature: 0.1,
-            maxOutputTokens: 1024,
+            // Extração determinística não precisa de "pensamento". O gemini-2.5-flash
+            // liga o thinking por padrão, e os tokens de raciocínio consumiam o teto
+            // de 1024 -> o JSON saía truncado/vazio -> parse falhava (erro 502).
+            thinkingConfig: { thinkingBudget: 0 },
+            maxOutputTokens: 8192,
           },
         }),
       },
@@ -169,11 +173,16 @@ serve(async (req) => {
 
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // Parse robusto: remove cercas de código e isola o trecho do 1º { ao último }
+    // (tolera texto extra que o modelo às vezes coloca em volta do JSON).
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    const jsonSlice = start !== -1 && end > start ? cleaned.slice(start, end + 1) : cleaned;
 
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(cleaned);
+      parsed = JSON.parse(jsonSlice);
     } catch {
       console.error("Gemini returned non-JSON:", cleaned.slice(0, 500));
       return jsonResponse({ error: "A IA não conseguiu estruturar os dados do contrato" }, 502);

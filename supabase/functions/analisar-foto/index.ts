@@ -124,7 +124,10 @@ serve(async (req) => {
             generationConfig: {
               response_mime_type: "application/json",
               temperature: 0.2,
-              maxOutputTokens: 256,
+              // Sem thinking (o gemini-2.5-flash o liga por padrão e consumia o teto,
+              // truncando o JSON). Extração determinística; teto folgado.
+              thinkingConfig: { thinkingBudget: 0 },
+              maxOutputTokens: 2048,
             },
           }),
         },
