@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 
 interface QRCodeGeneratorProps {
   value: string;
@@ -6,16 +7,47 @@ interface QRCodeGeneratorProps {
   className?: string;
 }
 
+// Opções padrão: alta correção de erro (H) — o QR continua escaneável mesmo com
+// um logo/moldura por cima — e uma zona de silêncio (margin) para leitura confiável.
+const QR_OPTIONS = {
+  errorCorrectionLevel: 'H' as const,
+  margin: 2,
+  color: { dark: '#000000', light: '#ffffff' },
+};
+
 /**
- * Gera QR Code usando a API pública do Google Charts.
- * Não precisa de nenhum pacote npm — funciona em qualquer ambiente.
+ * Gera o QR Code LOCALMENTE (lib `qrcode`), sem depender de nenhum serviço externo.
+ * Antes usava api.qrserver.com — um serviço de terceiros lento e que, quando ficava
+ * fora do ar/bloqueado, fazia o QR "não aparecer". Agora é instantâneo e 100% confiável.
  */
 export function QRCodeGenerator({ value, size = 200, className }: QRCodeGeneratorProps) {
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&ecc=H&margin=8`;
+  const [dataUrl, setDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(value, { ...QR_OPTIONS, width: Math.max(size, 320) })
+      .then((url) => { if (!cancelled) setDataUrl(url); })
+      .catch((err) => {
+        console.error('Falha ao gerar QR Code:', err);
+        if (!cancelled) setDataUrl('');
+      });
+    return () => { cancelled = true; };
+  }, [value, size]);
+
+  if (!dataUrl) {
+    // Placeholder neutro enquanto gera (na prática, instantâneo).
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className={className}
+        aria-label="Gerando QR Code"
+      />
+    );
+  }
 
   return (
     <img
-      src={qrUrl}
+      src={dataUrl}
       alt="QR Code"
       width={size}
       height={size}
@@ -26,22 +58,13 @@ export function QRCodeGenerator({ value, size = 200, className }: QRCodeGenerato
 }
 
 /**
- * Gera o QR Code como Data URL (para uso em PDFs ou downloads).
- * Usa fetch + blob + FileReader para converter a imagem da API em base64.
+ * Gera o QR Code como Data URL (PNG) — usado no compositor da fachada (canvas) e
+ * em downloads. Também 100% local via lib `qrcode` (o data URL é same-origin, então
+ * não "tinta" o canvas na hora de exportar a imagem).
  */
 export async function generateQRCodeDataURL(
   value: string,
   size = 400,
 ): Promise<string> {
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&ecc=H&margin=8&format=png`;
-
-  const response = await fetch(qrUrl);
-  const blob = await response.blob();
-
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  return QRCode.toDataURL(value, { ...QR_OPTIONS, width: size });
 }
