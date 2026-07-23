@@ -73,7 +73,7 @@ export function CriarFachadaDialog({
   // Custom Template (Upload Avulso) States
   const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
-  const [qrSizePercent, setQrSizePercent] = useState(20);
+  const [qrSizePercent, setQrSizePercent] = useState(45);
 
   const selectedImovel = imoveis.find((i) => i.id === imovelId);
 

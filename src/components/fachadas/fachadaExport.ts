@@ -79,25 +79,13 @@ export async function baixarFachadaComQr({
   const qrDataUrl = await generateQRCodeDataURL(qrValue, qrPx);
   const qrImg = await loadImage(qrDataUrl);
 
-  // 3. Caixa branca (quiet zone) + QR centralizados na posição escolhida
-  const boxW = (W * qrSizePercent) / 100;
-  const pad = boxW * 0.08; // margem branca ao redor do QR (zona de silêncio)
-  const totalW = boxW + pad * 2;
+  // 3. QR desenhado direto no tamanho/posição escolhidos. O PNG do QR já tem fundo
+  //    branco + zona de silêncio próprios — não usamos caixa branca extra (que
+  //    deixava o QR pequeno na arte e podia transbordar para a parte escura).
+  const qrW = (W * qrSizePercent) / 100;
   const cx = (W * qrPosition.x) / 100;
   const cy = (H * qrPosition.y) / 100;
-  const boxX = cx - totalW / 2;
-  const boxY = cy - totalW / 2;
-
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = totalW * 0.06;
-  ctx.shadowOffsetY = totalW * 0.02;
-  ctx.fillStyle = '#ffffff';
-  roundedRect(ctx, boxX, boxY, totalW, totalW, totalW * 0.08);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.drawImage(qrImg, boxX + pad, boxY + pad, boxW, boxW);
+  ctx.drawImage(qrImg, cx - qrW / 2, cy - qrW / 2, qrW, qrW);
 
   // 4. Download
   const pngUrl = canvas.toDataURL('image/png');

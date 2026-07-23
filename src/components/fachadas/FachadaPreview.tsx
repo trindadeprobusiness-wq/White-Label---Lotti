@@ -151,19 +151,20 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
                 className="w-full object-contain"
                 style={{ display: 'block' }}
               />
-              {/* QR Code real posicionado */}
+              {/* QR Code real posicionado — desenhado direto no tamanho escolhido.
+                  O PNG do QR já tem fundo branco + zona de silêncio, então não precisa
+                  de caixa branca extra (que só deixava o QR pequeno dentro da arte). */}
               <div
                 className="absolute z-20"
                 style={{
                   left: `${customQrPosition?.x ?? 50}%`,
                   top: `${customQrPosition?.y ?? 50}%`,
                   transform: 'translate(-50%, -50%)',
-                  width: `${customQrSize || 20}%`,
+                  width: `${customQrSize || 45}%`,
+                  aspectRatio: '1',
                 }}
               >
-                <div className="bg-white rounded-lg p-1.5 shadow-2xl aspect-square flex items-center justify-center">
-                  <QRCodeGenerator value={qrUrl} size={160} className="w-full h-full" />
-                </div>
+                <QRCodeGenerator value={qrUrl} size={512} className="w-full h-full" />
               </div>
             </div>
           ) : (

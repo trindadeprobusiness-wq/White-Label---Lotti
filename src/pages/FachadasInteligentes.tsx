@@ -100,7 +100,7 @@ export default function FachadasInteligentes() {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewCustomTemplate, setPreviewCustomTemplate] = useState<CustomTemplate | null>(null);
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
-  const [qrSizePercent, setQrSizePercent] = useState(20);
+  const [qrSizePercent, setQrSizePercent] = useState(45);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const { upload, uploading } = useFileUpload('imoveis-fotos');
