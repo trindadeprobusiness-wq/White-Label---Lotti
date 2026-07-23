@@ -1,4 +1,4 @@
-import { Eye, QrCode, Users, MoreVertical, Power, Trash2 } from 'lucide-react';
+import { Eye, QrCode, MoreVertical, Trash2, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,11 @@ import { getFachadaPublicUrl } from '@/lib/publicBaseUrl';
 interface FachadaCardProps {
   fachada: FachadaComImovel;
   onPreview: (f: FachadaComImovel) => void;
+  onEdit: (f: FachadaComImovel) => void;
   onDeactivate: (id: string) => void;
 }
 
-export function FachadaCard({ fachada, onPreview, onDeactivate }: FachadaCardProps) {
+export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: FachadaCardProps) {
   const taxa =
     fachada.total_escaneamentos > 0
       ? Math.round((fachada.total_leads / fachada.total_escaneamentos) * 100)
@@ -71,6 +72,9 @@ export function FachadaCard({ fachada, onPreview, onDeactivate }: FachadaCardPro
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => window.open(qrUrl, '_blank')}>
                 <QrCode className="h-4 w-4 mr-2" /> Abrir Landing Page
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(fachada)}>
+                <Pencil className="h-4 w-4 mr-2" /> Editar Fachada
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"

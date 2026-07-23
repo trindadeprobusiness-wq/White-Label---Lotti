@@ -182,46 +182,44 @@ export function useFachadas() {
     }
   }, []);
 
-  const fetchMetricas = useCallback(async () => {
+  const fetchMetricas = useCallback(async (periodoDias = 30) => {
     try {
-      // Buscar fachadas com totais
+      // Fachadas ativas (contagem não depende de período)
       const { data: fachadasData } = await supabase
         .from('fachadas')
-        .select('id, total_escaneamentos, total_leads, imovel_id')
+        .select('id')
         .eq('ativo', true);
-
       const fachadasList = fachadasData || [];
-      const totalEscaneamentos = fachadasList.reduce(
-        (acc, f: any) => acc + (f.total_escaneamentos || 0),
-        0,
-      );
-      const totalLeads = fachadasList.reduce(
-        (acc, f: any) => acc + (f.total_leads || 0),
-        0,
-      );
 
-      // Leads por dia (últimos 30 dias)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // Janela de tempo escolhida (leads/scans por evento, com created_at)
+      const inicio = new Date();
+      inicio.setDate(inicio.getDate() - periodoDias);
 
       const { data: leadsRecent } = await supabase
         .from('fachada_leads')
         .select('created_at')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', inicio.toISOString());
 
       const { data: scansRecent } = await supabase
         .from('fachada_escaneamentos')
         .select('created_at')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', inicio.toISOString());
+
+      const leadsArr = leadsRecent || [];
+      const scansArr = scansRecent || [];
+
+      // KPIs derivados do período (coerentes com o gráfico)
+      const totalLeads = leadsArr.length;
+      const totalEscaneamentos = scansArr.length;
 
       // Agrupar por dia
       const porDia: Record<string, { leads: number; escaneamentos: number }> = {};
-      (leadsRecent || []).forEach((l: any) => {
+      leadsArr.forEach((l: any) => {
         const dia = l.created_at.slice(0, 10);
         if (!porDia[dia]) porDia[dia] = { leads: 0, escaneamentos: 0 };
         porDia[dia].leads++;
       });
-      (scansRecent || []).forEach((s: any) => {
+      scansArr.forEach((s: any) => {
         const dia = s.created_at.slice(0, 10);
         if (!porDia[dia]) porDia[dia] = { leads: 0, escaneamentos: 0 };
         porDia[dia].escaneamentos++;

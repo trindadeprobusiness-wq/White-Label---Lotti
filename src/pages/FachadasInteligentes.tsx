@@ -83,6 +83,7 @@ export default function FachadasInteligentes() {
     loading,
     fetchFachadas,
     createFachada,
+    updateFachada,
     deleteFachada,
     fetchLeads,
     fetchMetricas,
@@ -90,6 +91,8 @@ export default function FachadasInteligentes() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewFachada, setPreviewFachada] = useState<FachadaComImovel | null>(null);
+  const [editingFachada, setEditingFachada] = useState<FachadaComImovel | null>(null);
+  const [periodo, setPeriodo] = useState(30);
 
   // Custom template states
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
@@ -108,9 +111,23 @@ export default function FachadasInteligentes() {
   useEffect(() => {
     fetchFachadas();
     fetchLeads();
-    fetchMetricas();
+    fetchMetricas(periodo);
     fetchCustomTemplates();
   }, [fetchFachadas, fetchLeads, fetchMetricas]);
+
+  const handlePeriodoChange = (dias: number) => {
+    setPeriodo(dias);
+    fetchMetricas(dias);
+  };
+
+  // Cria (novo) ou atualiza (edição) a fachada, conforme editingFachada.
+  const handleFachadaSubmit = async (data: any) => {
+    if (editingFachada) {
+      await updateFachada(editingFachada.id, data);
+    } else {
+      await createFachada(data);
+    }
+  };
 
   const fetchCustomTemplates = async () => {
     try {
@@ -270,7 +287,7 @@ export default function FachadasInteligentes() {
             Gere materiais com QR Code que capturam leads automaticamente
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2">
+        <Button onClick={() => { setEditingFachada(null); setDialogOpen(true); }} className="gap-2">
           <Plus className="h-4 w-4" />
           Criar Nova Fachada
         </Button>
@@ -331,6 +348,7 @@ export default function FachadasInteligentes() {
                   key={f.id}
                   fachada={f}
                   onPreview={setPreviewFachada}
+                  onEdit={(fac) => { setEditingFachada(fac); setDialogOpen(true); }}
                   onDeactivate={deleteFachada}
                 />
               ))}
@@ -340,7 +358,7 @@ export default function FachadasInteligentes() {
 
         {/* Aba: Dashboard */}
         <TabsContent value="dashboard">
-          <FachadaDashboard metricas={metricas} />
+          <FachadaDashboard metricas={metricas} periodo={periodo} onPeriodoChange={handlePeriodoChange} />
         </TabsContent>
 
         {/* Aba: Leads */}
@@ -484,11 +502,15 @@ export default function FachadasInteligentes() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialog de criação */}
+      {/* Dialog de criação / edição */}
       <CriarFachadaDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={createFachada}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) setEditingFachada(null);
+        }}
+        onSubmit={handleFachadaSubmit}
+        fachadaToEdit={editingFachada}
         customTemplates={customTemplates}
       />
 

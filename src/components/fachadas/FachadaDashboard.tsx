@@ -6,6 +6,13 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   BarChart,
   Bar,
   XAxis,
@@ -17,11 +24,22 @@ import {
 } from 'recharts';
 import type { FachadaMetricas } from '@/types/fachada';
 
+const PERIODOS = [
+  { value: 7, label: 'Últimos 7 dias' },
+  { value: 30, label: 'Últimos 30 dias' },
+  { value: 90, label: 'Últimos 90 dias' },
+  { value: 3650, label: 'Todo o período' },
+];
+
 interface FachadaDashboardProps {
   metricas: FachadaMetricas | null;
+  periodo: number;
+  onPeriodoChange: (dias: number) => void;
 }
 
-export function FachadaDashboard({ metricas }: FachadaDashboardProps) {
+export function FachadaDashboard({ metricas, periodo, onPeriodoChange }: FachadaDashboardProps) {
+  const periodoLabel = PERIODOS.find((p) => p.value === periodo)?.label ?? 'Últimos 30 dias';
+
   if (!metricas) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -84,7 +102,19 @@ export function FachadaDashboard({ metricas }: FachadaDashboardProps) {
       {/* Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Leads & Escaneamentos — Últimos 30 dias</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="text-lg">Leads &amp; Escaneamentos — {periodoLabel}</CardTitle>
+            <Select value={String(periodo)} onValueChange={(v) => onPeriodoChange(Number(v))}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIODOS.map((p) => (
+                  <SelectItem key={p.value} value={String(p.value)}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {metricas.leadsPorDia.length === 0 ? (

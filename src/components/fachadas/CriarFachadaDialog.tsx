@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Building2, MessageCircle, Zap, ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,7 @@ import {
   CTA_LABELS,
   DEFAULT_TEMPLATES,
 } from '@/types/fachada';
-import type { TipoNegocio, CTAPrincipal } from '@/types/fachada';
+import type { TipoNegocio, CTAPrincipal, FachadaComImovel } from '@/types/fachada';
 
 interface CustomTemplateOption {
   id: string;
@@ -40,6 +40,8 @@ interface CriarFachadaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customTemplates?: CustomTemplateOption[];
+  /** Quando presente, o dialog abre em modo edição (pré-preenchido). */
+  fachadaToEdit?: FachadaComImovel | null;
   onSubmit: (data: {
     imovel_id: string;
     tipo_negocio: TipoNegocio;
@@ -55,7 +57,9 @@ export function CriarFachadaDialog({
   onOpenChange,
   onSubmit,
   customTemplates = [],
+  fachadaToEdit = null,
 }: CriarFachadaDialogProps) {
+  const isEditing = !!fachadaToEdit;
   const { imoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
   const [step, setStep] = useState(1);
@@ -76,6 +80,20 @@ export function CriarFachadaDialog({
   const [qrSizePercent, setQrSizePercent] = useState(45);
 
   const selectedImovel = imoveis.find((i) => i.id === imovelId);
+
+  // Modo edição: pré-preenche o form com os dados da fachada.
+  useEffect(() => {
+    if (fachadaToEdit && open) {
+      setImovelId(fachadaToEdit.imovel_id || '');
+      setTipoNegocio(fachadaToEdit.tipo_negocio);
+      setTemplateId(fachadaToEdit.template_id || 'venda-classica');
+      setCtaPrincipal(fachadaToEdit.cta_principal);
+      setModoConversao(!!fachadaToEdit.modo_conversao);
+      setMensagemWhatsapp(fachadaToEdit.mensagem_whatsapp || '');
+      setStep(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fachadaToEdit, open]);
 
   const resetForm = () => {
     setStep(1);
@@ -163,7 +181,7 @@ export function CriarFachadaDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-primary" />
-            Criar Nova Fachada
+            {isEditing ? 'Editar Fachada' : 'Criar Nova Fachada'}
           </DialogTitle>
           <DialogDescription>
             Etapa {step} de 3 — {step === 1 ? 'Selecionar Imóvel' : step === 2 ? 'Template e Tipo' : 'CTA e Conversão'}
@@ -455,7 +473,9 @@ export function CriarFachadaDialog({
                 disabled={loading || uploading}
                 className="flex-1"
               >
-                {(loading || uploading) ? 'Gerando...' : '🚀 Gerar Fachada'}
+                {(loading || uploading)
+                  ? (isEditing ? 'Salvando...' : 'Gerando...')
+                  : (isEditing ? '💾 Salvar Alterações' : '🚀 Gerar Fachada')}
               </Button>
             </div>
           </div>
