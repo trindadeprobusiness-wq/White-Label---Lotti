@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, MessageCircle, Zap, ImagePlus, Trash2 } from 'lucide-react';
+import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { QrCodePositioner } from './QrCodePositioner';
+import { FachadaMediaUpload } from './FachadaMediaUpload';
 import {
   Select,
   SelectContent,
@@ -21,6 +22,8 @@ import {
 } from '@/components/ui/select';
 import { useCRMStore } from '@/stores/crmStore';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useImovelFotos } from '@/hooks/useImovelFotos';
+import { useVideos } from '@/hooks/useVideos';
 import {
   TIPO_NEGOCIO_LABELS,
   CTA_LABELS,
@@ -62,6 +65,8 @@ export function CriarFachadaDialog({
   const isEditing = !!fachadaToEdit;
   const { imoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
+  const { uploadMultipleFotos, fotos: existingFotos, fetchFotos } = useImovelFotos();
+  const { uploadVideo } = useVideos();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -79,6 +84,13 @@ export function CriarFachadaDialog({
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [qrSizePercent, setQrSizePercent] = useState(45);
 
+  // Step 4 - Media uploads
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [pendingVideos, setPendingVideos] = useState<File[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [existingPhotosCount, setExistingPhotosCount] = useState(0);
+  const [existingVideosCount, setExistingVideosCount] = useState(0);
+
   const selectedImovel = imoveis.find((i) => i.id === imovelId);
 
   // Modo edição: pré-preenche o form com os dados da fachada.
@@ -95,6 +107,18 @@ export function CriarFachadaDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fachadaToEdit, open]);
 
+  // Fetch existing media counts when imovel changes
+  useEffect(() => {
+    if (imovelId && open) {
+      fetchFotos(imovelId).then(() => {
+        setExistingPhotosCount(existingFotos.length);
+      });
+      // TODO: count existing videos for the imovel
+      setExistingVideosCount(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imovelId, open]);
+
   const resetForm = () => {
     setStep(1);
     setImovelId('');
@@ -108,6 +132,11 @@ export function CriarFachadaDialog({
     setTemplatePreviewUrl(null);
     setQrPosition({ x: 50, y: 50 });
     setQrSizePercent(20);
+    setPendingImages([]);
+    setPendingVideos([]);
+    setUploadingMedia(false);
+    setExistingPhotosCount(0);
+    setExistingVideosCount(0);
   };
 
   const handleSubmit = async () => {
@@ -159,6 +188,26 @@ export function CriarFachadaDialog({
         modo_conversao: modoConversao,
         mensagem_whatsapp: mensagemWhatsapp || undefined,
       });
+
+      // Upload media files (Step 4)
+      if (pendingImages.length > 0 || pendingVideos.length > 0) {
+        setUploadingMedia(true);
+        try {
+          if (pendingImages.length > 0) {
+            await uploadMultipleFotos(imovelId, pendingImages);
+          }
+          for (const videoFile of pendingVideos) {
+            const videoName = videoFile.name.replace(/\.[^/.]+$/, '');
+            await uploadVideo(videoFile, videoName, 'OUTRO', imovelId);
+          }
+        } catch (mediaErr) {
+          console.error('Erro ao enviar mídias:', mediaErr);
+          // Non-blocking: fachada was already created successfully
+        } finally {
+          setUploadingMedia(false);
+        }
+      }
+
       resetForm();
       onOpenChange(false);
     } catch (err: any) {
@@ -184,13 +233,13 @@ export function CriarFachadaDialog({
             {isEditing ? 'Editar Fachada' : 'Criar Nova Fachada'}
           </DialogTitle>
           <DialogDescription>
-            Etapa {step} de 3 — {step === 1 ? 'Selecionar Imóvel' : step === 2 ? 'Template e Tipo' : 'CTA e Conversão'}
+            Etapa {step} de 4 — {step === 1 ? 'Selecionar Imóvel' : step === 2 ? 'Template e Tipo' : step === 3 ? 'CTA e Conversão' : 'Mídias do Imóvel'}
           </DialogDescription>
         </DialogHeader>
 
         {/* Stepper visual */}
         <div className="flex gap-1 mb-4">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div
               key={s}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
@@ -468,13 +517,50 @@ export function CriarFachadaDialog({
               <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
                 Voltar
               </Button>
+              <Button onClick={() => setStep(4)} className="flex-1">
+                Próximo
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Mídias do Imóvel */}
+        {step === 4 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Camera className="h-4 w-4 text-primary" />
+              <Label className="text-sm font-semibold">Mídias do Imóvel</Label>
+              <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">Opcional</span>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Envie fotos e vídeos do imóvel. Eles ficarão disponíveis tanto aqui quanto na página do imóvel automaticamente.
+            </p>
+
+            <FachadaMediaUpload
+              onImagesSelected={(files) => setPendingImages(files)}
+              onVideoSelected={(file) => setPendingVideos(prev => [...prev, file])}
+              existingPhotosCount={existingPhotosCount}
+              existingVideosCount={existingVideosCount}
+              uploading={uploadingMedia}
+              compact
+            />
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(3)} className="flex-1">
+                Voltar
+              </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={loading || uploading}
+                disabled={loading || uploading || uploadingMedia}
                 className="flex-1"
               >
-                {(loading || uploading)
-                  ? (isEditing ? 'Salvando...' : 'Gerando...')
+                {(loading || uploading || uploadingMedia)
+                  ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {uploadingMedia ? 'Enviando mídias...' : (isEditing ? 'Salvando...' : 'Gerando...')}
+                    </>
+                  )
                   : (isEditing ? '💾 Salvar Alterações' : '🚀 Gerar Fachada')}
               </Button>
             </div>

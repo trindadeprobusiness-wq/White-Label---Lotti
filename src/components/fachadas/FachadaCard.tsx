@@ -1,4 +1,5 @@
-import { Eye, QrCode, MoreVertical, Trash2, Pencil } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, QrCode, MoreVertical, Trash2, Pencil, Image, Film } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
 import { TIPO_NEGOCIO_LABELS, CTA_LABELS } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
 import { getFachadaPublicUrl } from '@/lib/publicBaseUrl';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FachadaCardProps {
   fachada: FachadaComImovel;
@@ -20,20 +22,56 @@ interface FachadaCardProps {
 }
 
 export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: FachadaCardProps) {
+  const [fotoPrincipal, setFotoPrincipal] = useState<string | null>(fachada.foto_principal_url || null);
+  const [mediaCounts, setMediaCounts] = useState({ fotos: 0, videos: 0 });
+
+  useEffect(() => {
+    const fetchMedia = async () => {
+      if (!fachada.imovel_id) return;
+
+      // Fetch main photo if not already set
+      if (!fachada.foto_principal_url) {
+        const { data: fotoData } = await supabase
+          .from('imovel_fotos')
+          .select('arquivo_url')
+          .eq('imovel_id', fachada.imovel_id)
+          .eq('principal', true)
+          .maybeSingle();
+        if (fotoData?.arquivo_url) {
+          setFotoPrincipal(fotoData.arquivo_url);
+        }
+      }
+
+      // Count media
+      const { count: fotosCount } = await supabase
+        .from('imovel_fotos')
+        .select('id', { count: 'exact', head: true })
+        .eq('imovel_id', fachada.imovel_id);
+      const { count: videosCount } = await supabase
+        .from('videos')
+        .select('id', { count: 'exact', head: true })
+        .eq('imovel_id', fachada.imovel_id);
+
+      setMediaCounts({ fotos: fotosCount || 0, videos: videosCount || 0 });
+    };
+    fetchMedia();
+  }, [fachada.imovel_id, fachada.foto_principal_url]);
+
   const taxa =
     fachada.total_escaneamentos > 0
       ? Math.round((fachada.total_leads / fachada.total_escaneamentos) * 100)
       : 0;
 
   const qrUrl = getFachadaPublicUrl(fachada.id);
+  const hasMidias = mediaCounts.fotos > 0 || mediaCounts.videos > 0;
 
   return (
     <Card className="hover:shadow-lg transition-all duration-300 overflow-hidden group">
       {/* Header visual */}
       <div className="h-28 relative overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5">
-        {fachada.foto_principal_url ? (
+        {fotoPrincipal ? (
           <img
-            src={fachada.foto_principal_url}
+            src={fotoPrincipal}
             alt=""
             className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500"
           />
@@ -114,10 +152,26 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: Fachad
           </div>
         </div>
 
-        {/* CTA info */}
-        <p className="text-xs text-muted-foreground">
-          CTA: {CTA_LABELS[fachada.cta_principal]}
-        </p>
+        {/* CTA + Media info */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            CTA: {CTA_LABELS[fachada.cta_principal]}
+          </p>
+          {hasMidias && (
+            <div className="flex items-center gap-2">
+              {mediaCounts.fotos > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                  <Image className="h-3 w-3" /> {mediaCounts.fotos}
+                </span>
+              )}
+              {mediaCounts.videos > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                  <Film className="h-3 w-3" /> {mediaCounts.videos}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Ação principal */}
         <Button

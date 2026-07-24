@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, MapPin, Ruler, Bed, Car, Calendar, User, Phone, Mail, Upload, Users, FileText, Megaphone, Copy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, MapPin, Ruler, Bed, Car, Calendar, User, Phone, Mail, Upload, Users, FileText, Megaphone, Copy, CheckCircle2, Video, Film } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { VendaImovelDialog } from '@/components/imoveis/VendaImovelDialog';
+import { useVideos, VideoRow } from '@/hooks/useVideos';
+import { VideoCard } from '@/components/midias/VideoCard';
+import { VideoUploadArea } from '@/components/midias/VideoUploadArea';
+import { VideoPlayerDialog } from '@/components/midias/VideoPlayerDialog';
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -84,6 +88,13 @@ export default function ImovelDetalhes() {
   const [isCopied, setIsCopied] = useState(false);
 
   const { fotos, loading: loadingFotos, uploading, fetchFotos, uploadMultipleFotos, deleteFoto, setFotoPrincipal } = useImovelFotos(id);
+  const { videos: allVideos, loading: loadingVideos, uploadVideo, deleteVideo, updateVideo, uploading: uploadingVideo, uploadProgress, incrementVisualizacoes } = useVideos();
+  const [showVideoUpload, setShowVideoUpload] = useState(false);
+  const [playerVideo, setPlayerVideo] = useState<VideoRow | null>(null);
+
+  const imovelVideos = useMemo(() => {
+    return allVideos.filter(v => v.imovel_id === id);
+  }, [allVideos, id]);
 
   useEffect(() => {
     if (id) {
@@ -308,6 +319,65 @@ export default function ImovelDetalhes() {
           )}
         </CardContent>
       </Card>
+
+      {/* Vídeos do Imóvel */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Video className="w-5 h-5" />
+            Vídeos do Imóvel ({imovelVideos.length})
+          </CardTitle>
+          <Button variant="outline" size="sm" onClick={() => setShowVideoUpload(!showVideoUpload)}>
+            {showVideoUpload ? 'Cancelar/Ocultar' : 'Adicionar Vídeo'}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {showVideoUpload && (
+            <div className="mb-6 animate-in slide-in-from-top-2 fade-in duration-300">
+              <VideoUploadArea
+                onUpload={(file, titulo, tipo, _imovelId, descricao) => uploadVideo(file, titulo, tipo, id, descricao)}
+                uploading={uploadingVideo}
+                uploadProgress={uploadProgress}
+              />
+            </div>
+          )}
+
+          {loadingVideos ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="aspect-video rounded-lg" />
+              ))}
+            </div>
+          ) : imovelVideos.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Film className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Nenhum vídeo vinculado a este imóvel</p>
+              <p className="text-xs mt-1">Adicione vídeos aqui ou pelo fluxo de Fachadas Inteligentes</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {imovelVideos.map(video => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  onPlay={setPlayerVideo}
+                  onDelete={(v) => deleteVideo(v.id, v.video_path)}
+                  onEdit={() => {}}
+                  onShare={() => {}}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Video Player Dialog */}
+      <VideoPlayerDialog
+        video={playerVideo}
+        open={!!playerVideo}
+        onOpenChange={(open) => !open && setPlayerVideo(null)}
+        onView={incrementVisualizacoes}
+      />
 
       {/* Setup de Campanhas / Webhook */}
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
