@@ -12,6 +12,7 @@ import { useImovelFotos } from '@/hooks/useImovelFotos';
 import { Progress } from '@/components/ui/progress';
 import { MapPin, Home, DollarSign, Loader2, Video, X } from 'lucide-react';
 import { ImovelFotosUpload } from './ImovelFotosUpload';
+import { ImovelMediaManager } from './ImovelMediaManager';
 import { supabase } from '@/integrations/supabase/client';
 import { getTrackingData } from '@/hooks/useUTMTracker';
 import { useVideos } from '@/hooks/useVideos';
@@ -282,6 +283,13 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
 
           <Separator />
 
+          {isEditing ? (
+            <div>
+              <Label className="mb-3 block">Fotos e Vídeos do Imóvel</Label>
+              <ImovelMediaManager imovelId={imovelToEdit.id} />
+            </div>
+          ) : (
+            <>
           <div>
             <Label className="mb-3 block">Fotos do Imóvel</Label>
             <ImovelFotosUpload
@@ -356,6 +364,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
               </div>
             )}
           </div>
+            </>
+          )}
 
           <Button type="submit" className="w-full" disabled={submitting || uploading || uploadingVideo}>
             {submitting ? 'Salvando...' : (isEditing ? 'Salvar Alterações' : 'Cadastrar Imóvel')}

@@ -29,17 +29,26 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: Fachad
     const fetchMedia = async () => {
       if (!fachada.imovel_id) return;
 
-      // Fetch main photo if not already set
-      if (!fachada.foto_principal_url) {
-        const { data: fotoData } = await supabase
+      // Resolve a foto principal SEMPRE ao vivo — imovel_fotos é a fonte única; o
+      // cache fachada.foto_principal_url pode estar desatualizado após editar o imóvel.
+      const { data: principal } = await supabase
+        .from('imovel_fotos')
+        .select('arquivo_url')
+        .eq('imovel_id', fachada.imovel_id)
+        .eq('principal', true)
+        .maybeSingle();
+      if (principal?.arquivo_url) {
+        setFotoPrincipal(principal.arquivo_url);
+      } else {
+        // Sem principal definida: usa a primeira foto (por ordem).
+        const { data: primeira } = await supabase
           .from('imovel_fotos')
           .select('arquivo_url')
           .eq('imovel_id', fachada.imovel_id)
-          .eq('principal', true)
+          .order('ordem', { ascending: true })
+          .limit(1)
           .maybeSingle();
-        if (fotoData?.arquivo_url) {
-          setFotoPrincipal(fotoData.arquivo_url);
-        }
+        setFotoPrincipal(primeira?.arquivo_url ?? null);
       }
 
       // Count media
@@ -55,7 +64,7 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: Fachad
       setMediaCounts({ fotos: fotosCount || 0, videos: videosCount || 0 });
     };
     fetchMedia();
-  }, [fachada.imovel_id, fachada.foto_principal_url]);
+  }, [fachada.imovel_id]);
 
   const taxa =
     fachada.total_escaneamentos > 0

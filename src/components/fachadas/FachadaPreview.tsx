@@ -39,8 +39,44 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
   const [customQrPosition, setCustomQrPosition] = useState<{ x: number; y: number } | null>(null);
   const [customQrSize, setCustomQrSize] = useState<number | null>(null);
   const [baixando, setBaixando] = useState(false);
+  // Foto do imóvel resolvida SEMPRE ao vivo (fonte única: imovel_fotos)
+  const [fotoImovel, setFotoImovel] = useState<string | null>(fachada?.foto_principal_url ?? null);
 
   const isCustomTemplate = (fachada?.template_id || '').startsWith('http');
+
+  // Resolve a foto principal (ou a primeira) direto de imovel_fotos, para o preview
+  // refletir a mídia atual do imóvel, não um snapshot antigo.
+  useEffect(() => {
+    const imovelId = fachada?.imovel_id;
+    if (!imovelId) {
+      setFotoImovel(null);
+      return;
+    }
+    let ativo = true;
+    (async () => {
+      const { data: principal } = await supabase
+        .from('imovel_fotos')
+        .select('arquivo_url')
+        .eq('imovel_id', imovelId)
+        .eq('principal', true)
+        .maybeSingle();
+      let url = principal?.arquivo_url ?? null;
+      if (!url) {
+        const { data: primeira } = await supabase
+          .from('imovel_fotos')
+          .select('arquivo_url')
+          .eq('imovel_id', imovelId)
+          .order('ordem', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        url = primeira?.arquivo_url ?? null;
+      }
+      if (ativo) setFotoImovel(url);
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [fachada?.imovel_id]);
 
   // Fetch custom template QR position when template is a URL
   useEffect(() => {
@@ -195,11 +231,11 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
                 </span>
               </div>
 
-            {/* Foto do imóvel */}
-            {fachada.foto_principal_url && (
+            {/* Foto do imóvel (ao vivo de imovel_fotos) */}
+            {fotoImovel && (
               <div className="h-44 overflow-hidden">
                 <img
-                  src={fachada.foto_principal_url}
+                  src={fotoImovel}
                   alt=""
                   className="w-full h-full object-cover"
                 />

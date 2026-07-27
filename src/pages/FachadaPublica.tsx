@@ -120,7 +120,7 @@ export default function FachadaPublica() {
 
   // Pré-carregar imagem de fundo
   useEffect(() => {
-    const url = fachada?.foto_principal_url || fotos?.[0]?.arquivo_url;
+    const url = fotos?.find((f) => f.principal)?.arquivo_url || fotos?.[0]?.arquivo_url || fachada?.foto_principal_url;
     if (url) {
       const img = new Image();
       img.onload = () => setBgLoaded(true);
@@ -208,7 +208,7 @@ export default function FachadaPublica() {
 
   const imovel = fachada.imovel;
   const corretor = fachada.corretor;
-  const bgUrl = fachada.foto_principal_url || fotos?.[0]?.arquivo_url || '';
+  const bgUrl = fotos?.find((f) => f.principal)?.arquivo_url || fotos?.[0]?.arquivo_url || fachada.foto_principal_url || '';
 
   // ═══════════════════════════════════════════════════════════
   // ETAPA 1 — Captura de Lead (Design Premium Glassmorphism)
