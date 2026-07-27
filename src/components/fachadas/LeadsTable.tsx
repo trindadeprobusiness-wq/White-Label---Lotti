@@ -1,4 +1,5 @@
-import { Users, Phone, Mail, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Phone, Mail, Calendar, MessageCircle, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -8,13 +9,33 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { FachadaLead } from '@/types/fachada';
 
 interface LeadsTableProps {
   leads: FachadaLead[];
+  onDeleteLead?: (id: string) => Promise<boolean>;
 }
 
-export function LeadsTable({ leads }: LeadsTableProps) {
+export function LeadsTable({ leads, onDeleteLead }: LeadsTableProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!deletingId || !onDeleteLead) return;
+    await onDeleteLead(deletingId);
+    setDeletingId(null);
+  };
+
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -26,71 +47,124 @@ export function LeadsTable({ leads }: LeadsTableProps) {
   }
 
   return (
-    <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nome</TableHead>
-            <TableHead>Telefone</TableHead>
-            <TableHead>E-mail</TableHead>
-            <TableHead>Data</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {leads.map((lead) => (
-            <TableRow key={lead.id}>
-              <TableCell className="font-medium">{lead.nome}</TableCell>
-              <TableCell>
-                <a
-                  href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-primary hover:underline"
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                  {lead.telefone}
-                </a>
-              </TableCell>
-              <TableCell>
-                {lead.email ? (
-                  <a
-                    href={`mailto:${lead.email}`}
-                    className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                    {lead.email}
-                  </a>
-                ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {new Date(lead.created_at).toLocaleDateString('pt-BR')}{' '}
-                  {new Date(lead.created_at).toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={lead.convertido ? 'default' : 'outline'}
-                  className={
-                    lead.convertido
-                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100/80'
-                      : ''
-                  }
-                >
-                  {lead.convertido ? 'Convertido' : 'Novo'}
-                </Badge>
-              </TableCell>
+    <>
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead>Telefone</TableHead>
+              <TableHead>E-mail</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {leads.map((lead) => (
+              <TableRow key={lead.id}>
+                <TableCell className="font-medium">{lead.nome}</TableCell>
+                <TableCell>
+                  <a
+                    href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    {lead.telefone}
+                  </a>
+                </TableCell>
+                <TableCell>
+                  {lead.email ? (
+                    <a
+                      href={`mailto:${lead.email}`}
+                      className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      {lead.email}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {new Date(lead.created_at).toLocaleDateString('pt-BR')}{' '}
+                    {new Date(lead.created_at).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={lead.convertido ? 'default' : 'outline'}
+                    className={
+                      lead.convertido
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100/80'
+                        : ''
+                    }
+                  >
+                    {lead.convertido ? 'Convertido' : 'Novo'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-emerald-600 border-emerald-600/30 hover:bg-emerald-600/10 hover:text-emerald-500"
+                      asChild
+                    >
+                      <a
+                        href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Contactar
+                      </a>
+                    </Button>
+                    {onDeleteLead && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setDeletingId(lead.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Excluir
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir lead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O lead será removido permanentemente da base de dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={handleConfirmDelete}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

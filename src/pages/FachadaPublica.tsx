@@ -18,12 +18,69 @@ import {
   User,
   Home,
   Shield,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useFachadaPublica } from '@/hooks/useFachadaPublica';
 import { CTA_LABELS, TIPO_NEGOCIO_LABELS } from '@/types/fachada';
+
+/* ───── Stagger variants ───── */
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.3 },
+  },
+};
+const itemVariants = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+};
+
+/* ───── Minimal underline input ───── */
+function UnderlineInput({
+  label,
+  ...props
+}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  const [focused, setFocused] = useState(false);
+  const hasValue = typeof props.value === 'string' && props.value.length > 0;
+
+  return (
+    <motion.div variants={itemVariants} className="relative pt-5">
+      {/* Floating label */}
+      <label
+        className={`
+          absolute left-0 transition-all duration-300 pointer-events-none
+          ${focused || hasValue
+            ? 'top-0 text-[11px] text-white/60'
+            : 'top-6 text-sm text-white/40'
+          }
+        `}
+      >
+        {label}
+      </label>
+      <input
+        {...props}
+        onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
+        onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
+        className="
+          w-full bg-transparent border-0 border-b border-white/20 
+          text-white text-sm pb-2.5 pt-1 outline-none
+          placeholder-transparent
+          focus:border-amber-400/70
+          transition-colors duration-300
+        "
+      />
+      {/* Animated bottom line */}
+      <motion.div
+        className="absolute bottom-0 left-0 h-[1.5px] bg-amber-400"
+        initial={false}
+        animate={{ width: focused ? '100%' : '0%' }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+      />
+    </motion.div>
+  );
+}
 
 export default function FachadaPublica() {
   const { fachadaId } = useParams<{ fachadaId: string }>();
@@ -42,6 +99,7 @@ export default function FachadaPublica() {
   const [email, setEmail] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [fotoAtual, setFotoAtual] = useState(0);
+  const [bgLoaded, setBgLoaded] = useState(false);
 
   useEffect(() => {
     if (fachadaId) {
@@ -49,6 +107,16 @@ export default function FachadaPublica() {
       registrarEscaneamento(fachadaId);
     }
   }, [fachadaId, fetchFachadaPublica, registrarEscaneamento]);
+
+  // Pré-carregar imagem de fundo
+  useEffect(() => {
+    const url = fachada?.foto_principal_url || fotos?.[0]?.arquivo_url;
+    if (url) {
+      const img = new Image();
+      img.onload = () => setBgLoaded(true);
+      img.src = url;
+    }
+  }, [fachada?.foto_principal_url, fotos]);
 
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,148 +144,225 @@ export default function FachadaPublica() {
 
   const formatPrice = (valor: number) => `R$ ${valor.toLocaleString('pt-BR')}`;
 
-  // Loading
+  // ─── Loading ─────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-        <Loader2 className="h-8 w-8 animate-spin text-white" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0c0f0e]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-3"
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
+          <p className="text-white/30 text-sm">Carregando imóvel...</p>
+        </motion.div>
       </div>
     );
   }
 
-  // Not found
+  // ─── Not found ───────────────────────────────────────────
   if (!fachada) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 text-center">
-        <Home className="h-16 w-16 mb-4 opacity-30" />
-        <h1 className="text-2xl font-bold mb-2">Imóvel não encontrado</h1>
-        <p className="text-white/60">
-          Este link pode ter expirado ou o imóvel foi removido.
-        </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0c0f0e] text-white p-6 text-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Home className="h-16 w-16 mx-auto mb-4 text-white/15" />
+          <h1 className="text-2xl font-bold mb-2">Imóvel não encontrado</h1>
+          <p className="text-white/40">Este link pode ter expirado ou o imóvel foi removido.</p>
+        </motion.div>
       </div>
     );
   }
 
   const imovel = fachada.imovel;
   const corretor = fachada.corretor;
+  const bgUrl = fachada.foto_principal_url || fotos?.[0]?.arquivo_url || '';
 
-  // ─── ETAPA 1: Captura de Lead ────────────────────────────
+  // ═══════════════════════════════════════════════════════════
+  // ETAPA 1 — Captura de Lead (Design Premium Glassmorphism)
+  // ═══════════════════════════════════════════════════════════
   if (!leadCapturado) {
+    const subtitulo = [
+      imovel?.titulo,
+      imovel?.valor ? formatPrice(imovel.valor) : null,
+    ]
+      .filter(Boolean)
+      .join(' – ');
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-primary/20 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 30, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="w-full max-w-md"
-        >
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden">
-            {/* Header visual */}
-            <div className="bg-gradient-to-r from-primary to-primary/80 p-6 text-white text-center">
-              <div className="bg-white/20 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center backdrop-blur-sm">
-                <Home className="h-8 w-8" />
+      <div className="relative min-h-screen min-h-[100dvh] overflow-hidden flex flex-col">
+        {/* ── Background: foto do imóvel com blur ── */}
+        <div className="fixed inset-0 z-0">
+          {bgUrl ? (
+            <>
+              <motion.img
+                src={bgUrl}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+                initial={{ scale: 1.1, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
+              />
+              {/* Dark + blur overlay */}
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-[#1a1e1d] to-[#0c0f0e]" />
+          )}
+        </div>
+
+        {/* ── Card centralizado ── */}
+        <div className="relative z-10 flex-1 flex items-center justify-center px-5 py-8 sm:py-12">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="w-full max-w-[420px]"
+          >
+            <motion.div
+              variants={itemVariants}
+              className="rounded-[28px] overflow-hidden"
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                backdropFilter: 'blur(24px) saturate(1.4)',
+                WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)',
+              }}
+            >
+              {/* ── Content ── */}
+              <div className="px-7 pt-10 pb-3 sm:px-9 sm:pt-12">
+                {/* Main headline */}
+                <motion.h1
+                  variants={itemVariants}
+                  className="text-[26px] sm:text-[32px] leading-[1.15] font-bold text-white tracking-[-0.02em] text-center"
+                >
+                  Acesse todos os{'\n'}detalhes deste{'\n'}imóvel exclusivo
+                </motion.h1>
+
+                {/* Subtitle: imovel name + price */}
+                {subtitulo && (
+                  <motion.p
+                    variants={itemVariants}
+                    className="text-white/50 text-sm sm:text-[15px] text-center mt-4 leading-relaxed"
+                  >
+                    {subtitulo}
+                  </motion.p>
+                )}
               </div>
-              <h1 className="text-xl font-bold mb-1">
-                {imovel?.titulo ?? 'Imóvel Exclusivo'}
-              </h1>
-              {imovel?.valor && (
-                <p className="text-2xl font-extrabold mt-1">
-                  {formatPrice(imovel.valor)}
-                </p>
-              )}
-              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-3 py-1 backdrop-blur-sm">
-                {TIPO_NEGOCIO_LABELS[fachada.tipo_negocio]}
-              </span>
-            </div>
 
-            {/* Formulário */}
-            <form onSubmit={handleSubmitLead} className="p-6 space-y-4">
-              <p className="text-sm text-muted-foreground text-center">
-                Preencha seus dados para visualizar todas as informações do
-                imóvel.
-              </p>
-
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="lead-nome" className="flex items-center gap-1.5 mb-1.5">
-                    <User className="h-3.5 w-3.5" /> Nome *
-                  </Label>
-                  <Input
-                    id="lead-nome"
+              {/* ── Form ── */}
+              <form onSubmit={handleSubmitLead} className="px-7 pb-8 pt-4 sm:px-9 sm:pb-10">
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="space-y-6"
+                >
+                  <UnderlineInput
+                    label="Nome Completo"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    placeholder="Seu nome completo"
                     required
                     autoFocus
+                    autoComplete="name"
                   />
-                </div>
-
-                <div>
-                  <Label htmlFor="lead-tel" className="flex items-center gap-1.5 mb-1.5">
-                    <Phone className="h-3.5 w-3.5" /> Telefone *
-                  </Label>
-                  <Input
-                    id="lead-tel"
+                  <UnderlineInput
+                    label="Telefone (WhatsApp)"
                     value={telefone}
                     onChange={(e) => setTelefone(e.target.value)}
-                    placeholder="(62) 99999-0000"
                     type="tel"
                     required
+                    autoComplete="tel"
                   />
-                </div>
-
-                <div>
-                  <Label htmlFor="lead-email" className="flex items-center gap-1.5 mb-1.5">
-                    <Mail className="h-3.5 w-3.5" /> E-mail{' '}
-                    <span className="text-muted-foreground text-xs">(opcional)</span>
-                  </Label>
-                  <Input
-                    id="lead-email"
+                  <UnderlineInput
+                    label="E-mail"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
                     type="email"
+                    autoComplete="email"
                   />
-                </div>
-              </div>
+                </motion.div>
 
-              <Button
-                type="submit"
-                className="w-full h-12 text-base font-semibold"
-                disabled={enviando || !nome.trim() || !telefone.trim()}
-              >
-                {enviando ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  '🏠 Ver Imóvel'
-                )}
-              </Button>
+                {/* ── CTA Button ── */}
+                <motion.div variants={itemVariants} className="mt-8">
+                  <button
+                    type="submit"
+                    disabled={enviando || !nome.trim() || !telefone.trim()}
+                    className="
+                      group relative w-full h-[52px] rounded-full
+                      flex items-center justify-center gap-2.5
+                      text-[15px] font-semibold text-white
+                      overflow-hidden
+                      transition-all duration-300
+                      disabled:opacity-40 disabled:cursor-not-allowed
+                      active:scale-[0.97]
+                    "
+                    style={{
+                      background: 'linear-gradient(135deg, #b8860b 0%, #d4a017 40%, #c5941a 100%)',
+                      boxShadow: '0 4px 20px rgba(180,130,20,0.3)',
+                    }}
+                  >
+                    {/* Hover shimmer */}
+                    <span
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                      style={{
+                        background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)',
+                        animation: 'shimmer-slide 1.8s ease-in-out infinite',
+                      }}
+                    />
+                    {enviando ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4" />
+                        Desbloquear Detalhes
+                      </>
+                    )}
+                  </button>
+                </motion.div>
 
-              <p className="text-[10px] text-muted-foreground text-center flex items-center justify-center gap-1">
-                <Shield className="h-3 w-3" /> Seus dados estão protegidos e
-                não serão compartilhados.
-              </p>
-            </form>
-          </div>
-
-          {/* Corretor info */}
-          {corretor && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-center mt-4 text-white/50 text-xs"
-            >
-              <p>{corretor.razao_social ?? corretor.nome}</p>
-              <p>CRECI {corretor.creci}</p>
+                {/* ── Privacy ── */}
+                <motion.p
+                  variants={itemVariants}
+                  className="flex items-center justify-center gap-1.5 text-[11px] text-white/30 mt-5 text-center"
+                >
+                  <Shield className="h-3 w-3 flex-shrink-0" />
+                  Seus dados estão protegidos e não serão compartilhados.
+                </motion.p>
+              </form>
             </motion.div>
-          )}
-        </motion.div>
+          </motion.div>
+        </div>
+
+        {/* ── Footer: Corretor ── */}
+        {corretor && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="relative z-10 text-center pb-8 pt-2"
+          >
+            <p className="text-white/30 text-xs">
+              {corretor.razao_social ?? corretor.nome}
+              {corretor.creci ? ` – CRECI ${corretor.creci}` : ''}
+            </p>
+          </motion.div>
+        )}
+
+        {/* Keyframes */}
+        <style>{`
+          @keyframes shimmer-slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+        `}</style>
       </div>
     );
   }
 
-  // ─── ETAPA 2: Página do Imóvel ──────────────────────────
+  // ═══════════════════════════════════════════════════════════
+  // ETAPA 2 — Página do Imóvel
+  // ═══════════════════════════════════════════════════════════
   const allFotos = fotos.length > 0 ? fotos : [];
   const whatsappLink = corretor?.telefone
     ? `https://wa.me/55${corretor.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
@@ -272,9 +417,7 @@ export default function FachadaPublica() {
                   key={i}
                   onClick={() => setFotoAtual(i)}
                   className={`h-1.5 rounded-full transition-all ${
-                    i === fotoAtual
-                      ? 'w-6 bg-white'
-                      : 'w-1.5 bg-white/40'
+                    i === fotoAtual ? 'w-6 bg-white' : 'w-1.5 bg-white/40'
                   }`}
                 />
               ))}
@@ -316,10 +459,7 @@ export default function FachadaPublica() {
             { icon: Bath, value: null, suffix: 'banh.' },
             { icon: Car, value: imovel?.garagem, suffix: 'vagas' },
           ].map((item, i) => (
-            <div
-              key={i}
-              className="bg-muted/50 rounded-xl p-3 text-center space-y-1"
-            >
+            <div key={i} className="bg-muted/50 rounded-xl p-3 text-center space-y-1">
               <item.icon className="h-5 w-5 mx-auto text-primary" />
               <p className="text-lg font-bold">{item.value ?? '—'}</p>
               <p className="text-[10px] text-muted-foreground">{item.suffix}</p>
@@ -335,9 +475,7 @@ export default function FachadaPublica() {
             transition={{ delay: 0.1 }}
           >
             <h2 className="text-lg font-semibold mb-2">Sobre o Imóvel</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {imovel.descricao}
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{imovel.descricao}</p>
           </motion.div>
         )}
 
@@ -358,7 +496,7 @@ export default function FachadaPublica() {
           </p>
         </motion.div>
 
-        {/* CTAs Fixos */}
+        {/* CTAs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -371,7 +509,6 @@ export default function FachadaPublica() {
               Falar no WhatsApp
             </Button>
           </a>
-
           <div className="grid grid-cols-2 gap-3">
             <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" className="w-full h-12 gap-2">
@@ -398,28 +535,17 @@ export default function FachadaPublica() {
           >
             <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
               {corretor.foto_url ? (
-                <img
-                  src={corretor.foto_url}
-                  alt=""
-                  className="h-14 w-14 rounded-full object-cover"
-                />
+                <img src={corretor.foto_url} alt="" className="h-14 w-14 rounded-full object-cover" />
               ) : (
                 <User className="h-6 w-6 text-primary" />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">{corretor.nome}</p>
-              <p className="text-xs text-muted-foreground">
-                {corretor.razao_social ?? 'Corretor de Imóveis'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                CRECI {corretor.creci}
-              </p>
+              <p className="text-xs text-muted-foreground">{corretor.razao_social ?? 'Corretor de Imóveis'}</p>
+              <p className="text-xs text-muted-foreground">CRECI {corretor.creci}</p>
             </div>
-            <a
-              href={`tel:${corretor.telefone}`}
-              className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition"
-            >
+            <a href={`tel:${corretor.telefone}`} className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition">
               <Phone className="h-5 w-5 text-primary" />
             </a>
           </motion.div>
@@ -428,8 +554,7 @@ export default function FachadaPublica() {
         {/* Footer */}
         <p className="text-center text-[10px] text-muted-foreground pb-6">
           © {new Date().getFullYear()}{' '}
-          {corretor?.razao_social ?? 'Oliver Negócios Inteligentes'}. Todos os
-          direitos reservados.
+          {corretor?.razao_social ?? 'Oliver Negócios Inteligentes'}. Todos os direitos reservados.
         </p>
       </div>
     </div>

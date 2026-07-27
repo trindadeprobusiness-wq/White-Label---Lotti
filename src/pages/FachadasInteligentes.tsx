@@ -87,6 +87,7 @@ export default function FachadasInteligentes() {
     deleteFachada,
     fetchLeads,
     fetchMetricas,
+    deleteLead,
   } = useFachadas();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -363,7 +364,7 @@ export default function FachadasInteligentes() {
 
         {/* Aba: Leads */}
         <TabsContent value="leads">
-          <LeadsTable leads={leads} />
+          <LeadsTable leads={leads} onDeleteLead={deleteLead} />
         </TabsContent>
 
         {/* Aba: Templates */}

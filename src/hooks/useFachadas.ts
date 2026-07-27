@@ -182,6 +182,31 @@ export function useFachadas() {
     }
   }, []);
 
+  const deleteLead = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const { error } = await supabase
+          .from('fachada_leads')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+
+        setLeads((prev) => prev.filter((l) => l.id !== id));
+        toast({ title: 'Lead excluído com sucesso' });
+        return true;
+      } catch (err) {
+        console.error('Erro ao excluir lead:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao excluir lead',
+        });
+        return false;
+      }
+    },
+    [],
+  );
+
   const fetchMetricas = useCallback(async (periodoDias = 30) => {
     try {
       // Fachadas ativas (contagem não depende de período)
@@ -256,5 +281,6 @@ export function useFachadas() {
     deleteFachada,
     fetchLeads,
     fetchMetricas,
+    deleteLead,
   };
 }
