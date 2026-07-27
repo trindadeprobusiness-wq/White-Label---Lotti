@@ -253,15 +253,26 @@ export default function Financeiro() {
                   <p className="text-center text-muted-foreground py-8">
                     Nenhum lançamento encontrado
                   </p>
-                ) : (
-                  lancamentosFiltrados.slice(0, 10).map((lancamento) => (
-                    <LancamentoCard
-                      key={lancamento.id}
-                      lancamento={lancamento}
-                      onDelete={handleDelete}
-                      onEdit={handleEdit}
-                    />
-                  ))
+                  <>
+                    {lancamentosFiltrados.slice(0, 10).map((lancamento) => (
+                      <LancamentoCard
+                        key={lancamento.id}
+                        lancamento={lancamento}
+                        onDelete={handleDelete}
+                        onEdit={handleEdit}
+                      />
+                    ))}
+                    {lancamentosFiltrados.length > 10 && (
+                      <div className="text-center pt-2 pb-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          + {lancamentosFiltrados.length - 10} lançamentos ocultos.
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/70">
+                          Acesse as abas "Custos" ou "Faturamento" para ver a lista completa.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
