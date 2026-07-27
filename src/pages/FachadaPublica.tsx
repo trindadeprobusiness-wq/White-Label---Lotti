@@ -19,6 +19,12 @@ import {
   Home,
   Shield,
   Lock,
+  Share2,
+  Heart,
+  Check,
+  Maximize2,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFachadaPublica } from '@/hooks/useFachadaPublica';
@@ -100,6 +106,10 @@ export default function FachadaPublica() {
   const [enviando, setEnviando] = useState(false);
   const [fotoAtual, setFotoAtual] = useState(0);
   const [bgLoaded, setBgLoaded] = useState(false);
+  const [galeriaAberta, setGaleriaAberta] = useState(false);
+  const [favorito, setFavorito] = useState(false);
+  const [pausado, setPausado] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     if (fachadaId) {
@@ -117,6 +127,29 @@ export default function FachadaPublica() {
       img.src = url;
     }
   }, [fachada?.foto_principal_url, fotos]);
+
+  // Favorito — só local, por dispositivo (delícia client-side, sem backend)
+  useEffect(() => {
+    if (fachadaId) {
+      setFavorito(localStorage.getItem(`fav-imovel-${fachadaId}`) === '1');
+    }
+  }, [fachadaId]);
+
+  // Autoplay do carrossel: avança a cada 3s. Pausa no hover/toque, com a galeria
+  // aberta, ou se o usuário prefere menos movimento (WCAG 2.2.2). fotoAtual nas deps
+  // faz a navegação manual reiniciar o timer de 3s.
+  useEffect(() => {
+    const total = fotos.length;
+    if (!leadCapturado || total <= 1 || pausado || galeriaAberta) return;
+    const prefereMenosMovimento =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (prefereMenosMovimento) return;
+    const id = window.setInterval(() => {
+      setFotoAtual((p) => (p + 1) % total);
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [leadCapturado, fotos.length, pausado, galeriaAberta, fotoAtual]);
 
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -370,193 +403,409 @@ export default function FachadaPublica() {
       )}`
     : '#';
 
+  const enderecoCompleto = [imovel?.endereco, imovel?.bairro, imovel?.cidade]
+    .filter(Boolean)
+    .join(', ');
+
+  const proximaFoto = () =>
+    setFotoAtual((p) => (allFotos.length ? (p + 1) % allFotos.length : 0));
+  const fotoAnterior = () =>
+    setFotoAtual((p) => (allFotos.length ? (p - 1 + allFotos.length) % allFotos.length : 0));
+
+  const abrirMapa = () => {
+    if (!enderecoCompleto) return;
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const dados = {
+      title: imovel?.titulo || 'Imóvel',
+      text: imovel?.titulo || 'Confira este imóvel',
+      url,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(dados);
+        return;
+      }
+    } catch {
+      return; // usuário cancelou o compartilhamento nativo
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      /* clipboard indisponível */
+    }
+  };
+
+  const toggleFavorito = () => {
+    const novo = !favorito;
+    setFavorito(novo);
+    if (fachadaId) {
+      if (novo) localStorage.setItem(`fav-imovel-${fachadaId}`, '1');
+      else localStorage.removeItem(`fav-imovel-${fachadaId}`);
+    }
+  };
+
+  const fotoAmbient = allFotos[fotoAtual]?.arquivo_url || bgUrl;
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero / Gallery */}
-      <div className="relative h-72 sm:h-96 bg-gradient-to-br from-slate-900 to-slate-700 overflow-hidden">
+    <div className="relative min-h-screen min-h-[100dvh] bg-[#0c0f0e] text-white overflow-x-hidden">
+      {/* ── Ambient: foto ativa borrada (a página se acende com a casa) ── */}
+      <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden>
         <AnimatePresence mode="wait">
-          {allFotos.length > 0 ? (
+          {fotoAmbient && (
             <motion.img
-              key={fotoAtual}
-              src={allFotos[fotoAtual].arquivo_url}
+              key={`amb-${fotoAtual}`}
+              src={fotoAmbient}
               alt=""
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover scale-125 blur-[70px] opacity-40"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={{ opacity: 0.4 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.9 }}
             />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <Home className="h-20 w-20 text-white/20" />
-            </div>
           )}
         </AnimatePresence>
-
-        {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-
-        {/* Nav arrows */}
-        {allFotos.length > 1 && (
-          <>
-            <button
-              onClick={() => setFotoAtual((p) => (p === 0 ? allFotos.length - 1 : p - 1))}
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 backdrop-blur-sm text-white rounded-full p-2 hover:bg-black/60 transition"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setFotoAtual((p) => (p === allFotos.length - 1 ? 0 : p + 1))}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/40 backdrop-blur-sm text-white rounded-full p-2 hover:bg-black/60 transition"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {allFotos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setFotoAtual(i)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === fotoAtual ? 'w-6 bg-white' : 'w-1.5 bg-white/40'
-                  }`}
-                />
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Badge tipo */}
-        <div className="absolute top-4 left-4">
-          <span className="bg-primary text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-            {TIPO_NEGOCIO_LABELS[fachada.tipo_negocio]}
-          </span>
-        </div>
-
-        {/* Preço sobre a foto */}
-        <div className="absolute bottom-4 left-4">
-          <h1 className="text-white text-xl sm:text-2xl font-bold drop-shadow-lg">
-            {imovel?.titulo}
-          </h1>
-          {imovel?.valor && (
-            <p className="text-white text-2xl sm:text-3xl font-extrabold mt-1 drop-shadow-lg">
-              {formatPrice(imovel.valor)}
-            </p>
-          )}
-        </div>
+        <div className="absolute inset-0 bg-[#0c0f0e]/70" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0c0f0e] via-transparent to-[#0c0f0e]" />
       </div>
 
-      {/* Content */}
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Specs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-4 gap-3"
-        >
-          {[
-            { icon: Ruler, value: imovel?.area_m2, suffix: 'm²' },
-            { icon: Bed, value: imovel?.dormitorios, suffix: 'quartos' },
-            { icon: Bath, value: null, suffix: 'banh.' },
-            { icon: Car, value: imovel?.garagem, suffix: 'vagas' },
-          ].map((item, i) => (
-            <div key={i} className="bg-muted/50 rounded-xl p-3 text-center space-y-1">
-              <item.icon className="h-5 w-5 mx-auto text-primary" />
-              <p className="text-lg font-bold">{item.value ?? '—'}</p>
-              <p className="text-[10px] text-muted-foreground">{item.suffix}</p>
-            </div>
-          ))}
-        </motion.div>
+      {/* ── Conteúdo ── */}
+      <div className="relative z-10 mx-auto w-full max-w-xl px-4 pb-12">
+        {/* Top bar */}
+        <div className="flex items-center justify-between py-4">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/70">
+            Oliver
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              aria-label="Compartilhar"
+              className="fp-glass-btn h-10 w-10 rounded-full flex items-center justify-center text-white/80 hover:bg-white/15 transition"
+            >
+              {copiado ? <Check className="h-4 w-4 text-emerald-400" /> : <Share2 className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={toggleFavorito}
+              aria-label="Favoritar imóvel"
+              className="fp-glass-btn h-10 w-10 rounded-full flex items-center justify-center hover:bg-white/15 transition"
+            >
+              <Heart className={`h-4 w-4 transition ${favorito ? 'fill-rose-500 text-rose-500' : 'text-white/80'}`} />
+            </button>
+          </div>
+        </div>
 
-        {/* Descrição */}
-        {imovel?.descricao && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+        {/* Hero */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="fp-glass rounded-[26px] p-1.5"
+        >
+          <div
+            className="group relative overflow-hidden rounded-[20px] aspect-[4/3] bg-black/40 ring-1 ring-amber-300/15"
+            onMouseEnter={() => setPausado(true)}
+            onMouseLeave={() => setPausado(false)}
+            onTouchStart={() => setPausado(true)}
+            onTouchEnd={() => setPausado(false)}
+            onClick={() => allFotos.length && setGaleriaAberta(true)}
+            role={allFotos.length ? 'button' : undefined}
           >
-            <h2 className="text-lg font-semibold mb-2">Sobre o Imóvel</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">{imovel.descricao}</p>
-          </motion.div>
-        )}
+            <AnimatePresence mode="wait">
+              {allFotos.length > 0 ? (
+                <motion.img
+                  key={fotoAtual}
+                  src={allFotos[fotoAtual].arquivo_url}
+                  alt=""
+                  className="w-full h-full object-cover cursor-zoom-in"
+                  initial={{ opacity: 0, scale: 1.04 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <Home className="h-20 w-20 text-white/15" />
+                </div>
+              )}
+            </AnimatePresence>
 
-        {/* Localização */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-muted/30 rounded-xl p-4"
-        >
-          <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" /> Localização
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {imovel?.endereco}
-            {imovel?.bairro ? ` — ${imovel.bairro}` : ''}
-            {imovel?.cidade ? `, ${imovel.cidade}` : ''}
-          </p>
-        </motion.div>
+            {/* Scrim */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/5 to-black/25 pointer-events-none" />
 
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-3"
-        >
-          <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
-            <Button className="w-full h-14 text-base font-semibold gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white">
-              <MessageCircle className="h-5 w-5" />
-              Falar no WhatsApp
-            </Button>
-          </a>
-          <div className="grid grid-cols-2 gap-3">
-            <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="w-full h-12 gap-2">
-                <Calendar className="h-4 w-4" />
-                Agendar Visita
-              </Button>
-            </a>
-            <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="w-full h-12 gap-2">
-                <FileText className="h-4 w-4" />
-                Fazer Proposta
-              </Button>
-            </a>
+            {/* Badge tipo */}
+            <div className="absolute top-3 left-3">
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold text-amber-100"
+                style={{ background: 'rgba(212,160,23,0.2)', border: '1px solid rgba(212,160,23,0.4)', backdropFilter: 'blur(10px)' }}
+              >
+                {TIPO_NEGOCIO_LABELS[fachada.tipo_negocio]}
+              </span>
+            </div>
+
+            {/* Contador + ampliar */}
+            {allFotos.length > 0 && (
+              <div className="absolute top-3 right-3 fp-glass-btn h-8 px-2.5 rounded-full flex items-center gap-1.5 text-[11px] text-white/85">
+                <Maximize2 className="h-3.5 w-3.5" />
+                {allFotos.length > 1 && (
+                  <span className="tabular-nums">{fotoAtual + 1}/{allFotos.length}</span>
+                )}
+              </div>
+            )}
+
+            {/* Setas */}
+            {allFotos.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); fotoAnterior(); }}
+                  aria-label="Foto anterior"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 fp-glass-btn h-9 w-9 rounded-full flex items-center justify-center text-white/85 hover:bg-white/20 transition"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); proximaFoto(); }}
+                  aria-label="Próxima foto"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 fp-glass-btn h-9 w-9 rounded-full flex items-center justify-center text-white/85 hover:bg-white/20 transition"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            )}
+
+            {/* Título + preço (painel de vidro) */}
+            <div className="absolute inset-x-3 bottom-3">
+              <div className="fp-glass rounded-2xl px-4 py-3">
+                <h1 className="text-base sm:text-lg font-bold leading-snug tracking-[-0.01em] line-clamp-2">
+                  {imovel?.titulo}
+                </h1>
+                {imovel?.valor && (
+                  <p
+                    className="mt-0.5 text-2xl sm:text-3xl font-extrabold tracking-[-0.02em] tabular-nums bg-clip-text text-transparent"
+                    style={{ backgroundImage: 'linear-gradient(135deg,#e6b325,#d4a017 55%,#b8860b)' }}
+                  >
+                    {formatPrice(imovel.valor)}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </motion.div>
 
-        {/* Corretor */}
-        {corretor && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-muted/30 rounded-xl p-4 flex items-center gap-4"
+        {/* Cards */}
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="mt-4 space-y-4">
+          {/* Ficha rápida */}
+          <motion.section variants={itemVariants} className="fp-glass rounded-2xl p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45 mb-3">Ficha rápida</p>
+            <div className="grid grid-cols-4 gap-2.5">
+              {[
+                { icon: Ruler, value: imovel?.area_m2, suffix: 'm²' },
+                { icon: Bed, value: imovel?.dormitorios, suffix: 'quartos' },
+                { icon: Bath, value: null, suffix: 'banh.' },
+                { icon: Car, value: imovel?.garagem, suffix: 'vagas' },
+              ].map((item, i) => (
+                <div key={i} className="fp-glass-tile rounded-xl p-3 text-center">
+                  <item.icon className="h-5 w-5 mx-auto text-amber-300" />
+                  <p className="mt-1.5 text-lg font-bold tabular-nums">{item.value ?? '—'}</p>
+                  <p className="text-[10px] text-white/45">{item.suffix}</p>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* Sobre */}
+          {imovel?.descricao && (
+            <motion.section variants={itemVariants} className="fp-glass rounded-2xl p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45 mb-2">Sobre o imóvel</p>
+              <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{imovel.descricao}</p>
+            </motion.section>
+          )}
+
+          {/* Localização → Google Maps */}
+          <motion.button
+            variants={itemVariants}
+            type="button"
+            onClick={abrirMapa}
+            disabled={!enderecoCompleto}
+            className="fp-glass block w-full text-left rounded-2xl overflow-hidden group disabled:opacity-70"
           >
-            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              {corretor.foto_url ? (
-                <img src={corretor.foto_url} alt="" className="h-14 w-14 rounded-full object-cover" />
-              ) : (
-                <User className="h-6 w-6 text-primary" />
+            <div className="relative h-24">
+              <div
+                className="absolute inset-0 opacity-25"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(rgba(212,160,23,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(212,160,23,0.35) 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="relative">
+                  <span className="absolute -inset-3 rounded-full bg-amber-400/20 blur-md" />
+                  <span className="relative h-9 w-9 rounded-full bg-amber-500 flex items-center justify-center shadow-lg">
+                    <MapPin className="h-5 w-5 text-black/80" />
+                  </span>
+                </span>
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0c0f0e]/70 to-transparent" />
+            </div>
+            <div className="p-4 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">Localização</p>
+                <p className="text-sm text-white/75 truncate">{enderecoCompleto || '—'}</p>
+              </div>
+              {enderecoCompleto && (
+                <span className="shrink-0 flex items-center gap-1 text-xs text-amber-300 group-hover:gap-1.5 transition-all">
+                  Abrir <ExternalLink className="h-3.5 w-3.5" />
+                </span>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">{corretor.nome}</p>
-              <p className="text-xs text-muted-foreground">{corretor.razao_social ?? 'Corretor de Imóveis'}</p>
-              <p className="text-xs text-muted-foreground">CRECI {corretor.creci}</p>
-            </div>
-            <a href={`tel:${corretor.telefone}`} className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition">
-              <Phone className="h-5 w-5 text-primary" />
+          </motion.button>
+
+          {/* CTAs */}
+          <motion.div variants={itemVariants} className="space-y-3">
+            <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+              <Button className="w-full h-14 text-base font-semibold gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-[0_8px_30px_rgba(37,211,102,0.25)]">
+                <MessageCircle className="h-5 w-5" />
+                Falar no WhatsApp
+              </Button>
             </a>
+            <div className="grid grid-cols-2 gap-3">
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="fp-glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-white/85 hover:bg-white/15 transition"
+              >
+                <Calendar className="h-4 w-4" /> Agendar Visita
+              </a>
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="fp-glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-white/85 hover:bg-white/15 transition"
+              >
+                <FileText className="h-4 w-4" /> Fazer Proposta
+              </a>
+            </div>
+          </motion.div>
+
+          {/* Corretor */}
+          {corretor && (
+            <motion.div variants={itemVariants} className="fp-glass rounded-2xl p-4 flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full overflow-hidden fp-glass-tile flex items-center justify-center shrink-0">
+                {corretor.foto_url ? (
+                  <img src={corretor.foto_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <User className="h-6 w-6 text-amber-300" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate">{corretor.nome}</p>
+                <p className="text-xs text-white/55 truncate">{corretor.razao_social ?? 'Corretor de Imóveis'}</p>
+                <p className="text-xs text-amber-300/90">CRECI {corretor.creci}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {corretor.telefone && (
+                  <a
+                    href={`tel:${corretor.telefone}`}
+                    aria-label="Ligar"
+                    className="fp-glass-btn h-10 w-10 rounded-full flex items-center justify-center text-white/85 hover:bg-white/15 transition"
+                  >
+                    <Phone className="h-4 w-4" />
+                  </a>
+                )}
+                <a
+                  href={whatsappLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="WhatsApp"
+                  className="fp-glass-btn h-10 w-10 rounded-full flex items-center justify-center text-emerald-400 hover:bg-white/15 transition"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </a>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Footer */}
+          <motion.p variants={itemVariants} className="text-center text-[11px] text-white/30 pt-2">
+            © {new Date().getFullYear()}{' '}
+            {corretor?.razao_social ?? 'Oliver Negócios Inteligentes'}. Todos os direitos reservados.
+          </motion.p>
+        </motion.div>
+      </div>
+
+      {/* ── Galeria em tela cheia ── */}
+      <AnimatePresence>
+        {galeriaAberta && allFotos.length > 0 && (
+          <motion.div
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-white/70 tabular-nums">
+                {fotoAtual + 1} / {allFotos.length}
+              </span>
+              <button
+                onClick={() => setGaleriaAberta(false)}
+                aria-label="Fechar galeria"
+                className="fp-glass-btn h-10 w-10 rounded-full flex items-center justify-center text-white/85 hover:bg-white/15 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 relative flex items-center justify-center overflow-hidden select-none">
+              <AnimatePresence mode="wait">
+                <motion.img
+                  key={fotoAtual}
+                  src={allFotos[fotoAtual].arquivo_url}
+                  alt=""
+                  className="max-h-full max-w-full object-contain"
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.x < -80) proximaFoto();
+                    else if (info.offset.x > 80) fotoAnterior();
+                  }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                />
+              </AnimatePresence>
+              {allFotos.length > 1 && (
+                <>
+                  <button
+                    onClick={fotoAnterior}
+                    aria-label="Foto anterior"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 fp-glass-btn h-11 w-11 rounded-full flex items-center justify-center text-white/85 hover:bg-white/20 transition"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                  <button
+                    onClick={proximaFoto}
+                    aria-label="Próxima foto"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 fp-glass-btn h-11 w-11 rounded-full flex items-center justify-center text-white/85 hover:bg-white/20 transition"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                </>
+              )}
+            </div>
           </motion.div>
         )}
-
-        {/* Footer */}
-        <p className="text-center text-[10px] text-muted-foreground pb-6">
-          © {new Date().getFullYear()}{' '}
-          {corretor?.razao_social ?? 'Oliver Negócios Inteligentes'}. Todos os direitos reservados.
-        </p>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
