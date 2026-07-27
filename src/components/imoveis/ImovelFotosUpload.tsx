@@ -18,7 +18,7 @@ interface ImovelFotosUploadProps {
 export function ImovelFotosUpload({
   onFilesSelected,
   uploading = false,
-  maxFiles = 10,
+  maxFiles = 50,
   mode = 'automatic'
 }: ImovelFotosUploadProps) {
   const [dragActive, setDragActive] = useState(false);

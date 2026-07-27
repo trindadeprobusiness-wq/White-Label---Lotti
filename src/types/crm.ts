@@ -62,6 +62,7 @@ export interface Imovel {
   cidade: string;
   descricao?: string;
   exclusividade_ate?: string;
+  finalidade?: 'VENDA' | 'LOCACAO' | 'AMBOS';
   proprietario_nome: string;
   proprietario_cpf?: string;
   proprietario_telefone?: string;

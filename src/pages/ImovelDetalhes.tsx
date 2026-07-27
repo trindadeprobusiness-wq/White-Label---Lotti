@@ -298,7 +298,7 @@ export default function ImovelDetalhes() {
               <ImovelFotosUpload
                 onFilesSelected={handleUploadFotos}
                 uploading={uploading}
-                maxFiles={10}
+                maxFiles={50}
                 mode="manual"
               />
             </div>

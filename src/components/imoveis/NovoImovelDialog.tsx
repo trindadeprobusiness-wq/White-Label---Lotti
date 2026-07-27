@@ -9,10 +9,23 @@ import { useCRMStore } from '@/stores/crmStore';
 import { TipoImovel } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useImovelFotos } from '@/hooks/useImovelFotos';
-import { MapPin, Home, DollarSign, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { MapPin, Home, DollarSign, Loader2, Video, X } from 'lucide-react';
 import { ImovelFotosUpload } from './ImovelFotosUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { getTrackingData } from '@/hooks/useUTMTracker';
+import { useVideos } from '@/hooks/useVideos';
+
+type Finalidade = 'VENDA' | 'LOCACAO' | 'AMBOS';
+
+const FINALIDADES: { value: Finalidade; label: string }[] = [
+  { value: 'VENDA', label: 'Venda' },
+  { value: 'LOCACAO', label: 'Aluguel' },
+  { value: 'AMBOS', label: 'Venda e Aluguel' },
+];
+
+const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+const VIDEO_MAX_BYTES = 500 * 1024 * 1024; // 500MB
 
 interface NovoImovelDialogProps {
   open: boolean;
@@ -24,7 +37,9 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
   const { addImovel, fetchImoveis } = useCRMStore();
   const { toast } = useToast();
   const { uploadMultipleFotos, uploading } = useImovelFotos();
+  const { uploadVideo, uploading: uploadingVideo, uploadProgress: videoProgress } = useVideos();
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isEditing = !!imovelToEdit;
 
@@ -32,6 +47,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
   const [form, setForm] = useState({
     titulo: '',
     tipo: 'APARTAMENTO' as TipoImovel,
+    finalidade: 'VENDA' as Finalidade,
     valor: '',
     area_m2: '',
     dormitorios: '',
@@ -42,10 +58,14 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
     proprietario_nome: ''
   });
 
+  // Proprietário só é obrigatório quando envolve locação (aluguel). Em venda pura é opcional.
+  const proprietarioObrigatorio = form.finalidade !== 'VENDA';
+
   const resetForm = () => {
     setForm({
       titulo: '',
       tipo: 'APARTAMENTO',
+      finalidade: 'VENDA',
       valor: '',
       area_m2: '',
       dormitorios: '',
@@ -56,6 +76,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
       proprietario_nome: ''
     });
     setPendingFiles([]);
+    setVideoFile(null);
   };
 
   useEffect(() => {
@@ -63,6 +84,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
       setForm({
         titulo: imovelToEdit.titulo || '',
         tipo: imovelToEdit.tipo || 'APARTAMENTO',
+        finalidade: (imovelToEdit.finalidade as Finalidade) || 'VENDA',
         valor: imovelToEdit.valor?.toString() || '',
         area_m2: imovelToEdit.area_m2?.toString() || '',
         dormitorios: imovelToEdit.dormitorios?.toString() || '',
@@ -72,10 +94,26 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
         cidade: imovelToEdit.cidade || 'Anápolis',
         proprietario_nome: imovelToEdit.proprietario_nome || ''
       });
+      setVideoFile(null);
     } else if (!open && !imovelToEdit) {
       resetForm();
     }
   }, [imovelToEdit, open]);
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite re-selecionar o mesmo arquivo depois
+    if (!file) return;
+    if (!VIDEO_TYPES.includes(file.type)) {
+      toast({ title: 'Formato de vídeo inválido', description: 'Use MP4, WebM, MOV ou AVI.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > VIDEO_MAX_BYTES) {
+      toast({ title: 'Vídeo muito grande', description: 'O tamanho máximo é 500MB.', variant: 'destructive' });
+      return;
+    }
+    setVideoFile(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +135,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
           .insert({
             titulo: form.titulo,
             tipo: form.tipo,
+            finalidade: form.finalidade,
             valor: Number(form.valor) || 0,
             area_m2: Number(form.area_m2) || 0,
             dormitorios: Number(form.dormitorios) || 0,
@@ -120,6 +159,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
           .update({
             titulo: form.titulo,
             tipo: form.tipo,
+            finalidade: form.finalidade,
             valor: Number(form.valor) || 0,
             area_m2: Number(form.area_m2) || 0,
             dormitorios: Number(form.dormitorios) || 0,
@@ -140,6 +180,15 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
       // Upload photos if any
       if (pendingFiles.length > 0 && imovel) {
         await uploadMultipleFotos(imovel.id, pendingFiles);
+      }
+
+      // Upload optional video (não bloqueia o cadastro se falhar)
+      if (videoFile && imovel) {
+        try {
+          await uploadVideo(videoFile, form.titulo || 'Vídeo do imóvel', 'APRESENTACAO', imovel.id);
+        } catch {
+          // uploadVideo já exibe toast de erro
+        }
       }
 
       toast({ title: `Imóvel ${isEditing ? 'atualizado' : 'cadastrado'} com sucesso!` });
@@ -177,6 +226,17 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             </div>
             <div><Label>Valor (R$) *</Label><Input type="number" required value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></div>
           </div>
+          <div>
+            <Label>Finalidade</Label>
+            <Select value={form.finalidade} onValueChange={(v) => setForm({ ...form, finalidade: v as Finalidade })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FINALIDADES.map((f) => (
+                  <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-3 gap-4">
             <div><Label>Área (m²)</Label><Input type="number" value={form.area_m2} onChange={(e) => setForm({ ...form, area_m2: e.target.value })} /></div>
             <div><Label>Dorms</Label><Input type="number" value={form.dormitorios} onChange={(e) => setForm({ ...form, dormitorios: e.target.value })} /></div>
@@ -187,7 +247,20 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             <div><Label>Bairro *</Label><Input required value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} /></div>
             <div><Label>Cidade</Label><Input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} /></div>
           </div>
-          <div><Label>Proprietário *</Label><Input required value={form.proprietario_nome} onChange={(e) => setForm({ ...form, proprietario_nome: e.target.value })} /></div>
+          <div>
+            <Label>
+              Proprietário{' '}
+              {proprietarioObrigatorio
+                ? <span className="text-destructive">*</span>
+                : <span className="text-muted-foreground font-normal">(opcional)</span>}
+            </Label>
+            <Input
+              required={proprietarioObrigatorio}
+              value={form.proprietario_nome}
+              onChange={(e) => setForm({ ...form, proprietario_nome: e.target.value })}
+              placeholder={proprietarioObrigatorio ? 'Nome do proprietário' : 'Opcional para venda'}
+            />
+          </div>
 
           <Separator />
 
@@ -207,7 +280,66 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={submitting || uploading}>
+          <Separator />
+
+          <div>
+            <Label className="mb-2 block">
+              Vídeo do Imóvel <span className="text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            {!videoFile ? (
+              <label
+                htmlFor="imovel-video-input"
+                className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 rounded-lg p-6 text-center cursor-pointer transition-colors"
+              >
+                <div className="p-3 rounded-full bg-primary/10">
+                  <Video className="w-6 h-6 text-primary" />
+                </div>
+                <p className="font-medium">Clique para adicionar um vídeo</p>
+                <p className="text-sm text-muted-foreground">MP4, WebM, MOV ou AVI (máx. 500MB)</p>
+                <input
+                  id="imovel-video-input"
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                  onChange={handleVideoSelect}
+                  className="hidden"
+                  disabled={uploadingVideo}
+                />
+              </label>
+            ) : (
+              <div className="flex items-center gap-3 border rounded-lg p-3">
+                <div className="p-2 rounded-md bg-primary/10 shrink-0">
+                  <Video className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{videoFile.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
+                  </p>
+                </div>
+                {!uploadingVideo && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => setVideoFile(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+            {uploadingVideo && (
+              <div className="mt-2 space-y-1">
+                <Progress value={videoProgress} className="h-2" />
+                <p className="text-xs text-center text-muted-foreground">
+                  Enviando vídeo... {videoProgress}%
+                </p>
+              </div>
+            )}
+          </div>
+
+          <Button type="submit" className="w-full" disabled={submitting || uploading || uploadingVideo}>
             {submitting ? 'Salvando...' : (isEditing ? 'Salvar Alterações' : 'Cadastrar Imóvel')}
           </Button>
         </form>

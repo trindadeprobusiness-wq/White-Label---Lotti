@@ -488,6 +488,7 @@ export type Database = {
           endereco: string
           estado: string | null
           exclusividade_ate: string | null
+          finalidade: Database["public"]["Enums"]["finalidade_imovel"]
           garagem: number | null
           id: string
           proprietario_cpf: string | null
@@ -512,6 +513,7 @@ export type Database = {
           endereco: string
           estado?: string | null
           exclusividade_ate?: string | null
+          finalidade?: Database["public"]["Enums"]["finalidade_imovel"]
           garagem?: number | null
           id?: string
           proprietario_cpf?: string | null
@@ -536,6 +538,7 @@ export type Database = {
           endereco?: string
           estado?: string | null
           exclusividade_ate?: string | null
+          finalidade?: Database["public"]["Enums"]["finalidade_imovel"]
           garagem?: number | null
           id?: string
           proprietario_cpf?: string | null
@@ -753,6 +756,7 @@ export type Database = {
         | "HONORARIO_AVALIACAO"
         | "CONSULTORIA"
         | "OUTROS"
+      finalidade_imovel: "VENDA" | "LOCACAO" | "AMBOS"
       prioridade_alerta: "ALTA" | "MEDIA" | "BAIXA"
       status_funil:
         | "QUALIFICACAO"
