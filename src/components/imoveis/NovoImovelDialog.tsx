@@ -55,7 +55,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
     endereco: '',
     bairro: '',
     cidade: 'Anápolis', // Changed default city per request
-    proprietario_nome: ''
+    proprietario_nome: '',
+    suites: ''
   });
 
   // Proprietário só é obrigatório quando envolve locação (aluguel). Em venda pura é opcional.
@@ -73,7 +74,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
       endereco: '',
       bairro: '',
       cidade: 'Anápolis',
-      proprietario_nome: ''
+      proprietario_nome: '',
+      suites: ''
     });
     setPendingFiles([]);
     setVideoFile(null);
@@ -92,7 +94,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
         endereco: imovelToEdit.endereco || '',
         bairro: imovelToEdit.bairro || '',
         cidade: imovelToEdit.cidade || 'Anápolis',
-        proprietario_nome: imovelToEdit.proprietario_nome || ''
+        proprietario_nome: imovelToEdit.proprietario_nome || '',
+        suites: imovelToEdit.suites?.toString() || ''
       });
       setVideoFile(null);
     } else if (!open && !imovelToEdit) {
@@ -136,7 +139,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             titulo: form.titulo,
             tipo: form.tipo,
             finalidade: form.finalidade,
-            valor: Number(form.valor) || 0,
+            valor: Number(form.valor.toString().replace(/\./g, '').replace(',', '.')) || 0,
             area_m2: Number(form.area_m2) || 0,
             dormitorios: Number(form.dormitorios) || 0,
             garagem: Number(form.garagem) || 0,
@@ -145,6 +148,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             cidade: form.cidade,
             proprietario_nome: form.proprietario_nome,
             corretor_id: corretorId,
+            suites: Number(form.suites) || 0,
           })
           .select()
           .single();
@@ -160,7 +164,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             titulo: form.titulo,
             tipo: form.tipo,
             finalidade: form.finalidade,
-            valor: Number(form.valor) || 0,
+            valor: Number(form.valor.toString().replace(/\./g, '').replace(',', '.')) || 0,
             area_m2: Number(form.area_m2) || 0,
             dormitorios: Number(form.dormitorios) || 0,
             garagem: Number(form.garagem) || 0,
@@ -168,6 +172,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             bairro: form.bairro,
             cidade: form.cidade,
             proprietario_nome: form.proprietario_nome,
+            suites: Number(form.suites) || 0,
           })
           .eq('id', imovelToEdit.id)
           .select()
@@ -224,7 +229,19 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Valor (R$) *</Label><Input type="number" required value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></div>
+            <div>
+              <Label>Valor (R$) *</Label>
+              <Input
+                type="text"
+                required
+                value={form.valor}
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/\D/g, '');
+                  const formatted = new Intl.NumberFormat('pt-BR').format(Number(rawValue));
+                  setForm({ ...form, valor: rawValue === '' ? '' : formatted });
+                }}
+              />
+            </div>
           </div>
           <div>
             <Label>Finalidade</Label>
@@ -237,9 +254,10 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div><Label>Área (m²)</Label><Input type="number" value={form.area_m2} onChange={(e) => setForm({ ...form, area_m2: e.target.value })} /></div>
             <div><Label>Dorms</Label><Input type="number" value={form.dormitorios} onChange={(e) => setForm({ ...form, dormitorios: e.target.value })} /></div>
+            <div><Label>Suítes</Label><Input type="number" value={form.suites} onChange={(e) => setForm({ ...form, suites: e.target.value })} /></div>
             <div><Label>Vagas</Label><Input type="number" value={form.garagem} onChange={(e) => setForm({ ...form, garagem: e.target.value })} /></div>
           </div>
           <div><Label>Endereço *</Label><Input required value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} /></div>

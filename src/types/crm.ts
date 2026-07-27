@@ -56,6 +56,7 @@ export interface Imovel {
   valor: number;
   area_m2: number;
   dormitorios: number;
+  suites?: number;
   garagem: number;
   endereco: string;
   bairro: string;
