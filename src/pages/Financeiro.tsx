@@ -253,6 +253,7 @@ export default function Financeiro() {
                   <p className="text-center text-muted-foreground py-8">
                     Nenhum lançamento encontrado
                   </p>
+                ) : (
                   <>
                     {lancamentosFiltrados.slice(0, 10).map((lancamento) => (
                       <LancamentoCard
