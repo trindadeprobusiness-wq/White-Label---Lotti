@@ -495,6 +495,7 @@ export type Database = {
           proprietario_email: string | null
           proprietario_nome: string
           proprietario_telefone: string | null
+          suites: number | null
           tipo: Database["public"]["Enums"]["tipo_imovel"]
           titulo: string
           updated_at: string | null
@@ -520,6 +521,7 @@ export type Database = {
           proprietario_email?: string | null
           proprietario_nome: string
           proprietario_telefone?: string | null
+          suites?: number | null
           tipo: Database["public"]["Enums"]["tipo_imovel"]
           titulo: string
           updated_at?: string | null
@@ -545,6 +547,7 @@ export type Database = {
           proprietario_email?: string | null
           proprietario_nome?: string
           proprietario_telefone?: string | null
+          suites?: number | null
           tipo?: Database["public"]["Enums"]["tipo_imovel"]
           titulo?: string
           updated_at?: string | null
