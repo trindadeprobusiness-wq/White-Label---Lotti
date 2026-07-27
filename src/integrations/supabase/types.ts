@@ -607,6 +607,7 @@ export type Database = {
           created_at: string | null
           data: string
           descricao: string
+          fatura_id: string | null
           id: string
           imovel_id: string | null
           recorrente: boolean | null
@@ -622,6 +623,7 @@ export type Database = {
           created_at?: string | null
           data?: string
           descricao: string
+          fatura_id?: string | null
           id?: string
           imovel_id?: string | null
           recorrente?: boolean | null
@@ -637,6 +639,7 @@ export type Database = {
           created_at?: string | null
           data?: string
           descricao?: string
+          fatura_id?: string | null
           id?: string
           imovel_id?: string | null
           recorrente?: boolean | null

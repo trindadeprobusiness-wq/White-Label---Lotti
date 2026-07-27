@@ -11,6 +11,8 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
 import { ProjecaoMensal } from '@/types/financeiro';
 
 interface GraficoProjecaoProps {
@@ -39,7 +41,37 @@ export function GraficoProjecao({ dados, metaAnual }: GraficoProjecaoProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Projeção Anual</CardTitle>
+        <div className="flex items-center gap-1.5">
+          <CardTitle className="text-lg">Projeção Anual</CardTitle>
+          <TooltipProvider delayDuration={100}>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Como a projeção é calculada"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs text-xs leading-relaxed">
+                <p className="font-semibold mb-1">Como calculamos a projeção</p>
+                <p>
+                  Os meses já fechados mostram o valor <strong>real</strong>. Para os meses futuros,
+                  usamos o <strong>maior</strong> valor entre:
+                </p>
+                <p className="mt-1">• os lançamentos já previstos do mês (ex.: receitas/despesas recorrentes);</p>
+                <p>
+                  • a <strong>média mensal</strong> do que você já realizou no ano
+                  (total realizado ÷ meses fechados).
+                </p>
+                <p className="mt-1.5 text-muted-foreground">
+                  Assim a projeção nunca fica abaixo do seu ritmo atual.
+                </p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
         <CardDescription>
           Realizado: {totais.totalRealizado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | 
           Projetado: {totais.totalProjetado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
