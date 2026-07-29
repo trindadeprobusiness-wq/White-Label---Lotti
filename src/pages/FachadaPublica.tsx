@@ -29,6 +29,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useFachadaPublica } from '@/hooks/useFachadaPublica';
 import { CTA_LABELS, TIPO_NEGOCIO_LABELS } from '@/types/fachada';
+import { formatarTelefone } from '@/lib/validators';
 
 /* ───── Stagger variants ───── */
 const containerVariants = {
@@ -46,8 +47,10 @@ const itemVariants = {
 /* ───── Minimal underline input ───── */
 function UnderlineInput({
   label,
+  hint,
+  error,
   ...props
-}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string; hint?: string; error?: boolean } & React.InputHTMLAttributes<HTMLInputElement>) {
   const [focused, setFocused] = useState(false);
   const hasValue = typeof props.value === 'string' && props.value.length > 0;
 
@@ -69,21 +72,24 @@ function UnderlineInput({
         {...props}
         onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
         onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
-        className="
-          w-full bg-transparent border-0 border-b border-white/20 
+        className={`
+          w-full bg-transparent border-0 border-b
           text-white text-sm pb-2.5 pt-1 outline-none
-          placeholder-transparent
-          focus:border-amber-400/70
-          transition-colors duration-300
-        "
+          placeholder-transparent transition-colors duration-300
+          ${error ? 'border-red-400/70' : 'border-white/20 focus:border-amber-400/70'}
+        `}
       />
       {/* Animated bottom line */}
       <motion.div
-        className="absolute bottom-0 left-0 h-[1.5px] bg-amber-400"
+        className={`absolute bottom-0 left-0 h-[1.5px] ${error ? 'bg-red-400' : 'bg-amber-400'}`}
         initial={false}
         animate={{ width: focused ? '100%' : '0%' }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
       />
+      {/* Hint de erro — fica na folga abaixo, sem empurrar o layout */}
+      {error && hint && (
+        <p className="absolute left-0 top-full mt-1 text-[11px] text-red-400/80">{hint}</p>
+      )}
     </motion.div>
   );
 }
@@ -110,6 +116,13 @@ export default function FachadaPublica() {
   const [favorito, setFavorito] = useState(false);
   const [pausado, setPausado] = useState(false);
   const [copiado, setCopiado] = useState(false);
+
+  // Telefone: só aceita número BR real (10–11 dígitos + DDD válido) para o
+  // corretor conseguir contatar depois. Bloqueia "qualquer número".
+  const telefoneDigits = telefone.replace(/\D/g, '');
+  const telefoneValido =
+    (telefoneDigits.length === 10 || telefoneDigits.length === 11) &&
+    Number(telefoneDigits.slice(0, 2)) >= 11;
 
   useEffect(() => {
     if (fachadaId) {
@@ -153,12 +166,12 @@ export default function FachadaPublica() {
 
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fachadaId || !nome.trim() || !telefone.trim()) return;
+    if (!fachadaId || !nome.trim() || !telefoneValido) return;
 
     setEnviando(true);
     const ok = await enviarLead(fachadaId, {
       nome: nome.trim(),
-      telefone: telefone.trim(),
+      telefone: formatarTelefone(telefone),
       email: email.trim() || undefined,
     });
     setEnviando(false);
@@ -302,13 +315,17 @@ export default function FachadaPublica() {
                   <UnderlineInput
                     label="Telefone (WhatsApp)"
                     value={telefone}
-                    onChange={(e) => setTelefone(e.target.value)}
+                    onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={15}
                     required
                     autoComplete="tel"
+                    error={telefone.length > 0 && !telefoneValido}
+                    hint="Informe um telefone válido com DDD, ex.: (62) 99999-0000"
                   />
                   <UnderlineInput
-                    label="E-mail"
+                    label="E-mail (opcional)"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
@@ -320,7 +337,7 @@ export default function FachadaPublica() {
                 <motion.div variants={itemVariants} className="mt-8">
                   <button
                     type="submit"
-                    disabled={enviando || !nome.trim() || !telefone.trim()}
+                    disabled={enviando || !nome.trim() || !telefoneValido}
                     className="
                       group relative w-full h-[52px] rounded-full
                       flex items-center justify-center gap-2.5
@@ -373,7 +390,8 @@ export default function FachadaPublica() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="relative z-10 text-center pb-8 pt-2"
+            className="relative z-10 text-center pt-2"
+            style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
           >
             <p className="text-white/30 text-xs">
               {corretor.razao_social ?? corretor.nome}
@@ -459,14 +477,15 @@ export default function FachadaPublica() {
   return (
     <div className="relative min-h-screen min-h-[100dvh] bg-[#0c0f0e] text-white overflow-x-hidden">
       {/* ── Ambient: foto ativa borrada (a página se acende com a casa) ── */}
-      <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden>
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden>
         <AnimatePresence mode="wait">
           {fotoAmbient && (
             <motion.img
               key={`amb-${fotoAtual}`}
               src={fotoAmbient}
               alt=""
-              className="absolute inset-0 w-full h-full object-cover scale-125 blur-[70px] opacity-40"
+              decoding="async"
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-[40px] opacity-40"
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.4 }}
               exit={{ opacity: 0 }}
@@ -479,9 +498,15 @@ export default function FachadaPublica() {
       </div>
 
       {/* ── Conteúdo ── */}
-      <div className="relative z-10 mx-auto w-full max-w-xl px-4 pb-12">
+      <div
+        className="relative z-10 mx-auto w-full max-w-xl px-4"
+        style={{ paddingBottom: 'calc(3rem + env(safe-area-inset-bottom))' }}
+      >
         {/* Top bar */}
-        <div className="flex items-center justify-between py-4">
+        <div
+          className="flex items-center justify-between pb-4"
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+        >
           <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/70">
             Oliver
           </span>
@@ -525,6 +550,7 @@ export default function FachadaPublica() {
                   key={fotoAtual}
                   src={allFotos[fotoAtual].arquivo_url}
                   alt=""
+                  decoding="async"
                   className="w-full h-full object-cover cursor-zoom-in"
                   initial={{ opacity: 0, scale: 1.04 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -584,13 +610,16 @@ export default function FachadaPublica() {
             {/* Título + preço (painel de vidro) */}
             <div className="absolute inset-x-3 bottom-3">
               <div className="fp-glass rounded-2xl px-4 py-3">
-                <h1 className="text-base sm:text-lg font-bold leading-snug tracking-[-0.01em] line-clamp-2">
+                <h1
+                  className="font-bold leading-snug tracking-[-0.01em] line-clamp-3"
+                  style={{ fontSize: 'clamp(0.95rem, 3.6vw, 1.2rem)' }}
+                >
                   {imovel?.titulo}
                 </h1>
                 {imovel?.valor && (
                   <p
-                    className="mt-0.5 text-2xl sm:text-3xl font-extrabold tracking-[-0.02em] tabular-nums bg-clip-text text-transparent"
-                    style={{ backgroundImage: 'linear-gradient(135deg,#e6b325,#d4a017 55%,#b8860b)' }}
+                    className="mt-0.5 font-extrabold tracking-[-0.02em] tabular-nums bg-clip-text text-transparent"
+                    style={{ fontSize: 'clamp(1.4rem, 6vw, 1.9rem)', backgroundImage: 'linear-gradient(135deg,#e6b325,#d4a017 55%,#b8860b)' }}
                   >
                     {formatPrice(imovel.valor)}
                   </p>
@@ -605,17 +634,17 @@ export default function FachadaPublica() {
           {/* Ficha rápida */}
           <motion.section variants={itemVariants} className="fp-glass rounded-2xl p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45 mb-3">Ficha rápida</p>
-            <div className="grid grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2.5">
               {[
                 { icon: Ruler, value: imovel?.area_m2, suffix: 'm²' },
                 { icon: Bed, value: imovel?.dormitorios, suffix: 'quartos' },
-                { icon: Bath, value: null, suffix: 'banh.' },
+                { icon: Bath, value: (imovel as { banheiros?: number } | undefined)?.banheiros ?? null, suffix: 'banh.' },
                 { icon: Car, value: imovel?.garagem, suffix: 'vagas' },
               ].map((item, i) => (
-                <div key={i} className="fp-glass-tile rounded-xl p-3 text-center">
+                <div key={i} className="fp-glass-tile rounded-xl p-3 text-center min-w-0">
                   <item.icon className="h-5 w-5 mx-auto text-amber-300" />
                   <p className="mt-1.5 text-lg font-bold tabular-nums">{item.value ?? '—'}</p>
-                  <p className="text-[10px] text-white/45">{item.suffix}</p>
+                  <p className="text-[10px] text-white/45 truncate">{item.suffix}</p>
                 </div>
               ))}
             </div>
@@ -677,14 +706,14 @@ export default function FachadaPublica() {
                 Falar no WhatsApp
               </Button>
             </a>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
               <a
                 href={whatsappLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="fp-glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-white/85 hover:bg-white/15 transition"
               >
-                <Calendar className="h-4 w-4" /> Agendar Visita
+                <Calendar className="h-4 w-4 shrink-0" /> Agendar Visita
               </a>
               <a
                 href={whatsappLink}
@@ -692,14 +721,14 @@ export default function FachadaPublica() {
                 rel="noopener noreferrer"
                 className="fp-glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-white/85 hover:bg-white/15 transition"
               >
-                <FileText className="h-4 w-4" /> Fazer Proposta
+                <FileText className="h-4 w-4 shrink-0" /> Fazer Proposta
               </a>
             </div>
           </motion.div>
 
           {/* Corretor */}
           {corretor && (
-            <motion.div variants={itemVariants} className="fp-glass rounded-2xl p-4 flex items-center gap-4">
+            <motion.div variants={itemVariants} className="fp-glass rounded-2xl p-4 flex items-center gap-3">
               <div className="h-14 w-14 rounded-full overflow-hidden fp-glass-tile flex items-center justify-center shrink-0">
                 {corretor.foto_url ? (
                   <img src={corretor.foto_url} alt="" className="h-full w-full object-cover" />
@@ -752,7 +781,10 @@ export default function FachadaPublica() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="flex items-center justify-between px-4 py-3">
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+            >
               <span className="text-sm text-white/70 tabular-nums">
                 {fotoAtual + 1} / {allFotos.length}
               </span>
