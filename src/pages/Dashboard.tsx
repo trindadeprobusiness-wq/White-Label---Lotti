@@ -1,17 +1,19 @@
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, ArrowRight, Users, Building2, FileText, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Users, Building2, FileText, TrendingUp, X, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useCRMStore } from '@/stores/crmStore';
-import { corretorMock } from '@/data/mockData';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Alerta } from '@/types/crm';
 
 export default function Dashboard() {
-  const { clientes, alertas, imoveis, corretor, fetchCorretor } = useCRMStore();
+  const { clientes, alertas, imoveis, corretor, fetchCorretor, marcarAlertaLido } = useCRMStore();
+  const [selectedAlerta, setSelectedAlerta] = useState<Alerta | null>(null);
 
   useEffect(() => {
     fetchCorretor();
@@ -51,13 +53,22 @@ export default function Dashboard() {
             {alertasNaoLidos.map((alerta) => (
               <div
                 key={alerta.id}
-                className="flex items-center justify-between p-3 bg-card rounded-lg border border-destructive/20"
+                className="flex items-center justify-between p-3 bg-card rounded-lg border border-destructive/20 group transition-colors hover:border-destructive/40"
               >
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="w-4 h-4 text-destructive" />
-                  <span className="text-sm font-medium">{alerta.mensagem}</span>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+                  <span className="text-sm font-medium truncate">{alerta.mensagem}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0 ml-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setSelectedAlerta(alerta)}
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    Detalhes
+                  </Button>
                   {alerta.cliente_id && (
                     <Button variant="outline" size="sm" asChild>
                       <Link to={`/clientes/${alerta.cliente_id}`}>
@@ -72,12 +83,83 @@ export default function Dashboard() {
                       </Link>
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => marcarAlertaLido(alerta.id)}
+                    title="Dispensar alerta"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
       )}
+
+      {/* Alert Detail Dialog */}
+      <Dialog open={!!selectedAlerta} onOpenChange={(open) => !open && setSelectedAlerta(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+              Detalhes do Alerta
+            </DialogTitle>
+            <DialogDescription>
+              Revise as informações e tome a ação necessária.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAlerta && (
+            <div className="space-y-4">
+              <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
+                <p className="text-sm font-medium leading-relaxed">{selectedAlerta.mensagem}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Prioridade</span>
+                  <div className="mt-1">
+                    <Badge variant={selectedAlerta.prioridade === 'ALTA' ? 'destructive' : selectedAlerta.prioridade === 'MEDIA' ? 'secondary' : 'outline'}>
+                      {selectedAlerta.prioridade}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tipo</span>
+                  <p className="mt-1 font-medium">{selectedAlerta.tipo}</p>
+                </div>
+              </div>
+              <DialogFooter className="flex gap-2 sm:gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    marcarAlertaLido(selectedAlerta.id);
+                    setSelectedAlerta(null);
+                  }}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Dispensar Alerta
+                </Button>
+                {selectedAlerta.cliente_id && (
+                  <Button asChild>
+                    <Link to={`/clientes/${selectedAlerta.cliente_id}`}>
+                      Ver Cliente
+                    </Link>
+                  </Button>
+                )}
+                {selectedAlerta.imovel_id && (
+                  <Button asChild>
+                    <Link to="/imoveis">
+                      Ver Imóvel
+                    </Link>
+                  </Button>
+                )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -12,6 +12,8 @@ import {
   FileText,
   CheckCircle,
   Clock,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +25,18 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { RegistrarContatoDialog } from '@/components/clientes/RegistrarContatoDialog';
 import { GerarContratoDialog } from '@/components/juridico/GerarContratoDialog';
+import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 const statusColors: Record<StatusFunil, string> = {
   QUALIFICACAO: 'bg-primary text-primary-foreground',
@@ -44,9 +58,13 @@ const tipoContatoIcons: Record<string, React.ReactNode> = {
 export default function ClienteDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clientes, imoveis, historico, documentos, alertas, fetchImoveis } = useCRMStore();
+  const { clientes, imoveis, historico, documentos, alertas, fetchImoveis, removeCliente } = useCRMStore();
+  const { toast } = useToast();
   const [contatoDialogOpen, setContatoDialogOpen] = useState(false);
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Ensure imoveis are loaded to resolve the link
   useEffect(() => {
@@ -97,6 +115,16 @@ export default function ClienteDetalhes() {
               </span>
             )}
           </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Editar
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+            <Trash2 className="w-4 h-4 mr-2" />
+            Excluir
+          </Button>
         </div>
       </div>
 
@@ -267,6 +295,55 @@ export default function ClienteDetalhes() {
         onOpenChange={setContratoDialogOpen}
         clienteId={cliente.id}
       />
+
+      {/* Edit Client Dialog */}
+      <NovoClienteDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        clienteToEdit={cliente}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              Excluir Cliente
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{cliente.nome}</strong>? Esta ação é irreversível e todos os dados associados
+              (histórico de contatos, vínculos com imóveis, etc.) serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsDeleting(true);
+                const result = await removeCliente(cliente.id);
+                setIsDeleting(false);
+                if (result.success) {
+                  toast({ title: 'Cliente excluído com sucesso' });
+                  navigate('/clientes');
+                } else {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro ao excluir cliente',
+                    description: 'Verifique se não há contratos vinculados a este cliente.',
+                  });
+                  setDeleteDialogOpen(false);
+                }
+              }}
+            >
+              {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

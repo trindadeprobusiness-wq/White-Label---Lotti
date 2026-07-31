@@ -57,7 +57,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
     bairro: '',
     cidade: 'Anápolis', // Changed default city per request
     proprietario_nome: '',
-    suites: ''
+    suites: '',
+    banheiros: ''
   });
 
   // Proprietário só é obrigatório quando envolve locação (aluguel). Em venda pura é opcional.
@@ -76,7 +77,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
       bairro: '',
       cidade: 'Anápolis',
       proprietario_nome: '',
-      suites: ''
+      suites: '',
+      banheiros: ''
     });
     setPendingFiles([]);
     setVideoFile(null);
@@ -96,7 +98,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
         bairro: imovelToEdit.bairro || '',
         cidade: imovelToEdit.cidade || 'Anápolis',
         proprietario_nome: imovelToEdit.proprietario_nome || '',
-        suites: imovelToEdit.suites?.toString() || ''
+        suites: imovelToEdit.suites?.toString() || '',
+        banheiros: imovelToEdit.banheiros?.toString() || ''
       });
       setVideoFile(null);
     } else if (!open && !imovelToEdit) {
@@ -150,6 +153,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             proprietario_nome: form.proprietario_nome,
             corretor_id: corretorId,
             suites: Number(form.suites) || 0,
+            banheiros: Number(form.banheiros) || 0,
           })
           .select()
           .single();
@@ -174,6 +178,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
             cidade: form.cidade,
             proprietario_nome: form.proprietario_nome,
             suites: Number(form.suites) || 0,
+            banheiros: Number(form.banheiros) || 0,
           })
           .eq('id', imovelToEdit.id)
           .select()
@@ -255,10 +260,11 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div><Label>Área (m²)</Label><Input type="number" value={form.area_m2} onChange={(e) => setForm({ ...form, area_m2: e.target.value })} /></div>
             <div><Label>Dorms</Label><Input type="number" value={form.dormitorios} onChange={(e) => setForm({ ...form, dormitorios: e.target.value })} /></div>
             <div><Label>Suítes</Label><Input type="number" value={form.suites} onChange={(e) => setForm({ ...form, suites: e.target.value })} /></div>
+            <div><Label>Banheiros</Label><Input type="number" value={form.banheiros} onChange={(e) => setForm({ ...form, banheiros: e.target.value })} /></div>
             <div><Label>Vagas</Label><Input type="number" value={form.garagem} onChange={(e) => setForm({ ...form, garagem: e.target.value })} /></div>
           </div>
           <div><Label>Endereço *</Label><Input required value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} /></div>
