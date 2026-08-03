@@ -96,6 +96,88 @@ function sanitizeExtraction(raw: Record<string, unknown>): DadosContrato {
   };
 }
 
+// ─── Modo "central": contratos de venda / exclusividade / intermediação ───
+const CENTRAL_PROMPT = `Você é um assistente especializado em contratos imobiliários no Brasil
+(compra e venda, exclusividade de captação, intermediação, distrato, procuração).
+Analise o contrato anexado (PDF ou imagem) e extraia os dados abaixo.
+
+Retorne APENAS um objeto JSON (sem markdown, sem explicação) exatamente neste formato:
+{
+  "tipo": "<COMPRA_VENDA | EXCLUSIVIDADE_VENDA | EXCLUSIVIDADE_LOCACAO | LOCACAO_RESIDENCIAL | LOCACAO_COMERCIAL | DISTRATO | PROCURACAO | OUTRO, ou null>",
+  "partes": {
+    "vendedor_proprietario": "<nome do vendedor / proprietário / outorgante, ou null>",
+    "comprador_cliente": "<nome do comprador / cliente / interessado, ou null>",
+    "corretor": "<nome do corretor ou imobiliária, ou null>"
+  },
+  "imovel": { "endereco": "<endereço do imóvel, ou null>", "cidade": "<cidade, ou null>" },
+  "valor": <valor do negócio / venda em reais (número), ou null>,
+  "comissao_percentual": <percentual de comissão do corretor, número, ou null>,
+  "data_inicio": "<data de assinatura / início no formato YYYY-MM-DD, ou null>",
+  "data_fim": "<data de VENCIMENTO: fim da exclusividade / prazo final YYYY-MM-DD, ou null>",
+  "prazo_dias": <prazo total em dias (ex.: exclusividade de 90 dias), inteiro, ou null>,
+  "observacoes": "<resumo de 1-2 frases: objeto, prazo, renovação, multa/rescisão, ou null>"
+}
+
+Regras:
+- Use null para qualquer campo que não conseguir identificar com segurança. NUNCA invente dados.
+- "data_fim" é o campo MAIS IMPORTANTE: é a data até quando o contrato/exclusividade é válido.
+  Se houver apenas data_inicio + prazo, calcule a data_fim.
+- Contrato de EXCLUSIVIDADE = autorização de venda/captação com prazo determinado.
+- Valores monetários como número puro (ex.: 350000.00), sem "R$" e sem separador de milhar.`;
+
+const TIPOS_CONTRATO = [
+  "COMPRA_VENDA", "LOCACAO_RESIDENCIAL", "LOCACAO_COMERCIAL",
+  "EXCLUSIVIDADE_VENDA", "EXCLUSIVIDADE_LOCACAO", "DISTRATO", "PROCURACAO", "OUTRO",
+];
+
+interface DadosContratoCentral {
+  tipo: string | null;
+  partes: { vendedor_proprietario: string | null; comprador_cliente: string | null; corretor: string | null };
+  imovel: { endereco: string | null; cidade: string | null };
+  valor: number | null;
+  comissao_percentual: number | null;
+  data_inicio: string | null;
+  data_fim: string | null;
+  prazo_dias: number | null;
+  observacoes: string | null;
+}
+
+function asDate(v: unknown): string | null {
+  const s = asString(v, 10);
+  return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function addDays(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function sanitizeCentral(raw: Record<string, unknown>): DadosContratoCentral {
+  const partes = (raw.partes ?? {}) as Record<string, unknown>;
+  const imo = (raw.imovel ?? {}) as Record<string, unknown>;
+  const tipo = asString(raw.tipo)?.toUpperCase() ?? null;
+  const dataInicio = asDate(raw.data_inicio);
+  let dataFim = asDate(raw.data_fim);
+  const prazoDias = asNumber(raw.prazo_dias, 1, 3650);
+  if (!dataFim && dataInicio && prazoDias) dataFim = addDays(dataInicio, prazoDias);
+  return {
+    tipo: tipo && TIPOS_CONTRATO.includes(tipo) ? tipo : null,
+    partes: {
+      vendedor_proprietario: asString(partes.vendedor_proprietario),
+      comprador_cliente: asString(partes.comprador_cliente),
+      corretor: asString(partes.corretor),
+    },
+    imovel: { endereco: asString(imo.endereco), cidade: asString(imo.cidade, 120) },
+    valor: asNumber(raw.valor, 1, 1_000_000_000),
+    comissao_percentual: asNumber(raw.comissao_percentual, 0, 100),
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    prazo_dias: prazoDias,
+    observacoes: asString(raw.observacoes, 600),
+  };
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -126,7 +208,9 @@ serve(async (req) => {
       return jsonResponse({ error: "Sua sessão expirou. Entre novamente para continuar." }, 401);
     }
 
-    const { fileBase64, mimeType } = await req.json();
+    const { fileBase64, mimeType, modo } = await req.json();
+    const isCentral = modo === "central";
+    const prompt = isCentral ? CENTRAL_PROMPT : EXTRACTION_PROMPT;
 
     if (typeof fileBase64 !== "string" || fileBase64.length === 0 || fileBase64.length > MAX_BASE64_LENGTH) {
       return jsonResponse({ error: "Arquivo inválido ou muito grande" }, 400);
@@ -148,7 +232,7 @@ serve(async (req) => {
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: EXTRACTION_PROMPT },
+              { text: prompt },
               { inline_data: { mime_type: mimeType, data: fileBase64 } },
             ],
           }],
@@ -188,7 +272,7 @@ serve(async (req) => {
       return jsonResponse({ error: "A IA não conseguiu estruturar os dados do contrato" }, 502);
     }
 
-    return jsonResponse({ dados: sanitizeExtraction(parsed) });
+    return jsonResponse({ dados: isCentral ? sanitizeCentral(parsed) : sanitizeExtraction(parsed) });
   } catch (error) {
     console.error("analisar-contrato error:", error);
     return jsonResponse({ error: "Erro interno ao analisar contrato" }, 500);

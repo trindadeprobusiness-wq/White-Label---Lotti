@@ -28,7 +28,7 @@ import { DocumentoUploadArea } from '@/components/juridico/DocumentoUploadArea';
 import { DocumentoViewer } from '@/components/juridico/DocumentoViewer';
 import { EditarDocumentoDialog } from '@/components/juridico/EditarDocumentoDialog';
 import { useDocumentos, DocumentoRow } from '@/hooks/useDocumentos';
-import { useCRMStore } from '@/stores/crmStore';
+import { ContratosCentral } from '@/components/juridico/ContratosCentral';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -115,7 +115,6 @@ const TIPO_CORES: Record<string, string> = {
 };
 
 export default function Juridico() {
-  const { contratos, clientes: clientesStore } = useCRMStore();
   const {
     documentos,
     loading,
@@ -210,7 +209,7 @@ export default function Juridico() {
 
   // Filtered and sorted documents
   const filteredDocumentos = useMemo(() => {
-    let result = documentos.filter(doc => {
+    const result = documentos.filter(doc => {
       const status = getDocumentoStatus(doc);
       const matchesStatus = statusFilter === 'TODOS' || status === statusFilter;
       const matchesCliente = clienteFilter === 'TODOS' || 
@@ -655,54 +654,8 @@ export default function Juridico() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="contratos" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Contratos Gerados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {contratos.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
-                    <FileText className="w-8 h-8 text-primary" />
-                  </div>
-                  <h3 className="font-medium mb-1">Nenhum contrato gerado</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Use nossa IA para gerar contratos automaticamente
-                  </p>
-                  <Button onClick={() => setContratoDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Gerar Primeiro Contrato
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {contratos.map((contrato) => (
-                    <div
-                      key={contrato.id}
-                      className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
-                    >
-                      <div>
-                        <p className="font-medium">{contrato.tipo}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {getClienteNome(contrato.cliente_id) || 'Sem cliente'} •{' '}
-                          {format(new Date(contrato.created_at), 'dd/MM/yyyy', { locale: ptBR })}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={contrato.status === 'FINALIZADO' ? 'default' : 'secondary'}>
-                          {contrato.status === 'FINALIZADO' ? 'Finalizado' : 'Rascunho'}
-                        </Badge>
-                        <Button variant="ghost" size="sm">
-                          Ver
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="contratos" className="mt-6">
+          <ContratosCentral />
         </TabsContent>
       </Tabs>
 

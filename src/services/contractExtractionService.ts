@@ -205,6 +205,53 @@ async function analyzeViaAssistant(contractText: string): Promise<ExtractedContr
     return sanitizeExtraction(parsed);
 }
 
+// --- Central de Contratos: análise de venda / exclusividade (modo "central") ---
+
+export interface ExtractedCentralContract {
+    tipo: string | null;
+    partes: {
+        vendedor_proprietario: string | null;
+        comprador_cliente: string | null;
+        corretor: string | null;
+    };
+    imovel: { endereco: string | null; cidade: string | null };
+    valor: number | null;
+    comissao_percentual: number | null;
+    data_inicio: string | null;
+    data_fim: string | null;
+    prazo_dias: number | null;
+    observacoes: string | null;
+}
+
+/**
+ * Analisa um contrato (PDF/imagem) no modo "central": detecta o tipo
+ * (compra e venda / exclusividade), as partes e — o mais importante — o
+ * VENCIMENTO (data_fim). Reusa a Edge Function `analisar-contrato` (já
+ * sanitiza no servidor). Sem fallback de navegador: o modo central exige a
+ * função (que já está deployada).
+ */
+export async function analisarContratoCentral(file: File): Promise<ExtractedCentralContract> {
+    const fileBase64 = await fileToBase64(file);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Sua sessão expirou. Entre novamente.");
+
+    const { data, error } = await supabase.functions.invoke("analisar-contrato", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { fileBase64, mimeType: file.type, modo: "central" },
+    });
+
+    if (error) {
+        let serverMessage = "";
+        try {
+            const body = await (error as { context?: Response }).context?.json();
+            serverMessage = body?.error || "";
+        } catch { /* corpo não-JSON */ }
+        throw new Error(serverMessage || "Erro ao analisar o contrato");
+    }
+    if (!data?.dados) throw new Error("A IA não retornou dados do contrato");
+    return data.dados as ExtractedCentralContract;
+}
+
 // --- Orquestrador ---
 
 export async function extractContractData(file: File): Promise<ExtractedContractData> {

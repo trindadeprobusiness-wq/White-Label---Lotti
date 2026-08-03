@@ -208,16 +208,18 @@ export type Database = {
         Row: {
           arquivo_url: string | null
           clausulas_adicionais: string[] | null
-          cliente_id: string
+          cliente_id: string | null
           conteudo: string
           corretor_id: string
           created_at: string | null
+          data_fim: string | null
           data_inicio: string
           dia_vencimento: number | null
           id: string
-          imovel_id: string
+          imovel_id: string | null
           indice_reajuste: string | null
           modelo_ia: string | null
+          observacoes: string | null
           prazo_meses: number | null
           status: string
           tempo_geracao_ms: number | null
@@ -229,16 +231,18 @@ export type Database = {
         Insert: {
           arquivo_url?: string | null
           clausulas_adicionais?: string[] | null
-          cliente_id: string
+          cliente_id?: string | null
           conteudo: string
           corretor_id: string
           created_at?: string | null
+          data_fim?: string | null
           data_inicio: string
           dia_vencimento?: number | null
           id?: string
-          imovel_id: string
+          imovel_id?: string | null
           indice_reajuste?: string | null
           modelo_ia?: string | null
+          observacoes?: string | null
           prazo_meses?: number | null
           status?: string
           tempo_geracao_ms?: number | null
@@ -250,16 +254,18 @@ export type Database = {
         Update: {
           arquivo_url?: string | null
           clausulas_adicionais?: string[] | null
-          cliente_id?: string
+          cliente_id?: string | null
           conteudo?: string
           corretor_id?: string
           created_at?: string | null
+          data_fim?: string | null
           data_inicio?: string
           dia_vencimento?: number | null
           id?: string
-          imovel_id?: string
+          imovel_id?: string | null
           indice_reajuste?: string | null
           modelo_ia?: string | null
+          observacoes?: string | null
           prazo_meses?: number | null
           status?: string
           tempo_geracao_ms?: number | null
