@@ -484,40 +484,6 @@ export function BillsList() {
         }
     };
 
-    // Re-sincroniza uma cobrança JÁ emitida no Asaas: corrige data de vencimento
-    // e multa/juros conforme o contrato, mantendo o MESMO boleto/link.
-    const handleUpdateCharge = async (bill: any) => {
-        setEmittingId(bill.id);
-        const loadingToast = toast.loading("Atualizando cobrança no Asaas...");
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error('Sua sessão expirou. Entre novamente para atualizar a cobrança.');
-            const { data, error } = await supabase.functions.invoke('asaas-sync', {
-                body: { action: 'atualizar_cobranca', fatura_id: bill.id },
-                headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-            if (error) {
-                let msg = error.message;
-                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
-                throw new Error(msg);
-            }
-            if (data?.error) throw new Error(data.error);
-
-            toast.dismiss(loadingToast);
-            toast.success(
-                "Cobrança atualizada! Data e multa sincronizadas (mesmo boleto).",
-                data?.boleto_url ? { action: { label: "Abrir boleto", onClick: () => window.open(data.boleto_url, "_blank") } } : undefined,
-            );
-            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
-        } catch (error: any) {
-            console.error("Erro ao atualizar cobrança:", error);
-            toast.dismiss(loadingToast);
-            toast.error("Erro ao atualizar cobrança: " + error.message);
-        } finally {
-            setEmittingId(null);
-        }
-    };
-
     const copyPix = async (text: string) => {
         try {
             await navigator.clipboard.writeText(text);
@@ -827,24 +793,6 @@ export function BillsList() {
                                                                     <ArrowUpRight className="h-4 w-4 mr-1.5" />
                                                                 )}
                                                                 Emitir cobrança
-                                                            </Button>
-                                                        )}
-
-                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && bill.externalId && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-8 border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                                                                onClick={() => handleUpdateCharge(bill)}
-                                                                disabled={emittingId === bill.id}
-                                                                title="Atualizar a cobrança no Asaas (corrige data e multa; mantém o mesmo boleto)"
-                                                            >
-                                                                {emittingId === bill.id ? (
-                                                                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                                                                ) : (
-                                                                    <RefreshCw className="h-4 w-4 mr-1.5" />
-                                                                )}
-                                                                Atualizar
                                                             </Button>
                                                         )}
 
