@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { asaasGet, asaasPost, AsaasError } from "../_shared/asaas.ts";
+import { asaasGet, asaasPost, asaasPut, AsaasError } from "../_shared/asaas.ts";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -15,6 +15,36 @@ function json(body: unknown, status = 200) {
 }
 
 const hoje = () => new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+
+// Vencimento do boleto = dia_vencimento do contrato no mês de referência da
+// fatura ("MM/YYYY"). Clampa no último dia (mês curto). Se já passou, usa hoje
+// (o Asaas rejeita cobrança com vencimento no passado). É o MESMO dia que a
+// tela mostra, então boleto e lista nunca divergem.
+function computeVencimento(mesRef: string, diaVenc: number): string {
+    const [mmStr, yyyyStr] = String(mesRef ?? "").split("/");
+    const mm = Number(mmStr), yyyy = Number(yyyyStr);
+    if (!mm || !yyyy) return hoje();
+    const lastDay = new Date(Date.UTC(yyyy, mm, 0)).getUTCDate();
+    const day = Math.min(diaVenc > 0 ? diaVenc : 10, lastDay);
+    const iso = new Date(Date.UTC(yyyy, mm - 1, day)).toISOString().slice(0, 10);
+    return iso < hoje() ? hoje() : iso;
+}
+
+// Multa/juros do contrato. A coluna guarda o juros AO DIA; o Asaas usa % ao mês
+// (×30). Enviamos SEMPRE fine/interest com valor explícito (inclusive 0), para
+// que "sem multa" no contrato realmente zere a multa no boleto, sem depender de
+// padrões da conta Asaas.
+function multaJuros(contrato: Record<string, unknown> | null) {
+    const multaPct = Math.max(0, Number((contrato as any)?.multa_atraso_percentual ?? 0) || 0);
+    const jurosDiaPct = Math.max(0, Number((contrato as any)?.juros_mora_diario_percentual ?? 0) || 0);
+    const jurosMensalPct = Number((jurosDiaPct * 30).toFixed(2));
+    return {
+        multaPct,
+        jurosMensalPct,
+        fine: { value: multaPct, type: "PERCENTAGE" },
+        interest: { value: jurosMensalPct },
+    };
+}
 
 serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -58,7 +88,7 @@ serve(async (req) => {
             }
         }
 
-        if (action !== "emitir_cobranca" || !fatura_id) {
+        if ((action !== "emitir_cobranca" && action !== "atualizar_cobranca") || !fatura_id) {
             return json({ error: "Requisição inválida" }, 400);
         }
 
@@ -73,6 +103,85 @@ serve(async (req) => {
         if (fatura.status === "PAGO") return json({ error: "Fatura já está paga" }, 409);
         if (fatura.status === "CANCELADO") return json({ error: "Fatura cancelada" }, 409);
 
+        const cliente = fatura.clientes;
+        const contrato = fatura.contratos;
+        const imovel = fatura.imoveis;
+        const descImovel = imovel?.titulo || imovel?.endereco || "imóvel";
+
+        // Cliente de serviço para escritas privilegiadas (auditoria não tem policy de INSERT
+        // para authenticated; a posse da fatura já foi provada pela leitura acima).
+        const admin = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+
+        // Vencimento e encargos derivam SEMPRE do contrato + mês da fatura — nunca de
+        // um data_vencimento gravado que possa estar velho.
+        const diaVenc = Number(contrato?.dia_vencimento) || 10;
+        const vencimento = computeVencimento(fatura.mes_referencia, diaVenc);
+        const mj = multaJuros(contrato);
+
+        // ── Ação: ATUALIZAR uma cobrança já emitida (mesmo link) ──
+        if (action === "atualizar_cobranca") {
+            if (!fatura.external_id) {
+                return json({ error: "Esta cobrança ainda não foi emitida." }, 409);
+            }
+            // Não altera cobrança já paga/confirmada no Asaas.
+            const atual = await asaasGet(`/payments/${fatura.external_id}`);
+            if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(String(atual?.status))) {
+                return json({ error: "Cobrança já foi paga/confirmada — não é possível alterar." }, 409);
+            }
+
+            const payment = await asaasPut(`/payments/${fatura.external_id}`, {
+                billingType: atual?.billingType ?? "UNDEFINED",
+                dueDate: vencimento,
+                value: Number(fatura.valor_total),
+                description: `Aluguel ${fatura.mes_referencia} — ${descImovel}`,
+                externalReference: fatura.id,
+                fine: mj.fine,
+                interest: mj.interest,
+            });
+
+            let pixText: string | null = fatura.pix_qrcode_text ?? null;
+            try {
+                const pix = await asaasGet(`/payments/${payment.id}/pixQrCode`);
+                pixText = pix?.payload ?? pixText;
+            } catch (_) { /* segue com o pix atual */ }
+
+            await admin.from("faturas_aluguel").update({
+                data_vencimento: vencimento,
+                boleto_url_asaas: payment.bankSlipUrl ?? payment.invoiceUrl ?? fatura.boleto_url_asaas,
+                pix_qrcode_text: pixText,
+                asaas_status: payment.status,
+            }).eq("id", fatura.id);
+
+            await admin.from("auditoria_financeira").insert({
+                corretor_id: fatura.corretor_id,
+                entidade: "faturas_aluguel",
+                entidade_id: fatura.id,
+                acao: "COBRANCA_ATUALIZADA",
+                dados_depois: {
+                    external_id: payment.id,
+                    value: payment.value,
+                    dueDate: vencimento,
+                    status: payment.status,
+                },
+                calculo: { multa_pct: mj.multaPct, juros_mensal_pct: mj.jurosMensalPct },
+                origem: "ui",
+                ator: user.id,
+            });
+
+            return json({
+                ok: true,
+                updated: true,
+                external_id: payment.id,
+                boleto_url: payment.bankSlipUrl ?? payment.invoiceUrl ?? fatura.boleto_url_asaas,
+                pix: pixText,
+                status: payment.status,
+            });
+        }
+
+        // ── Ação: EMITIR (idempotente) ──
         // Idempotência: já emitida → devolve os dados existentes sem recriar no Asaas
         if (fatura.external_id) {
             return json({
@@ -83,21 +192,10 @@ serve(async (req) => {
             });
         }
 
-        const cliente = fatura.clientes;
-        const contrato = fatura.contratos;
-        const imovel = fatura.imoveis;
-
         const cpf = (cliente?.cpf ?? "").replace(/\D/g, "");
         if (!cpf) {
             return json({ error: "O inquilino precisa ter CPF cadastrado para emitir a cobrança." }, 422);
         }
-
-        // Cliente de serviço para escritas privilegiadas (auditoria não tem policy de INSERT
-        // para authenticated; a posse da fatura já foi provada pela leitura acima).
-        const admin = createClient(
-            Deno.env.get("SUPABASE_URL") ?? "",
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        );
 
         // 3. ensure_customer — garante o pagador no Asaas
         let customerId: string | null = cliente?.asaas_customer_id ?? null;
@@ -122,23 +220,16 @@ serve(async (req) => {
         }
 
         // 4. create_payment
-        const vencimento = fatura.data_vencimento >= hoje() ? fatura.data_vencimento : hoje();
-        const multaPct = Number(contrato?.multa_atraso_percentual ?? 0);
-        const jurosDiaPct = Number(contrato?.juros_mora_diario_percentual ?? 0);
-        const descImovel = imovel?.titulo || imovel?.endereco || "imóvel";
-
-        const paymentBody: Record<string, unknown> = {
+        const payment = await asaasPost("/payments", {
             customer: customerId,
             billingType: "UNDEFINED", // inquilino escolhe boleto, PIX ou cartão
             dueDate: vencimento,
             value: Number(fatura.valor_total),
             description: `Aluguel ${fatura.mes_referencia} — ${descImovel}`,
             externalReference: fatura.id,
-        };
-        if (multaPct > 0) paymentBody.fine = { value: multaPct, type: "PERCENTAGE" };
-        if (jurosDiaPct > 0) paymentBody.interest = { value: Number((jurosDiaPct * 30).toFixed(2)) }; // Asaas usa % ao mês
-
-        const payment = await asaasPost("/payments", paymentBody);
+            fine: mj.fine,
+            interest: mj.interest,
+        });
 
         // PIX copia-e-cola (não fatal se indisponível)
         let pixText: string | null = null;
@@ -150,6 +241,7 @@ serve(async (req) => {
         // 5. Persiste na fatura + auditoria
         await admin.from("faturas_aluguel").update({
             external_id: payment.id,
+            data_vencimento: vencimento,
             boleto_url_asaas: payment.bankSlipUrl ?? payment.invoiceUrl ?? null,
             pix_qrcode_text: pixText,
             asaas_status: payment.status,
@@ -166,7 +258,7 @@ serve(async (req) => {
                 dueDate: vencimento,
                 status: payment.status,
             },
-            calculo: { multa_pct: multaPct, juros_mensal_pct: Number((jurosDiaPct * 30).toFixed(2)) },
+            calculo: { multa_pct: mj.multaPct, juros_mensal_pct: mj.jurosMensalPct },
             origem: "ui",
             ator: user.id,
         });

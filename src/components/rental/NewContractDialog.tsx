@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Calculator, CalendarDays, UploadCloud, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -43,6 +44,10 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
     const [duration, setDuration] = useState("30");
     const [contractFile, setContractFile] = useState<File | null>(null);
     const [isExtractingCpf, setIsExtractingCpf] = useState(false);
+    // Multa/juros por atraso (padrão de mercado: 10% + 1%/mês). Controle por contrato.
+    const [aplicarMulta, setAplicarMulta] = useState(true);
+    const [multaPct, setMultaPct] = useState("10");
+    const [jurosMesPct, setJurosMesPct] = useState("1");
 
     // Ref para evitar re-extração se o componente re-renderizar
     const extractionAbortRef = useRef<AbortController | null>(null);
@@ -64,12 +69,22 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             setAdminFee(content.taxa_administracao?.toString() || "10");
             setPayoutDay(content.dia_repasse?.toString() || "15");
             setDuration(content.meses_duracao?.toString() || "30");
+
+            // Multa/juros: a coluna guarda o juros AO DIA → exibe o mensal (×30).
+            const multaVal = Number(contractToEdit.multa_atraso_percentual ?? 10);
+            const jurosMesVal = Math.round(Number(contractToEdit.juros_mora_diario_percentual ?? (1 / 30)) * 30 * 100) / 100;
+            setAplicarMulta(multaVal > 0 || jurosMesVal > 0);
+            setMultaPct(multaVal > 0 ? String(multaVal) : "10");
+            setJurosMesPct(jurosMesVal > 0 ? String(jurosMesVal) : "1");
         } else if (!open && !contractToEdit) {
             setRentValue("");
             setClientId("");
             setPropertyId("");
             setContractFile(null);
             setStartDate("");
+            setAplicarMulta(true);
+            setMultaPct("10");
+            setJurosMesPct("1");
         }
     }, [contractToEdit, open]);
 
@@ -229,7 +244,11 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                     data_fim_calculada: end.toISOString()
                 }),
                 status: 'ATIVO',
-                arquivo_url: arquivoPath
+                arquivo_url: arquivoPath,
+                // Multa/juros por atraso. Coluna de juros é AO DIA (mensal ÷ 30).
+                // Toggle desligado → 0/0 = boleto sem multa nem juros.
+                multa_atraso_percentual: aplicarMulta ? (parseFloat(multaPct) || 0) : 0,
+                juros_mora_diario_percentual: aplicarMulta ? ((parseFloat(jurosMesPct) || 0) / 30) : 0,
             };
 
             let result;
@@ -581,6 +600,43 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                                         </Select>
                                     </div>
                                 </div>
+
+                                {/* Multa e juros por atraso — controle por contrato (vale p/ o boleto do Asaas) */}
+                                <div className="rounded-lg border p-3 space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <Label className="text-sm">Multa e juros por atraso</Label>
+                                        <Switch checked={aplicarMulta} onCheckedChange={setAplicarMulta} />
+                                    </div>
+                                    {aplicarMulta ? (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs text-muted-foreground">Multa (%)</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={multaPct}
+                                                    onChange={e => setMultaPct(e.target.value)}
+                                                    placeholder="10"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs text-muted-foreground">Juros ao mês (%)</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={jurosMesPct}
+                                                    onChange={e => setJurosMesPct(e.target.value)}
+                                                    placeholder="1"
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Sem multa nem juros — o boleto não cobra nada após o vencimento.
+                                        </p>
+                                    )}
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Cobrado no boleto do Asaas quando o inquilino paga em atraso. Padrão de mercado: 10% de multa + 1% de juros ao mês.
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
@@ -662,6 +718,9 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                             <p>• A fatura será gerada mensalmente no dia <strong>{dueDay}</strong>.</p>
                             <p>• O repasse ao proprietário será agendado para o dia <strong>{payoutDay}</strong>.</p>
                             <p>• O contrato terá duração de <strong>{duration} meses</strong>.</p>
+                            <p>• Atraso: {aplicarMulta
+                                ? <><strong>{multaPct || 0}%</strong> de multa + <strong>{jurosMesPct || 0}%</strong>/mês de juros</>
+                                : <strong>sem multa nem juros</strong>}.</p>
                         </div>
                     </div>
                 </div>

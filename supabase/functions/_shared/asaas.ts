@@ -43,4 +43,5 @@ async function request(method: string, path: string, body?: unknown): Promise<an
 
 export const asaasGet = (path: string) => request("GET", path);
 export const asaasPost = (path: string, body: unknown) => request("POST", path, body);
+export const asaasPut = (path: string, body: unknown) => request("PUT", path, body);
 export const asaasDelete = (path: string) => request("DELETE", path);

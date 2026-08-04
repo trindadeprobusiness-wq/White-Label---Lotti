@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2 } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -484,12 +484,55 @@ export function BillsList() {
         }
     };
 
+    // Re-sincroniza uma cobrança JÁ emitida no Asaas: corrige data de vencimento
+    // e multa/juros conforme o contrato, mantendo o MESMO boleto/link.
+    const handleUpdateCharge = async (bill: any) => {
+        setEmittingId(bill.id);
+        const loadingToast = toast.loading("Atualizando cobrança no Asaas...");
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Sua sessão expirou. Entre novamente para atualizar a cobrança.');
+            const { data, error } = await supabase.functions.invoke('asaas-sync', {
+                body: { action: 'atualizar_cobranca', fatura_id: bill.id },
+                headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (error) {
+                let msg = error.message;
+                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
+                throw new Error(msg);
+            }
+            if (data?.error) throw new Error(data.error);
+
+            toast.dismiss(loadingToast);
+            toast.success(
+                "Cobrança atualizada! Data e multa sincronizadas (mesmo boleto).",
+                data?.boleto_url ? { action: { label: "Abrir boleto", onClick: () => window.open(data.boleto_url, "_blank") } } : undefined,
+            );
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao atualizar cobrança:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Erro ao atualizar cobrança: " + error.message);
+        } finally {
+            setEmittingId(null);
+        }
+    };
+
     const copyPix = async (text: string) => {
         try {
             await navigator.clipboard.writeText(text);
             toast.success("PIX copia-e-cola copiado!");
         } catch {
             toast.error("Não foi possível copiar o PIX.");
+        }
+    };
+
+    const copyBoletoLink = async (url: string) => {
+        try {
+            await navigator.clipboard.writeText(url);
+            toast.success("Link do boleto copiado!");
+        } catch {
+            toast.error("Não foi possível copiar o link do boleto.");
         }
     };
 
@@ -787,6 +830,24 @@ export function BillsList() {
                                                             </Button>
                                                         )}
 
+                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && bill.externalId && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                                                                onClick={() => handleUpdateCharge(bill)}
+                                                                disabled={emittingId === bill.id}
+                                                                title="Atualizar a cobrança no Asaas (corrige data e multa; mantém o mesmo boleto)"
+                                                            >
+                                                                {emittingId === bill.id ? (
+                                                                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                                                ) : (
+                                                                    <RefreshCw className="h-4 w-4 mr-1.5" />
+                                                                )}
+                                                                Atualizar
+                                                            </Button>
+                                                        )}
+
                                                         {bill.pixText && (
                                                             <Button
                                                                 variant="ghost" size="icon"
@@ -820,11 +881,22 @@ export function BillsList() {
                                                         )}
 
                                                         {bill.boletoUrl && (
-                                                            <a href={bill.boletoUrl} target="_blank" rel="noopener noreferrer">
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50" title="Abrir boleto/fatura">
-                                                                    <FileText className="h-4 w-4" />
+                                                            <>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 rounded-full text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+                                                                    title="Copiar link do boleto"
+                                                                    onClick={() => copyBoletoLink(bill.boletoUrl!)}
+                                                                >
+                                                                    <Link2 className="h-4 w-4" />
                                                                 </Button>
-                                                            </a>
+                                                                <a href={bill.boletoUrl} target="_blank" rel="noopener noreferrer">
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Abrir boleto/fatura">
+                                                                        <FileText className="h-4 w-4" />
+                                                                    </Button>
+                                                                </a>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </TableCell>

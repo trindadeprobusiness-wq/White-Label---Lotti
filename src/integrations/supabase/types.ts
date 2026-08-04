@@ -218,7 +218,9 @@ export type Database = {
           id: string
           imovel_id: string | null
           indice_reajuste: string | null
+          juros_mora_diario_percentual: number | null
           modelo_ia: string | null
+          multa_atraso_percentual: number | null
           observacoes: string | null
           prazo_meses: number | null
           status: string
@@ -241,7 +243,9 @@ export type Database = {
           id?: string
           imovel_id?: string | null
           indice_reajuste?: string | null
+          juros_mora_diario_percentual?: number | null
           modelo_ia?: string | null
+          multa_atraso_percentual?: number | null
           observacoes?: string | null
           prazo_meses?: number | null
           status?: string
@@ -264,7 +268,9 @@ export type Database = {
           id?: string
           imovel_id?: string | null
           indice_reajuste?: string | null
+          juros_mora_diario_percentual?: number | null
           modelo_ia?: string | null
+          multa_atraso_percentual?: number | null
           observacoes?: string | null
           prazo_meses?: number | null
           status?: string
