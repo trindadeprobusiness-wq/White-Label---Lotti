@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Calculator, CalendarDays, UploadCloud, Plus } from "lucide-react";
+import { Loader2, Calculator, CalendarDays, UploadCloud, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { ContractUpload } from "./ContractUpload";
@@ -17,6 +17,7 @@ import { validarCPF, formatarCPF } from "@/lib/validators";
 import { Database } from "@/integrations/supabase/types";
 import { NovoImovelDialog } from "@/components/imoveis/NovoImovelDialog";
 import { NovoClienteDialog } from "@/components/clientes/NovoClienteDialog";
+import { extractContractData } from "@/services/contractExtractionService";
 
 type TipoContrato = Database["public"]["Enums"]["tipo_contrato"];
 
@@ -41,6 +42,10 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
     const [payoutDay, setPayoutDay] = useState("15");
     const [duration, setDuration] = useState("30");
     const [contractFile, setContractFile] = useState<File | null>(null);
+    const [isExtractingCpf, setIsExtractingCpf] = useState(false);
+
+    // Ref para evitar re-extração se o componente re-renderizar
+    const extractionAbortRef = useRef<AbortController | null>(null);
 
     // Dialog states
     const [isNovoImovelOpen, setIsNovoImovelOpen] = useState(false);
@@ -107,6 +112,61 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
         if (!open) {
             queryClient.invalidateQueries({ queryKey: ["clients-select"] });
         }
+    };
+
+    // ── Handler de upload: salva o arquivo e dispara extração de CPF via IA ──
+    const handleFileSelect = (file: File | null) => {
+        setContractFile(file);
+
+        // Cancela extração anterior, se existir
+        if (extractionAbortRef.current) {
+            extractionAbortRef.current.abort();
+            extractionAbortRef.current = null;
+        }
+
+        if (!file) return;
+
+        // Dispara extração assíncrona (não bloqueia o formulário)
+        const controller = new AbortController();
+        extractionAbortRef.current = controller;
+        setIsExtractingCpf(true);
+
+        extractContractData(file)
+            .then((dados) => {
+                if (controller.signal.aborted) return;
+
+                if (dados.inquilino?.cpf) {
+                    const cpfLimpo = dados.inquilino.cpf.replace(/\D/g, '');
+                    if (cpfLimpo.length === 11) {
+                        setInquilinoCpf(formatarCPF(cpfLimpo));
+                        toast.success("CPF extraído do contrato via IA", {
+                            description: `CPF identificado: ${formatarCPF(cpfLimpo)}`,
+                            icon: <Sparkles className="w-4 h-4" />,
+                        });
+                    } else {
+                        toast.warning("CPF encontrado no contrato parece incompleto. Confira manualmente.", {
+                            icon: <Sparkles className="w-4 h-4" />,
+                        });
+                    }
+                } else {
+                    toast.warning("Não foi possível identificar o CPF do inquilino no contrato. Preencha manualmente.", {
+                        icon: <Sparkles className="w-4 h-4" />,
+                    });
+                }
+            })
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                console.error("Erro na extração de CPF via IA:", err);
+                toast.info("Não foi possível analisar o contrato via IA. O CPF pode ser preenchido manualmente.", {
+                    description: err instanceof Error ? err.message : undefined,
+                });
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) {
+                    setIsExtractingCpf(false);
+                    extractionAbortRef.current = null;
+                }
+            });
     };
 
     // Calculations
@@ -429,7 +489,16 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
 
                                     {clientId && (
                                         <div className="space-y-1 pt-1">
-                                            <Label className="text-xs">CPF do Inquilino</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Label className="text-xs">CPF do Inquilino</Label>
+                                                {isExtractingCpf && (
+                                                    <span className="flex items-center gap-1 text-[11px] text-primary animate-pulse">
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                        <Sparkles className="w-3 h-3" />
+                                                        Analisando via IA...
+                                                    </span>
+                                                )}
+                                            </div>
                                             <Input
                                                 value={inquilinoCpf}
                                                 onChange={(e) => setInquilinoCpf(formatarCPF(e.target.value))}
@@ -459,10 +528,10 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                             </h3>
                             <div className="space-y-2">
                                 <Label>Contrato Assinado (PDF)</Label>
-                                <ContractUpload onFileSelect={setContractFile} />
-                                {isEditing && contractToEdit?.arquivo_url && !contractFile && (
-                                    <p className="text-xs text-blue-600">Arquivo atual mantido.</p>
-                                )}
+                                <ContractUpload
+                                    onFileSelect={handleFileSelect}
+                                    existingFileUrl={contractToEdit?.arquivo_url}
+                                />
                             </div>
                         </div>
                     </div>
