@@ -102,7 +102,7 @@ async function loadCRMContext(supabaseClient: ReturnType<typeof createClient>) {
 // --- System Prompt ---
 
 function buildSystemPrompt(crmContext: string, fileContext?: string): string {
-  let prompt = `Você é o assistente IA do CRM Oliver Negócios Inteligentes, uma plataforma de CRM imobiliário. Você ajuda o corretor a gerenciar clientes, imóveis, contratos e finanças.
+  let prompt = `Você é o assistente IA da Lotti, uma plataforma de CRM imobiliário. Você ajuda o corretor a gerenciar clientes, imóveis, contratos e finanças.
 
 ${crmContext}
 

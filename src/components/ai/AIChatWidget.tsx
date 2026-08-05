@@ -55,7 +55,7 @@ export function AIChatWidget() {
     conversation_id: '',
     role: 'assistant' as const,
     content:
-      'Olá! Sou o assistente IA do CRM Oliver. Posso consultar seus dados de clientes, imóveis, contratos e finanças. Pergunte qualquer coisa ou envie um arquivo para análise!',
+      'Olá! Sou o assistente IA da Lotti. Posso consultar seus dados de clientes, imóveis, contratos e finanças. Pergunte qualquer coisa ou envie um arquivo para análise!',
     created_at: new Date().toISOString(),
   };
 

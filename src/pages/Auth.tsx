@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2, Building2, Mail, Lock, User, Phone, CreditCard } from 'lucide-react';
 import { z } from 'zod';
-import oliverLogo from '@/assets/oliver-logo-completa.png';
+import { LottiLogo } from '@/components/brand/LottiLogo';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -129,7 +129,7 @@ export default function Auth() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src={oliverLogo} alt="Oliver Negócios Inteligentes" className="h-20 w-auto mb-4" />
+          <LottiLogo variant="full" className="text-4xl mb-4" />
         </div>
 
         <Card className="border-border/50 shadow-xl">
@@ -199,7 +199,7 @@ export default function Auth() {
               <TabsContent value="signup" className="mt-0">
                 <CardTitle className="text-xl mb-2">Crie sua conta</CardTitle>
                 <CardDescription className="mb-6">
-                  Preencha os dados abaixo para começar a usar o Oliver
+                  Preencha os dados abaixo para começar a usar a Lotti
                 </CardDescription>
 
                 <form onSubmit={handleSignup} className="space-y-4">

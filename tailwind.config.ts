@@ -15,6 +15,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        // Wordmark da marca Lotti + acentos serifados premium.
+        serif: ['Lora', 'Georgia', 'serif'],
       },
       boxShadow: {
         'premium': '0 4px 24px -2px rgba(0, 0, 0, 0.04), 0 0 4px rgba(0,0,0,0.02)',

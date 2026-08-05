@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116 116" role="img" aria-label="Lotti">
+  <style>
+    path, rect { fill: #09090b; }
+    @media (prefers-color-scheme: dark) { path, rect { fill: #ffffff; } }
+  </style>
+  <g transform="translate(0 12)">
+    <path d="M6 82 L22 82 L42 12 L26 12 Z"/>
+    <path d="M28 82 L44 82 L64 29 L48 29 Z"/>
+    <path d="M50 82 L66 82 L86 46 L70 46 Z"/>
+    <rect x="92" y="40" width="18" height="42" rx="9"/>
+  </g>
+</svg>

@@ -1,8 +1,7 @@
 import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/sidebar';
 import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import oliverLogoCompleta from '@/assets/oliver-logo-completa.png';
-import oliverLogoResumida from '@/assets/oliver-logo-resumida.png';
+import { LottiLogo } from '@/components/brand/LottiLogo';
 import { cn } from '@/lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -73,12 +72,12 @@ export function AppSidebar() {
 const Logo = ({ open }: { open: boolean }) => {
   return (
     <div className="font-normal flex items-center justify-center text-sm relative z-20 px-1 w-full">
-      <Link to="/" className='flex items-center justify-center w-full'>
-        <img
-          src={open ? oliverLogoCompleta : oliverLogoResumida}
-          className={cn("w-auto object-contain transition-all duration-300", open ? "h-10 md:h-12 lg:h-14 mt-2" : "h-7 mt-1")}
-          alt="Oliver Negócios Inteligentes"
-        />
+      <Link to="/" className='flex items-center justify-center w-full text-foreground'>
+        {open ? (
+          <LottiLogo variant="full" className="text-2xl md:text-[1.7rem] mt-2 transition-all duration-300" />
+        ) : (
+          <LottiLogo variant="mark" className="h-7 w-auto mt-1 transition-all duration-300" />
+        )}
       </Link>
     </div>
   );
