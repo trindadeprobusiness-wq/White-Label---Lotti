@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -111,7 +111,11 @@ export function BillsList() {
             const existingBill = monthlyBills?.find(b => b.contrato_id === contract.id);
 
             const dueDay = contract.dia_vencimento || 10;
-            const dueDate = makeDueDate(refYear, refMonth, dueDay);
+            // Fatura materializada: usa a data gravada (pode ter sido editada por
+            // fatura). Virtual (projetada): deriva do dia do contrato.
+            const dueDate = existingBill?.data_vencimento
+                ? new Date(String(existingBill.data_vencimento).slice(0, 10) + 'T00:00:00')
+                : makeDueDate(refYear, refMonth, dueDay);
             const isLate = dueDate < now;
 
             // If bill exists in DB, use its data. Otherwise, project a virtual bill.
@@ -407,6 +411,10 @@ export function BillsList() {
     const [billToConfirmPayment, setBillToConfirmPayment] = useState<any>(null);
     const [billToRevert, setBillToRevert] = useState<any>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    // Editar vencimento de uma fatura específica (atualiza o boleto se emitida).
+    const [billToEditDate, setBillToEditDate] = useState<any>(null);
+    const [newDueDate, setNewDueDate] = useState("");
+    const [savingDate, setSavingDate] = useState(false);
 
     // Garante que a fatura exista no banco (persiste virtuais como PENDENTE) e
     // devolve o id real. A transição para PAGO é feita à parte para o trigger
@@ -483,6 +491,48 @@ export function BillsList() {
         } finally {
             setProcessingId(null);
             setBillToRevert(null);
+        }
+    };
+
+    // Edita o vencimento de UMA fatura específica e, se ela já estiver emitida,
+    // re-sincroniza o boleto no Asaas com a nova data (mesmo link).
+    const handleSaveDueDate = async () => {
+        if (!billToEditDate || !newDueDate) return;
+        setSavingDate(true);
+        const loadingToast = toast.loading("Atualizando vencimento...");
+        try {
+            const faturaId = await ensureFatura(billToEditDate);
+            const { error } = await (supabase as any)
+                .from('faturas_aluguel')
+                .update({ data_vencimento: newDueDate })
+                .eq('id', faturaId);
+            if (error) throw error;
+
+            // Se já emitida, atualiza o boleto no Asaas (a função lê a nova data).
+            let boletoMsg = "";
+            if (billToEditDate.externalId) {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    const { data, error: fnErr } = await supabase.functions.invoke('asaas-sync', {
+                        body: { action: 'atualizar_cobranca', fatura_id: faturaId },
+                        headers: { Authorization: `Bearer ${session.access_token}` },
+                    });
+                    boletoMsg = (fnErr || data?.error)
+                        ? " (não consegui atualizar o boleto no Asaas — tente novamente)"
+                        : " e o boleto foi atualizado";
+                }
+            }
+
+            toast.dismiss(loadingToast);
+            toast.success(`Vencimento atualizado${boletoMsg}.`);
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao editar vencimento:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Erro ao atualizar vencimento: " + (error?.message ?? "erro"));
+        } finally {
+            setSavingDate(false);
+            setBillToEditDate(null);
         }
     };
 
@@ -817,6 +867,21 @@ export function BillsList() {
                                                             )}
                                                         </Button>
 
+                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                                                title="Editar vencimento desta fatura"
+                                                                onClick={() => {
+                                                                    setBillToEditDate(bill);
+                                                                    setNewDueDate(format(bill.dueDate, 'yyyy-MM-dd'));
+                                                                }}
+                                                            >
+                                                                <CalendarClock className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+
                                                         {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && !bill.externalId && (
                                                             <Button
                                                                 size="sm"
@@ -964,6 +1029,33 @@ export function BillsList() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+
+        {/* Editar vencimento de uma fatura específica */}
+        <Dialog open={!!billToEditDate} onOpenChange={(o) => { if (!o) setBillToEditDate(null); }}>
+            <DialogContent className="max-w-sm">
+                <DialogHeader>
+                    <DialogTitle>Editar vencimento</DialogTitle>
+                    <DialogDescription>
+                        Escolha a nova data de vencimento desta fatura{billToEditDate?.externalId ? ' — o boleto no Asaas será atualizado com a mesma data.' : '.'}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-2">
+                    <Input
+                        type="date"
+                        value={newDueDate}
+                        min={format(new Date(), 'yyyy-MM-dd')}
+                        onChange={(e) => setNewDueDate(e.target.value)}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setBillToEditDate(null)}>Cancelar</Button>
+                    <Button onClick={handleSaveDueDate} disabled={savingDate || !newDueDate}>
+                        {savingDate && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Salvar
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         {/* Contract Viewer Modal (Centered) */}
         {contractViewerDetails && (

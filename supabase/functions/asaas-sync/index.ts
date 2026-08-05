@@ -115,10 +115,13 @@ serve(async (req) => {
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
         );
 
-        // Vencimento e encargos derivam SEMPRE do contrato + mês da fatura — nunca de
-        // um data_vencimento gravado que possa estar velho.
-        const diaVenc = Number(contrato?.dia_vencimento) || 10;
-        const vencimento = computeVencimento(fatura.mes_referencia, diaVenc);
+        // Vencimento: a data gravada na fatura é a fonte por-fatura (o corretor pode
+        // editar o vencimento de uma fatura específica). Se ausente/inválida, deriva
+        // do dia do contrato. Sempre >= hoje (o Asaas rejeita data no passado).
+        const dataGravada = typeof fatura.data_vencimento === "string" ? fatura.data_vencimento.slice(0, 10) : "";
+        const vencimento = /^\d{4}-\d{2}-\d{2}$/.test(dataGravada)
+            ? (dataGravada < hoje() ? hoje() : dataGravada)
+            : computeVencimento(fatura.mes_referencia, Number(contrato?.dia_vencimento) || 10);
         const mj = multaJuros(contrato);
 
         // ── Ação: ATUALIZAR uma cobrança já emitida (mesmo link) ──
