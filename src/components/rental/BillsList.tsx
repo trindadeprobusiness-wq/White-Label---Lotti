@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2 } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { parseContratoContent } from "@/types/rental";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
 
@@ -393,6 +403,10 @@ export function BillsList() {
     };
 
     const [emittingId, setEmittingId] = useState<string | null>(null);
+    // Confirmação de baixa e desfazer pagamento (evita cliques acidentais).
+    const [billToConfirmPayment, setBillToConfirmPayment] = useState<any>(null);
+    const [billToRevert, setBillToRevert] = useState<any>(null);
+    const [processingId, setProcessingId] = useState<string | null>(null);
 
     // Garante que a fatura exista no banco (persiste virtuais como PENDENTE) e
     // devolve o id real. A transição para PAGO é feita à parte para o trigger
@@ -418,10 +432,10 @@ export function BillsList() {
         return data.id;
     };
 
-    // Actions
-    const handleConfirmPayment = async (bill: any) => {
-        if (!confirm("Confirmar o recebimento desta fatura?")) return;
-
+    // Actions — a confirmação é feita por AlertDialog (não por confirm() nativo,
+    // que era fácil de disparar sem querer).
+    const doConfirmPayment = async (bill: any) => {
+        setProcessingId(bill.id);
         const loadingToast = toast.loading("Processando pagamento...");
         try {
             const faturaId = await ensureFatura(bill);
@@ -444,6 +458,31 @@ export function BillsList() {
             console.error("Erro ao baixar fatura:", error);
             toast.dismiss(loadingToast);
             toast.error("Erro ao confirmar pagamento: " + error.message);
+        } finally {
+            setProcessingId(null);
+            setBillToConfirmPayment(null);
+        }
+    };
+
+    // Desfaz o pagamento (estorno): a função no banco remove o repasse AGENDADO e
+    // a comissão gerados, e volta a fatura para pendente/atrasado.
+    const handleRevertPayment = async (bill: any) => {
+        setProcessingId(bill.id);
+        const loadingToast = toast.loading("Desfazendo pagamento...");
+        try {
+            const { error } = await (supabase as any).rpc('estornar_pagamento_fatura', { p_fatura_id: bill.id });
+            if (error) throw error;
+
+            toast.dismiss(loadingToast);
+            toast.success("Pagamento desfeito — a fatura voltou a não paga; repasse e comissão foram removidos.");
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao desfazer pagamento:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Não foi possível desfazer: " + (error?.message ?? "erro desconhecido"));
+        } finally {
+            setProcessingId(null);
+            setBillToRevert(null);
         }
     };
 
@@ -812,19 +851,39 @@ export function BillsList() {
                                                                 size="sm"
                                                                 variant="default"
                                                                 className="h-8 bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                                                                onClick={() => handleConfirmPayment(bill)}
+                                                                onClick={() => setBillToConfirmPayment(bill)}
+                                                                disabled={processingId === bill.id}
                                                                 title="Confirmar Pagamento (Baixar Fatura)"
                                                             >
                                                                 <CheckCircle className="h-4 w-4 mr-1.5" />
                                                                 Baixar Fatura
                                                             </Button>
                                                         ) : (
-                                                            <span className="text-xs text-muted-foreground flex items-center justify-end h-8 px-3">
+                                                            <span className="flex items-center justify-end h-8">
                                                                 {bill.status === 'PAGO' ? (
-                                                                    <span className="flex items-center text-green-600">
-                                                                        <CheckCircle className="h-3 w-3 mr-1" /> Pago
-                                                                    </span>
-                                                                ) : '-'}
+                                                                    <>
+                                                                        <span className="flex items-center text-green-600 text-xs px-1.5">
+                                                                            <CheckCircle className="h-3 w-3 mr-1" /> Pago
+                                                                        </span>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-8 px-2 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                                                                            onClick={() => setBillToRevert(bill)}
+                                                                            disabled={processingId === bill.id}
+                                                                            title="Desfazer pagamento (remove o repasse e a comissão gerados)"
+                                                                        >
+                                                                            {processingId === bill.id ? (
+                                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                            ) : (
+                                                                                <RotateCcw className="h-3.5 w-3.5" />
+                                                                            )}
+                                                                            <span className="ml-1 text-xs">Desfazer</span>
+                                                                        </Button>
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="text-xs text-muted-foreground px-3">-</span>
+                                                                )}
                                                             </span>
                                                         )}
 
@@ -858,6 +917,53 @@ export function BillsList() {
                 </CardContent>
             </Card>
         </div>
+
+        {/* Confirmar baixa (recebimento) — evita clique acidental */}
+        <AlertDialog open={!!billToConfirmPayment} onOpenChange={(o) => { if (!o) setBillToConfirmPayment(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmar recebimento?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {billToConfirmPayment && (
+                            <>
+                                Você vai dar baixa na fatura de <strong>{billToConfirmPayment.contract?.imoveis?.titulo || billToConfirmPayment.contract?.titulo || 'imóvel'}</strong>
+                                {' '}({billToConfirmPayment.mesReferencia}). Isso marca como <strong>paga</strong> e gera o repasse ao proprietário e a comissão. Confirme só se o inquilino realmente pagou.
+                            </>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => billToConfirmPayment && doConfirmPayment(billToConfirmPayment)}
+                    >
+                        Confirmar recebimento
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Desfazer pagamento (estorno) */}
+        <AlertDialog open={!!billToRevert} onOpenChange={(o) => { if (!o) setBillToRevert(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Desfazer o pagamento?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        A fatura volta a ficar <strong>não paga</strong> e o <strong>repasse ao proprietário</strong> e a <strong>comissão</strong> gerados por esta baixa serão removidos. Use quando marcou como paga por engano.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-amber-600 hover:bg-amber-700"
+                        onClick={() => billToRevert && handleRevertPayment(billToRevert)}
+                    >
+                        Desfazer pagamento
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
 
         {/* Contract Viewer Modal (Centered) */}
         {contractViewerDetails && (
