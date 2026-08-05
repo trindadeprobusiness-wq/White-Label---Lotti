@@ -29,7 +29,17 @@ const FachadasInteligentes = lazy(() => import("@/pages/FachadasInteligentes"));
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Dados considerados frescos por 60s → evita refetches e requisições
+      // duplicadas em remontagens/foco de janela. As mutações continuam
+      // invalidando as queries explicitamente, então criar/editar/excluir
+      // reflete na hora. Não altera retry nem tratamento de erro.
+      staleTime: 60_000,
+    },
+  },
+});
 
 const PageLoader = () => (
   <div className="flex h-screen w-full items-center justify-center">
