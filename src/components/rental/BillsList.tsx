@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock, MoreHorizontal } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { parseContratoContent } from "@/types/rental";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
 
@@ -850,68 +856,9 @@ export function BillsList() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1.5">
-                                                        {/* Ver Contrato */}
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                            title="Ver Contrato"
-                                                            onClick={() => handleOpenContractViewer(bill)}
-                                                            disabled={loadingContractId === bill.id}
-                                                        >
-                                                            {loadingContractId === bill.id ? (
-                                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                            ) : (
-                                                                <Eye className="h-4 w-4" />
-                                                            )}
-                                                        </Button>
-
-                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-                                                                title="Editar vencimento desta fatura"
-                                                                onClick={() => {
-                                                                    setBillToEditDate(bill);
-                                                                    setNewDueDate(format(bill.dueDate, 'yyyy-MM-dd'));
-                                                                }}
-                                                            >
-                                                                <CalendarClock className="h-4 w-4" />
-                                                            </Button>
-                                                        )}
-
-                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && !bill.externalId && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-8 border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                                onClick={() => handleEmitCharge(bill)}
-                                                                disabled={emittingId === bill.id}
-                                                                title="Emitir cobrança no Asaas (boleto/PIX ao inquilino)"
-                                                            >
-                                                                {emittingId === bill.id ? (
-                                                                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                                                                ) : (
-                                                                    <ArrowUpRight className="h-4 w-4 mr-1.5" />
-                                                                )}
-                                                                Emitir cobrança
-                                                            </Button>
-                                                        )}
-
-                                                        {bill.pixText && (
-                                                            <Button
-                                                                variant="ghost" size="icon"
-                                                                className="h-8 w-8 rounded-full text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                                                                title="Copiar PIX copia-e-cola"
-                                                                onClick={() => copyPix(bill.pixText)}
-                                                            >
-                                                                <Wallet className="h-4 w-4" />
-                                                            </Button>
-                                                        )}
-
-                                                        {bill.status === 'PENDENTE' || bill.status === 'ATRASADO' ? (
+                                                    <div className="flex justify-end items-center gap-1.5">
+                                                        {/* Ação primária: baixar (pendente) ou selo Pago */}
+                                                        {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') ? (
                                                             <Button
                                                                 size="sm"
                                                                 variant="default"
@@ -920,56 +867,73 @@ export function BillsList() {
                                                                 disabled={processingId === bill.id}
                                                                 title="Confirmar Pagamento (Baixar Fatura)"
                                                             >
-                                                                <CheckCircle className="h-4 w-4 mr-1.5" />
-                                                                Baixar Fatura
+                                                                <CheckCircle className="h-4 w-4 sm:mr-1.5" />
+                                                                <span className="hidden sm:inline">Baixar</span>
                                                             </Button>
-                                                        ) : (
-                                                            <span className="flex items-center justify-end h-8">
-                                                                {bill.status === 'PAGO' ? (
-                                                                    <>
-                                                                        <span className="flex items-center text-green-600 text-xs px-1.5">
-                                                                            <CheckCircle className="h-3 w-3 mr-1" /> Pago
-                                                                        </span>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-8 px-2 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                                                                            onClick={() => setBillToRevert(bill)}
-                                                                            disabled={processingId === bill.id}
-                                                                            title="Desfazer pagamento (remove o repasse e a comissão gerados)"
-                                                                        >
-                                                                            {processingId === bill.id ? (
-                                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                            ) : (
-                                                                                <RotateCcw className="h-3.5 w-3.5" />
-                                                                            )}
-                                                                            <span className="ml-1 text-xs">Desfazer</span>
-                                                                        </Button>
-                                                                    </>
-                                                                ) : (
-                                                                    <span className="text-xs text-muted-foreground px-3">-</span>
-                                                                )}
+                                                        ) : bill.status === 'PAGO' ? (
+                                                            <span className="flex items-center text-green-600 text-xs px-1.5 whitespace-nowrap">
+                                                                <CheckCircle className="h-3.5 w-3.5 mr-1" /> Pago
                                                             </span>
-                                                        )}
+                                                        ) : null}
 
-                                                        {bill.boletoUrl && (
-                                                            <>
+                                                        {/* Demais ações agrupadas num menu (nada fica cortado / sem rolagem lateral) */}
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
-                                                                    className="h-8 w-8 rounded-full text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20"
-                                                                    title="Copiar link do boleto"
-                                                                    onClick={() => copyBoletoLink(bill.boletoUrl!)}
+                                                                    className="h-8 w-8 rounded-full"
+                                                                    title="Mais ações"
+                                                                    disabled={processingId === bill.id || emittingId === bill.id || loadingContractId === bill.id}
                                                                 >
-                                                                    <Link2 className="h-4 w-4" />
+                                                                    {(processingId === bill.id || emittingId === bill.id || loadingContractId === bill.id) ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                    )}
                                                                 </Button>
-                                                                <a href={bill.boletoUrl} target="_blank" rel="noopener noreferrer">
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Abrir boleto/fatura">
-                                                                        <FileText className="h-4 w-4" />
-                                                                    </Button>
-                                                                </a>
-                                                            </>
-                                                        )}
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-52">
+                                                                <DropdownMenuItem onClick={() => handleOpenContractViewer(bill)}>
+                                                                    <Eye className="h-4 w-4 mr-2 text-blue-600" /> Ver contrato
+                                                                </DropdownMenuItem>
+
+                                                                {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && (
+                                                                    <DropdownMenuItem onClick={() => { setBillToEditDate(bill); setNewDueDate(format(bill.dueDate, 'yyyy-MM-dd')); }}>
+                                                                        <CalendarClock className="h-4 w-4 mr-2 text-indigo-600" /> Editar vencimento
+                                                                    </DropdownMenuItem>
+                                                                )}
+
+                                                                {(bill.status === 'PENDENTE' || bill.status === 'ATRASADO') && !bill.externalId && (
+                                                                    <DropdownMenuItem onClick={() => handleEmitCharge(bill)}>
+                                                                        <ArrowUpRight className="h-4 w-4 mr-2 text-blue-700" /> Emitir cobrança
+                                                                    </DropdownMenuItem>
+                                                                )}
+
+                                                                {bill.boletoUrl && (
+                                                                    <>
+                                                                        <DropdownMenuItem onClick={() => window.open(bill.boletoUrl!, '_blank', 'noopener')}>
+                                                                            <FileText className="h-4 w-4 mr-2 text-blue-600" /> Abrir boleto
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem onClick={() => copyBoletoLink(bill.boletoUrl!)}>
+                                                                            <Link2 className="h-4 w-4 mr-2 text-violet-600" /> Copiar link do boleto
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
+
+                                                                {bill.pixText && (
+                                                                    <DropdownMenuItem onClick={() => copyPix(bill.pixText)}>
+                                                                        <Wallet className="h-4 w-4 mr-2 text-emerald-600" /> Copiar PIX
+                                                                    </DropdownMenuItem>
+                                                                )}
+
+                                                                {bill.status === 'PAGO' && (
+                                                                    <DropdownMenuItem onClick={() => setBillToRevert(bill)} className="text-amber-600 focus:text-amber-700">
+                                                                        <RotateCcw className="h-4 w-4 mr-2" /> Desfazer pagamento
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

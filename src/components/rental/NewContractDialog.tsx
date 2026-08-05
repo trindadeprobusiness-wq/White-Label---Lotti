@@ -264,34 +264,49 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                 if (error) throw error;
                 result = data;
 
-                // Sync Pending Bills
+                // Sincroniza as faturas pendentes com o novo valor/dia do contrato e
+                // atualiza os boletos já emitidos. IMPORTANTE: valor_total é coluna
+                // GERADA (= valor_aluguel + condomínio + iptu + extras) → atualiza-se
+                // valor_aluguel. A data só é remexida se o dia do contrato mudou (assim
+                // vencimentos editados por fatura são preservados).
                 try {
                     const { data: bills } = await (supabase as any)
                         .from('faturas_aluguel')
-                        .select('*')
+                        .select('id, mes_referencia, external_id')
                         .eq('contrato_id', contractToEdit.id)
                         .in('status', ['PENDENTE', 'ATRASADO']);
 
                     if (bills && bills.length > 0) {
-                        const updates = bills.map(async (bill) => {
-                            const originalDate = new Date(bill.data_vencimento);
-                            // Set new day, keep month/year
-                            const newDate = new Date(originalDate.getFullYear(), originalDate.getMonth(), parseInt(dueDay));
+                        const diaMudou = Number(contractToEdit.dia_vencimento) !== parseInt(dueDay);
 
-                            return (supabase as any)
-                                .from('faturas_aluguel')
-                                .update({
-                                    valor_total: rent, // Update value
-                                    data_vencimento: newDate.toISOString() // Update date
-                                })
-                                .eq('id', bill.id);
-                        });
+                        await Promise.all(bills.map((bill: any) => {
+                            const patch: Record<string, unknown> = { valor_aluguel: rent };
+                            if (diaMudou) {
+                                const [mm, yyyy] = String(bill.mes_referencia).split('/').map(Number);
+                                const lastDay = new Date(yyyy, mm, 0).getDate();
+                                const d = Math.min(parseInt(dueDay), lastDay);
+                                patch.data_vencimento = `${yyyy}-${String(mm).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                            }
+                            return (supabase as any).from('faturas_aluguel').update(patch).eq('id', bill.id);
+                        }));
 
-                        await Promise.all(updates);
+                        // Boletos já emitidos: re-sincroniza valor/data no Asaas (mesmo link).
+                        const emitidas = bills.filter((b: any) => b.external_id);
+                        if (emitidas.length > 0) {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (session) {
+                                await Promise.all(emitidas.map((b: any) =>
+                                    supabase.functions.invoke('asaas-sync', {
+                                        body: { action: 'atualizar_cobranca', fatura_id: b.id },
+                                        headers: { Authorization: `Bearer ${session.access_token}` },
+                                    })
+                                ));
+                            }
+                        }
                     }
                 } catch (syncError) {
                     console.error("Erro ao sincronizar faturas:", syncError);
-                    toast.error("Contrato salvo, mas houve erro ao atualizar faturas pendentes.");
+                    toast.error("Contrato salvo, mas houve erro ao atualizar as faturas pendentes.");
                 }
 
                 toast.success("Contrato atualizado com sucesso!", {
