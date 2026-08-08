@@ -13,14 +13,30 @@ export const norm = (s: string) =>
     .toLowerCase()
     .trim();
 
+const ehLetraOuNumero = (c: string | undefined) => c !== undefined && /[\p{L}\p{N}]/u.test(c);
+
 /**
- * Igualdade "frouxa": exata, ou um contendo o outro a partir de 8 caracteres.
- * O piso de 8 evita que "Rua A" case com meia cidade.
+ * Contenção em limite de palavra. Sem checar a borda, "Rua 15 de Novembro, 10"
+ * casava com "Rua 15 de Novembro, 100" e o contrato ia parar no imóvel errado.
+ * O piso de 8 caracteres evita que "Rua A" case com meia cidade.
  */
+const contidoEmPalavra = (agulha: string, palheiro: string) => {
+  if (agulha.length < 8) return false;
+  let i = palheiro.indexOf(agulha);
+  while (i !== -1) {
+    const antes = palheiro[i - 1];
+    const depois = palheiro[i + agulha.length];
+    if (!ehLetraOuNumero(antes) && !ehLetraOuNumero(depois)) return true;
+    i = palheiro.indexOf(agulha, i + 1);
+  }
+  return false;
+};
+
+/** Igualdade "frouxa": exata, ou um contido no outro em limite de palavra. */
 export const looseMatch = (a: string, b: string) => {
   const na = norm(a);
   const nb = norm(b);
   if (!na || !nb) return false;
   if (na === nb) return true;
-  return (na.length >= 8 && nb.includes(na)) || (nb.length >= 8 && na.includes(nb));
+  return contidoEmPalavra(na, nb) || contidoEmPalavra(nb, na);
 };

@@ -101,6 +101,11 @@ export function AnalisarContratoDialog({
   const [imovelTipo, setImovelTipo] = useState<TipoImovel>('CASA');
   const [proprietarioNome, setProprietarioNome] = useState('');
 
+  // Se o insert do contrato falhar depois de cadastrar cliente/imóvel, o retry tem
+  // que reaproveitá-los. Sem isso cada tentativa criava um registro novo — e o
+  // recém-criado nem aparece no select (a lista vem por prop, sem refetch).
+  const jaCriados = useRef<{ cliente?: string; imovel?: string }>({});
+
   const reset = () => {
     setStep('upload'); setFile(null);
     setTipo('EXCLUSIVIDADE_VENDA'); setDataInicio(''); setDataFim(''); setValor('');
@@ -108,6 +113,7 @@ export function AnalisarContratoDialog({
     setClienteNome(''); setClienteTelefone(''); setClienteDoc(''); setClienteEmail('');
     setImovelEndereco(''); setImovelBairro(''); setImovelCidade('');
     setImovelTipo('CASA'); setProprietarioNome('');
+    jaCriados.current = {};
   };
 
   const close = (o: boolean) => { if (!o) reset(); onOpenChange(o); };
@@ -199,9 +205,9 @@ export function AnalisarContratoDialog({
       const { data: corretorId, error: corrErr } = await supabase.rpc('get_corretor_id');
       if (corrErr || !corretorId) throw new Error('Não foi possível identificar o corretor.');
 
-      // 1. Cliente: usa o vinculado ou cadastra a parte lida no contrato.
-      let clienteFinal = clienteId !== 'NENHUM' ? clienteId : null;
-      if (criarCliente) {
+      // 1. Cliente: usa o vinculado, o já criado numa tentativa anterior, ou cadastra.
+      let clienteFinal = clienteId !== 'NENHUM' ? clienteId : (jaCriados.current.cliente ?? null);
+      if (criarCliente && !jaCriados.current.cliente) {
         const { data: novo, error } = await supabase
           .from('clientes')
           .insert({
@@ -217,12 +223,13 @@ export function AnalisarContratoDialog({
           .single();
         if (error) throw new Error('Erro ao cadastrar o cliente: ' + error.message);
         clienteFinal = novo.id;
+        jaCriados.current.cliente = novo.id;
         criados.push('cliente');
       }
 
       // 2. Imóvel: idem. Sem endereço não criamos nada — evita imóvel fantasma na lista.
-      let imovelFinal = imovelId !== 'NENHUM' ? imovelId : null;
-      if (criarImovel) {
+      let imovelFinal = imovelId !== 'NENHUM' ? imovelId : (jaCriados.current.imovel ?? null);
+      if (criarImovel && !jaCriados.current.imovel) {
         const { data: novo, error } = await supabase
           .from('imoveis')
           .insert({
@@ -242,6 +249,7 @@ export function AnalisarContratoDialog({
           .single();
         if (error) throw new Error('Erro ao cadastrar o imóvel: ' + error.message);
         imovelFinal = novo.id;
+        jaCriados.current.imovel = novo.id;
         criados.push('imóvel');
       }
 
@@ -280,7 +288,7 @@ export function AnalisarContratoDialog({
       if (arquivoPath) await supabase.storage.from('documentos').remove([arquivoPath]).catch(() => undefined);
       const base = err instanceof Error ? err.message : 'Erro ao salvar o contrato.';
       const aviso = criados.length
-        ? ` O ${criados.join(' e o ')} já foi(ram) cadastrado(s) — vincule pelo select para não duplicar.`
+        ? ` O ${criados.join(' e o ')} já foi(ram) cadastrado(s); tentar de novo reaproveita, não duplica.`
         : '';
       toast.error(base + aviso, { id: toastId });
       setStep('revisao');

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseFileDropOptions {
   /** Tipos aceitos no formato do atributo accept: "application/pdf,image/*,.webp". Vazio = aceita tudo. */
@@ -62,6 +62,12 @@ export function useFileDrop(
     setDragActive(false);
   }, []);
 
+  // Se a área for desligada no meio do arraste (ex.: a análise começou), o
+  // dragleave para de chegar e o realce ficaria aceso para sempre.
+  useEffect(() => {
+    if (disabled) encerrar();
+  }, [disabled, encerrar]);
+
   const onDragEnter = useCallback(
     (e: React.DragEvent) => {
       if (disabled || !carregaArquivos(e)) return;
@@ -85,16 +91,12 @@ export function useFileDrop(
     [disabled],
   );
 
-  const onDragLeave = useCallback(
-    (e: React.DragEvent) => {
-      if (disabled) return;
-      e.preventDefault();
-      e.stopPropagation();
-      profundidade.current = Math.max(0, profundidade.current - 1);
-      if (profundidade.current === 0) setDragActive(false);
-    },
-    [disabled],
-  );
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    profundidade.current = Math.max(0, profundidade.current - 1);
+    if (profundidade.current === 0) setDragActive(false);
+  }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
