@@ -51,6 +51,8 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
 
     // Ref para evitar re-extração se o componente re-renderizar
     const extractionAbortRef = useRef<AbortController | null>(null);
+    // Último inquilino cujo CPF já foi pré-preenchido (ver efeito abaixo).
+    const cpfPreenchidoPara = useRef<string | null>(null);
 
     // Dialog states
     const [isNovoImovelOpen, setIsNovoImovelOpen] = useState(false);
@@ -86,6 +88,16 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             setMultaPct("10");
             setJurosMesPct("1");
         }
+
+        // Fechar no meio da análise (inclusive em modo edição, que não passa pelo reset
+        // acima) deixaria o arquivo e o flag de análise pendurados até a próxima abertura.
+        if (!open) {
+            extractionAbortRef.current?.abort();
+            extractionAbortRef.current = null;
+            setIsExtractingCpf(false);
+            setContractFile(null);
+            cpfPreenchidoPara.current = null;
+        }
     }, [contractToEdit, open]);
 
     // Fetch Clients (inclui cpf p/ pré-preencher o campo do inquilino)
@@ -97,9 +109,18 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
         }
     });
 
-    // Pré-preenche o CPF com o do inquilino selecionado (cobre seleção manual e edição)
+    // Pré-preenche o CPF com o do inquilino selecionado (cobre seleção manual e edição).
+    // Só age quando o inquilino REALMENTE muda: `clients` é array do React Query e troca
+    // de identidade a cada refetch — sem essa trava, um refetch que caísse depois da IA
+    // preencher o CPF apagava o valor e o botão de salvar escurecia sozinho.
     useEffect(() => {
-        if (!clientId) { setInquilinoCpf(""); return; }
+        if (!clientId) {
+            cpfPreenchidoPara.current = null;
+            setInquilinoCpf("");
+            return;
+        }
+        if (cpfPreenchidoPara.current === clientId) return;
+        cpfPreenchidoPara.current = clientId;
         const cli = clients?.find((c: any) => c.id === clientId);
         setInquilinoCpf(cli?.cpf ? formatarCPF(cli.cpf) : "");
     }, [clientId, clients]);
@@ -139,7 +160,13 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             extractionAbortRef.current = null;
         }
 
-        if (!file) return;
+        // Remover/substituir o arquivo no meio da análise: o .finally da extração
+        // abortada não desliga o flag, então desligamos aqui. Sem isso o botão de
+        // salvar (que agora depende deste flag) ficaria travado escuro para sempre.
+        if (!file) {
+            setIsExtractingCpf(false);
+            return;
+        }
 
         // Dispara extração assíncrona (não bloqueia o formulário)
         const controller = new AbortController();
@@ -403,8 +430,12 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
         }
     });
 
-    // CPF é opcional no contrato (exigido só na emissão), mas se preenchido deve ser válido.
-    const isValid = clientId && propertyId && rentValue && startDate && !cpfInvalido;
+    // O CPF do inquilino passou a ser obrigatório: é o que o Asaas exige para emitir a
+    // cobrança, e o contrato ia para o banco sem ele. Vem da IA ao anexar o PDF ou digitado.
+    const camposBasicosOk = !!(clientId && propertyId && rentValue && startDate);
+    const isValid = camposBasicosOk && cpfOk;
+    // Só avisamos sobre o CPF quando ele é o ÚNICO impedimento — senão vira ruído.
+    const faltaCpf = camposBasicosOk && !cpfOk && !isExtractingCpf;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -740,15 +771,25 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                     </div>
                 </div>
 
-                <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-                    <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button
-                        onClick={() => upsertContractMutation.mutate()}
-                        disabled={!isValid || upsertContractMutation.isPending}
-                    >
-                        {upsertContractMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isEditing ? "Salvar Alterações" : "Criar Contrato"}
-                    </Button>
+                <DialogFooter className="px-6 py-4 border-t bg-muted/30 sm:justify-between gap-2">
+                    {/* Por que o botão está apagado — sem isso a trava vira mistério. */}
+                    <p className="text-[11px] text-muted-foreground text-left sm:max-w-[60%]">
+                        {isExtractingCpf
+                            ? 'A IA está lendo o contrato para preencher o CPF do inquilino. Aguarde para salvar.'
+                            : faltaCpf
+                                ? 'Informe o CPF do inquilino para salvar — é o que o Asaas exige para emitir a cobrança.'
+                                : ''}
+                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                        <Button
+                            onClick={() => upsertContractMutation.mutate()}
+                            disabled={!isValid || isExtractingCpf || upsertContractMutation.isPending}
+                        >
+                            {(upsertContractMutation.isPending || isExtractingCpf) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isExtractingCpf ? "Analisando contrato..." : (isEditing ? "Salvar Alterações" : "Criar Contrato")}
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
 

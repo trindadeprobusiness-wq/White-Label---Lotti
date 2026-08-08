@@ -19,6 +19,7 @@ import { analisarContratoCentral } from '@/services/contractExtractionService';
 import type { ExtractedCentralContract, ParteContrato } from '@/services/contractExtractionService';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { looseMatch } from '@/lib/matching';
+import { mensagemDeErro } from '@/lib/errors';
 import { cn } from '@/lib/utils';
 import { TIPO_CONTRATO_LABELS } from '@/types/crm';
 import type { TipoContrato, TipoImovel, TipoInteresse } from '@/types/crm';
@@ -101,11 +102,6 @@ export function AnalisarContratoDialog({
   const [imovelTipo, setImovelTipo] = useState<TipoImovel>('CASA');
   const [proprietarioNome, setProprietarioNome] = useState('');
 
-  // Se o insert do contrato falhar depois de cadastrar cliente/imóvel, o retry tem
-  // que reaproveitá-los. Sem isso cada tentativa criava um registro novo — e o
-  // recém-criado nem aparece no select (a lista vem por prop, sem refetch).
-  const jaCriados = useRef<{ cliente?: string; imovel?: string }>({});
-
   const reset = () => {
     setStep('upload'); setFile(null);
     setTipo('EXCLUSIVIDADE_VENDA'); setDataInicio(''); setDataFim(''); setValor('');
@@ -113,7 +109,6 @@ export function AnalisarContratoDialog({
     setClienteNome(''); setClienteTelefone(''); setClienteDoc(''); setClienteEmail('');
     setImovelEndereco(''); setImovelBairro(''); setImovelCidade('');
     setImovelTipo('CASA'); setProprietarioNome('');
-    jaCriados.current = {};
   };
 
   const close = (o: boolean) => { if (!o) reset(); onOpenChange(o); };
@@ -187,7 +182,7 @@ export function AnalisarContratoDialog({
       setIaNaoAchou(faltando);
       setStep('revisao');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível analisar o contrato.');
+      toast.error(mensagemDeErro(err, 'Não foi possível analisar o contrato.'));
       setStep('upload');
     }
   };
@@ -199,15 +194,16 @@ export function AnalisarContratoDialog({
     const toastId = toast.loading('Salvando contrato...');
 
     let arquivoPath: string | null = null;
-    const criados: string[] = [];
+    // Só o que esta tentativa criou — o que já existia e foi apenas vinculado nunca é tocado.
+    const novos: { cliente?: string; imovel?: string } = {};
 
     try {
       const { data: corretorId, error: corrErr } = await supabase.rpc('get_corretor_id');
       if (corrErr || !corretorId) throw new Error('Não foi possível identificar o corretor.');
 
-      // 1. Cliente: usa o vinculado, o já criado numa tentativa anterior, ou cadastra.
-      let clienteFinal = clienteId !== 'NENHUM' ? clienteId : (jaCriados.current.cliente ?? null);
-      if (criarCliente && !jaCriados.current.cliente) {
+      // 1. Cliente: usa o vinculado ou cadastra a parte lida no contrato.
+      let clienteFinal = clienteId !== 'NENHUM' ? clienteId : null;
+      if (criarCliente) {
         const { data: novo, error } = await supabase
           .from('clientes')
           .insert({
@@ -221,15 +217,14 @@ export function AnalisarContratoDialog({
           })
           .select('id')
           .single();
-        if (error) throw new Error('Erro ao cadastrar o cliente: ' + error.message);
+        if (error) throw new Error('Erro ao cadastrar o cliente: ' + mensagemDeErro(error));
         clienteFinal = novo.id;
-        jaCriados.current.cliente = novo.id;
-        criados.push('cliente');
+        novos.cliente = novo.id;
       }
 
       // 2. Imóvel: idem. Sem endereço não criamos nada — evita imóvel fantasma na lista.
-      let imovelFinal = imovelId !== 'NENHUM' ? imovelId : (jaCriados.current.imovel ?? null);
-      if (criarImovel && !jaCriados.current.imovel) {
+      let imovelFinal = imovelId !== 'NENHUM' ? imovelId : null;
+      if (criarImovel) {
         const { data: novo, error } = await supabase
           .from('imoveis')
           .insert({
@@ -247,10 +242,9 @@ export function AnalisarContratoDialog({
           })
           .select('id')
           .single();
-        if (error) throw new Error('Erro ao cadastrar o imóvel: ' + error.message);
+        if (error) throw new Error('Erro ao cadastrar o imóvel: ' + mensagemDeErro(error));
         imovelFinal = novo.id;
-        jaCriados.current.imovel = novo.id;
-        criados.push('imóvel');
+        novos.imovel = novo.id;
       }
 
       // 3. Arquivo (bucket documentos exige corretor_id como 1ª pasta)
@@ -276,6 +270,7 @@ export function AnalisarContratoDialog({
       });
       if (insErr) throw insErr;
 
+      const criados = [novos.cliente && 'cliente', novos.imovel && 'imóvel'].filter(Boolean);
       const extras = criados.length ? ` ${criados.join(' e ')} cadastrado(s) junto.` : '';
       toast.success(
         `Contrato salvo! Os alertas de vencimento serão disparados automaticamente.${extras}`,
@@ -284,13 +279,30 @@ export function AnalisarContratoDialog({
       onSaved();
       close(false);
     } catch (err) {
-      // Sem transação entre storage e banco: se o contrato não entrou, o arquivo órfão sai.
-      if (arquivoPath) await supabase.storage.from('documentos').remove([arquivoPath]).catch(() => undefined);
-      const base = err instanceof Error ? err.message : 'Erro ao salvar o contrato.';
-      const aviso = criados.length
-        ? ` O ${criados.join(' e o ')} já foi(ram) cadastrado(s); tentar de novo reaproveita, não duplica.`
+      // Não há transação entre storage e banco: se o contrato não entrou, desfazemos
+      // o que esta tentativa criou. Deixar cliente/imóvel para trás só gera registro
+      // fantasma que o corretor não encontra — e o retry partiria sujo.
+      if (arquivoPath) {
+        await supabase.storage.from('documentos').remove([arquivoPath]).catch(() => undefined);
+      }
+      // O rollback não pode derrubar o tratamento do erro original: sem rede o
+      // .delete() rejeita, e o dialog ficaria preso em "Salvando..." para sempre.
+      const sobraram: string[] = [];
+      const apagar = async (tabela: 'imoveis' | 'clientes', id: string, rotulo: string) => {
+        try {
+          const { error } = await supabase.from(tabela).delete().eq('id', id);
+          if (error) sobraram.push(rotulo);
+        } catch {
+          sobraram.push(rotulo);
+        }
+      };
+      if (novos.imovel) await apagar('imoveis', novos.imovel, 'imóvel');
+      if (novos.cliente) await apagar('clientes', novos.cliente, 'cliente');
+
+      const aviso = sobraram.length
+        ? ` Atenção: não consegui remover o ${sobraram.join(' e o ')} que tinha acabado de cadastrar — apague pela tela correspondente antes de tentar de novo.`
         : '';
-      toast.error(base + aviso, { id: toastId });
+      toast.error(mensagemDeErro(err, 'Erro ao salvar o contrato.') + aviso, { id: toastId });
       setStep('revisao');
     }
   };
