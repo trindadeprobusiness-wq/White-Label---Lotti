@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useFileDrop } from "@/hooks/useFileDrop";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -285,8 +287,7 @@ export function BillsList() {
         }
     };
 
-    const handleContractUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    const handleContractUpload = async (file: File | undefined) => {
         if (!file || !contractViewerDetails?.id || !contractViewerDetails?.corretorId) return;
 
         setIsUploadingContract(true);
@@ -335,9 +336,18 @@ export function BillsList() {
             toast.error("Erro ao anexar contrato: " + error.message, { id: toastId });
         } finally {
             setIsUploadingContract(false);
-            if (event.target) event.target.value = ''; // reset input
         }
     };
+
+    const { dragActive: contratoDragActive, dropProps: contratoDropProps } = useFileDrop(
+        (arquivos) => void handleContractUpload(arquivos[0]),
+        {
+            // Extensão junto do MIME: alguns SOs entregam o PDF com type vazio.
+            accept: 'application/pdf,.pdf',
+            disabled: isUploadingContract || isExtracting,
+            onReject: () => toast.error('Anexe o contrato em PDF.'),
+        },
+    );
 
     // Lê o contrato com IA (Gemini lê o PDF direto, inclusive escaneado) e abre a
     // confirmação. Falha aqui não desfaz o upload — o anexo já valeu por si.
@@ -1188,11 +1198,19 @@ export function BillsList() {
                                 />
                             </div>
                         ) : (
-                            <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed flex flex-col items-center justify-center">
+                            <div
+                                {...contratoDropProps}
+                                className={cn(
+                                    'p-8 text-center text-muted-foreground rounded-xl border border-dashed flex flex-col items-center justify-center transition-colors',
+                                    contratoDragActive ? 'border-primary bg-primary/5' : 'bg-muted/20',
+                                )}
+                            >
                                 <FileText className="h-12 w-12 mb-3 opacity-30 text-blue-600" />
-                                <h4 className="text-sm font-semibold text-foreground mb-1">Nenhum arquivo de contrato anexado</h4>
+                                <h4 className="text-sm font-semibold text-foreground mb-1">
+                                    {contratoDragActive ? 'Solte o PDF aqui' : 'Nenhum arquivo de contrato anexado'}
+                                </h4>
                                 <p className="text-xs mb-5 max-w-sm text-balance">
-                                    Você pode fazer o upload do PDF do contrato assinado agora mesmo para tê-lo sempre à mão na hora de conferir as faturas.
+                                    Arraste o PDF do contrato assinado para cá ou use o botão abaixo — assim ele fica sempre à mão na hora de conferir as faturas.
                                 </p>
 
                                 <input
@@ -1200,7 +1218,7 @@ export function BillsList() {
                                     accept=".pdf"
                                     className="hidden"
                                     ref={contractFileInputRef}
-                                    onChange={handleContractUpload}
+                                    onChange={(e) => { void handleContractUpload(e.target.files?.[0]); e.target.value = ''; }}
                                 />
                                 <Button
                                     variant="outline"

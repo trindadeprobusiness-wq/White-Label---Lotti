@@ -14,6 +14,8 @@ import { AlertTriangle, Sparkles, Download, FileText, Loader2, X, Edit3, Check, 
 import { supabase } from '@/integrations/supabase/client';
 import { formatContractForPreview } from '@/utils/contractPreview';
 import { generateLocalContract } from '@/utils/contractTemplate';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { cn } from '@/lib/utils';
 // Geradores de .docx/.pdf (libs docx e pdf-lib, ~800 kB) são importados
 // dinamicamente dentro de baixarDocx/baixarPdf para não inflar este chunk.
 
@@ -76,8 +78,7 @@ export function GerarContratoDialog({ open, onOpenChange, clienteId }: GerarCont
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle watermark image upload
-  const handleWatermarkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleWatermarkUpload = (file: File | undefined) => {
     if (!file) return;
 
     // Validate file type
@@ -122,6 +123,11 @@ export function GerarContratoDialog({ open, onOpenChange, clienteId }: GerarCont
       fileInputRef.current.value = '';
     }
   };
+
+  const { dragActive: marcaDragActive, dropProps: marcaDropProps } = useFileDrop(
+    (arquivos) => handleWatermarkUpload(arquivos[0]),
+    { accept: 'image/*' },
+  );
 
   const selectedCliente = clientes.find(c => c.id === form.cliente_id);
   const selectedImovel = imoveis.find(i => i.id === form.imovel_id);
@@ -447,18 +453,24 @@ export function GerarContratoDialog({ open, onOpenChange, clienteId }: GerarCont
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/jpg,image/webp"
-                onChange={handleWatermarkUpload}
+                onChange={(e) => handleWatermarkUpload(e.target.files?.[0])}
                 className="hidden"
               />
 
               {!form.marcaDaguaPreview ? (
                 <div
+                  {...marcaDropProps}
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-2 border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  className={cn(
+                    'mt-2 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+                    marcaDragActive
+                      ? 'border-primary bg-primary/5'
+                      : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/30',
+                  )}
                 >
                   <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    Clique para selecionar uma imagem
+                    {marcaDragActive ? 'Solte a imagem aqui' : 'Arraste ou clique para selecionar uma imagem'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     PNG, JPG, WEBP - Máximo 2MB

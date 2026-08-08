@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useState, useRef } from 'react';
 import { Paperclip, X, FileText, Image, Video, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AI_ACCEPTED_TYPES } from '@/types/ai';
@@ -9,15 +9,19 @@ interface AIFileUploadProps {
   disabled?: boolean;
 }
 
-export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUploadProps) {
+/** Deixa o container do chat (que é quem tem área para soltar) entregar o arquivo aqui. */
+export interface AIFileUploadHandle {
+  selecionarArquivo: (file: File) => void;
+}
+
+export const AIFileUpload = forwardRef<AIFileUploadHandle, AIFileUploadProps>(
+  function AIFileUpload({ onFileProcessed, uploadFile, disabled }, ref) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const selecionarArquivo = (file: File) => {
     setSelectedFile(file);
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -26,6 +30,13 @@ export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUp
     } else {
       setPreview(null);
     }
+  };
+
+  useImperativeHandle(ref, () => ({ selecionarArquivo }), []);
+
+  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) selecionarArquivo(file);
   };
 
   const handleUpload = async () => {
@@ -97,4 +108,4 @@ export function AIFileUpload({ onFileProcessed, uploadFile, disabled }: AIFileUp
       </Button>
     </>
   );
-}
+});

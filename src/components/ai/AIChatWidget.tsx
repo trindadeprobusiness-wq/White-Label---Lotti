@@ -9,7 +9,10 @@ import { AIMessageBubble } from './AIMessageBubble';
 import { AITypingIndicator } from './AITypingIndicator';
 import { AIActionCard } from './AIActionCard';
 import { AIFileUpload } from './AIFileUpload';
+import type { AIFileUploadHandle } from './AIFileUpload';
 import { useNavigate } from 'react-router-dom';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { AI_ACCEPTED_TYPES } from '@/types/ai';
 
 export function AIChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -61,10 +64,26 @@ export function AIChatWidget() {
 
   const displayMessages = messages.length > 0 ? messages : [welcomeMessage];
 
+  const fileUploadRef = useRef<AIFileUploadHandle>(null);
+  const { dragActive: chatDragActive, dropProps: chatDropProps } = useFileDrop(
+    (arquivos) => fileUploadRef.current?.selecionarArquivo(arquivos[0]),
+    { accept: AI_ACCEPTED_TYPES.join(','), disabled: isStreaming },
+  );
+
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-3">
       {isOpen && (
-        <Card className="w-[min(400px,calc(100vw-2rem))] h-[min(620px,calc(100dvh-6rem))] flex flex-col shadow-2xl border-primary/20 animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <Card
+          {...chatDropProps}
+          className="relative w-[min(400px,calc(100vw-2rem))] h-[min(620px,calc(100dvh-6rem))] flex flex-col shadow-2xl border-primary/20 animate-in slide-in-from-bottom-10 fade-in duration-300"
+        >
+          {chatDragActive && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg pointer-events-none">
+              <p className="text-xs font-medium text-primary bg-background/90 px-3 py-1.5 rounded-lg">
+                Solte o arquivo aqui
+              </p>
+            </div>
+          )}
           <CardHeader className="bg-primary/5 p-3 flex flex-row items-center justify-between space-y-0 rounded-t-lg">
             <div className="flex items-center gap-2">
               <div className="bg-primary/10 p-1.5 rounded-full">
@@ -154,6 +173,7 @@ export function AIChatWidget() {
               }}
             >
               <AIFileUpload
+                ref={fileUploadRef}
                 onFileProcessed={handleFileProcessed}
                 uploadFile={uploadFile}
                 disabled={isStreaming}

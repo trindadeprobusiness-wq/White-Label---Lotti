@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { useFileDrop } from '@/hooks/useFileDrop';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -440,8 +441,7 @@ export function FotosIA() {
     };
 
     // ── Logo Upload ──
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+    const handleLogoUpload = (file: File | undefined) => {
         if (!file) return;
         const url = URL.createObjectURL(file);
         setWatermark(prev => ({ ...prev, logoUrl: url, logoFile: file }));
@@ -451,8 +451,12 @@ export function FotosIA() {
             localStorage.setItem(WATERMARK_STORAGE_KEY, reader.result as string);
         };
         reader.readAsDataURL(file);
-        e.target.value = '';
     };
+
+    const { dragActive: logoDragActive, dropProps: logoDropProps } = useFileDrop(
+        (arquivos) => handleLogoUpload(arquivos[0]),
+        { accept: 'image/*', onReject: () => toast.error('A logo precisa ser uma imagem (PNG, JPG ou WEBP).') },
+    );
 
     // ── Process Images ──
     const handleProcess = async () => {
@@ -570,14 +574,24 @@ export function FotosIA() {
                                     </div>
                                 ) : (
                                     <div
+                                        {...logoDropProps}
                                         onClick={() => logoInputRef.current?.click()}
-                                        className="h-14 w-28 border-2 border-dashed border-border rounded flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 text-muted-foreground text-xs gap-1 transition-colors"
+                                        className={cn(
+                                            'h-14 w-28 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer text-muted-foreground text-xs gap-1 transition-colors',
+                                            logoDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
+                                        )}
                                     >
                                         <Upload className="h-4 w-4" />
-                                        Upload logo
+                                        {logoDragActive ? 'Solte aqui' : 'Arraste ou clique'}
                                     </div>
                                 )}
-                                <input ref={logoInputRef} type="file" accept="image/png,image/webp,image/jpeg" className="hidden" onChange={handleLogoUpload} />
+                                <input
+                                    ref={logoInputRef}
+                                    type="file"
+                                    accept="image/png,image/webp,image/jpeg"
+                                    className="hidden"
+                                    onChange={(e) => { handleLogoUpload(e.target.files?.[0]); e.target.value = ''; }}
+                                />
                                 <div className="text-xs text-muted-foreground">
                                     Prefira PNG com fundo transparente.<br />
                                     A logo é salva localmente para reutilização.

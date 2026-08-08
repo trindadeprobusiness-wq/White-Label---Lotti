@@ -16,6 +16,8 @@ import { ImovelMediaManager } from './ImovelMediaManager';
 import { supabase } from '@/integrations/supabase/client';
 import { getTrackingData } from '@/hooks/useUTMTracker';
 import { useVideos } from '@/hooks/useVideos';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { cn } from '@/lib/utils';
 
 type Finalidade = 'VENDA' | 'LOCACAO' | 'AMBOS';
 
@@ -107,9 +109,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
     }
   }, [imovelToEdit, open]);
 
-  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // permite re-selecionar o mesmo arquivo depois
+  const handleVideoSelect = (file: File | undefined) => {
     if (!file) return;
     if (!VIDEO_TYPES.includes(file.type)) {
       toast({ title: 'Formato de vídeo inválido', description: 'Use MP4, WebM, MOV ou AVI.', variant: 'destructive' });
@@ -121,6 +121,12 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
     }
     setVideoFile(file);
   };
+
+  // Drop em <label> é inconsistente entre navegadores — os handlers ficam no wrapper.
+  const { dragActive: videoDragActive, dropProps: videoDropProps } = useFileDrop(
+    (arquivos) => handleVideoSelect(arquivos[0]),
+    { disabled: uploadingVideo },
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,24 +325,36 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
               Vídeo do Imóvel <span className="text-muted-foreground font-normal">(opcional)</span>
             </Label>
             {!videoFile ? (
-              <label
-                htmlFor="imovel-video-input"
-                className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 rounded-lg p-6 text-center cursor-pointer transition-colors"
-              >
-                <div className="p-3 rounded-full bg-primary/10">
-                  <Video className="w-6 h-6 text-primary" />
-                </div>
-                <p className="font-medium">Clique para adicionar um vídeo</p>
-                <p className="text-sm text-muted-foreground">MP4, WebM, MOV ou AVI (máx. 500MB)</p>
-                <input
-                  id="imovel-video-input"
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
-                  onChange={handleVideoSelect}
-                  className="hidden"
-                  disabled={uploadingVideo}
-                />
-              </label>
+              <div {...videoDropProps}>
+                <label
+                  htmlFor="imovel-video-input"
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+                    videoDragActive
+                      ? 'border-primary bg-primary/5'
+                      : 'border-muted-foreground/25 hover:border-primary/50',
+                  )}
+                >
+                  <div className="p-3 rounded-full bg-primary/10">
+                    <Video className="w-6 h-6 text-primary" />
+                  </div>
+                  <p className="font-medium">
+                    {videoDragActive ? 'Solte o vídeo aqui' : 'Arraste ou clique para adicionar um vídeo'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">MP4, WebM, MOV ou AVI (máx. 500MB)</p>
+                  <input
+                    id="imovel-video-input"
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                    onChange={(e) => {
+                      handleVideoSelect(e.target.files?.[0]);
+                      e.target.value = ''; // permite re-selecionar o mesmo arquivo depois
+                    }}
+                    className="hidden"
+                    disabled={uploadingVideo}
+                  />
+                </label>
+              </div>
             ) : (
               <div className="flex items-center gap-3 border rounded-lg p-3">
                 <div className="p-2 rounded-md bg-primary/10 shrink-0">

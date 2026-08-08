@@ -207,14 +207,27 @@ async function analyzeViaAssistant(contractText: string): Promise<ExtractedContr
 
 // --- Central de Contratos: análise de venda / exclusividade (modo "central") ---
 
+/** Uma das partes do contrato, como a IA a leu. */
+export interface ParteContrato {
+    nome: string | null;
+    cpf_cnpj: string | null;
+    telefone: string | null;
+    email: string | null;
+}
+
 export interface ExtractedCentralContract {
     tipo: string | null;
     partes: {
-        vendedor_proprietario: string | null;
-        comprador_cliente: string | null;
+        vendedor_proprietario: ParteContrato;
+        comprador_cliente: ParteContrato;
         corretor: string | null;
     };
-    imovel: { endereco: string | null; cidade: string | null };
+    imovel: {
+        endereco: string | null;
+        bairro: string | null;
+        cidade: string | null;
+        tipo: string | null;
+    };
     valor: number | null;
     comissao_percentual: number | null;
     data_inicio: string | null;

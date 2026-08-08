@@ -8,7 +8,10 @@ import { AIMessageBubble } from '@/components/ai/AIMessageBubble';
 import { AITypingIndicator } from '@/components/ai/AITypingIndicator';
 import { AIActionCard } from '@/components/ai/AIActionCard';
 import { AIFileUpload } from '@/components/ai/AIFileUpload';
+import type { AIFileUploadHandle } from '@/components/ai/AIFileUpload';
 import { AIConversationList } from '@/components/ai/AIConversationList';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { AI_ACCEPTED_TYPES } from '@/types/ai';
 
 export default function Assistente() {
   const [inputText, setInputText] = useState('');
@@ -64,6 +67,12 @@ export default function Assistente() {
 
   const displayMessages = messages.length > 0 ? messages : [welcomeMessage];
 
+  const fileUploadRef = useRef<AIFileUploadHandle>(null);
+  const { dragActive: chatDragActive, dropProps: chatDropProps } = useFileDrop(
+    (arquivos) => fileUploadRef.current?.selecionarArquivo(arquivos[0]),
+    { accept: AI_ACCEPTED_TYPES.join(','), disabled: isStreaming },
+  );
+
   return (
     <div className="flex h-[calc(100vh-3rem)] -my-6 -mx-4 md:-mx-6 lg:-mx-8">
       {/* Sidebar */}
@@ -79,8 +88,15 @@ export default function Assistente() {
         />
       </div>
 
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main chat area — arrastar o arquivo em qualquer ponto do chat anexa na composição */}
+      <div className="flex-1 flex flex-col min-w-0 relative" {...chatDropProps}>
+        {chatDragActive && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg pointer-events-none">
+            <p className="text-sm font-medium text-primary bg-background/90 px-3 py-1.5 rounded-lg">
+              Solte o arquivo aqui
+            </p>
+          </div>
+        )}
         {/* Header */}
         <div className="border-b px-4 py-3 flex items-center gap-2 bg-background/80 backdrop-blur">
           <div className="bg-primary/10 p-1.5 rounded-full">
@@ -146,6 +162,7 @@ export default function Assistente() {
               }}
             >
               <AIFileUpload
+                ref={fileUploadRef}
                 onFileProcessed={handleFileProcessed}
                 uploadFile={uploadFile}
                 disabled={isStreaming}

@@ -16,6 +16,12 @@ window.addEventListener("vite:preloadError", () => {
   }
 });
 
+// Errar a área de upload por alguns pixels fazia o navegador abrir o arquivo solto
+// e sair do app — com o formulário preenchido junto. As áreas de upload chamam
+// stopPropagation, então só chega aqui o que caiu fora delas.
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
+
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider>
     <App />

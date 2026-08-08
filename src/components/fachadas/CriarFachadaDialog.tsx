@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCRMStore } from '@/stores/crmStore';
+import { supabase } from '@/integrations/supabase/client';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { cn } from '@/lib/utils';
 import {
   TIPO_NEGOCIO_LABELS,
   CTA_LABELS,
@@ -96,6 +100,24 @@ export function CriarFachadaDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fachadaToEdit, open]);
 
+  const templateInputRef = useRef<HTMLInputElement>(null);
+
+  const selecionarTemplate = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Envie uma imagem (PNG, JPG ou WEBP).');
+      return;
+    }
+    if (templatePreviewUrl) URL.revokeObjectURL(templatePreviewUrl);
+    setCustomTemplateFile(file);
+    setTemplatePreviewUrl(URL.createObjectURL(file));
+  };
+
+  const { dragActive: templateDragActive, dropProps: templateDropProps } = useFileDrop(
+    (arquivos) => selecionarTemplate(arquivos[0]),
+    { accept: 'image/*', onReject: () => toast.error('Envie uma imagem (PNG, JPG ou WEBP).') },
+  );
+
   const resetForm = () => {
     setStep(1);
     setImovelId('');
@@ -128,7 +150,9 @@ export function CriarFachadaDialog({
           try {
             const { data: corretorId } = await supabase.rpc('get_corretor_id');
             if (corretorId) {
-              await supabase.from('fachada_templates').insert({
+              // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
+              // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
+              await (supabase as any).from('fachada_templates').insert({
                 corretor_id: corretorId,
                 nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
                 categoria: tipoNegocio,
@@ -379,20 +403,37 @@ export function CriarFachadaDialog({
                     }
                   />
                 ) : (
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setCustomTemplateFile(file);
-                        setTemplatePreviewUrl(URL.createObjectURL(file));
-                      } else {
-                        setCustomTemplateFile(null);
-                        setTemplatePreviewUrl(null);
-                      }
-                    }}
-                  />
+                  <>
+                    <input
+                      ref={templateInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        selecionarTemplate(e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      {...templateDropProps}
+                      onClick={() => templateInputRef.current?.click()}
+                      className={cn(
+                        'w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 text-center transition-colors',
+                        templateDragActive
+                          ? 'border-primary bg-primary/5'
+                          : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30',
+                      )}
+                    >
+                      <div className="p-3 rounded-full bg-primary/10">
+                        <Upload className="h-5 w-5 text-primary" />
+                      </div>
+                      <p className="text-sm font-medium">
+                        {templateDragActive ? 'Solte a arte aqui' : 'Arraste ou clique para enviar a arte'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">PNG, JPG ou WEBP</p>
+                    </button>
+                  </>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">
                   Faça o upload da arte da sua fachada. Ajuste o tamanho e a posição do QR Code arrastando a marcação na imagem.

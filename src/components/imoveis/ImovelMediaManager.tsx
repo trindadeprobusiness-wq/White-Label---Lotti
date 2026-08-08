@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useImovelFotos } from '@/hooks/useImovelFotos';
 import { useVideos } from '@/hooks/useVideos';
+import { useFileDrop } from '@/hooks/useFileDrop';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 5 * 1024 * 1024; // 5MB
@@ -58,9 +59,8 @@ export function ImovelMediaManager({
     if (imovelId) fetchFotos(imovelId);
   }, [imovelId, fetchFotos]);
 
-  const handleAddFotos = async (fileList: FileList | null) => {
-    if (!fileList?.length) return;
-    const all = Array.from(fileList);
+  const handleAddFotos = async (all: File[]) => {
+    if (!all.length) return;
     const validas = all.filter((f) => IMAGE_TYPES.includes(f.type) && f.size <= MAX_IMAGE);
     const invalidas = all.length - validas.length;
     if (invalidas > 0) {
@@ -74,9 +74,9 @@ export function ImovelMediaManager({
     await uploadMultipleFotos(imovelId, validas.slice(0, espaco));
   };
 
-  const handleAddVideo = async (fileList: FileList | null) => {
-    if (!fileList?.length) return;
-    const file = fileList[0];
+  const handleAddVideo = async (arquivos: File[]) => {
+    const file = arquivos[0];
+    if (!file) return;
     if (!VIDEO_TYPES.includes(file.type)) {
       toast.error('Formato de vídeo inválido (use MP4, WebM, MOV ou AVI)');
       return;
@@ -97,6 +97,10 @@ export function ImovelMediaManager({
     await deleteVideo(id, path);
     await fetchVideos();
   };
+
+  // A área de drop é a grade inteira, não só o quadradinho de "+".
+  const dropFotos = useFileDrop(handleAddFotos, { multiple: true, disabled: busy });
+  const dropVideo = useFileDrop(handleAddVideo, { disabled: busy });
 
   return (
     <div className={cn('space-y-5', className)}>
@@ -132,12 +136,18 @@ export function ImovelMediaManager({
           className="hidden"
           disabled={busy}
           onChange={(e) => {
-            handleAddFotos(e.target.files);
+            handleAddFotos(Array.from(e.target.files ?? []));
             e.target.value = '';
           }}
         />
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+        <div
+          {...dropFotos.dropProps}
+          className={cn(
+            'grid grid-cols-3 sm:grid-cols-4 gap-2.5 rounded-lg transition',
+            dropFotos.dragActive && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+          )}
+        >
           {fotos.map((foto) => (
             <div
               key={foto.id}
@@ -199,7 +209,7 @@ export function ImovelMediaManager({
 
         {fotos.length === 0 && !loadingFotos && (
           <p className="text-xs text-muted-foreground mt-2">
-            Nenhuma foto ainda. A primeira enviada vira a principal.
+            Nenhuma foto ainda. Arraste as fotos para cá ou clique no +. A primeira enviada vira a principal.
           </p>
         )}
       </div>
@@ -221,12 +231,18 @@ export function ImovelMediaManager({
           className="hidden"
           disabled={busy}
           onChange={(e) => {
-            handleAddVideo(e.target.files);
+            handleAddVideo(Array.from(e.target.files ?? []));
             e.target.value = '';
           }}
         />
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div
+          {...dropVideo.dropProps}
+          className={cn(
+            'grid grid-cols-2 sm:grid-cols-3 gap-2.5 rounded-lg transition',
+            dropVideo.dragActive && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+          )}
+        >
           {videos.map((video) => (
             <div
               key={video.id}
