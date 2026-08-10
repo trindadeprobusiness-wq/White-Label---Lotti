@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { asaasGet, asaasPost, asaasPut, AsaasError } from "../_shared/asaas.ts";
+import { telefoneParaAsaas, ehErroDeTelefone } from "../_shared/telefone.ts";
+
+const AVISO_TELEFONE =
+    "A cobrança foi emitida, mas o telefone do inquilino não foi aceito pelo Asaas e ficou de fora do cadastro. Corrija o telefone no cadastro do cliente.";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -200,7 +204,18 @@ serve(async (req) => {
             return json({ error: "O inquilino precisa ter CPF cadastrado para emitir a cobrança." }, 422);
         }
 
-        // 3. ensure_customer — garante o pagador no Asaas
+        // 3. ensure_customer — garante o pagador no Asaas.
+        // O telefone NUNCA pode barrar a emissão: para o Asaas ele é opcional, só o
+        // CPF é obrigatório (checado acima). Antes mandávamos `clientes.telefone` cru
+        // e qualquer número torto derrubava o POST /customers com HTTP 400, matando a
+        // cobrança inteira antes de chegar no POST /payments.
+        const avisos: string[] = [];
+        const tel = telefoneParaAsaas(cliente?.telefone);
+        const temTelefoneValido = !!(tel.mobilePhone || tel.phone);
+        if (!temTelefoneValido && (cliente?.telefone ?? "").trim()) {
+            avisos.push(AVISO_TELEFONE);
+        }
+
         let customerId: string | null = cliente?.asaas_customer_id ?? null;
         if (!customerId) {
             // dedupe por CPF antes de criar
@@ -210,16 +225,35 @@ serve(async (req) => {
             } catch (_) { /* segue para criação */ }
 
             if (!customerId) {
-                const novo = await asaasPost("/customers", {
+                const base = {
                     name: cliente.nome,
                     cpfCnpj: cpf,
                     email: cliente.email || undefined,
-                    mobilePhone: (cliente.telefone ?? "").replace(/\D/g, "") || undefined,
                     externalReference: cliente.id,
-                });
+                };
+                let novo;
+                try {
+                    novo = await asaasPost("/customers", { ...base, ...tel });
+                } catch (e) {
+                    // Rede de segurança: o Asaas pode ter regra de telefone que a nossa
+                    // normalização não conhece. Se a recusa for SÓ por telefone, refaz
+                    // sem ele. Qualquer outro erro (CPF, nome) continua subindo.
+                    if (!(e instanceof AsaasError && temTelefoneValido && ehErroDeTelefone(e.body))) throw e;
+                    console.warn("Asaas recusou o telefone; recriando o customer sem ele.", e.body);
+                    novo = await asaasPost("/customers", base);
+                    avisos.push(AVISO_TELEFONE);
+                }
                 customerId = novo.id;
             }
             await admin.from("clientes").update({ asaas_customer_id: customerId }).eq("id", cliente.id);
+        } else if (temTelefoneValido) {
+            // O customer já existe no Asaas e não havia caminho de update: corrigir o
+            // telefone no CRM nunca chegava lá. Best-effort — não interrompe a emissão.
+            try {
+                await asaasPut(`/customers/${customerId}`, tel);
+            } catch (e) {
+                console.warn("Não foi possível atualizar o telefone do customer no Asaas.", e);
+            }
         }
 
         // 4. create_payment
@@ -272,6 +306,7 @@ serve(async (req) => {
             boleto_url: payment.bankSlipUrl ?? payment.invoiceUrl ?? null,
             pix: pixText,
             status: payment.status,
+            avisos,
         });
     } catch (error) {
         if (error instanceof AsaasError) {

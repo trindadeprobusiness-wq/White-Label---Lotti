@@ -85,7 +85,12 @@ export const formatarCpfCnpj = (value: string): string => {
 
 // Formatação de telefone
 export const formatarTelefone = (value: string): string => {
-  const cleaned = value.replace(/\D/g, '').slice(0, 11);
+  let digitos = value.replace(/\D/g, '');
+  // Número colado com código do país ("5562999998888"): tira o 55 ANTES de cortar.
+  // Sem isso o slice(0, 11) preservava o prefixo e descartava o final do número,
+  // gravando "(55) 62999-9988" — um telefone que não existe.
+  if (digitos.length > 11 && digitos.startsWith('55')) digitos = digitos.slice(2);
+  const cleaned = digitos.slice(0, 11);
   if (cleaned.length <= 10) {
     return cleaned
       .replace(/(\d{2})(\d)/, '($1) $2')

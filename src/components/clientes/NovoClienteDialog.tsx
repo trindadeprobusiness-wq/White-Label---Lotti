@@ -9,6 +9,10 @@ import { useCRMStore } from '@/stores/crmStore';
 import { TipoInteresse, StatusFunil, Cliente } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { getTrackingData } from '@/hooks/useUTMTracker';
+// A máscara local truncava a string JÁ formatada (slice(0,15)) sem limitar os
+// dígitos antes: colar "5562999998888" virava "(55) 6299999-88". Esta corta em
+// 11 dígitos primeiro e é a mesma usada no resto do app.
+import { formatarTelefone } from '@/lib/validators';
 
 interface NovoClienteDialogProps {
   open: boolean;
@@ -47,15 +51,6 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
       }
     }
   }, [open, clienteToEdit]);
-
-  // Phone mask function
-  const maskPhone = (value: string) => {
-    return value
-      .replace(/\D/g, '')
-      .replace(/^(\d{2})(\d)/g, '($1) $2')
-      .replace(/(\d)(\d{4})$/, '$1-$2')
-      .slice(0, 15);
-  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -127,7 +122,7 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
             <Input
               required
               value={form.telefone}
-              onChange={(e) => setForm({ ...form, telefone: maskPhone(e.target.value) })}
+              onChange={(e) => setForm({ ...form, telefone: formatarTelefone(e.target.value) })}
               placeholder="(00) 00000-0000"
               maxLength={15}
             />

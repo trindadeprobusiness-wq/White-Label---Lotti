@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileDrop } from "@/hooks/useFileDrop";
+import { formatarTelefone } from "@/lib/validators";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -405,7 +406,9 @@ export function BillsList() {
             if (readErr) throw readErr;
 
             const patch: Record<string, unknown> = { cpf: inq.cpf.replace(/\D/g, '') };
-            if (!atual?.telefone && inq.telefone) patch.telefone = inq.telefone;
+            // O telefone vem da leitura da IA em texto livre; formata antes de gravar
+            // para não plantar número torto logo antes de emitir a cobrança.
+            if (!atual?.telefone && inq.telefone) patch.telefone = formatarTelefone(inq.telefone);
             if (!atual?.email && inq.email) patch.email = inq.email;
 
             const { error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId);
@@ -579,6 +582,11 @@ export function BillsList() {
                 data?.already ? "Cobrança já estava emitida." : "Cobrança emitida! O inquilino já pode pagar por boleto ou PIX.",
                 data?.boleto_url ? { action: { label: "Abrir boleto", onClick: () => window.open(data.boleto_url, "_blank") } } : undefined,
             );
+            // A cobrança saiu; o aviso (ex.: telefone recusado pelo Asaas) é secundário
+            // e vem depois para não competir com o sucesso.
+            if (Array.isArray(data?.avisos) && data.avisos.length) {
+                toast.warning(data.avisos.join(" "), { duration: 8000 });
+            }
             queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
         } catch (error: any) {
             console.error("Erro ao emitir cobrança:", error);
