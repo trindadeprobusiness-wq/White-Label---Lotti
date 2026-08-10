@@ -459,27 +459,63 @@ export function BillsList() {
         return data.id;
     };
 
+    // Invoca a asaas-sync com o JWT do corretor e desembrulha a mensagem de erro que
+    // a função devolve no corpo (o invoke sozinho só entrega "non-2xx status code").
+    const chamarAsaas = async (action: string, faturaId: string, extra: Record<string, unknown> = {}) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+        const { data, error } = await supabase.functions.invoke('asaas-sync', {
+            body: { action, fatura_id: faturaId, ...extra },
+            headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (error) {
+            let msg = error.message;
+            try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
+            throw new Error(msg);
+        }
+        if (data?.error) throw new Error(data.error);
+        return data;
+    };
+
     // Actions — a confirmação é feita por AlertDialog (não por confirm() nativo,
     // que era fácil de disparar sem querer).
     const doConfirmPayment = async (bill: any) => {
         setProcessingId(bill.id);
         const loadingToast = toast.loading("Processando pagamento...");
+        const avisos: string[] = [];
+        let complemento = "";
         try {
             const faturaId = await ensureFatura(bill);
-            // Apenas transiciona para PAGO. O trigger handle_bill_payment() cria o
-            // repasse ao proprietário e o lançamento de comissão (fonte única).
+            const dataPagamento = new Date().toISOString().split('T')[0];
+
+            // 1. Asaas ANTES do banco. Baixa manual = recebi por fora (PIX/transferência
+            // em outro banco), então a cobrança tem que sair de aberta lá: senão o
+            // boleto segue pagável e o inquilino paga de novo.
+            try {
+                const r = await chamarAsaas('receber_em_dinheiro', faturaId, { data_pagamento: dataPagamento });
+                if (Array.isArray(r?.avisos) && r.avisos.length) avisos.push(...r.avisos);
+                else if (!r?.sem_cobranca) complemento = " Lançado no Asaas como recebimento em dinheiro.";
+            } catch (e: any) {
+                avisos.push(
+                    `A baixa foi registrada aqui, mas não consegui marcar o recebimento em dinheiro no Asaas — a cobrança continua ativa lá e o inquilino ainda consegue pagar o boleto. Confira no painel do Asaas. (${e?.message ?? 'erro desconhecido'})`,
+                );
+            }
+
+            // 2. Banco. O trigger handle_bill_payment() cria o repasse ao proprietário
+            // e o lançamento de comissão (fonte única).
             const { error } = await (supabase as any)
                 .from("faturas_aluguel")
                 .update({
                     status: 'PAGO',
-                    data_pagamento: new Date().toISOString().split('T')[0],
+                    data_pagamento: dataPagamento,
                     valor_pago: bill.valor_total,
                 })
                 .eq('id', faturaId);
             if (error) throw error;
 
             toast.dismiss(loadingToast);
-            toast.success("Pagamento confirmado com sucesso!");
+            toast.success("Pagamento confirmado!" + complemento);
+            if (avisos.length) toast.warning(avisos.join(" "), { duration: 10000 });
             queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
         } catch (error: any) {
             console.error("Erro ao baixar fatura:", error);
@@ -496,12 +532,25 @@ export function BillsList() {
     const handleRevertPayment = async (bill: any) => {
         setProcessingId(bill.id);
         const loadingToast = toast.loading("Desfazendo pagamento...");
+        const avisos: string[] = [];
         try {
             const { error } = await (supabase as any).rpc('estornar_pagamento_fatura', { p_fatura_id: bill.id });
             if (error) throw error;
 
+            // Reabre a cobrança no Asaas — senão a fatura volta a pendente aqui mas
+            // continua como recebida lá, e o inquilino não consegue mais pagar.
+            try {
+                const r = await chamarAsaas('desfazer_recebimento', bill.id);
+                if (Array.isArray(r?.avisos) && r.avisos.length) avisos.push(...r.avisos);
+            } catch (e: any) {
+                avisos.push(
+                    `O estorno foi feito aqui, mas a cobrança segue como recebida no Asaas — desfaça o recebimento no painel de lá. (${e?.message ?? 'erro desconhecido'})`,
+                );
+            }
+
             toast.dismiss(loadingToast);
             toast.success("Pagamento desfeito — a fatura voltou a não paga; repasse e comissão foram removidos.");
+            if (avisos.length) toast.warning(avisos.join(" "), { duration: 10000 });
             queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
         } catch (error: any) {
             console.error("Erro ao desfazer pagamento:", error);
@@ -530,15 +579,11 @@ export function BillsList() {
             // Se já emitida, atualiza o boleto no Asaas (a função lê a nova data).
             let boletoMsg = "";
             if (billToEditDate.externalId) {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                    const { data, error: fnErr } = await supabase.functions.invoke('asaas-sync', {
-                        body: { action: 'atualizar_cobranca', fatura_id: faturaId },
-                        headers: { Authorization: `Bearer ${session.access_token}` },
-                    });
-                    boletoMsg = (fnErr || data?.error)
-                        ? " (não consegui atualizar o boleto no Asaas — tente novamente)"
-                        : " e o boleto foi atualizado";
+                try {
+                    await chamarAsaas('atualizar_cobranca', faturaId);
+                    boletoMsg = " e o boleto foi atualizado";
+                } catch {
+                    boletoMsg = " (não consegui atualizar o boleto no Asaas — tente novamente)";
                 }
             }
 
@@ -561,21 +606,7 @@ export function BillsList() {
         const loadingToast = toast.loading("Emitindo cobrança no Asaas...");
         try {
             const faturaId = await ensureFatura(bill);
-            // Passa o token da sessão explicitamente (o invoke sozinho não anexa o JWT
-            // do corretor de forma confiável — mesmo padrão robusto do ai-assistant).
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error('Sua sessão expirou. Entre novamente para emitir a cobrança.');
-            const { data, error } = await supabase.functions.invoke('asaas-sync', {
-                body: { action: 'emitir_cobranca', fatura_id: faturaId },
-                headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-            if (error) {
-                // Erro HTTP da função traz o corpo em error.context
-                let msg = error.message;
-                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
-                throw new Error(msg);
-            }
-            if (data?.error) throw new Error(data.error);
+            const data = await chamarAsaas('emitir_cobranca', faturaId);
 
             toast.dismiss(loadingToast);
             toast.success(

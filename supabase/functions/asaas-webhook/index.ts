@@ -92,7 +92,10 @@ async function processEvent(eventRowId: string) {
             .update({ corretor_id: fatura.corretor_id, payment_id: payment.id })
             .eq('id', eventRowId);
 
-        if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+        // RECEIVED_IN_CASH cobre a baixa manual: a que o sistema faz ao clicar em
+        // "Baixar" (aí a fatura já está PAGO e cai no dedup abaixo) e a que o corretor
+        // faz direto no painel do Asaas — que antes não chegava até aqui.
+        if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED_IN_CASH') {
             if (fatura.status === 'PAGO') {
                 await finalize('IGNORED'); // dedup de negócio (CONFIRMED + RECEIVED)
                 return;

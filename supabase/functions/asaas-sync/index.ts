@@ -72,7 +72,7 @@ serve(async (req) => {
             return json({ error: "Sua sessão expirou. Entre novamente para continuar." }, 401);
         }
 
-        const { action, fatura_id } = await req.json();
+        const { action, fatura_id, data_pagamento } = await req.json();
 
         // Ação: consultar o saldo da conta Asaas (não depende de fatura).
         if (action === "saldo") {
@@ -92,7 +92,10 @@ serve(async (req) => {
             }
         }
 
-        if ((action !== "emitir_cobranca" && action !== "atualizar_cobranca") || !fatura_id) {
+        const ACOES_FATURA = [
+            "emitir_cobranca", "atualizar_cobranca", "receber_em_dinheiro", "desfazer_recebimento",
+        ];
+        if (!ACOES_FATURA.includes(action) || !fatura_id) {
             return json({ error: "Requisição inválida" }, 400);
         }
 
@@ -104,8 +107,12 @@ serve(async (req) => {
             .single();
 
         if (fErr || !fatura) return json({ error: "Fatura não encontrada" }, 404);
-        if (fatura.status === "PAGO") return json({ error: "Fatura já está paga" }, 409);
-        if (fatura.status === "CANCELADO") return json({ error: "Fatura cancelada" }, 409);
+        // A baixa manual e o estorno agem justamente sobre fatura paga (ou prestes a
+        // ser marcada como tal), então essas guardas valem só para emitir/atualizar.
+        if (action === "emitir_cobranca" || action === "atualizar_cobranca") {
+            if (fatura.status === "PAGO") return json({ error: "Fatura já está paga" }, 409);
+            if (fatura.status === "CANCELADO") return json({ error: "Fatura cancelada" }, 409);
+        }
 
         const cliente = fatura.clientes;
         const contrato = fatura.contratos;
@@ -186,6 +193,98 @@ serve(async (req) => {
                 pix: pixText,
                 status: payment.status,
             });
+        }
+
+        // ── Ação: BAIXA MANUAL → recebimento em dinheiro no Asaas ──
+        // O corretor recebeu por fora (PIX/transferência em outro banco) e deu baixa
+        // na mão. Sem isto a cobrança seguia ABERTA no Asaas: o boleto continuava
+        // pagável e o inquilino podia pagar de novo, além do painel mostrar pendente.
+        if (action === "receber_em_dinheiro") {
+            if (!fatura.external_id) {
+                // Nunca foi emitida — não existe cobrança no Asaas para baixar.
+                return json({ ok: true, sem_cobranca: true, avisos: [] });
+            }
+
+            const atual = await asaasGet(`/payments/${fatura.external_id}`);
+            const st = String(atual?.status ?? "");
+
+            if (st === "RECEIVED_IN_CASH") {
+                return json({ ok: true, already: true, status: st, avisos: [] });
+            }
+            if (["RECEIVED", "CONFIRMED"].includes(st)) {
+                // Já entrou pelo boleto/PIX; o webhook cuidou. Marcar em dinheiro aqui
+                // duplicaria o recebimento no Asaas.
+                return json({
+                    ok: true,
+                    status: st,
+                    avisos: ["Esta cobrança já constava paga no Asaas (boleto ou PIX). A baixa foi registrada apenas no sistema, para não lançar o valor duas vezes."],
+                });
+            }
+
+            const dataPg = /^\d{4}-\d{2}-\d{2}$/.test(String(data_pagamento ?? "")) ? data_pagamento : hoje();
+            const recebido = await asaasPost(`/payments/${fatura.external_id}/receiveInCash`, {
+                paymentDate: dataPg,
+                value: Number(fatura.valor_total),
+                notifyCustomer: false,
+            });
+
+            await admin.from("faturas_aluguel")
+                .update({ asaas_status: recebido?.status ?? "RECEIVED_IN_CASH" })
+                .eq("id", fatura.id);
+
+            await admin.from("auditoria_financeira").insert({
+                corretor_id: fatura.corretor_id,
+                entidade: "faturas_aluguel",
+                entidade_id: fatura.id,
+                acao: "RECEBIMENTO_EM_DINHEIRO",
+                dados_depois: {
+                    external_id: fatura.external_id,
+                    paymentDate: dataPg,
+                    value: Number(fatura.valor_total),
+                    status: recebido?.status ?? null,
+                },
+                origem: "ui",
+                ator: user.id,
+            });
+
+            return json({ ok: true, status: recebido?.status ?? null, avisos: [] });
+        }
+
+        // ── Ação: DESFAZER a baixa manual no Asaas ──
+        if (action === "desfazer_recebimento") {
+            if (!fatura.external_id) return json({ ok: true, sem_cobranca: true, avisos: [] });
+
+            const atual = await asaasGet(`/payments/${fatura.external_id}`);
+            const st = String(atual?.status ?? "");
+            if (st !== "RECEIVED_IN_CASH") {
+                // Não foi baixa em dinheiro (ou já foi desfeita): nada a reverter lá.
+                return json({
+                    ok: true,
+                    nao_aplicavel: true,
+                    status: st,
+                    avisos: st === "RECEIVED" || st === "CONFIRMED"
+                        ? ["A cobrança consta paga no Asaas por boleto/PIX. O estorno foi feito só no sistema — se for o caso, estorne também no painel do Asaas."]
+                        : [],
+                });
+            }
+
+            const desfeito = await asaasPost(`/payments/${fatura.external_id}/undoReceivedInCash`, {});
+
+            await admin.from("faturas_aluguel")
+                .update({ asaas_status: desfeito?.status ?? "PENDING" })
+                .eq("id", fatura.id);
+
+            await admin.from("auditoria_financeira").insert({
+                corretor_id: fatura.corretor_id,
+                entidade: "faturas_aluguel",
+                entidade_id: fatura.id,
+                acao: "RECEBIMENTO_EM_DINHEIRO_DESFEITO",
+                dados_depois: { external_id: fatura.external_id, status: desfeito?.status ?? null },
+                origem: "ui",
+                ator: user.id,
+            });
+
+            return json({ ok: true, status: desfeito?.status ?? null, avisos: [] });
         }
 
         // ── Ação: EMITIR (idempotente) ──
