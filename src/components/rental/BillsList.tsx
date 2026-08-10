@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { formatarTelefone } from "@/lib/validators";
+import { normalizarTelefoneBR } from "@/lib/telefone";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -477,6 +478,38 @@ export function BillsList() {
         return data;
     };
 
+    // A asaas-sync manda clientes.telefone para o Asaas, que recusa número fora do
+    // padrão e devolve HTTP 400 — derrubando a emissão inteira antes de criar a
+    // cobrança. Telefone não pode barrar cobrança; só CPF. Então o cadastro é
+    // higienizado ANTES de chamar a função: o que dá para salvar é normalizado
+    // (tira o "55" de quem veio do lead-capture, corrige a máscara), e o que é
+    // irrecuperável sai da frente com aviso para recadastrar.
+    //
+    // Isso vale independentemente da versão da Edge Function em produção — é a
+    // garantia de que um telefone torto nunca impede o inquilino de receber o boleto.
+    const higienizarTelefone = async (clienteId?: string | null): Promise<string[]> => {
+        if (!clienteId) return [];
+        try {
+            const { data } = await (supabase as any)
+                .from('clientes').select('telefone').eq('id', clienteId).single();
+            const bruto = String(data?.telefone ?? '').trim();
+            if (!bruto) return [];
+
+            const { digitos, formatado } = normalizarTelefoneBR(bruto);
+            if (digitos) {
+                if (formatado !== bruto) {
+                    await (supabase as any).from('clientes').update({ telefone: formatado }).eq('id', clienteId);
+                }
+                return [];
+            }
+
+            await (supabase as any).from('clientes').update({ telefone: '' }).eq('id', clienteId);
+            return [`O telefone "${bruto}" não é um número válido e foi retirado do cadastro para não travar a cobrança. Cadastre o número correto do inquilino quando puder.`];
+        } catch {
+            return []; // higiene é best-effort — nunca pode impedir a emissão
+        }
+    };
+
     // Actions — a confirmação é feita por AlertDialog (não por confirm() nativo,
     // que era fácil de disparar sem querer).
     const doConfirmPayment = async (bill: any) => {
@@ -606,6 +639,7 @@ export function BillsList() {
         const loadingToast = toast.loading("Emitindo cobrança no Asaas...");
         try {
             const faturaId = await ensureFatura(bill);
+            const avisosLocais = await higienizarTelefone(bill.contract?.cliente_id);
             const data = await chamarAsaas('emitir_cobranca', faturaId);
 
             toast.dismiss(loadingToast);
@@ -613,11 +647,10 @@ export function BillsList() {
                 data?.already ? "Cobrança já estava emitida." : "Cobrança emitida! O inquilino já pode pagar por boleto ou PIX.",
                 data?.boleto_url ? { action: { label: "Abrir boleto", onClick: () => window.open(data.boleto_url, "_blank") } } : undefined,
             );
-            // A cobrança saiu; o aviso (ex.: telefone recusado pelo Asaas) é secundário
-            // e vem depois para não competir com o sucesso.
-            if (Array.isArray(data?.avisos) && data.avisos.length) {
-                toast.warning(data.avisos.join(" "), { duration: 8000 });
-            }
+            // A cobrança saiu; o aviso (ex.: telefone inválido retirado do cadastro) é
+            // secundário e vem depois para não competir com o sucesso.
+            const avisos = [...avisosLocais, ...(Array.isArray(data?.avisos) ? data.avisos : [])];
+            if (avisos.length) toast.warning(avisos.join(" "), { duration: 10000 });
             queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
         } catch (error: any) {
             console.error("Erro ao emitir cobrança:", error);
