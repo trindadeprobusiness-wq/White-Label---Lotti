@@ -12,6 +12,19 @@ export interface TelefoneAsaas {
   phone?: string;
 }
 
+/** DDDs que existem de verdade — 20, 25, 30, 50 e outros nunca foram atribuídos. */
+const DDDS_VALIDOS = new Set([
+  11, 12, 13, 14, 15, 16, 17, 18, 19,
+  21, 22, 24, 27, 28,
+  31, 32, 33, 34, 35, 37, 38,
+  41, 42, 43, 44, 45, 46, 47, 48, 49,
+  51, 53, 54, 55,
+  61, 62, 63, 64, 65, 66, 67, 68, 69,
+  71, 73, 74, 75, 77, 79,
+  81, 82, 83, 84, 85, 86, 87, 88, 89,
+  91, 92, 93, 94, 95, 96, 97, 98, 99,
+]);
+
 /**
  * Separa o telefone nos campos que o Asaas aceita.
  * Objeto vazio = não dá para enviar; quem chama simplesmente omite o telefone.
@@ -22,9 +35,7 @@ export function telefoneParaAsaas(bruto: string | null | undefined): TelefoneAsa
   // Código do país: lead-capture e integrações de WhatsApp gravam "55" na frente.
   if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
 
-  // DDD válido no Brasil vai de 11 a 99.
-  const ddd = Number(d.slice(0, 2));
-  if (!(ddd >= 11 && ddd <= 99)) return {};
+  if (!DDDS_VALIDOS.has(Number(d.slice(0, 2)))) return {};
 
   // Celular: DDD + 9 dígitos, o primeiro deles sendo 9.
   if (d.length === 11 && d[2] === "9") return { mobilePhone: d };

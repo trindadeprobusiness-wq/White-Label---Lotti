@@ -478,35 +478,66 @@ export function BillsList() {
         return data;
     };
 
-    // A asaas-sync manda clientes.telefone para o Asaas, que recusa número fora do
-    // padrão e devolve HTTP 400 — derrubando a emissão inteira antes de criar a
-    // cobrança. Telefone não pode barrar cobrança; só CPF. Então o cadastro é
-    // higienizado ANTES de chamar a função: o que dá para salvar é normalizado
-    // (tira o "55" de quem veio do lead-capture, corrige a máscara), e o que é
-    // irrecuperável sai da frente com aviso para recadastrar.
-    //
-    // Isso vale independentemente da versão da Edge Function em produção — é a
-    // garantia de que um telefone torto nunca impede o inquilino de receber o boleto.
-    const higienizarTelefone = async (clienteId?: string | null): Promise<string[]> => {
-        if (!clienteId) return [];
+    // O inquilino dono da fatura. Prefere o objeto em memória e cai para o banco,
+    // para não depender do formato do bill.
+    const clienteDaFatura = async (faturaId: string, bill: any): Promise<string | null> => {
+        if (bill?.contract?.cliente_id) return bill.contract.cliente_id;
         try {
             const { data } = await (supabase as any)
-                .from('clientes').select('telefone').eq('id', clienteId).single();
-            const bruto = String(data?.telefone ?? '').trim();
-            if (!bruto) return [];
+                .from('faturas_aluguel').select('cliente_id').eq('id', faturaId).single();
+            return data?.cliente_id ?? null;
+        } catch {
+            return null;
+        }
+    };
 
-            const { digitos, formatado } = normalizarTelefoneBR(bruto);
-            if (digitos) {
-                if (formatado !== bruto) {
+    /**
+     * Telefone NUNCA pode impedir a emissão — só CPF. Mas a asaas-sync em produção
+     * manda `clientes.telefone` inteiro no campo `mobilePhone`, e o Asaas recusa
+     * com HTTP 400 tudo que não seja celular válido (DDD + 9 dígitos) — inclusive
+     * telefone FIXO, que é um número perfeitamente legítimo. A recusa derruba a
+     * emissão antes de a cobrança existir.
+     *
+     * O telefone só é lido na CRIAÇÃO do pagador no Asaas. Então, quando o número
+     * guardado não for um celular válido, ele é neutralizado apenas durante a
+     * chamada e devolvido logo depois — o dado do inquilino não se perde e o
+     * boleto sai. Uma vez criado o pagador, `asaas_customer_id` fica gravado e o
+     * telefone não volta a ser enviado.
+     *
+     * É ponte: com a Edge Function corrigida no ar, ela mesma separa celular de
+     * fixo e nada disto é necessário. Manter não faz mal — só normaliza o cadastro.
+     */
+    const emitindoComTelefoneSeguro = async <T,>(
+        clienteId: string | null,
+        acao: () => Promise<T>,
+    ): Promise<T> => {
+        let devolver: string | null = null;
+
+        if (clienteId) {
+            try {
+                const { data } = await (supabase as any)
+                    .from('clientes').select('telefone').eq('id', clienteId).single();
+                const bruto = String(data?.telefone ?? '').trim();
+                const { digitos, formatado } = normalizarTelefoneBR(bruto);
+                const celularValido = !!digitos && digitos.length === 11;
+
+                if (bruto && !celularValido) {
+                    await (supabase as any).from('clientes').update({ telefone: '' }).eq('id', clienteId);
+                    devolver = digitos ? formatado : bruto; // devolve normalizado quando dá
+                } else if (celularValido && formatado !== bruto) {
                     await (supabase as any).from('clientes').update({ telefone: formatado }).eq('id', clienteId);
                 }
-                return [];
-            }
+            } catch { /* best-effort: nunca impede a emissão */ }
+        }
 
-            await (supabase as any).from('clientes').update({ telefone: '' }).eq('id', clienteId);
-            return [`O telefone "${bruto}" não é um número válido e foi retirado do cadastro para não travar a cobrança. Cadastre o número correto do inquilino quando puder.`];
-        } catch {
-            return []; // higiene é best-effort — nunca pode impedir a emissão
+        try {
+            return await acao();
+        } finally {
+            if (clienteId && devolver !== null) {
+                try {
+                    await (supabase as any).from('clientes').update({ telefone: devolver }).eq('id', clienteId);
+                } catch { /* o número volta na próxima edição do cadastro */ }
+            }
         }
     };
 
@@ -639,8 +670,11 @@ export function BillsList() {
         const loadingToast = toast.loading("Emitindo cobrança no Asaas...");
         try {
             const faturaId = await ensureFatura(bill);
-            const avisosLocais = await higienizarTelefone(bill.contract?.cliente_id);
-            const data = await chamarAsaas('emitir_cobranca', faturaId);
+            const clienteId = await clienteDaFatura(faturaId, bill);
+            const data = await emitindoComTelefoneSeguro(
+                clienteId,
+                () => chamarAsaas('emitir_cobranca', faturaId),
+            );
 
             toast.dismiss(loadingToast);
             toast.success(
@@ -649,7 +683,7 @@ export function BillsList() {
             );
             // A cobrança saiu; o aviso (ex.: telefone inválido retirado do cadastro) é
             // secundário e vem depois para não competir com o sucesso.
-            const avisos = [...avisosLocais, ...(Array.isArray(data?.avisos) ? data.avisos : [])];
+            const avisos = Array.isArray(data?.avisos) ? data.avisos : [];
             if (avisos.length) toast.warning(avisos.join(" "), { duration: 10000 });
             queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
         } catch (error: any) {
