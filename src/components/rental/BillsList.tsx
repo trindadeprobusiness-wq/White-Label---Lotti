@@ -478,17 +478,16 @@ export function BillsList() {
         return data;
     };
 
-    // O inquilino dono da fatura. Prefere o objeto em memória e cai para o banco,
-    // para não depender do formato do bill.
+    // O inquilino que a Edge Function vai ler. Ela faz o JOIN a partir de
+    // faturas_aluguel.cliente_id, então é ESSE o registro que importa — usar o
+    // cliente do contrato higienizaria uma linha e a função leria outra.
     const clienteDaFatura = async (faturaId: string, bill: any): Promise<string | null> => {
-        if (bill?.contract?.cliente_id) return bill.contract.cliente_id;
         try {
             const { data } = await (supabase as any)
                 .from('faturas_aluguel').select('cliente_id').eq('id', faturaId).single();
-            return data?.cliente_id ?? null;
-        } catch {
-            return null;
-        }
+            if (data?.cliente_id) return data.cliente_id;
+        } catch { /* cai para o objeto em memória */ }
+        return bill?.contract?.cliente_id ?? null;
     };
 
     /**
@@ -522,12 +521,30 @@ export function BillsList() {
                 const celularValido = !!digitos && digitos.length === 11;
 
                 if (bruto && !celularValido) {
-                    await (supabase as any).from('clientes').update({ telefone: '' }).eq('id', clienteId);
+                    const { error } = await (supabase as any)
+                        .from('clientes').update({ telefone: '' }).eq('id', clienteId);
+                    if (error) throw error;
+
+                    // Confirma que gravou. Antes um UPDATE recusado passava batido e a
+                    // emissão seguia condenada, mostrando o mesmo erro do Asaas sem pista
+                    // do que aconteceu de verdade.
+                    const { data: conferido } = await (supabase as any)
+                        .from('clientes').select('telefone').eq('id', clienteId).single();
+                    if (String(conferido?.telefone ?? '').trim()) {
+                        throw new Error(`não consegui limpar o telefone "${bruto}" do cadastro`);
+                    }
                     devolver = digitos ? formatado : bruto; // devolve normalizado quando dá
                 } else if (celularValido && formatado !== bruto) {
                     await (supabase as any).from('clientes').update({ telefone: formatado }).eq('id', clienteId);
                 }
-            } catch { /* best-effort: nunca impede a emissão */ }
+            } catch (e: any) {
+                // Diagnóstico junto do erro: sem isto, uma falha aqui é indistinguível
+                // de uma recusa do Asaas — foi o que me fez errar o alvo duas vezes.
+                throw new Error(
+                    `Não foi possível preparar o telefone do inquilino antes de emitir (${e?.message ?? 'erro desconhecido'}). ` +
+                    `Corrija ou apague o telefone no cadastro do cliente e tente de novo.`,
+                );
+            }
         }
 
         try {

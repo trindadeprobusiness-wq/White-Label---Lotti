@@ -34,9 +34,11 @@ interface NovoImovelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   imovelToEdit?: any; // Added prop for editing
+  /** Recebe o id do imóvel recém-cadastrado (só no modo criação). */
+  onCreated?: (imovelId: string) => void;
 }
 
-export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImovelDialogProps) {
+export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }: NovoImovelDialogProps) {
   const { addImovel, fetchImoveis } = useCRMStore();
   const { toast } = useToast();
   const { uploadMultipleFotos, uploading } = useImovelFotos();
@@ -212,6 +214,9 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit }: NovoImove
       if (!isEditing) resetForm(); // Only reset if new, keep values if editing? Or close.
       onOpenChange(false);
       fetchImoveis();
+      // Deixa quem abriu o dialog continuar de onde parou (ex.: o wizard de Fachada
+      // já seleciona o imóvel recém-criado em vez de mandar procurar na lista).
+      if (!isEditing && imovel?.id) onCreated?.(imovel.id);
     } catch (error: any) {
       console.error('Erro ao salvar imóvel:', error);
       toast({ title: 'Erro ao salvar imóvel', description: error.message, variant: 'destructive' });

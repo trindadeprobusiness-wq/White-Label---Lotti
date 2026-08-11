@@ -1,5 +1,5 @@
 import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/sidebar';
-import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode, ChevronLeft, ChevronRight, Crown } from 'lucide-react';
+import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,6 @@ export function AppSidebar() {
     { label: 'Mídias', href: '/midias', icon: <Video className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Fachadas', href: '/fachadas', icon: <QrCode className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Assistente IA', href: '/assistente', icon: <Sparkles className="h-5 w-5 flex-shrink-0" /> },
-    { label: 'Plano', href: '/plano', icon: <Crown className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Configurações', href: '/configuracoes', icon: <Settings className="h-5 w-5 flex-shrink-0" /> },
   ];
 

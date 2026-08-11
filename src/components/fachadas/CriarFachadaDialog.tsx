@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload } from 'lucide-react';
+import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { QrCodePositioner } from './QrCodePositioner';
 import { ImovelMediaManager } from '@/components/imoveis/ImovelMediaManager';
+import { NovoImovelDialog } from '@/components/imoveis/NovoImovelDialog';
 import {
   Select,
   SelectContent,
@@ -68,6 +69,7 @@ export function CriarFachadaDialog({
   const { imoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
   const [step, setStep] = useState(1);
+  const [isNovoImovelOpen, setIsNovoImovelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Formulário
@@ -230,7 +232,20 @@ export function CriarFachadaDialog({
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <Label>Imóvel *</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label>Imóvel *</Label>
+                {/* Cadastrar sem abandonar o wizard: antes era preciso sair, ir na aba
+                    Imóveis, cadastrar e recomeçar a fachada do zero. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                  onClick={() => setIsNovoImovelOpen(true)}
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Novo Imóvel
+                </Button>
+              </div>
               <Select value={imovelId} onValueChange={setImovelId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um imóvel" />
@@ -243,6 +258,11 @@ export function CriarFachadaDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {imoveis.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Nenhum imóvel cadastrado ainda — use "Novo Imóvel" aqui mesmo.
+                </p>
+              )}
             </div>
 
             {selectedImovel && (
@@ -554,6 +574,14 @@ export function CriarFachadaDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Cadastro rápido de imóvel — fora do DialogContent, mesmo padrão do
+          NewContractDialog. Ao criar, já seleciona o novo imóvel no passo 1. */}
+      <NovoImovelDialog
+        open={isNovoImovelOpen}
+        onOpenChange={setIsNovoImovelOpen}
+        onCreated={(novoId) => setImovelId(novoId)}
+      />
     </Dialog>
   );
 }

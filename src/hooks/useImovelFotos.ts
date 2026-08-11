@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { novaOrdemPara } from '@/lib/ordemFotos';
 
 export interface ImovelFoto {
   id: string;
@@ -23,11 +24,15 @@ export function useImovelFotos(imovelId?: string) {
 
     try {
       setLoading(true);
+      // Desempate por created_at: as fotos antigas ficaram todas com o default
+      // ordem = 0 e, sem critério secundário, o Postgres devolvia em ordem
+      // imprevisível — a galeria mudava sozinha a cada carregamento.
       const { data, error } = await supabase
         .from('imovel_fotos')
         .select('*')
         .eq('imovel_id', targetId)
-        .order('ordem', { ascending: true });
+        .order('ordem', { ascending: true })
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       setFotos(data || []);
@@ -163,6 +168,33 @@ export function useImovelFotos(imovelId?: string) {
     }
   };
 
+  /**
+   * Grava a coluna `ordem` conforme a posição na lista recebida.
+   * A coluna existe desde a criação da tabela, mas nada no app escrevia nela
+   * depois do insert — a ordem era só a de upload, e não dava para mudar.
+   */
+  const reordenarFotos = async (targetImovelId: string, idsNaOrdem: string[]) => {
+    const anterior = fotos;
+    // Otimista: arrastar tem que parecer instantâneo.
+    const porId = new Map(fotos.map((f) => [f.id, f]));
+    setFotos(idsNaOrdem.map((id, i) => ({ ...porId.get(id)!, ordem: i })).filter(Boolean));
+
+    try {
+      const resultados = await Promise.all(
+        novaOrdemPara(idsNaOrdem).map(({ id, ordem }) =>
+          supabase.from('imovel_fotos').update({ ordem }).eq('id', id),
+        ),
+      );
+      const falhou = resultados.find((r) => r.error);
+      if (falhou?.error) throw falhou.error;
+    } catch (error: any) {
+      console.error('Erro ao reordenar fotos:', error);
+      setFotos(anterior); // desfaz o otimismo
+      toast.error('Não foi possível salvar a nova ordem das fotos');
+      await fetchFotos(targetImovelId);
+    }
+  };
+
   const setFotoPrincipal = async (id: string, targetImovelId: string) => {
     try {
       // Unset all as principal
@@ -178,6 +210,12 @@ export function useImovelFotos(imovelId?: string) {
         .eq('id', id);
 
       if (error) throw error;
+
+      // A principal também vai para o início. Sem isto a fachada pública mostrava
+      // a principal ao fundo e começava o carrossel noutra foto — o visitante via
+      // primeiro uma imagem que o corretor não escolheu.
+      const demais = fotos.filter((f) => f.id !== id).map((f) => f.id);
+      await reordenarFotos(targetImovelId, [id, ...demais]);
 
       toast.success('Foto principal definida!');
       await fetchFotos(targetImovelId);
@@ -223,6 +261,7 @@ export function useImovelFotos(imovelId?: string) {
     uploadFoto,
     uploadMultipleFotos,
     deleteFoto,
+    reordenarFotos,
     setFotoPrincipal,
     getFotoPrincipal,
   };

@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, Film, Star, Trash2, Loader2, Plus, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useImovelFotos } from '@/hooks/useImovelFotos';
 import { useVideos } from '@/hooks/useVideos';
 import { useFileDrop } from '@/hooks/useFileDrop';
+import { OrganizarFotosIA } from './OrganizarFotosIA';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 5 * 1024 * 1024; // 5MB
@@ -38,6 +39,7 @@ export function ImovelMediaManager({
     fetchFotos,
     uploadMultipleFotos,
     deleteFoto,
+    reordenarFotos,
     setFotoPrincipal,
   } = useImovelFotos(imovelId);
   const {
@@ -102,6 +104,21 @@ export function ImovelMediaManager({
   const dropFotos = useFileDrop(handleAddFotos, { multiple: true, disabled: busy });
   const dropVideo = useFileDrop(handleAddVideo, { disabled: busy });
 
+  // Reordenar arrastando. A ordem das fotos é o que o visitante vê na fachada
+  // pública, e até agora era só a ordem de upload — sem como mudar.
+  const [arrastando, setArrastando] = useState<number | null>(null);
+
+  const soltarNaPosicao = (destino: number) => {
+    const origem = arrastando;
+    setArrastando(null);
+    if (origem === null || origem === destino) return;
+
+    const ids = fotos.map((f) => f.id);
+    const [movida] = ids.splice(origem, 1);
+    ids.splice(destino, 0, movida);
+    void reordenarFotos(imovelId, ids);
+  };
+
   return (
     <div className={cn('space-y-5', className)}>
       {/* Aviso de sincronização */}
@@ -125,7 +142,15 @@ export function ImovelMediaManager({
               {fotos.length}/{maxFotos}
             </span>
           </div>
-          {loadingFotos && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          <div className="flex items-center gap-2">
+            {loadingFotos && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            <OrganizarFotosIA
+              imovelId={imovelId}
+              fotos={fotos}
+              disabled={busy}
+              onOrdenar={(ids) => reordenarFotos(imovelId, ids)}
+            />
+          </div>
         </div>
 
         <input
@@ -148,12 +173,27 @@ export function ImovelMediaManager({
             dropFotos.dragActive && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
         >
-          {fotos.map((foto) => (
+          {fotos.map((foto, indice) => (
             <div
               key={foto.id}
-              className="relative group aspect-square rounded-lg overflow-hidden border border-border bg-muted"
+              draggable={!busy}
+              onDragStart={() => setArrastando(indice)}
+              onDragEnd={() => setArrastando(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); soltarNaPosicao(indice); }}
+              className={cn(
+                'relative group aspect-square rounded-lg overflow-hidden border bg-muted transition',
+                busy ? 'border-border' : 'border-border cursor-grab active:cursor-grabbing',
+                arrastando === indice && 'opacity-40 ring-2 ring-primary',
+              )}
             >
-              <img src={foto.arquivo_url} alt="" className="w-full h-full object-cover" />
+              <img src={foto.arquivo_url} alt="" className="w-full h-full object-cover pointer-events-none" />
+
+              {/* A posição é o que o visitante vê na fachada, então mostrar o número
+                  deixa claro que a ordem é editável e o que arrastar mudou. */}
+              <div className="absolute bottom-1 right-1 h-5 min-w-5 px-1 rounded bg-black/70 text-white text-[10px] font-semibold flex items-center justify-center">
+                {indice + 1}
+              </div>
 
               {foto.principal && (
                 <div className="absolute top-1 left-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[9px] font-semibold">
@@ -210,6 +250,12 @@ export function ImovelMediaManager({
         {fotos.length === 0 && !loadingFotos && (
           <p className="text-xs text-muted-foreground mt-2">
             Nenhuma foto ainda. Arraste as fotos para cá ou clique no +. A primeira enviada vira a principal.
+          </p>
+        )}
+
+        {fotos.length > 1 && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Arraste as miniaturas para mudar a ordem — é a mesma ordem que o cliente vê na fachada.
           </p>
         )}
       </div>

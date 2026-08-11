@@ -51,3 +51,11 @@ segredos.local.env
 
 # Artefatos temporários do Supabase CLI
 supabase/.temp/
+
+# Artefatos temporários do Vite (config recompilada)
+vite.config.ts.timestamp-*.mjs
+
+# Bundles gerados para colar no Dashboard do Supabase — build, não fonte.
+# A fonte está em supabase/functions/. O README explica como regenerar.
+deploy-manual/*
+!deploy-manual/README.md

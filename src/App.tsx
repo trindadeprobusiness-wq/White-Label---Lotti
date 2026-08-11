@@ -27,7 +27,8 @@ const RentalManagement = lazy(() => import("@/pages/RentalManagement"));
 const Assistente = lazy(() => import("@/pages/Assistente"));
 const FachadasInteligentes = lazy(() => import("@/pages/FachadasInteligentes"));
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
-const PlanoAssinatura = lazy(() => import("@/pages/PlanoAssinatura"));
+// Assinatura/Planos: código mantido no repositório para o back office futuro,
+// mas fora do grafo de rotas — não faz sentido expor ao corretor hoje.
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -81,7 +82,6 @@ const App = () => (
             <Route path="/alugueis" element={<RentalManagement />} />
             <Route path="/assistente" element={<Assistente />} />
             <Route path="/fachadas" element={<FachadasInteligentes />} />
-            <Route path="/plano" element={<PlanoAssinatura />} />
           </Route>
 
 

@@ -14,8 +14,7 @@ import {
   Bell, 
   Palette, 
   Save,
-  Building2,
-  Crown
+  Building2
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +26,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { FotoPerfilUpload } from '@/components/configuracoes/FotoPerfilUpload';
-import { useNavigate } from 'react-router-dom';
 import type { TemaAparencia, FormatoMoeda, OrdenacaoClientes } from '@/types/crm';
 
 const Configuracoes = () => {
@@ -42,8 +40,6 @@ const Configuracoes = () => {
     updatePreferencias,
     updatePreferenciasNotificacoes 
   } = useCRMStore();
-  
-  const navigate = useNavigate();
 
   // React Hook Form with Zod validation
   const {
@@ -152,7 +148,7 @@ const Configuracoes = () => {
       </div>
 
       <Tabs defaultValue="perfil" className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="perfil" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Perfil
@@ -164,14 +160,6 @@ const Configuracoes = () => {
           <TabsTrigger value="aparencia" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
             Aparência
-          </TabsTrigger>
-          <TabsTrigger 
-            value="plano" 
-            className="flex items-center gap-2"
-            onClick={() => navigate('/plano')}
-          >
-            <Crown className="h-4 w-4" />
-            Plano
           </TabsTrigger>
         </TabsList>
 
