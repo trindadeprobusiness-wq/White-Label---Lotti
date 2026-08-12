@@ -39,12 +39,71 @@ async function corretorId(): Promise<string> {
   return data as string;
 }
 
+// ── Modo de operação ──────────────────────────────────────────────────────
+
+/**
+ * O CRM funciona em dois modos, e escolhe sozinho:
+ *
+ * - COMPLETO: as tabelas crm_* existem → negócio separado do contato, etapas
+ *   configuráveis, tarefas com prazo.
+ * - LEGADO: as tabelas ainda não foram criadas → o pipeline roda sobre
+ *   `clientes.status_funil` e as tarefas sobre `alertas`, que já existem.
+ *
+ * Sem isso a aba abria vazia até alguém aplicar a migration à mão — foi
+ * exatamente o que aconteceu: a funcionalidade existia e ninguém conseguia ver.
+ * Assim ela é útil desde o primeiro segundo e fica mais rica depois.
+ */
+/** Linha crua de  no modo legado (com o imóvel de interesse embutido). */
+type ClienteBruto = {
+  id: string; nome: string; telefone: string | null; status_funil: string; created_at: string;
+  // O PostgREST devolve relacao aninhada como array na inferencia do cliente sem
+  // tipos gerados, mesmo quando a relacao e para-um. Dai o helper primeiro().
+  cliente_imovel?: { imovel_id: string; imoveis?: { titulo: string; valor: number }[] }[];
+};
+
+/** Primeiro item de uma relacao aninhada (array ou objeto). */
+const primeiro = <T,>(v: T | T[] | null | undefined): T | undefined =>
+  Array.isArray(v) ? v[0] : (v ?? undefined);
+
+/** Linha crua de , usada como tarefa no modo legado. */
+type AlertaBruto = {
+  id: string; mensagem: string; lido: boolean; created_at: string;
+  cliente_id: string | null; clientes?: { nome?: string }[];
+};
+
+export type ModoCrm = 'completo' | 'legado';
+
+/** Etapas sintéticas equivalentes ao enum status_funil, para o modo legado. */
+const ETAPAS_LEGADO: CrmEtapa[] = [
+  { id: 'QUALIFICACAO', corretor_id: '', nome: 'Qualificação', ordem: 1, cor: 'blue', tipo: 'ABERTA', ativo: true },
+  { id: 'VISITA_PROPOSTA', corretor_id: '', nome: 'Visita / Proposta', ordem: 2, cor: 'amber', tipo: 'ABERTA', ativo: true },
+  { id: 'DOCUMENTACAO', corretor_id: '', nome: 'Documentação', ordem: 3, cor: 'orange', tipo: 'ABERTA', ativo: true },
+  { id: 'FECHADO_GANHO', corretor_id: '', nome: 'Fechado — ganho', ordem: 4, cor: 'green', tipo: 'GANHO', ativo: true },
+  { id: 'FECHADO_PERDIDO', corretor_id: '', nome: 'Fechado — perdido', ordem: 5, cor: 'red', tipo: 'PERDIDO', ativo: true },
+];
+
+export function useModoCrm() {
+  return useQuery({
+    queryKey: [...crmKeys.todos, 'modo'] as const,
+    staleTime: Infinity, // o schema não muda durante a sessão
+    queryFn: async (): Promise<ModoCrm> => {
+      const { error } = await db().from('crm_etapas').select('id').limit(1);
+      // 42P01 = relation does not exist. Qualquer erro aqui significa "ainda
+      // não dá para usar o modo completo" — degrada em vez de quebrar a tela.
+      return error ? 'legado' : 'completo';
+    },
+  });
+}
+
 // ── Leitura ───────────────────────────────────────────────────────────────
 
 export function useEtapas() {
+  const { data: modo } = useModoCrm();
   return useQuery({
-    queryKey: crmKeys.etapas(),
+    queryKey: [...crmKeys.etapas(), modo] as const,
+    enabled: !!modo,
     queryFn: async (): Promise<CrmEtapa[]> => {
+      if (modo === 'legado') return ETAPAS_LEGADO;
       const { data, error } = await db()
         .from('crm_etapas').select('*').eq('ativo', true).order('ordem');
       if (error) throw error;
@@ -54,9 +113,37 @@ export function useEtapas() {
 }
 
 export function useOportunidades() {
+  const { data: modo } = useModoCrm();
   return useQuery({
-    queryKey: crmKeys.oportunidades(),
+    queryKey: [...crmKeys.oportunidades(), modo] as const,
+    enabled: !!modo,
     queryFn: async (): Promise<CrmOportunidade[]> => {
+      if (modo === 'legado') {
+        // Cada cliente vira um card, com a etapa vindo do status_funil e o valor
+        // do primeiro imóvel de interesse — a mesma leitura que o funil já fazia.
+        const { data, error } = await db()
+          .from('clientes')
+          .select('id, nome, telefone, status_funil, created_at, cliente_imovel(imovel_id, imoveis(titulo, valor))')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data ?? []).map((c: ClienteBruto, i: number) => {
+          const vinculo = primeiro(c.cliente_imovel);
+          const imovel = primeiro(vinculo?.imoveis);
+          return {
+            id: c.id, corretor_id: '', cliente_id: c.id,
+            imovel_id: vinculo?.imovel_id ?? null,
+            etapa_id: c.status_funil,
+            titulo: c.nome,
+            valor_estimado: Number(imovel?.valor ?? 0),
+            probabilidade: 0, data_prevista_fechamento: null, motivo_perda: null,
+            origem: null, ordem: i, observacoes: null, fechada_em: null,
+            created_at: c.created_at, updated_at: c.created_at,
+            clientes: { nome: c.nome, telefone: c.telefone },
+            imoveis: imovel ? { titulo: imovel.titulo } : undefined,
+          } as CrmOportunidade;
+        });
+      }
+
       const { data, error } = await db()
         .from('crm_oportunidades')
         .select('*, clientes(nome, telefone), imoveis(titulo)')
@@ -68,9 +155,28 @@ export function useOportunidades() {
 }
 
 export function useTarefas() {
+  const { data: modo } = useModoCrm();
   return useQuery({
-    queryKey: crmKeys.tarefas(),
+    queryKey: [...crmKeys.tarefas(), modo] as const,
+    enabled: !!modo,
     queryFn: async (): Promise<CrmTarefa[]> => {
+      if (modo === 'legado') {
+        // `alertas` já é a lista de "o que precisa de ação" do sistema.
+        const { data, error } = await db()
+          .from('alertas')
+          .select('id, mensagem, lido, created_at, cliente_id, clientes(nome)')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        return (data ?? []).map((a: AlertaBruto) => ({
+          id: a.id, corretor_id: '', oportunidade_id: null, cliente_id: a.cliente_id,
+          titulo: a.mensagem, descricao: null, tipo: 'OUTRO',
+          data_prevista: a.created_at, concluida: !!a.lido,
+          concluida_em: null, created_at: a.created_at,
+          clientes: primeiro(a.clientes),
+        }) as CrmTarefa);
+      }
+
       const { data, error } = await db()
         .from('crm_tarefas')
         .select('*, clientes(nome)')
@@ -106,10 +212,20 @@ export function useLeadsPendentes() {
  */
 export function useMoverOportunidade() {
   const qc = useQueryClient();
+  const { data: modo } = useModoCrm();
   return useMutation({
     mutationFn: async (args: {
       id: string; etapaId: string; ordem: number; updatedAt: string;
     }) => {
+      // No modo legado o "negócio" é o próprio cliente e a etapa é o status_funil —
+      // mover o card grava exatamente o que o funil clássico sempre gravou.
+      if (modo === 'legado') {
+        const { error } = await db()
+          .from('clientes').update({ status_funil: args.etapaId }).eq('id', args.id);
+        if (error) throw error;
+        return { id: args.id };
+      }
+
       const { data, error } = await db()
         .from('crm_oportunidades')
         .update({ etapa_id: args.etapaId, ordem: args.ordem })
@@ -148,6 +264,43 @@ export function useCriarOportunidade() {
       qc.invalidateQueries({ queryKey: crmKeys.oportunidades() });
     },
     onError: (e) => toast.error(mensagemDeErro(e, 'Não foi possível criar a oportunidade.')),
+  });
+}
+
+/**
+ * Registra no histórico do cliente que uma mensagem foi enviada por WhatsApp.
+ *
+ * O envio em si acontece fora do sistema (o corretor confere e aperta enviar no
+ * WhatsApp), então isto NÃO é confirmação de entrega — é registro de que o
+ * contato foi feito, que é o que alimenta "último contato" e a timeline.
+ *
+ * Grava no formato ANTIGO de historico_contatos (corretor_id/tipo/descricao/data),
+ * que é o que o `crmStore` e a tela de detalhes do cliente leem hoje. O types.ts
+ * está desatualizado em relação ao banco nesta tabela — vale conferir ao regerar.
+ */
+export function useRegistrarContatoWhatsApp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { clienteId: string; mensagem: string }) => {
+      const corretor = await corretorId();
+      const { error } = await db().from('historico_contatos').insert({
+        cliente_id: args.clienteId,
+        corretor_id: corretor,
+        tipo: 'WHATSAPP',
+        descricao: args.mensagem.slice(0, 500),
+        data: new Date().toISOString(),
+      });
+      if (error) throw error;
+      await db().from('clientes')
+        .update({ ultimo_contato: new Date().toISOString() })
+        .eq('id', args.clienteId);
+    },
+    onSuccess: () => {
+      toast.success('Contato registrado no histórico.');
+      qc.invalidateQueries({ queryKey: crmKeys.oportunidades() });
+    },
+    // Falhar aqui não pode atrapalhar: a mensagem já foi aberta no WhatsApp.
+    onError: (e) => console.error('Não foi possível registrar o contato:', e),
   });
 }
 

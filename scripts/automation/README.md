@@ -15,7 +15,7 @@ Configure `.env` (na raiz do projeto ou em `scripts/automation/.env`):
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 EVOLUTION_BASE_URL=http://localhost:8080
-EVOLUTION_API_KEY=6d9b1deed56dd257d99171830b4f755cf6e497369acac757d58ed0a0592505f6
+EVOLUTION_API_KEY=$EVOLUTION_API_KEY
 EVOLUTION_INSTANCE=imobiliaria
 ADMIN_PHONE=5511999999999
 ```

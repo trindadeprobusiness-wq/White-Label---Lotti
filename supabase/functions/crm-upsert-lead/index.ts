@@ -138,7 +138,9 @@ serve(async (req) => {
         cliente_id: clienteId,
         corretor_id,
         tipo: 'FOLLOWUP',
-        prioridade: 'ALTA',
+        // `prioridade` NÃO é enviado de propósito: o schema_probe de produção
+        // mostra `alertas` sem essa coluna, enquanto a migration base a cria com
+        // default. Omitir funciona nos dois casos; enviar quebra num deles.
         mensagem: `Lead quente via WhatsApp: ${registro.nome} (${payload.telefone})`,
         lido: false,
       })

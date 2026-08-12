@@ -1,5 +1,20 @@
 # Infra — Evolution API + Automação Imobiliária
 
+> ⚠️ **SEGREDO EXPOSTO — ação necessária.** A chave de API global da Evolution
+> estava em texto puro neste arquivo e em `scripts/automation/README.md`, os dois
+> versionados no git. Substituí por `$EVOLUTION_API_KEY`, mas **ela continua no
+> histórico do repositório** e não há como apagar de lá sem reescrever o
+> histórico. É a chave de **administrador de toda a Evolution API**: gere uma
+> nova em `infra/.env` (`AUTHENTICATION_API_KEY`) **antes** de expor esta
+> instância à internet. Exporte a nova no shell antes dos comandos abaixo:
+> `export EVOLUTION_API_KEY=...`
+
+> **Estado real:** esta stack roda só em `localhost` (Docker Desktop) e **não
+> está conectada ao produto**. Nenhuma linha em `src/` fala com a Evolution, não
+> existe tabela de instância/sessão no Supabase, e os workflows do n8n são JSONs
+> que precisam ser importados à mão. O WhatsApp que o usuário alcança hoje no
+> sistema é link `wa.me` com número e texto prontos — não envio automático.
+
 Stack local para WhatsApp Business via Evolution API v2, orquestrada por n8n e integrada ao CRM Supabase.
 
 ## Componentes
@@ -26,7 +41,7 @@ docker compose logs -f evolution-api
 ```bash
 # 1) Criar instância
 curl -X POST http://localhost:8080/instance/create \
-  -H "apikey: 6d9b1deed56dd257d99171830b4f755cf6e497369acac757d58ed0a0592505f6" \
+  -H "apikey: $EVOLUTION_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "instanceName": "imobiliaria",
@@ -36,11 +51,11 @@ curl -X POST http://localhost:8080/instance/create \
 
 # 2) Obter QR Code (abrir no manager: http://localhost:3030)
 curl http://localhost:8080/instance/connect/imobiliaria \
-  -H "apikey: 6d9b1deed56dd257d99171830b4f755cf6e497369acac757d58ed0a0592505f6"
+  -H "apikey: $EVOLUTION_API_KEY"
 
 # 3) Verificar status
 curl http://localhost:8080/instance/fetchInstances \
-  -H "apikey: 6d9b1deed56dd257d99171830b4f755cf6e497369acac757d58ed0a0592505f6"
+  -H "apikey: $EVOLUTION_API_KEY"
 ```
 
 Escaneie o QR no WhatsApp do corretor: **WhatsApp → Aparelhos conectados → Conectar aparelho**.

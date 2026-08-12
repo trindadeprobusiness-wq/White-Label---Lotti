@@ -10,10 +10,19 @@
  * ficam ociosas, sem afetar nada que já existe.
  */
 
-const ativo = (valor: unknown) =>
-  String(valor ?? '').trim().toLowerCase() === 'true';
+/** Desligado só quando explicitamente `false`; ausente = ligado. */
+const ligado = (valor: unknown) =>
+  String(valor ?? '').trim().toLowerCase() !== 'false';
 
 export const FLAGS = {
-  /** Aba CRM. Nasce desligada — só ligue depois de aplicar a migration do CRM. */
-  crm: ativo(import.meta.env.VITE_CRM_ENABLED),
+  /**
+   * Aba CRM. LIGADA por padrão.
+   *
+   * Nasceu desligada e o resultado foi uma funcionalidade que ninguém via: a
+   * variável não existia no .env local, a aba sumia e parecia que nada tinha
+   * sido feito. Como o CRM agora funciona sobre as tabelas que já existem
+   * (`clientes`, `alertas`, `fachada_leads`) e só fica mais rico com a migration,
+   * não há motivo para escondê-lo. Para desligar: VITE_CRM_ENABLED=false.
+   */
+  crm: ligado(import.meta.env.VITE_CRM_ENABLED),
 } as const;
