@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { FLAGS } from "@/lib/flags";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -27,6 +28,7 @@ const RentalManagement = lazy(() => import("@/pages/RentalManagement"));
 const Assistente = lazy(() => import("@/pages/Assistente"));
 const FachadasInteligentes = lazy(() => import("@/pages/FachadasInteligentes"));
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
+const CRM = lazy(() => import("@/pages/CRM"));
 // Assinatura/Planos: código mantido no repositório para o back office futuro,
 // mas fora do grafo de rotas — não faz sentido expor ao corretor hoje.
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -74,7 +76,17 @@ const App = () => (
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />
             <Route path="/imoveis" element={<Imoveis />} />
             <Route path="/imoveis/:id" element={<ImovelDetalhes />} />
-            <Route path="/funil" element={<FunilVendas />} />
+            {/* Com o CRM ligado ele é o dono do pipeline, e /funil vira atalho —
+                nenhum link ou favorito antigo quebra. Desligado, o funil clássico
+                continua exatamente como sempre foi. */}
+            {FLAGS.crm ? (
+              <>
+                <Route path="/crm" element={<CRM />} />
+                <Route path="/funil" element={<Navigate to="/crm" replace />} />
+              </>
+            ) : (
+              <Route path="/funil" element={<FunilVendas />} />
+            )}
             <Route path="/financeiro" element={<Financeiro />} />
             <Route path="/juridico" element={<Juridico />} />
             <Route path="/midias" element={<Midias />} />

@@ -1,5 +1,6 @@
 import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/sidebar';
-import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Users, Building2, BarChart3, Scale, Settings, Sun, Moon, Video, LogOut, Wallet, Sparkles, QrCode, ChevronLeft, ChevronRight, KanbanSquare } from 'lucide-react';
+import { FLAGS } from '@/lib/flags';
 import { useState } from 'react';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { cn } from '@/lib/utils';
@@ -22,7 +23,10 @@ export function AppSidebar() {
     { label: 'Início', href: '/', icon: <Home className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Clientes', href: '/clientes', icon: <Users className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Imóveis', href: '/imoveis', icon: <Building2 className="h-5 w-5 flex-shrink-0" /> },
-    { label: 'Funil de Vendas', href: '/funil', icon: <BarChart3 className="h-5 w-5 flex-shrink-0" /> },
+    // Com o CRM ligado ele substitui o funil clássico — um lugar só para pipeline.
+    FLAGS.crm
+      ? { label: 'CRM', href: '/crm', icon: <KanbanSquare className="h-5 w-5 flex-shrink-0" /> }
+      : { label: 'Funil de Vendas', href: '/funil', icon: <BarChart3 className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Aluguéis', href: '/alugueis', icon: <Building2 className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Financeiro', href: '/financeiro', icon: <Wallet className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Jurídico', href: '/juridico', icon: <Scale className="h-5 w-5 flex-shrink-0" /> },

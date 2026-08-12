@@ -62,6 +62,32 @@ bairro e tipo do imóvel, e entende data por extenso ("21 de agosto de 2026") e 
 em formato brasileiro ("R$ 350.000,00"). É o que faz cliente, valor e data de início
 pararem de vir vazios na Central de Contratos.
 
+### 5. `crm-module.sql` — módulo CRM
+
+SQL Editor → colar → **Run**.
+
+Cria `crm_etapas` (pipeline configurável), `crm_oportunidades` (o negócio,
+separado do contato) e `crm_tarefas`, com RLS por `corretor_id`. Semeia as 9
+etapas para cada corretor e converte cada cliente existente numa oportunidade
+preservando a etapa do funil — ninguém perde o lugar. Também adiciona a policy
+de UPDATE que faltava em `fachada_leads`, sem a qual converter um lead marcaria
+zero linhas em silêncio.
+
+Idempotente: rodar duas vezes não duplica seed nem backfill.
+
+**Depois de aplicar**, ligue a aba na Vercel: `VITE_CRM_ENABLED=true` e redeploy.
+Antes disso a aba fica escondida de propósito.
+
+### 6. `crm-upsert-lead.ts` — correção de segurança
+
+Edge Functions → `crm-upsert-lead` → substituir → **Deploy**.
+
+O dedupe por telefone não filtrava `corretor_id` e a função roda com
+`service_role` — um lead com telefone repetido em outra imobiliária era lido e
+sobrescrito. Corrige também 4 valores que não existem no schema
+(`status_funil:'PROPOSTA'`, `tipo_interesse:'ALUGUEL'`, coluna `classificacao`,
+`alertas.tipo:'LEAD_QUENTE'`) e que faziam a função falhar.
+
 ## Conferir que deu certo
 
 1. **SQL** — Central de Contratos → analisar um contrato → **Salvar Contrato**. Tem que salvar.

@@ -56,23 +56,45 @@ serve(async (req) => {
       corretor_id = corretores[0].id
     }
 
+    // status_funil é ENUM no banco: 'PROPOSTA' e 'PERDIDO' NÃO existem e faziam
+    // todo insert falhar. Os valores válidos são QUALIFICACAO, VISITA_PROPOSTA,
+    // DOCUMENTACAO, FECHADO_GANHO, FECHADO_PERDIDO.
     const statusFunil =
       payload.classificacao === 'quente'
-        ? 'PROPOSTA'
+        ? 'VISITA_PROPOSTA'
         : payload.classificacao === 'descartado'
-        ? 'PERDIDO'
+        ? 'FECHADO_PERDIDO'
         : 'QUALIFICACAO'
+
+    // tipo_interesse também é ENUM (COMPRA | LOCACAO | AMBOS). 'ALUGUEL' e
+    // 'PROPRIETARIO', que o n8n envia, precisam ser traduzidos.
+    const INTERESSE: Record<string, string> = {
+      COMPRA: 'COMPRA', LOCACAO: 'LOCACAO', ALUGUEL: 'LOCACAO',
+      AMBOS: 'AMBOS', PROPRIETARIO: 'AMBOS',
+    }
+    const tipoInteresse = INTERESSE[String(payload.tipo_interesse ?? '').toUpperCase()] ?? 'AMBOS'
 
     const tracking = {
       origem: 'whatsapp',
       canal: 'evolution_api',
+      // Estes campos não existem como coluna em `clientes` e faziam o insert
+      // falhar. Ficam no tracking_data, que é jsonb — é de onde a view
+      // v_leads_whatsapp já lê a classificação.
+      classificacao: payload.classificacao,
+      faixa_valor_min: payload.faixa_valor_min,
+      faixa_valor_max: payload.faixa_valor_max,
+      forma_pagamento: payload.forma_pagamento,
+      tempo_decisao: payload.tempo_decisao,
       ...(payload.tracking_data ?? {}),
     }
 
-    // Upsert por telefone
+    // Dedupe SEMPRE dentro do corretor. Sem o filtro por corretor_id, um lead
+    // com telefone repetido em outra imobiliária era lido e SOBRESCRITO — este
+    // endpoint roda com service_role, então a RLS não segura nada aqui.
     const { data: existing } = await supabase
       .from('clientes')
       .select('id, tracking_data')
+      .eq('corretor_id', corretor_id)
       .eq('telefone', payload.telefone)
       .maybeSingle()
 
@@ -80,13 +102,8 @@ serve(async (req) => {
       nome: payload.nome ?? 'Lead WhatsApp',
       telefone: payload.telefone,
       email: payload.email,
-      tipo_interesse: payload.tipo_interesse ?? 'AMBOS',
+      tipo_interesse: tipoInteresse,
       status_funil: statusFunil,
-      classificacao: payload.classificacao,
-      faixa_valor_min: payload.faixa_valor_min,
-      faixa_valor_max: payload.faixa_valor_max,
-      forma_pagamento: payload.forma_pagamento,
-      tempo_decisao: payload.tempo_decisao,
       observacoes: payload.observacoes,
       corretor_id,
       ultimo_contato: new Date().toISOString(),
@@ -112,15 +129,20 @@ serve(async (req) => {
       )
     }
 
-    // Alerta automático para leads quentes
+    // Alerta automático para leads quentes.
+    // 'LEAD_QUENTE' não existe no enum tipo_alerta (FOLLOWUP | DOCUMENTO |
+    // EXCLUSIVIDADE | GERAL) — o insert falhava calado. FOLLOWUP é o que
+    // descreve a ação esperada: retornar o contato.
     if (payload.classificacao === 'quente') {
-      await supabase.from('alertas').insert({
+      const { error } = await supabase.from('alertas').insert({
         cliente_id: clienteId,
         corretor_id,
-        tipo: 'LEAD_QUENTE',
+        tipo: 'FOLLOWUP',
+        prioridade: 'ALTA',
         mensagem: `Lead quente via WhatsApp: ${registro.nome} (${payload.telefone})`,
         lido: false,
       })
+      if (error) console.error('Falha ao criar alerta do lead quente:', error)
     }
 
     return json({ success: true, cliente_id: clienteId, classificacao: payload.classificacao })
