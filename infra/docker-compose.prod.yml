@@ -1,0 +1,108 @@
+# Evolution API — configuração de PRODUÇÃO.
+#
+# O `docker-compose.yml` ao lado é o de desenvolvimento local e NÃO deve ser
+# usado exposto à internet: ele publica as portas 8080 e 3030 em todas as
+# interfaces, usa `:latest` (a imagem muda debaixo de você) e o manager fica
+# aberto sem qualquer autenticação na frente.
+#
+# Diferenças aqui, cada uma por um motivo:
+#   - versão FIXADA: atualização vira decisão, não surpresa numa madrugada;
+#   - Postgres e Redis SEM porta publicada: só a rede interna alcança;
+#   - manager desligado por padrão (perfil `manager`): é um painel admin da
+#     instância inteira; suba só quando precisar e derrube depois;
+#   - a API escuta apenas em 127.0.0.1 — quem expõe à internet é o proxy com
+#     TLS na frente (Caddy/Traefik/Nginx, ou o proxy do provedor);
+#   - healthcheck na API para o orquestrador reiniciar sozinho;
+#   - limite de log, senão o disco enche com o tráfego de mensagens.
+#
+# Uso:  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+
+services:
+  evolution-api:
+    container_name: evolution_api
+    # Fixada de propósito. Para atualizar: troque a tag, teste, e só então suba.
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: always
+    depends_on:
+      evolution-postgres:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_healthy
+    ports:
+      # Só o loopback. O proxy TLS é quem fala com a internet.
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - .env.prod
+    volumes:
+      # As sessões do WhatsApp vivem aqui. Perder este volume = todo mundo
+      # precisa parear o QR de novo. Entra no backup.
+      - evolution_instances:/evolution/instances
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [evolution-net]
+
+  # Painel administrativo da Evolution — controla TODAS as instâncias.
+  # Fora do up padrão: suba com `--profile manager` e derrube ao terminar.
+  evolution-manager:
+    container_name: evolution_manager
+    image: evoapicloud/evolution-manager:latest
+    restart: "no"
+    profiles: [manager]
+    ports:
+      - "127.0.0.1:3030:80"
+    depends_on: [evolution-api]
+    networks: [evolution-net]
+
+  evolution-redis:
+    container_name: evolution_redis
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes:
+      - evolution_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [evolution-net]
+
+  evolution-postgres:
+    container_name: evolution_postgres
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [evolution-net]
+
+volumes:
+  evolution_instances:
+  evolution_redis:
+  evolution_postgres:
+
+networks:
+  evolution-net:
+    name: evolution-net
+    driver: bridge
