@@ -3,6 +3,7 @@ import { useCRMStore } from '@/stores/crmStore';
 import { StatusFunil, Cliente, Imovel, TipoInteresse } from '@/types/crm';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getCommonSelectedStageId } from '@/lib/funnelSelection';
 import { AlertTriangle, GripVertical, MoreHorizontal, Plus, Search, Settings2, SlidersHorizontal, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -262,7 +263,7 @@ const FILTROS_INICIAIS: FunnelFilters = {
   ultimoContato: 'QUALQUER',
 };
 
-export default function FunilVendas() {
+export default function FunilVendas({ embedded = false }: { embedded?: boolean }) {
   const { clientes, imoveis, alertas, updateClienteStatus, removeCliente } = useCRMStore();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
@@ -291,7 +292,7 @@ export default function FunilVendas() {
   // (a estrutura de seleção já está pronta em `selecionados`).
   const [modoSelecao, setModoSelecao] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
-  const [etapaEmLote, setEtapaEmLote] = useState<string>();
+  const etapaEmLote = getCommonSelectedStageId(selecionados, clientes, overrides);
   useEffect(() => {
     if (!modoSelecao) setSelecionados(new Set());
   }, [modoSelecao]);
@@ -391,7 +392,6 @@ export default function FunilVendas() {
     }));
     persistOverrides(nextOverrides);
     setSelecionados(new Set());
-    setEtapaEmLote(undefined);
   };
 
   const arquivarSelecionados = async () => {
@@ -416,9 +416,12 @@ export default function FunilVendas() {
     // A página inteira do funil ocupa exatamente a altura útil do canvas
     // (viewport menos o padding vertical do AppLayout). Sem scroll de página:
     // a rolagem só aparece dentro das colunas.
-    <div className="animate-fade-in h-[calc(100vh-4rem)]">
-      <div className="rounded-2xl border border-border bg-card shadow-sm p-5 md:p-6 h-full flex flex-col gap-4 min-h-0">
-        <h1 className="text-2xl font-semibold">Funil de Vendas</h1>
+    <div className={cn('animate-fade-in', embedded ? 'h-[calc(100vh-15rem)]' : 'h-[calc(100vh-4rem)]')}>
+      <div className={cn(
+        'h-full flex flex-col gap-4 min-h-0',
+        !embedded && 'rounded-2xl border border-border bg-card shadow-sm p-5 md:p-6',
+      )}>
+        {!embedded && <h1 className="text-2xl font-semibold">Funil de Vendas</h1>}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -584,7 +587,6 @@ export default function FunilVendas() {
             <Select
               value={etapaEmLote}
               onValueChange={(value) => {
-                setEtapaEmLote(value);
                 void moverSelecionados(value);
               }}
             >
@@ -625,6 +627,17 @@ export default function FunilVendas() {
               className="h-8 border-primary-foreground/50 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
             >
               Limpar seleção
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => setModoSelecao(false)}
+              className="ml-auto h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+              aria-label="Cancelar seleção"
+              title="Cancelar seleção"
+            >
+              <X className="h-4 w-4" />
             </Button>
           </div>
         )}

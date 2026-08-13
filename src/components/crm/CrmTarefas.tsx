@@ -18,7 +18,7 @@ export function CrmTarefas() {
 
   if (!tarefas?.length) {
     return (
-      <Card>
+      <Card className="border-border shadow-sm">
         <CardContent className="py-12 flex flex-col items-center gap-2 text-center text-muted-foreground">
           <ListTodo className="h-8 w-8 opacity-40" />
           <p className="font-medium text-foreground">Nenhuma tarefa</p>
@@ -42,7 +42,7 @@ export function CrmTarefas() {
       {ordenadas.map((t: CrmTarefa & { clientes?: { nome?: string } }) => {
         const atrasada = tarefaAtrasada(t);
         return (
-          <Card key={t.id} className={cn(atrasada && 'border-red-500/30')}>
+          <Card key={t.id} className={cn('border-border shadow-sm transition-colors hover:border-primary/30', atrasada && 'border-red-500/30')}>
             <CardContent className="py-3 flex items-center gap-3">
               <button
                 type="button"

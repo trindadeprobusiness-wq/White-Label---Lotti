@@ -45,7 +45,7 @@ export function CrmLeadsInbox() {
 
   if (!leads?.length) {
     return (
-      <Card>
+      <Card className="border-border shadow-sm">
         <CardContent className="py-12 flex flex-col items-center gap-2 text-center text-muted-foreground">
           <Inbox className="h-8 w-8 opacity-40" />
           <p className="font-medium text-foreground">Nenhum lead esperando</p>
@@ -59,7 +59,7 @@ export function CrmLeadsInbox() {
     <>
       <div className="space-y-2">
         {leads.map((lead: Lead) => (
-          <Card key={lead.id}>
+          <Card key={lead.id} className="border-border shadow-sm hover:border-primary/30 transition-colors">
             <CardContent className="py-3 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="font-medium truncate">{lead.nome}</p>

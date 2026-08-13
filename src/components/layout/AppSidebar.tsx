@@ -1,5 +1,5 @@
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
-import { Home, Users, Building2, Filter, Scale, Settings, Video, LogOut, Wallet, Sparkles, QrCode, KanbanSquare, Moon, Sun } from 'lucide-react';
+import { Home, Users, Building2, Filter, Scale, Settings, Video, LogOut, Wallet, Sparkles, QrCode, Moon, Sun, KeyRound } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { FLAGS } from '@/lib/flags';
 import { LottiLogo } from '@/components/brand/LottiLogo';
@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
+import { preloadAllSidebarRoutes, preloadRoute } from '@/lib/routePreloaders';
 
 export function AppSidebar() {
   // Menu sempre aberto e fixo. Bloqueamos setOpen (noop) porque o
@@ -17,6 +19,14 @@ export function AppSidebar() {
   const { signOut, user } = useAuth();
   const { pathname } = useLocation();
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void preloadAllSidebarRoutes();
+    }, 1200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
 
@@ -26,9 +36,9 @@ export function AppSidebar() {
     { label: 'Imóveis', href: '/imoveis', icon: <Building2 className="h-5 w-5 flex-shrink-0" /> },
     // Com o CRM ligado ele substitui o funil clássico — um lugar só para pipeline.
     FLAGS.crm
-      ? { label: 'CRM', href: '/crm', icon: <KanbanSquare className="h-5 w-5 flex-shrink-0" /> }
+      ? { label: 'Funil de Vendas', href: '/crm', icon: <Filter className="h-5 w-5 flex-shrink-0" /> }
       : { label: 'Funil de Vendas', href: '/funil', icon: <Filter className="h-5 w-5 flex-shrink-0" /> },
-    { label: 'Aluguéis', href: '/alugueis', icon: <Building2 className="h-5 w-5 flex-shrink-0" /> },
+    { label: 'Aluguéis', href: '/alugueis', icon: <KeyRound className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Financeiro', href: '/financeiro', icon: <Wallet className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Jurídico', href: '/juridico', icon: <Scale className="h-5 w-5 flex-shrink-0" /> },
     { label: 'Mídias', href: '/midias', icon: <Video className="h-5 w-5 flex-shrink-0" /> },
@@ -52,6 +62,8 @@ export function AppSidebar() {
                   key={link.href}
                   link={link}
                   aria-current={isActive(link.href) ? 'page' : undefined}
+                  onPointerEnter={() => void preloadRoute(link.href)}
+                  onFocus={() => void preloadRoute(link.href)}
                   className={cn(
                     "relative text-sidebar-foreground/80 hover:bg-[#F3F4F3] hover:text-sidebar-foreground rounded-lg px-4 py-2.5 text-[15px]",
                     "!transition-none group flex items-center w-full",

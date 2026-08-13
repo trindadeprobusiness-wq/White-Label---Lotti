@@ -3,7 +3,7 @@ import {
   DndContext, DragEndEvent, MouseSensor, TouchSensor,
   useDraggable, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
-import { Building2, CalendarClock, Loader2, AlertTriangle, MessageCircle } from 'lucide-react';
+import { Building2, CalendarClock, Loader2, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -11,14 +11,21 @@ import { agruparPorEtapa } from '@/lib/crm/pipeline';
 import { useEtapas, useOportunidades, useMoverOportunidade, useModoCrm } from '@/hooks/crm/useCrm';
 import type { CrmOportunidade, ColunaPipeline } from '@/lib/crm/tipos';
 import { WhatsAppDialog } from './WhatsAppDialog';
+import FunilVendas from '@/pages/FunilVendas';
 
 const moeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-const CORES: Record<string, string> = {
-  slate: 'bg-muted', sky: 'bg-sky-500/10', blue: 'bg-blue-500/10',
-  indigo: 'bg-indigo-500/10', amber: 'bg-amber-500/10', orange: 'bg-orange-500/10',
-  violet: 'bg-violet-500/10', green: 'bg-emerald-500/10', red: 'bg-red-500/10',
+const CORES: Record<string, { dot: string; line: string; text: string }> = {
+  slate: { dot: 'bg-slate-500', line: 'bg-slate-500', text: 'text-slate-600' },
+  sky: { dot: 'bg-sky-500', line: 'bg-sky-500', text: 'text-sky-600' },
+  blue: { dot: 'bg-blue-500', line: 'bg-blue-500', text: 'text-blue-600' },
+  indigo: { dot: 'bg-indigo-500', line: 'bg-indigo-500', text: 'text-indigo-600' },
+  amber: { dot: 'bg-amber-500', line: 'bg-amber-500', text: 'text-amber-600' },
+  orange: { dot: 'bg-orange-500', line: 'bg-orange-500', text: 'text-orange-600' },
+  violet: { dot: 'bg-violet-500', line: 'bg-violet-500', text: 'text-violet-600' },
+  green: { dot: 'bg-emerald-500', line: 'bg-emerald-500', text: 'text-emerald-600' },
+  red: { dot: 'bg-red-500', line: 'bg-red-500', text: 'text-red-600' },
 };
 
 const atrasada = (o: CrmOportunidade) =>
@@ -38,7 +45,7 @@ function Card({ oportunidade, onWhatsApp }: { oportunidade: CardOportunidade; on
       {...attributes}
       style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
       className={cn(
-        'rounded-lg border bg-card p-3 space-y-1.5 cursor-grab active:cursor-grabbing transition',
+        'rounded-lg border border-border bg-card p-3 space-y-1.5 cursor-grab active:cursor-grabbing shadow-sm transition-colors',
         isDragging ? 'opacity-50 shadow-lg z-50' : 'hover:border-primary/40',
       )}
     >
@@ -78,25 +85,30 @@ function Card({ oportunidade, onWhatsApp }: { oportunidade: CardOportunidade; on
 function Coluna({ coluna, onWhatsApp }: { coluna: ColunaPipeline; onWhatsApp: (o: CardOportunidade) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.etapa.id });
 
+  const cor = CORES[coluna.etapa.cor] ?? CORES.slate;
   return (
-    <div className="flex-shrink-0 w-[280px]">
-      <div className={cn('rounded-t-lg px-3 py-2', CORES[coluna.etapa.cor] ?? 'bg-muted')}>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">{coluna.etapa.nome}</span>
-          <Badge variant="secondary" className="text-[10px]">{coluna.oportunidades.length}</Badge>
+    <div className="min-w-[260px] flex-1 rounded-xl border border-border bg-secondary/60 flex flex-col min-h-[500px] overflow-hidden">
+      <div className="px-3 pt-3 pb-2 bg-card">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center min-w-0 gap-2">
+            <span className={cn('h-2 w-2 rounded-full shrink-0', cor.dot)} />
+            <span className={cn('text-sm font-semibold truncate', cor.text)}>{coluna.etapa.nome}</span>
+          </div>
+          <Badge variant="secondary" className="h-5 min-w-[2rem] justify-center rounded-full px-2 text-[10px] font-semibold">{coluna.oportunidades.length}</Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">{moeda(coluna.total)}</p>
+        <p className="text-xs text-muted-foreground mt-1">{moeda(coluna.total)}</p>
       </div>
+      <div className={cn('h-0.5 w-full opacity-70', cor.line)} />
       <div
         ref={setNodeRef}
         className={cn(
-          'rounded-b-lg border border-t-0 p-2 space-y-2 min-h-[420px] transition',
+          'flex-1 min-h-0 overflow-y-auto p-3 space-y-2 transition',
           isOver && 'ring-2 ring-primary/50 bg-primary/[0.02]',
         )}
       >
         {coluna.oportunidades.map((o) => <Card key={o.id} oportunidade={o} onWhatsApp={onWhatsApp} />)}
         {coluna.oportunidades.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-8">Arraste um negócio para cá</p>
+          <p className="text-xs italic text-muted-foreground text-center py-10">Vazio. Arraste cards pra cá.</p>
         )}
       </div>
     </div>
@@ -146,7 +158,7 @@ export function CrmPipeline() {
 
   if (carregandoEtapas || carregandoOps) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex gap-3 overflow-x-auto pb-2 min-h-[500px]">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="flex-shrink-0 w-[280px] h-[480px] rounded-lg" />
         ))}
@@ -154,21 +166,18 @@ export function CrmPipeline() {
     );
   }
 
+  // Enquanto as tabelas crm_* ainda não foram aplicadas, o pipeline usa o
+  // Funil completo que já existia no app. Assim preservamos toda a UX criada
+  // (busca, filtros, seleção em lote e gerenciamento de etapas), enquanto as
+  // abas Leads/Tarefas/Painel continuam disponíveis no CRM.
+  if (modo === 'legado') {
+    return <FunilVendas embedded />;
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {/* Honestidade sobre o que está rodando: no modo legado o card É o cliente,
           então não há valor por negócio nem dois negócios para a mesma pessoa. */}
-      {modo === 'legado' && (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs flex items-start gap-2">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-          <p className="text-muted-foreground">
-            <span className="font-medium text-amber-600 dark:text-amber-400">Modo simplificado.</span>{' '}
-            Cada card é um cliente e arrastar grava a etapa dele, como no funil de sempre.
-            Aplicando a migration <code className="text-[11px]">crm-module.sql</code>, cada cliente
-            passa a poder ter vários negócios, com valor, probabilidade e motivo de perda.
-          </p>
-        </div>
-      )}
       {mover.isPending && (
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Loader2 className="h-3 w-3 animate-spin" /> Salvando...
@@ -180,7 +189,7 @@ export function CrmPipeline() {
         onDragEnd={aoSoltar}
         onDragCancel={() => setArrastando(null)}
       >
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex gap-3 overflow-x-auto pb-2 min-h-[500px]">
           {colunas.map((c) => <Coluna key={c.etapa.id} coluna={c} onWhatsApp={setConversa} />)}
         </div>
       </DndContext>

@@ -11,24 +11,38 @@ import { DataLoader } from "@/components/DataLoader";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
+import {
+  alugueisLoader,
+  assistenteLoader,
+  clientesLoader,
+  configuracoesLoader,
+  crmLoader,
+  dashboardLoader,
+  fachadasLoader,
+  financeiroLoader,
+  funilLoader,
+  imoveisLoader,
+  juridicoLoader,
+  midiasLoader,
+} from "@/lib/routePreloaders";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Clientes = lazy(() => import("@/pages/Clientes"));
+const Dashboard = lazy(dashboardLoader);
+const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
-const Imoveis = lazy(() => import("@/pages/Imoveis"));
+const Imoveis = lazy(imoveisLoader);
 const ImovelDetalhes = lazy(() => import("@/pages/ImovelDetalhes"));
-const FunilVendas = lazy(() => import("@/pages/FunilVendas"));
-const Juridico = lazy(() => import("@/pages/Juridico"));
-const Midias = lazy(() => import("@/pages/Midias"));
-const Financeiro = lazy(() => import("@/pages/Financeiro"));
-const Configuracoes = lazy(() => import("@/pages/Configuracoes"));
-const RentalManagement = lazy(() => import("@/pages/RentalManagement"));
-const Assistente = lazy(() => import("@/pages/Assistente"));
-const FachadasInteligentes = lazy(() => import("@/pages/FachadasInteligentes"));
+const FunilVendas = lazy(funilLoader);
+const Juridico = lazy(juridicoLoader);
+const Midias = lazy(midiasLoader);
+const Financeiro = lazy(financeiroLoader);
+const Configuracoes = lazy(configuracoesLoader);
+const RentalManagement = lazy(alugueisLoader);
+const Assistente = lazy(assistenteLoader);
+const FachadasInteligentes = lazy(fachadasLoader);
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
-const CRM = lazy(() => import("@/pages/CRM"));
+const CRM = lazy(crmLoader);
 // Assinatura/Planos: código mantido no repositório para o back office futuro,
 // mas fora do grafo de rotas — não faz sentido expor ao corretor hoje.
 const NotFound = lazy(() => import("@/pages/NotFound"));
