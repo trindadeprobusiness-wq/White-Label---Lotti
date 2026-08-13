@@ -52,7 +52,7 @@ export default function Assistente() {
 
   const handleFileProcessed = (result: { extracted_text: string; file_name: string }) => {
     setFileContext(
-      `Arquivo: ${result.file_name}\n\nConteúdo extraído:\n${result.extracted_text}`
+      `Arquivo: ${result.file_name}\n\nConteúdo extraído:\n${result.extracted_text}`,
     );
   };
 
@@ -74,9 +74,11 @@ export default function Assistente() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] -my-6 -mx-4 md:-mx-6 lg:-mx-8">
-      {/* Sidebar */}
-      <div className="w-72 border-r bg-background hidden md:block">
+    // Full-bleed dentro do AppLayout: os negative margins anulam o padding
+    // do <main> para o assistente ocupar toda a área do canvas.
+    <div className="flex h-[calc(100vh-4rem)] -my-8 -mx-4 md:-mx-8 rounded-none overflow-hidden bg-background">
+      {/* Coluna de conversas */}
+      <aside className="w-[300px] shrink-0 border-r border-border hidden md:flex flex-col overflow-hidden">
         <AIConversationList
           conversations={conversations}
           activeId={activeConversation}
@@ -86,33 +88,39 @@ export default function Assistente() {
           onTogglePin={togglePin}
           onDelete={deleteConversation}
         />
-      </div>
+      </aside>
 
-      {/* Main chat area — arrastar o arquivo em qualquer ponto do chat anexa na composição */}
-      <div className="flex-1 flex flex-col min-w-0 relative" {...chatDropProps}>
+      {/* Área principal do chat */}
+      <section
+        className="flex-1 flex flex-col min-w-0 relative bg-background"
+        {...chatDropProps}
+      >
         {chatDragActive && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg pointer-events-none">
-            <p className="text-sm font-medium text-primary bg-background/90 px-3 py-1.5 rounded-lg">
+          <div className="absolute inset-3 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-xl pointer-events-none">
+            <p className="text-sm font-medium text-primary bg-background/90 px-4 py-2 rounded-lg shadow-sm">
               Solte o arquivo aqui
             </p>
           </div>
         )}
-        {/* Header */}
-        <div className="border-b px-4 py-3 flex items-center gap-2 bg-background/80 backdrop-blur">
-          <div className="bg-primary/10 p-1.5 rounded-full">
+
+        {/* Header do chat — respiro maior, tipografia mais legível */}
+        <header className="border-b border-border px-6 py-4 flex items-center gap-3 bg-background">
+          <div className="bg-accent p-2 rounded-full">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
-          <div>
-            <h1 className="text-sm font-semibold">Assistente IA</h1>
-            <p className="text-[10px] text-muted-foreground">
-              Integrado ao seu CRM &middot; Gemini 2.5 Flash
+          <div className="min-w-0">
+            <h1 className="text-base font-semibold text-foreground leading-tight">
+              Assistente IA
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Integrado ao seu CRM · Gemini 2.5 Flash
             </p>
           </div>
-        </div>
+        </header>
 
-        {/* Messages */}
+        {/* Mensagens */}
         <ScrollArea className="flex-1">
-          <div className="max-w-3xl mx-auto p-4 space-y-4">
+          <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
             {displayMessages.map((msg) => (
               <AIMessageBubble key={msg.id} message={msg} />
             ))}
@@ -138,24 +146,27 @@ export default function Assistente() {
           </div>
         </ScrollArea>
 
-        {/* Input */}
-        <div className="border-t p-3 bg-background">
+        {/* Composer */}
+        <div className="border-t border-border px-6 py-4 bg-background">
           <div className="max-w-3xl mx-auto space-y-2">
             {fileContext && (
-              <div className="text-xs bg-primary/5 border border-primary/20 p-2 rounded-lg flex items-center justify-between">
-                <span className="truncate">📎 Arquivo pronto para análise</span>
+              <div className="text-xs bg-accent border border-primary/20 p-2 rounded-lg flex items-center justify-between">
+                <span className="truncate text-accent-foreground">
+                  📎 Arquivo pronto para análise
+                </span>
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-5 w-5"
                   onClick={() => setFileContext(null)}
+                  aria-label="Remover arquivo"
                 >
                   ×
                 </Button>
               </div>
             )}
             <form
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 rounded-xl border border-border bg-background focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20 transition px-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSend();
@@ -168,24 +179,29 @@ export default function Assistente() {
                 disabled={isStreaming}
               />
               <Input
-                placeholder="Pergunte algo ou envie um arquivo..."
+                placeholder="Pergunte algo ou envie um arquivo…"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="flex-1"
+                className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 h-11 bg-transparent"
                 disabled={isStreaming}
                 autoFocus
               />
               <Button
                 type="submit"
                 size="icon"
+                className="h-9 w-9 shrink-0 rounded-lg"
                 disabled={(!inputText.trim() && !fileContext) || isStreaming}
+                aria-label="Enviar mensagem"
               >
                 <Send className="h-4 w-4" />
               </Button>
             </form>
+            <p className="text-[10px] text-muted-foreground text-center">
+              Enter envia · Shift+Enter quebra linha · Arraste arquivos pra qualquer canto
+            </p>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

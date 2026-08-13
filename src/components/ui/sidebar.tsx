@@ -91,12 +91,14 @@ export const DesktopSidebar = ({
   const { open, setOpen, animate, isPinned } = useSidebar();
   return (
     <motion.div
+      // Largura fixa e imutável no desktop — sem width em %, vw, fit-content etc.
+      style={{ minWidth: 260, maxWidth: 260, flexBasis: 260 }}
       className={cn(
-        "h-full px-3 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] flex-shrink-0 relative group/sidebar-container",
+        "h-full px-3 py-4 hidden md:flex md:flex-col bg-sidebar w-[260px] flex-shrink-0 relative group/sidebar-container",
         className
       )}
       animate={{
-        width: animate ? (open ? "280px" : "80px") : "280px",
+        width: animate ? (open ? "260px" : "80px") : "260px",
       }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => !isPinned && setOpen(false)}
@@ -117,13 +119,13 @@ export const MobileSidebar = ({
     <>
       <div
         className={cn(
-          "h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-neutral-100 dark:bg-neutral-800 w-full"
+          "h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-sidebar w-full"
         )}
         {...props}
       >
         <div className="flex justify-end z-20 w-full">
           <Menu
-            className="text-neutral-800 dark:text-neutral-200 cursor-pointer"
+            className="text-sidebar-foreground cursor-pointer"
             onClick={() => setOpen(!open)}
           />
         </div>
@@ -138,12 +140,12 @@ export const MobileSidebar = ({
                 ease: "easeInOut",
               }}
               className={cn(
-                "fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-[100] flex flex-col justify-between",
+                "fixed h-full w-full inset-0 bg-sidebar p-10 z-[100] flex flex-col justify-between",
                 className
               )}
             >
               <div
-                className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 cursor-pointer"
+                className="absolute right-10 top-10 z-50 text-sidebar-foreground cursor-pointer"
                 onClick={() => setOpen(!open)}
               >
                 <X />
@@ -181,7 +183,8 @@ export const SidebarLink = ({
       to={link.href}
       onClick={handleClick}
       className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2",
+        // gap-3 = 12px entre ícone e texto, conforme especificado.
+        "flex items-center justify-start gap-3 group/sidebar py-2 !transition-none",
         className
       )}
       {...props}
@@ -192,7 +195,7 @@ export const SidebarLink = ({
           display: animate ? (open ? "inline-block" : "none") : "inline-block",
           opacity: animate ? (open ? 1 : 0) : 1,
         }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+        className="text-inherit text-sm whitespace-pre inline-block !p-0 !m-0 flex-1 !transition-none"
       >
         {link.label}
       </motion.span>
