@@ -1,5 +1,4 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { paraTipoUI } from '@/lib/crm/historico';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -59,7 +58,7 @@ const tipoContatoIcons: Record<string, React.ReactNode> = {
 export default function ClienteDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clientes, imoveis, historico, documentos, alertas, fetchImoveis, fetchHistorico, removeCliente } = useCRMStore();
+  const { clientes, imoveis, historico, documentos, alertas, fetchImoveis, removeCliente } = useCRMStore();
   const { toast } = useToast();
   const [contatoDialogOpen, setContatoDialogOpen] = useState(false);
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
@@ -71,13 +70,6 @@ export default function ClienteDetalhes() {
   useEffect(() => {
     fetchImoveis();
   }, []);
-
-  // O histórico nunca era buscado ao abrir o cliente — o DataLoader carrega
-  // clientes, imóveis, contratos, corretor e alertas, mas não este. A timeline
-  // só aparecia se o usuário registrasse um contato na mesma sessão.
-  useEffect(() => {
-    if (id) fetchHistorico(id);
-  }, [id, fetchHistorico]);
 
   const cliente = clientes.find((c) => c.id === id);
 
@@ -267,31 +259,25 @@ export default function ClienteDetalhes() {
             <div className="relative">
               <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
               <ul className="space-y-4">
-                {clienteHistorico.map((item) => {
-                  // A tabela guarda o canal (TELEFONE/PRESENCIAL/...); o tipo que
-                  // a UI mostra vem de metadata.tipo_ui quando existe.
-                  const tipoUI = paraTipoUI(item.tipo, (item as { metadata?: Record<string, unknown> }).metadata);
-                  const quando = (item as { data_contato?: string }).data_contato;
-                  return (
-                    <li key={item.id} className="relative pl-8">
-                      <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-card border-2 border-primary flex items-center justify-center">
-                        {tipoContatoIcons[tipoUI]}
+                {clienteHistorico.map((item, index) => (
+                  <li key={item.id} className="relative pl-8">
+                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-card border-2 border-primary flex items-center justify-center">
+                      {tipoContatoIcons[item.tipo]}
+                    </div>
+                    <div className="bg-muted rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                        <span className="font-medium text-foreground">
+                          {TIPO_CONTATO_LABELS[item.tipo]}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {format(new Date(item.data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
                       </div>
-                      <div className="bg-muted rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                          <span className="font-medium text-foreground">
-                            {TIPO_CONTATO_LABELS[tipoUI]}
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {quando ? format(new Date(quando), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '—'}
-                          </span>
-                        </div>
-                        <p className="text-sm">{(item as { conteudo?: string }).conteudo}</p>
-                      </div>
-                    </li>
-                  );
-                })}
+                      <p className="text-sm">{item.descricao}</p>
+                    </div>
+                  </li>
+                ))}
               </ul>
             </div>
           )}

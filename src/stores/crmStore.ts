@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { paraRegistro } from '@/lib/crm/historico';
 import {
   Cliente,
   Imovel,
@@ -212,12 +210,10 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchHistorico: async (clienteId?: string) => {
     try {
-      // A coluna é `data_contato`, não `data`. Ordenar por coluna inexistente
-      // fazia a query inteira falhar e a timeline vinha sempre vazia.
       let query = supabase
         .from('historico_contatos')
         .select('*')
-        .order('data_contato', { ascending: false });
+        .order('data', { ascending: false });
 
       if (clienteId) {
         query = query.eq('cliente_id', clienteId);
@@ -335,23 +331,15 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   addHistorico: async (historico) => {
     try {
-      // A tabela em produção NÃO tem corretor_id, descricao nem data — tem
-      // cliente_id, tipo (canal_contato), direcao, conteudo, data_contato e
-      // metadata. Enviar o formato antigo fazia todo registro de contato ser
-      // recusado, e por isso a timeline do cliente nunca preenchia.
-      // O escopo por corretor vem da RLS, pelo dono do cliente.
-      const registro = paraRegistro({
-        clienteId: historico.cliente_id,
-        tipo: String((historico as { tipo?: string }).tipo ?? 'NOTA'),
-        texto: String((historico as { descricao?: string; conteudo?: string }).descricao
-          ?? (historico as { conteudo?: string }).conteudo ?? ''),
-      });
+      const { data: corretorData } = await supabase.rpc('get_corretor_id');
+      if (!corretorData) throw new Error('Corretor não encontrado');
 
-      // O types.ts gerado ainda descreve o formato ANTIGO desta tabela (com
-      // corretor_id/descricao/data), que não é o que existe em produção. Até os
-      // tipos serem regerados, o insert passa pelo cliente sem genérico de schema.
-      const { error } = await (supabase as unknown as SupabaseClient)
-        .from('historico_contatos').insert(registro);
+      const { error } = await supabase
+        .from('historico_contatos')
+        .insert({
+          ...historico,
+          corretor_id: corretorData,
+        });
 
       if (error) throw error;
       get().fetchHistorico(historico.cliente_id);

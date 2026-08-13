@@ -153,30 +153,8 @@ serve(async (req) => {
         throw new Error('Não foi possível encontrar um corretor para atribuir.')
       }
       if (corretores.length > 1) {
-        // Fail-closed é a decisão certa — atribuir o lead ao corretor errado
-        // seria pior. Mas o formulário da landing não pode simplesmente sumir
-        // com o contato: o visitante preencheu e foi embora achando que enviou.
-        //
-        // O lead é guardado sem dono para triagem, e a resposta segue 200 para
-        // o formulário não exibir erro a quem não tem culpa nem conserto.
-        console.error('[lead-capture] lead sem destinatário: mais de um corretor e sem imovel_id')
-        const { error: erroOrfao } = await supabaseClient.from('leads_sem_destino').insert({
-          nome: clienteNome,
-          telefone: clienteTelefone,
-          email: clienteEmail ?? null,
-          mensagem: mensagem ?? null,
-          tracking_data: trackingData ?? {},
-          motivo: 'multiplos_corretores_sem_imovel_id',
-        })
-        if (erroOrfao) console.error('[lead-capture] falha ao guardar lead órfão:', erroOrfao)
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Recebemos seu contato! Em breve alguém falará com você.',
-            pendente_triagem: true,
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        throw new Error(
+          'Há mais de um corretor cadastrado: envie imovel_id (ou imovel_interesse_id) para identificar o destinatário do lead.',
         )
       }
       corretor_id = corretores[0].id

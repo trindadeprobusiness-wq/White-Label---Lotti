@@ -9,8 +9,6 @@ import { corsHeaders, assertN8nSecret, json } from '../_shared/auth.ts'
 interface HistoricoPayload {
   telefone?: string
   cliente_id?: string
-  /** Obrigatório quando a busca é por telefone — ver o comentário no lookup. */
-  corretor_id?: string
   direcao: 'IN' | 'OUT'
   mensagem: string
   metadata?: Record<string, unknown>
@@ -33,25 +31,9 @@ serve(async (req) => {
 
     let clienteId = payload.cliente_id
     if (!clienteId && payload.telefone) {
-      // VAZAMENTO ENTRE CONTAS: esta busca não filtrava por corretor e roda com
-      // service_role, que ignora a RLS. Dois corretores com o mesmo telefone na
-      // base — comum, é o mesmo mercado — e a conversa privada do cliente de um
-      // era gravada na timeline do outro, junto com o `ultimo_contato`.
-      //
-      // Agora o corretor_id é obrigatório nessa rota. Fail-closed de propósito:
-      // é preferível o n8n receber 400 e ser corrigido a gravar PII no tenant
-      // errado silenciosamente.
-      if (!payload.corretor_id) {
-        return json({
-          error: 'corretor_id é obrigatório quando o cliente é buscado por telefone. ' +
-                 'Envie corretor_id (o mesmo usado no crm-upsert-lead) ou envie cliente_id direto.',
-        }, 400)
-      }
-
       const { data } = await supabase
         .from('clientes')
         .select('id')
-        .eq('corretor_id', payload.corretor_id)
         .eq('telefone', payload.telefone)
         .maybeSingle()
       clienteId = data?.id

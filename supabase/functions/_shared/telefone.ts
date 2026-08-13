@@ -46,3 +46,20 @@ export function telefoneParaAsaas(bruto: string | null | undefined): TelefoneAsa
 
   return {};
 }
+
+/**
+ * true quando o Asaas recusou a requisição por causa do telefone.
+ * O `code` vem em inglês (invalid_mobilePhone) e a `description` em português
+ * ("O celular informado é inválido") — olhamos os dois.
+ */
+export function ehErroDeTelefone(body: unknown): boolean {
+  const erros = (body as { errors?: { code?: string; description?: string }[] } | null)?.errors;
+  if (!Array.isArray(erros) || erros.length === 0) return false;
+  // Só é "erro de telefone" se TODOS forem — se houver outro problema junto
+  // (CPF, nome), reenviar sem telefone não resolveria e mascararia a causa.
+  return erros.every((e) => {
+    const txt = `${e?.code ?? ""} ${e?.description ?? ""}`
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return txt.includes("phone") || txt.includes("celular") || txt.includes("telefone");
+  });
+}

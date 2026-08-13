@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { formatarTelefone } from "@/lib/validators";
+import { normalizarTelefoneBR } from "@/lib/telefone";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -477,6 +478,86 @@ export function BillsList() {
         return data;
     };
 
+    // O inquilino que a Edge Function vai ler. Ela faz o JOIN a partir de
+    // faturas_aluguel.cliente_id, então é ESSE o registro que importa — usar o
+    // cliente do contrato higienizaria uma linha e a função leria outra.
+    const clienteDaFatura = async (faturaId: string, bill: any): Promise<string | null> => {
+        try {
+            const { data } = await (supabase as any)
+                .from('faturas_aluguel').select('cliente_id').eq('id', faturaId).single();
+            if (data?.cliente_id) return data.cliente_id;
+        } catch { /* cai para o objeto em memória */ }
+        return bill?.contract?.cliente_id ?? null;
+    };
+
+    /**
+     * Telefone NUNCA pode impedir a emissão — só CPF. Mas a asaas-sync em produção
+     * manda `clientes.telefone` inteiro no campo `mobilePhone`, e o Asaas recusa
+     * com HTTP 400 tudo que não seja celular válido (DDD + 9 dígitos) — inclusive
+     * telefone FIXO, que é um número perfeitamente legítimo. A recusa derruba a
+     * emissão antes de a cobrança existir.
+     *
+     * O telefone só é lido na CRIAÇÃO do pagador no Asaas. Então, quando o número
+     * guardado não for um celular válido, ele é neutralizado apenas durante a
+     * chamada e devolvido logo depois — o dado do inquilino não se perde e o
+     * boleto sai. Uma vez criado o pagador, `asaas_customer_id` fica gravado e o
+     * telefone não volta a ser enviado.
+     *
+     * É ponte: com a Edge Function corrigida no ar, ela mesma separa celular de
+     * fixo e nada disto é necessário. Manter não faz mal — só normaliza o cadastro.
+     */
+    const emitindoComTelefoneSeguro = async <T,>(
+        clienteId: string | null,
+        acao: () => Promise<T>,
+    ): Promise<T> => {
+        let devolver: string | null = null;
+
+        if (clienteId) {
+            try {
+                const { data } = await (supabase as any)
+                    .from('clientes').select('telefone').eq('id', clienteId).single();
+                const bruto = String(data?.telefone ?? '').trim();
+                const { digitos, formatado } = normalizarTelefoneBR(bruto);
+                const celularValido = !!digitos && digitos.length === 11;
+
+                if (bruto && !celularValido) {
+                    const { error } = await (supabase as any)
+                        .from('clientes').update({ telefone: '' }).eq('id', clienteId);
+                    if (error) throw error;
+
+                    // Confirma que gravou. Antes um UPDATE recusado passava batido e a
+                    // emissão seguia condenada, mostrando o mesmo erro do Asaas sem pista
+                    // do que aconteceu de verdade.
+                    const { data: conferido } = await (supabase as any)
+                        .from('clientes').select('telefone').eq('id', clienteId).single();
+                    if (String(conferido?.telefone ?? '').trim()) {
+                        throw new Error(`não consegui limpar o telefone "${bruto}" do cadastro`);
+                    }
+                    devolver = digitos ? formatado : bruto; // devolve normalizado quando dá
+                } else if (celularValido && formatado !== bruto) {
+                    await (supabase as any).from('clientes').update({ telefone: formatado }).eq('id', clienteId);
+                }
+            } catch (e: any) {
+                // Diagnóstico junto do erro: sem isto, uma falha aqui é indistinguível
+                // de uma recusa do Asaas — foi o que me fez errar o alvo duas vezes.
+                throw new Error(
+                    `Não foi possível preparar o telefone do inquilino antes de emitir (${e?.message ?? 'erro desconhecido'}). ` +
+                    `Corrija ou apague o telefone no cadastro do cliente e tente de novo.`,
+                );
+            }
+        }
+
+        try {
+            return await acao();
+        } finally {
+            if (clienteId && devolver !== null) {
+                try {
+                    await (supabase as any).from('clientes').update({ telefone: devolver }).eq('id', clienteId);
+                } catch { /* o número volta na próxima edição do cadastro */ }
+            }
+        }
+    };
+
     // Actions — a confirmação é feita por AlertDialog (não por confirm() nativo,
     // que era fácil de disparar sem querer).
     const doConfirmPayment = async (bill: any) => {
@@ -606,7 +687,11 @@ export function BillsList() {
         const loadingToast = toast.loading("Emitindo cobrança no Asaas...");
         try {
             const faturaId = await ensureFatura(bill);
-            const data = await chamarAsaas('emitir_cobranca', faturaId);
+            const clienteId = await clienteDaFatura(faturaId, bill);
+            const data = await emitindoComTelefoneSeguro(
+                clienteId,
+                () => chamarAsaas('emitir_cobranca', faturaId),
+            );
 
             toast.dismiss(loadingToast);
             toast.success(

@@ -4,7 +4,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { mensagemDeErro } from '@/lib/errors';
 import { normalizarLead } from '@/lib/crm/pipeline';
-import { paraRegistro } from '@/lib/crm/historico';
 import type { CrmEtapa, CrmOportunidade, CrmTarefa } from '@/lib/crm/tipos';
 
 /**
@@ -54,7 +53,7 @@ async function corretorId(): Promise<string> {
  * exatamente o que aconteceu: a funcionalidade existia e ninguém conseguia ver.
  * Assim ela é útil desde o primeiro segundo e fica mais rica depois.
  */
-/** Linha crua de clientes no modo legado (com o imóvel de interesse embutido). */
+/** Linha crua de  no modo legado (com o imóvel de interesse embutido). */
 type ClienteBruto = {
   id: string; nome: string; telefone: string | null; status_funil: string; created_at: string;
   // O PostgREST devolve relacao aninhada como array na inferencia do cliente sem
@@ -66,7 +65,7 @@ type ClienteBruto = {
 const primeiro = <T,>(v: T | T[] | null | undefined): T | undefined =>
   Array.isArray(v) ? v[0] : (v ?? undefined);
 
-/** Linha crua de alertas, usada como tarefa no modo legado. */
+/** Linha crua de , usada como tarefa no modo legado. */
 type AlertaBruto = {
   id: string; mensagem: string; lido: boolean; created_at: string;
   cliente_id: string | null; clientes?: { nome?: string }[];
@@ -275,22 +274,22 @@ export function useCriarOportunidade() {
  * WhatsApp), então isto NÃO é confirmação de entrega — é registro de que o
  * contato foi feito, que é o que alimenta "último contato" e a timeline.
  *
- * `direcao: OUT` porque saiu do corretor — é o que permite renderizar como
- * conversa depois, quando mensagens recebidas (IN) começarem a chegar.
+ * Grava no formato ANTIGO de historico_contatos (corretor_id/tipo/descricao/data),
+ * que é o que o `crmStore` e a tela de detalhes do cliente leem hoje. O types.ts
+ * está desatualizado em relação ao banco nesta tabela — vale conferir ao regerar.
  */
 export function useRegistrarContatoWhatsApp() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { clienteId: string; mensagem: string }) => {
-      const { error } = await db().from('historico_contatos').insert(
-        paraRegistro({
-          clienteId: args.clienteId,
-          tipo: 'WHATSAPP',
-          texto: args.mensagem.slice(0, 500),
-          direcao: 'OUT',
-          metadata: { via: 'wa.me' },
-        }),
-      );
+      const corretor = await corretorId();
+      const { error } = await db().from('historico_contatos').insert({
+        cliente_id: args.clienteId,
+        corretor_id: corretor,
+        tipo: 'WHATSAPP',
+        descricao: args.mensagem.slice(0, 500),
+        data: new Date().toISOString(),
+      });
       if (error) throw error;
       await db().from('clientes')
         .update({ ultimo_contato: new Date().toISOString() })
