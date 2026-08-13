@@ -45,11 +45,16 @@ serve(async (req) => {
       return json({ error: 'Parâmetro "id" (fachadaId) é obrigatório' }, 400)
     }
 
-    // 1. Fachada (apenas ativa) + imóvel (campos seguros) + corretor (contato comercial)
+    // 1. Fachada (apenas ativa) + imóvel (campos seguros) + corretor (contato comercial).
+    // Allowlist explícita: um `select('*')` faz qualquer coluna nova da tabela
+    // `fachadas` (ex. notas internas, custos, tokens) vazar automaticamente
+    // por este endpoint anônimo que roda com service_role.
     const { data: fachada, error } = await supabase
       .from('fachadas')
       .select(`
-        *,
+        id, corretor_id, imovel_id, tipo_negocio, template_id, cta_principal,
+        modo_conversao, mensagem_whatsapp, logo_url, foto_principal_url,
+        ativo, created_at,
         imovel:imoveis (
           id, titulo, tipo, valor, area_m2, dormitorios, banheiros, garagem,
           endereco, bairro, cidade, estado, descricao
