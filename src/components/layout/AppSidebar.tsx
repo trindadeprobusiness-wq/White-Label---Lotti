@@ -70,9 +70,10 @@ export function AppSidebar() {
                     // Estado ativo: pastilha inteira em verde-escuro da marca,
                     // texto e ícone brancos — mesmo tratamento do Clix.
                     isActive(link.href) && [
-                      "bg-primary text-primary-foreground font-medium shadow-sm",
-                      "[&_svg]:text-primary-foreground",
-                      "hover:bg-primary hover:text-primary-foreground",
+                      "bg-[#F6FFE7] text-primary font-medium",
+                      "[&_svg]:text-primary",
+                      "before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-primary",
+                      "hover:bg-[#F6FFE7] hover:text-primary",
                     ]
                   )}
                 />
