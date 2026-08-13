@@ -151,3 +151,54 @@ CRECI `'PENDENTE'`. É o onboarding que precisa pedir; hoje nada avisa.
 - Criado o template pessoal `artifact-template-lotti-strategic-business-review` em
   `C:/Users/Gabri/.codex/skills/artifact-template-lotti-strategic-business-review`.
 - Nenhuma funcionalidade, migration ou integração da aplicação foi alterada nesta etapa.
+
+### 2026-08-13 — Claude (produção destravada: merge da autenticação + deploy)
+
+**Sintoma:** a produção ficou 13 horas servindo código velho, sem ninguém ser avisado.
+Três deploys de produção criados pelos pushes do Rafael (22:18, 22:30 e 22:58 de 12/08)
+nunca chegaram a `Ready`, então o alias `olivercrm.vercel.app` continuou preso ao deploy
+das 22:00 (`b221ynn14`, commit `5423d70`). O commit `chore: dispara novo deploy` mostra
+que ele percebeu e tentou forçar; a tentativa seguinte falhou igual.
+
+**O webhook não falhou** — os três deploys existem, com `target: production`. O problema
+foi o build não completar, não o gatilho.
+
+**Causa: transitória, do lado da plataforma.** Descartado que fosse o código: `npm ci` +
+`npm run build` no commit `14e85f7`, em worktree limpo, **passou em 48s**; nenhum import
+`@/` quebrado ou com caixa errada nos 191 arquivos (o clássico "passa no Windows, quebra
+no Linux"); `package.json` intacto e o diff do lock só removendo marcadores `"peer"`.
+Corroborando: o primeiro `git push` desta sessão foi rejeitado pelo GitHub com
+`Internal Server Error` e funcionou na segunda tentativa, sem nenhuma alteração.
+
+**O que foi publicado:** `b3d8cb7` (merge), deploy `jfnhcdror`, **Ready em 25s**.
+
+Ordem usada no Git, e ela importa:
+
+1. `git revert --no-edit 5423d70` na `main` **antes** do merge (gerou `6fe3478`). A base
+   comum entre `main` e `feat/auth-multiusuario` é o próprio `7ccd1be`; num merge direto o
+   revert venceria e as correções de segurança sumiriam em silêncio — junto com o retorno
+   do contorno antigo em `BillsList.tsx`, que este arquivo manda não restaurar.
+2. `git merge feat/auth-multiusuario`. Conflito em **um único arquivo**, `src/App.tsx`
+   (rotas de recuperação de senha vs. os preloaders de rota do Rafael). Resolvido mantendo
+   os dois lados.
+
+**Validações:** `npm test` **71/71**; `npm run typecheck` **74 erros — a mesma baseline,
+nenhum novo**; lint só com o aviso de `react-refresh` em `useAuth.tsx`; `npm run build` OK.
+
+**Verificação em produção, por conteúdo e não por painel:** `olivercrm.vercel.app` serve
+`<title>Lotti</title>` (mudança do Rafael, antes era o título antigo); `/recuperar-senha` e
+`/nova-senha` respondem 200; e o bundle servido contém `AuthProvider`,
+`E-mail ou senha incorretos` e `lotti:ultimo-email`.
+
+**Falta conferir com credencial real:** login de um usuário existente. A troca do `useAuth`
+de hook para Context é a mudança mais arriscada do lote e nenhum teste automatizado cobre
+esse caminho.
+
+**Continua aberto, e o deploy verde NÃO resolveu:** as migrations de
+`supabase/migrations/` voltaram ao repositório, mas migration em arquivo não é migration
+aplicada. Enquanto o conteúdo de `deploy-manual/` não for colado no painel do Supabase, um
+usuário ainda alcança dado de outro. Também segue pendente rotacionar a chave da Evolution.
+
+**Observação de higiene:** o commit `5954157` trouxe ~10 MB de binários (`output/*.pptx`,
+`docs/*.xlsx`) que agora estão na `main`. Não quebram o build nem entram no bundle, mas não
+pertencem ao repositório da aplicação.
