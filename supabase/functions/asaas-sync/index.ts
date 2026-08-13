@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { asaasGet, asaasPost, asaasPut, AsaasError } from "../_shared/asaas.ts";
-import { telefoneParaAsaas, ehErroDeTelefone } from "../_shared/telefone.ts";
+import { telefoneParaAsaas } from "../_shared/telefone.ts";
 
 const AVISO_TELEFONE =
     "A cobrança foi emitida, mas o telefone do inquilino não foi aceito pelo Asaas e ficou de fora do cadastro. Corrija o telefone no cadastro do cliente.";
@@ -330,28 +330,23 @@ serve(async (req) => {
                     email: cliente.email || undefined,
                     externalReference: cliente.id,
                 };
-                let novo;
-                try {
-                    novo = await asaasPost("/customers", { ...base, ...tel });
-                } catch (e) {
-                    // Rede de segurança: o Asaas pode ter regra de telefone que a nossa
-                    // normalização não conhece. Se a recusa for SÓ por telefone, refaz
-                    // sem ele. Qualquer outro erro (CPF, nome) continua subindo.
-                    if (!(e instanceof AsaasError && temTelefoneValido && ehErroDeTelefone(e.body))) throw e;
-                    console.warn("Asaas recusou o telefone; recriando o customer sem ele.", e.body);
-                    novo = await asaasPost("/customers", base);
-                    avisos.push(AVISO_TELEFONE);
-                }
+                // Cria primeiro só com os dados necessários para cobrar. Telefone é
+                // enriquecimento opcional e nunca participa desta requisição crítica.
+                const novo = await asaasPost("/customers", base);
                 customerId = novo.id;
             }
             await admin.from("clientes").update({ asaas_customer_id: customerId }).eq("id", cliente.id);
-        } else if (temTelefoneValido) {
-            // O customer já existe no Asaas e não havia caminho de update: corrigir o
-            // telefone no CRM nunca chegava lá. Best-effort — não interrompe a emissão.
+        }
+
+        if (temTelefoneValido) {
+            // Atualiza o contato somente depois de o pagador estar garantido. É
+            // best-effort: qualquer regra do Asaas sobre telefone fica isolada e a
+            // cobrança continua sendo criada apenas com customer, CPF e valor.
             try {
                 await asaasPut(`/customers/${customerId}`, tel);
             } catch (e) {
                 console.warn("Não foi possível atualizar o telefone do customer no Asaas.", e);
+                avisos.push(AVISO_TELEFONE);
             }
         }
 
