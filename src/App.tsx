@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { FLAGS } from "@/lib/flags";
+import { AuthProvider } from "@/hooks/useAuth";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -11,6 +12,8 @@ import { DataLoader } from "@/components/DataLoader";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
+import RecuperarSenha from "@/pages/RecuperarSenha";
+import NovaSenha from "@/pages/NovaSenha";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
@@ -56,12 +59,19 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      {/* Um único estado de auth para o app inteiro — antes cada consumidor
+          criava o seu, com três getSession() e três listeners concorrentes. */}
+      <AuthProvider>
       <BrowserRouter>
         <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public route */}
           <Route path="/auth" element={<Auth />} />
+          {/* Recuperação de senha — não existia caminho nenhum: quem esquecia
+              a senha ficava trancado fora para sempre. */}
+          <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+          <Route path="/nova-senha" element={<NovaSenha />} />
 
           {/* Protected routes */}
           <Route element={
@@ -106,6 +116,7 @@ const App = () => (
         </Suspense>
         </ErrorBoundary>
       </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

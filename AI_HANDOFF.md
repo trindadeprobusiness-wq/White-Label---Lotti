@@ -85,3 +85,69 @@ estejam concluídas ou corretas.
   atualização do telefone é opcional e sua falha não interrompe o pagamento.
 - Publicada `asaas-sync` versão 6 e validado o endpoint ativo.
 - Não restaurar o antigo contorno de alterar `clientes.telefone` no frontend.
+
+### 2026-08-12 — Claude (autenticação e isolamento multiusuário)
+
+Trabalho na branch **`feat/auth-multiusuario`**, ainda **não commitado** — o usuário
+reservou a decisão de commit/push.
+
+Cuidado com o Git (o ponto mais fácil de perder): `main` recebeu o revert `5423d70`,
+que desfez o commit de segurança `7ccd1be`. A branch **ainda carrega o `7ccd1be`
+original**. Ao fazer merge de `feat/auth-multiusuario` em `main`, o Git preserva o
+revert e as correções de segurança **não voltam sozinhas** — é preciso
+`git revert 5423d70` na `main` depois do merge.
+
+O que mudou:
+
+- `src/hooks/useAuth.tsx` (novo, substitui `useAuth.ts`): o hook virou Context. Antes
+  cada consumidor criava a própria cópia do estado — três `onAuthStateChange` em
+  paralelo, e o spinner piscava a cada troca de rota. Ganhou `pedirRecuperacao`,
+  `definirNovaSenha` e `entrarCom` (OAuth).
+- `src/lib/auth/mensagens.ts` + teste (12 casos): traduz erro do Supabase; mensagem
+  desconhecida cai num texto neutro e nunca vaza inglês cru para o usuário.
+- `src/pages/RecuperarSenha.tsx` e `NovaSenha.tsx` (novos): não existia recuperação de
+  senha nenhuma — quem esquecia ficava trancado para sempre. A confirmação é idêntica
+  exista ou não a conta, para não permitir descobrir quem é cadastrado.
+- `src/pages/Auth.tsx`: duas colunas, mostrar/ocultar senha, "lembrar de mim" (guarda
+  só o e-mail) e mensagem honesta quando o cadastro exige confirmação por e-mail —
+  antes afirmava "já pode acessar", o que era falso.
+- `src/components/auth/BotoesSociais.tsx` + `infra/OAUTH.md`: login Google/Microsoft.
+  Os botões só aparecem para o que estiver em `VITE_OAUTH_PROVIDERS`, **vazio por
+  padrão**: ligar antes de configurar o provedor no painel do Supabase mostraria um
+  botão que só devolve "Unsupported provider".
+- `supabase/migrations/20260812090000_isolamento_multiusuario.sql`: fecha os vazamentos
+  entre inquilinos (policies públicas em `imovel_fotos` e `fachadas`, `WITH CHECK`
+  ausente em assinatura, view sem `security_invoker`, storage por dono do imóvel).
+
+Validações desta etapa: `npm test` **65/65**, `npm run typecheck` **74 erros — a mesma
+baseline, nenhum novo**, `npm run lint` limpo nos arquivos tocados (resta só o aviso de
+`react-refresh` em `useAuth.tsx`, inerente a exportar provider e hook juntos) e
+`npm run build` OK.
+
+Pendências que não são de código: a fila de `deploy-manual/` continua **sem ser colada
+no painel do Supabase** — enquanto isso, os vazamentos seguem abertos em produção. Falta
+ainda onboarding, empty states e o splash com progresso real.
+
+Um alerta para quem configurar o OAuth: o trigger `handle_new_user` cria o corretor para
+qualquer usuário novo, mas o Google não manda CRECI nem telefone — o cadastro nasce com
+CRECI `'PENDENTE'`. É o onboarding que precisa pedir; hoje nada avisa.
+
+### 2026-08-12 — Codex (estudo estratégico e pricing da Lotti)
+
+- Criado `docs/ESTUDO_MERCADO_PRECIFICACAO.md`, com 22 seções, auditoria do produto,
+  benchmark competitivo, fornecedores, gateways, riscos e plano de 90 dias. Afirmações
+  estão rotuladas como confirmadas, estimadas, assumidas ou não encontradas.
+- Criados `docs/LOTTI_UNIT_ECONOMICS.xlsx` (15 abas, fórmulas e checks) e
+  `docs/unit-economics.csv` (8 cenários de escala). O cenário equilibrado é hipótese:
+  R$129 / R$249 / R$499, mix 55% / 35% / 10%, CAC R$450 e churn mensal de 3%.
+- Criados os decks em `output/presentations/`: Business Review (18 slides), Plano de
+  90 Dias (12) e Pricing Lab (10). Todos usam os templates solicitados, possuem notas
+  `[Sources]` em todos os slides, não contêm placeholders e passaram no teste de overflow.
+- Exportado `output/pdf/LOTTI_BUSINESS_REVIEW_ESTRATEGICO.pdf` com 18 páginas pelo
+  PowerPoint e revisado visualmente página por página.
+- Criado simulador interativo em
+  `C:/Users/Gabri/.codex/visualizations/2026/08/13/019ff871-053c-77d3-8f3a-c9db10d76d86/index.html`;
+  validado em 1024, 736, 360 e 320 px, nos temas claro e escuro.
+- Criado o template pessoal `artifact-template-lotti-strategic-business-review` em
+  `C:/Users/Gabri/.codex/skills/artifact-template-lotti-strategic-business-review`.
+- Nenhuma funcionalidade, migration ou integração da aplicação foi alterada nesta etapa.
