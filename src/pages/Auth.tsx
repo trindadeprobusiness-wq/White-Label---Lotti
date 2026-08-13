@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Loader2, Building2, Mail, Lock, User, Phone, CreditCard } from 'lucide-react';
+import { Loader2, Building2, Mail, Lock, User, Phone, CreditCard, Eye, EyeOff } from 'lucide-react';
 import { z } from 'zod';
+import { Checkbox } from '@/components/ui/checkbox';
+import { PainelInstitucional } from '@/components/auth/PainelInstitucional';
+import { BotoesSociais } from '@/components/auth/BotoesSociais';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 
 const loginSchema = z.object({
@@ -31,9 +34,13 @@ export default function Auth() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  // 'Lembrar de mim' guarda so o e-mail para pre-preencher: a sessao ja persiste
+  // pelo cliente Supabase. Prometer mais que isso seria enganoso.
+  const [lembrar, setLembrar] = useState(true);
   
   // Login form
-  const [loginEmail, setLoginEmail] = useState('');
+  const [loginEmail, setLoginEmail] = useState(() => localStorage.getItem('lotti:ultimo-email') ?? '');
   const [loginPassword, setLoginPassword] = useState('');
   
   // Signup form
@@ -43,7 +50,7 @@ export default function Auth() {
   const [signupCreci, setSignupCreci] = useState('');
   const [signupTelefone, setSignupTelefone] = useState('');
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
@@ -58,15 +65,21 @@ export default function Auth() {
       const validated = loginSchema.parse({ email: loginEmail, password: loginPassword });
       setIsLoading(true);
       
-      const { error } = await signIn(validated.email, validated.password);
-      
-      if (error) {
-        toast.error(error.message);
+      const r = await signIn(validated.email, validated.password);
+
+      if (!r.ok) {
+        toast.error(r.erro);
         return;
       }
-      
-      toast.success('Login realizado com sucesso!');
-    } catch (error: any) {
+
+      // "Lembrar de mim" controla apenas o e-mail pré-preenchido. A sessão em
+      // si já persiste no localStorage pelo cliente Supabase — prometer mais
+      // que isso seria enganoso.
+      if (lembrar) localStorage.setItem('lotti:ultimo-email', validated.email);
+      else localStorage.removeItem('lotti:ultimo-email');
+
+      toast.success('Bem-vindo de volta!');
+    } catch (error: unknown) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
       } else {
@@ -91,21 +104,30 @@ export default function Auth() {
       
       setIsLoading(true);
       
-      const { error } = await signUp(validated.email, validated.password, {
+      const r = await signUp(validated.email, validated.password, {
         nome: validated.nome,
         creci: validated.creci,
         telefone: validated.telefone,
       });
-      
-      if (error) {
-        toast.error(error.message);
+
+      if (!r.ok) {
+        toast.error(r.erro);
         return;
       }
-      
-      toast.success('Cadastro realizado com sucesso! Você já pode acessar o sistema.');
+
+      // Antes dizia sempre "já pode acessar o sistema". Com confirmação de
+      // e-mail ligada, o signUp devolve sucesso SEM sessão e o login seguinte
+      // falha com "Email not confirmed" — a mensagem era simplesmente falsa.
+      if (r.precisaConfirmarEmail) {
+        toast.success('Conta criada! Confirme seu e-mail para entrar — veja também o spam.', {
+          duration: 8000,
+        });
+      } else {
+        toast.success('Conta criada! Bem-vindo ao Lotti.');
+      }
       setActiveTab('login');
       setLoginEmail(validated.email);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
       } else {
@@ -125,7 +147,10 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+    // Duas colunas no desktop; no celular só o formulário — quem abre o login
+    // quer entrar, não ler material institucional.
+    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+      <div className="flex items-center justify-center p-4 lg:p-12">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
@@ -172,15 +197,41 @@ export default function Auth() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="login-password"
-                        type="password"
+                        type={mostrarSenha ? 'text' : 'password'}
                         placeholder="••••••••"
+                        autoComplete="current-password"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 pr-10"
                         disabled={isLoading}
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSenha((v) => !v)}
+                        aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+                      >
+                        {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <Checkbox
+                        checked={lembrar}
+                        onCheckedChange={(v) => setLembrar(v === true)}
+                        disabled={isLoading}
+                      />
+                      Lembrar de mim
+                    </label>
+                    <Link
+                      to="/recuperar-senha"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Esqueci minha senha
+                    </Link>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isLoading}>
@@ -194,6 +245,10 @@ export default function Auth() {
                     )}
                   </Button>
                 </form>
+
+                <div className="mt-4">
+                  <BotoesSociais desabilitado={isLoading} />
+                </div>
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0">
@@ -313,6 +368,9 @@ export default function Auth() {
           Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade
         </p>
       </div>
+      </div>
+
+      <PainelInstitucional />
     </div>
   );
 }
