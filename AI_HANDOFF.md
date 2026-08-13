@@ -151,3 +151,12 @@ CRECI `'PENDENTE'`. É o onboarding que precisa pedir; hoje nada avisa.
 - Criado o template pessoal `artifact-template-lotti-strategic-business-review` em
   `C:/Users/Gabri/.codex/skills/artifact-template-lotti-strategic-business-review`.
 - Nenhuma funcionalidade, migration ou integração da aplicação foi alterada nesta etapa.
+
+### 2026-08-13 — Codex (pacote para WhatsApp)
+
+- Criados `output/whatsapp/00_LEIA-ME.txt` e
+  `output/whatsapp/MENSAGEM_PRONTA_WHATSAPP.txt`.
+- Copiados os sete entregáveis estratégicos e o simulador para
+  `C:/Users/Gabri/Downloads/LOTTI_PACOTE_ESTRATEGICO_2026-08-13`.
+- Criado `C:/Users/Gabri/Downloads/LOTTI_PACOTE_ESTRATEGICO_2026-08-13.zip`, com
+  10 arquivos/entradas e 10,01 MB. Os originais do projeto foram preservados.
