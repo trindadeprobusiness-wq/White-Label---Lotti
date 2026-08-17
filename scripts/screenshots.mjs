@@ -110,6 +110,7 @@ const ROTAS = [
   { nome: '05-midias', path: '/midias' },
   { nome: '06-fachadas', path: '/fachadas' },
   { nome: '07-clientes', path: '/clientes' },
+  { nome: '08-assistente', path: '/assistente' },
 ];
 
 const VIEWPORTS = [
