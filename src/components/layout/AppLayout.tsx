@@ -6,16 +6,23 @@ import { AIChatWidget } from '../ai/AIChatWidget';
 
 export function AppLayout() {
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden relative selection:bg-primary/20">
+    // `min-h-screen` com rolagem no documento, não `h-screen` com rolagem
+    // interna: o container com altura fixa quebrava o scroll do iOS e impedia
+    // a barra de endereço de recolher.
+    <div className="flex min-h-screen w-full bg-background selection:bg-primary/15">
       <AppSidebar />
-      <main className="flex-1 h-full overflow-y-auto bg-background/50">
-        <div className="container py-8 px-4 md:px-8 max-w-7xl mx-auto animate-fade-in-up">
+      <main className="min-w-0 flex-1">
+        {/* pt-20 no mobile compensa a barra fixa da sidebar; o padding lateral
+            acompanha a densidade das referências (20px → 32px). */}
+        <div className="mx-auto w-full max-w-[1600px] px-5 pb-16 pt-20 md:px-8 md:pt-8">
           {/* Suspense aqui: a sidebar fica fixa enquanto a página (lazy) carrega */}
-          <Suspense fallback={
-            <div className="flex h-[60vh] w-full items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          }>
+          <Suspense
+            fallback={
+              <div className="flex h-[60vh] w-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }
+          >
             <Outlet />
           </Suspense>
         </div>

@@ -17,6 +17,8 @@ import { DEFAULT_TEMPLATES } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { abasSublinhadas } from '@/components/shell/primitivos';
 
 interface CustomTemplate {
   id: string;
@@ -276,40 +278,37 @@ export default function FachadasInteligentes() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <QrCode className="h-7 w-7 text-primary" />
-            Fachadas Inteligentes
-          </h1>
-          <p className="text-muted-foreground">
-            Gere materiais com QR Code que capturam leads automaticamente
-          </p>
-        </div>
-        <Button onClick={() => { setEditingFachada(null); setDialogOpen(true); }} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Criar Nova Fachada
-        </Button>
-      </div>
+    <div className="animate-fade-in">
+      <PageHeader
+        titulo="Fachadas Inteligentes"
+        subtitulo="Transforme placas com QR Code em novos contatos."
+        acoes={
+          <Button
+            className="h-control"
+            onClick={() => { setEditingFachada(null); setDialogOpen(true); }}
+          >
+            <Plus className="mr-2 h-[18px] w-[18px]" />
+            Nova fachada
+          </Button>
+        }
+      />
 
       {/* Tabs */}
-      <Tabs defaultValue="fachadas" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
-          <TabsTrigger value="fachadas" className="gap-1.5">
+      <Tabs defaultValue="fachadas" className="space-y-5">
+        <TabsList className={abasSublinhadas.lista}>
+          <TabsTrigger value="fachadas" className={abasSublinhadas.gatilho}>
             <QrCode className="h-4 w-4" />
             <span className="hidden sm:inline">Fachadas</span>
           </TabsTrigger>
-          <TabsTrigger value="dashboard" className="gap-1.5">
+          <TabsTrigger value="dashboard" className={abasSublinhadas.gatilho}>
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="leads" className="gap-1.5">
+          <TabsTrigger value="leads" className={abasSublinhadas.gatilho}>
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Leads</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5">
+          <TabsTrigger value="templates" className={abasSublinhadas.gatilho}>
             <LayoutTemplate className="h-4 w-4" />
             <span className="hidden sm:inline">Templates</span>
           </TabsTrigger>

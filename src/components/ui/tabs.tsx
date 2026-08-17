@@ -13,6 +13,11 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      // Rola em vez de estourar. Os gatilhos são `whitespace-nowrap`, então
+      // quatro abas ("Visão geral / Custos / Faturamento / Projeção") somam
+      // 365px e empurravam a página inteira para fora da viewport de 390px.
+      // `max-w-full` + scroll resolve para toda tela com abas de uma vez.
+      "max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       className,
     )}
     {...props}

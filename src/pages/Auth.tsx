@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PainelInstitucional } from '@/components/auth/PainelInstitucional';
 import { BotoesSociais } from '@/components/auth/BotoesSociais';
 import { LottiLogo } from '@/components/brand/LottiLogo';
+import { nomeParceiroIndicador } from '@/lib/admin/atribuicao';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -51,6 +52,12 @@ export default function Auth() {
   const [signupTelefone, setSignupTelefone] = useState('');
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
+
+  // Lido uma vez na montagem: é só rótulo, e não precisa reagir a mudanças.
+  const [parceiroIndicador] = useState(() => nomeParceiroIndicador());
+
+  // O AdminRoute devolve para cá com state.from = /admin quando não há sessão.
+  const indoParaAdmin = from.startsWith('/admin');
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
@@ -156,6 +163,33 @@ export default function Auth() {
         <div className="flex flex-col items-center mb-8">
           <LottiLogo variant="full" className="text-4xl mb-4" />
         </div>
+
+        {/* Sem isto o clique em "Acesso administrativo" era invisível: quem
+            está deslogado ia para /admin, o guard devolvia para /auth, e a tela
+            final era idêntica à inicial — parecia botão quebrado. O destino
+            continua guardado em location.state, então o login leva direto ao
+            painel. */}
+        {indoParaAdmin && (
+          <div className="mb-4 rounded-md border border-gold/30 bg-gold/5 px-4 py-3">
+            <p className="text-sm font-medium">Acesso administrativo</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Entre com sua conta. Se ela tiver permissão administrativa, você vai direto
+              para o back office.
+            </p>
+          </div>
+        )}
+
+        {/* Quem chegou pelo link de um parceiro merece saber. O nome é só
+            rótulo: o vínculo real foi gravado no servidor no momento do clique,
+            e é de lá que a atribuição sai — não daqui. */}
+        {parceiroIndicador && (
+          <div className="mb-4 rounded-md border border-border/60 bg-muted/40 px-4 py-3 text-center">
+            <p className="text-sm text-muted-foreground">
+              Você chegou pela indicação de{' '}
+              <span className="font-medium text-foreground">{parceiroIndicador}</span>
+            </p>
+          </div>
+        )}
 
         <Card className="border-border/50 shadow-xl">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -366,6 +400,19 @@ export default function Auth() {
 
         <p className="text-center text-xs text-muted-foreground mt-6">
           Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade
+        </p>
+
+        {/* Acesso administrativo: um link, não um segundo formulário. A
+            autenticação é a mesma; o AdminRoute devolve para cá guardando o
+            destino, e quem tem papel volta direto ao painel. Nenhuma credencial
+            administrativa existe no frontend. */}
+        <p className="mt-4 text-center">
+          <Link
+            to="/admin"
+            className="text-xs text-muted-foreground/70 underline-offset-4 transition-colors hover:text-muted-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          >
+            Acesso administrativo
+          </Link>
         </p>
       </div>
       </div>

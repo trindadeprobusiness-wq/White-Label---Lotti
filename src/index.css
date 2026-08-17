@@ -6,120 +6,187 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    /* =====================================================================
+       Identidade Lotti — verde institucional profundo sobre superfície clara.
+       Valores em HSL sem hsl() porque é o formato que o Tailwind precisa para
+       injetar alpha (`bg-primary/10`).
+
+       O grafite quase-preto que ocupava --primary não era decisão de marca:
+       veio do tema padrão do shadcn. O verde é a marca de verdade.
+       ===================================================================== */
+
+    /* Escala da marca. brand-850 (#064331) é a cor de botão, menu ativo e IA. */
+    --brand-950: 156 91% 9%;
+    --brand-900: 161 100% 12%;
+    --brand-850: 162 84% 14%;
+    --brand-800: 162 80% 16%;
+    --brand-700: 162 79% 20%;
+    --brand-600: 161 67% 26%;
+    --brand-100: 152 24% 89%;
+    --brand-50: 146 26% 95%;
+
+    /* Superfícies. O fundo NÃO é branco puro: o branco fica para os cards, e
+       o contraste sutil entre os dois é o que dá profundidade sem sombra. */
+    --background: 120 9% 98%;
+    --foreground: 210 29% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 210 29% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover-foreground: 210 29% 9%;
 
-    /* Premium High-Contrast Primary */
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
+    --surface: 150 13% 97%;
+    --surface-brand: 146 24% 94%;
 
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
+    --primary: 162 84% 14%;
+    --primary-foreground: 0 0% 100%;
 
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --secondary: 150 13% 97%;
+    --secondary-foreground: 162 84% 14%;
 
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --muted: 150 9% 96%;
+    --muted-foreground: 214 9% 45%;
+    --muted-strong: 213 8% 58%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --accent: 146 24% 94%;
+    --accent-foreground: 162 84% 14%;
 
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 0 0% 98%;
+    --destructive: 357 69% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-surface: 357 82% 96%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 98%;
+    --success: 149 61% 34%;
+    --success-foreground: 0 0% 100%;
+    --success-surface: 137 50% 95%;
 
-    --critical: 0 84.2% 60.2%;
-    --critical-foreground: 0 0% 98%;
+    --warning: 44 100% 45%;
+    --warning-foreground: 210 29% 9%;
+    --warning-surface: 43 100% 92%;
 
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
+    --info: 217 27% 56%;
+    --info-foreground: 0 0% 100%;
+    --info-surface: 213 44% 95%;
 
+    --doc: 13 86% 57%;
+    --doc-foreground: 0 0% 100%;
+    --doc-surface: 17 100% 96%;
+
+    --critical: 357 69% 55%;
+    --critical-foreground: 0 0% 100%;
+
+    --border: 140 6% 90%;
+    --border-strong: 140 8% 86%;
+    --input: 140 8% 86%;
+    --ring: 162 84% 14%;
+
+    /* 8px em inputs/botões; cards sobem para 10–12px via rounded-card. */
     --radius: 0.5rem;
 
-    /* Sidebar - Light/Modern */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 240 5.9% 90%;
-    --sidebar-ring: 217 91% 53%;
+    /* Sidebar branca com item ativo verde sólido. */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 214 9% 45%;
+    --sidebar-primary: 162 84% 14%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 9% 96%;
+    --sidebar-accent-foreground: 210 29% 9%;
+    --sidebar-border: 140 6% 90%;
+    --sidebar-ring: 162 84% 14%;
 
-    /* Funnel Colors - Softened */
-    --funnel-qualification: 210 40% 96.1%;
-    --funnel-visit: 38 92% 95%;
-    --funnel-documentation: 25 95% 95%;
-    --funnel-closing: 142.1 76.2% 95%;
+    /* Etapas do funil: o pastel é o fundo da coluna, o forte é o dot/borda. */
+    --funnel-qualification: 217 27% 56%;
+    --funnel-visit: 44 100% 45%;
+    --funnel-documentation: 13 86% 57%;
+    --funnel-closing: 149 61% 34%;
 
-    /* Gold accent for logo */
     --gold: 43 74% 49%;
   }
 
+  /* Tema escuro derivado da mesma marca. Não há referência visual para ele —
+     as cinco telas de referência são claras —, então aqui o critério é
+     coerência e contraste, não fidelidade. Mantido porque o toggle já existe
+     no rodapé da sidebar e remover seria tirar funcionalidade de quem usa.
+
+     O verde precisa CLAREAR no escuro: #064331 sobre fundo escuro não passa
+     em contraste de texto. Por isso --primary aqui é brand-600 clareado. */
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --brand-950: 156 91% 9%;
+    --brand-900: 161 100% 12%;
+    --brand-850: 162 84% 14%;
+    --brand-800: 162 80% 16%;
+    --brand-700: 162 79% 20%;
+    --brand-600: 161 67% 26%;
+    --brand-100: 161 40% 22%;
+    --brand-50: 162 45% 16%;
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --background: 165 22% 7%;
+    --foreground: 150 12% 95%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --card: 165 20% 10%;
+    --card-foreground: 150 12% 95%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --popover: 165 20% 10%;
+    --popover-foreground: 150 12% 95%;
 
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --surface: 165 18% 12%;
+    --surface-brand: 162 25% 15%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --primary: 158 55% 55%;
+    --primary-foreground: 165 30% 8%;
 
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --secondary: 165 18% 14%;
+    --secondary-foreground: 150 12% 95%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --muted: 165 15% 15%;
+    --muted-foreground: 150 8% 62%;
+    --muted-strong: 150 8% 74%;
 
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 0 0% 98%;
+    --accent: 162 25% 16%;
+    --accent-foreground: 150 12% 95%;
 
-    --warning: 38 92% 55%;
-    --warning-foreground: 0 0% 98%;
+    --destructive: 357 65% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-surface: 357 30% 18%;
 
-    --critical: 0 62.8% 30.6%;
-    --critical-foreground: 0 0% 98%;
+    --success: 149 50% 50%;
+    --success-foreground: 165 30% 8%;
+    --success-surface: 149 30% 16%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --warning: 44 85% 58%;
+    --warning-foreground: 165 30% 8%;
+    --warning-surface: 44 35% 18%;
 
-    --sidebar-background: 240 10% 3.9%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --info: 217 40% 66%;
+    --info-foreground: 165 30% 8%;
+    --info-surface: 217 25% 20%;
+
+    --doc: 13 75% 62%;
+    --doc-foreground: 165 30% 8%;
+    --doc-surface: 13 35% 18%;
+
+    --critical: 357 65% 62%;
+    --critical-foreground: 0 0% 100%;
+
+    --border: 165 14% 18%;
+    --border-strong: 165 14% 24%;
+    --input: 165 14% 22%;
+    --ring: 158 55% 55%;
+
+    --sidebar-background: 165 20% 9%;
+    --sidebar-foreground: 150 8% 68%;
+    --sidebar-primary: 162 60% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 165 18% 15%;
+    --sidebar-accent-foreground: 150 12% 95%;
+    --sidebar-border: 165 14% 18%;
+    --sidebar-ring: 158 55% 55%;
 
-    /* Funnel Colors - Dark Mode Softened */
-    --funnel-qualification: 210 40% 15%;
-    --funnel-visit: 38 40% 15%;
-    --funnel-documentation: 25 40% 15%;
-    --funnel-closing: 142.1 40% 15%;
+    --funnel-qualification: 217 40% 66%;
+    --funnel-visit: 44 85% 58%;
+    --funnel-documentation: 13 75% 62%;
+    --funnel-closing: 149 50% 50%;
 
-    --gold: 43 74% 55%;
+    --gold: 43 74% 60%;
   }
 }
 
@@ -128,16 +195,13 @@
     @apply border-border;
   }
 
-  /* Smooth theme transition — sem pseudo-elementos para reduzir custo de recálculo de estilo */
-  html,
-  html * {
-    transition:
-      background-color 0.3s ease,
-      border-color 0.3s ease,
-      color 0.3s ease,
-      fill 0.3s ease,
-      stroke 0.3s ease;
-  }
+  /* A transição global de cor foi removida.
+     Ela existia para suavizar a troca de tema, mas aplicava-se a `html *` — ou
+     seja, a TODO elemento, o tempo inteiro. Efeito colateral: hover de item de
+     menu e de botão levava 300ms para responder, o que numa ferramenta de
+     trabalho lê como lentidão. A troca de tema agora usa
+     `disableTransitionOnChange` no provider, e as transições ficam declaradas
+     por componente, entre 120 e 200ms. */
 
   /* Acessibilidade: respeita usuários que preferem menos movimento */
   @media (prefers-reduced-motion: reduce) {
@@ -154,13 +218,32 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
-    letter-spacing: -0.01em; /* Premium tight tracking */
+    letter-spacing: -0.011em;
+  }
+
+  /* Títulos com tracking mais fechado que o corpo — em Inter, título grande
+     com tracking neutro parece frouxo. */
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Números de KPI, moeda e contadores. Sem isto, "1.234" e "9.999" ocupam
+     larguras diferentes e a coluna dança quando o valor atualiza. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* Foco visível e consistente. O padrão do navegador some sobre superfície
+     clara e não atende a navegação por teclado. */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 }
 

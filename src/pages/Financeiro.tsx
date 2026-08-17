@@ -10,6 +10,7 @@ import {
   Percent,
   Calendar,
   Filter,
+  Download,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,10 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFinanceiro } from '@/hooks/useFinanceiro';
-import { KPICard } from '@/components/financeiro/KPICard';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { MetricCard, SectionCard, abasSublinhadas } from '@/components/shell/primitivos';
+import { moeda, percentual, dataBR } from '@/lib/formato';
+import { montarCsv, baixarCsv, nomeArquivoCsv } from '@/lib/admin/csv';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { LancamentoCard } from '@/components/financeiro/LancamentoCard';
 import { GraficoReceitaDespesa } from '@/components/financeiro/GraficoReceitaDespesa';
@@ -51,6 +55,24 @@ export default function Financeiro() {
     calcularPorCategoria,
     calcularProjecaoAnual,
   } = useFinanceiro();
+
+  /**
+   * Exporta os lançamentos do período. Reusa o montarCsv do back office, que
+   * já trata separador pt-BR, BOM e injeção de fórmula — o mesmo relatório
+   * abre no Excel sem "ImobiliÃ¡ria" e sem executar nada.
+   */
+  const exportarCsv = () => {
+    baixarCsv(
+      montarCsv(lancamentos, [
+        { cabecalho: 'Data', valor: (l) => dataBR(l.data) },
+        { cabecalho: 'Tipo', valor: (l) => l.tipo },
+        { cabecalho: 'Categoria', valor: (l) => l.categoria },
+        { cabecalho: 'Descrição', valor: (l) => l.descricao },
+        { cabecalho: 'Valor', valor: (l) => l.valor },
+      ]),
+      nomeArquivoCsv('financeiro'),
+    );
+  };
 
   const carregarDados = async () => {
     const hoje = new Date();
@@ -143,91 +165,131 @@ export default function Financeiro() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Financeiro</h1>
-          <p className="text-muted-foreground">
-            Gerencie receitas, despesas e acompanhe sua projeção anual
-          </p>
-        </div>
+    <div className="animate-fade-in">
+      <PageHeader
+        titulo="Financeiro"
+        subtitulo="Acompanhe receitas, despesas e o resultado do seu negócio."
+        acoes={
+          <>
+            {periodo === 'personalizado' && (
+              <DatePickerWithRange date={customDate} onDateChange={setCustomDate} />
+            )}
 
-        <div className="flex items-center gap-3">
-          {periodo === 'personalizado' && (
-            <DatePickerWithRange
-              date={customDate}
-              onDateChange={setCustomDate}
-            />
-          )}
+            <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+              <SelectTrigger className="h-control w-[170px]">
+                <Calendar className="mr-2 h-[18px] w-[18px] text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mes_atual">Mês atual</SelectItem>
+                <SelectItem value="trimestre">Trimestre</SelectItem>
+                <SelectItem value="ano">Ano</SelectItem>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="personalizado">Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
-            <SelectTrigger className="w-[180px]">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mes_atual">Mês Atual</SelectItem>
-              <SelectItem value="trimestre">Trimestre</SelectItem>
-              <SelectItem value="ano">Ano</SelectItem>
-              <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="personalizado">Personalizado</SelectItem>
-            </SelectContent>
-          </Select>
+            <Button variant="outline" className="h-control" onClick={exportarCsv}>
+              <Download className="mr-2 h-[18px] w-[18px]" />
+              Exportar
+            </Button>
 
-          <NovoLancamentoDialog onSuccess={carregarDados} />
-        </div>
-      </div>
+            <NovoLancamentoDialog onSuccess={carregarDados} />
+          </>
+        }
+      />
 
-      <p className="text-sm text-muted-foreground -mt-2">
-        📅 Exibindo: <span className="font-medium capitalize">{periodoLabel[periodo]}</span>
-      </p>
-
-      {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          titulo="Receita Total"
-          valor={resumo.receita_total}
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="Receita total"
+          valor={moeda(resumo.receita_total, true)}
           icone={<TrendingUp className="h-5 w-5" />}
-          corIcone="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          tom="success"
         />
-        <KPICard
-          titulo="Despesas"
-          valor={resumo.despesa_total}
+        <MetricCard
+          label="Despesas"
+          valor={moeda(resumo.despesa_total, true)}
           icone={<TrendingDown className="h-5 w-5" />}
-          corIcone="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+          tom="destructive"
         />
-        <KPICard
-          titulo="Lucro Líquido"
-          valor={resumo.lucro}
+        <MetricCard
+          label="Lucro líquido"
+          valor={moeda(resumo.lucro, true)}
           icone={<Wallet className="h-5 w-5" />}
-          corIcone={resumo.lucro >= 0
-            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-            : "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
-          }
+          tom={resumo.lucro >= 0 ? 'brand' : 'warning'}
         />
-        <KPICard
-          titulo="Margem"
-          valor={resumo.margem}
-          formatoMoeda={false}
-          formatoPercentual={true}
+        <MetricCard
+          label="Margem"
+          valor={percentual(resumo.margem)}
           icone={<Percent className="h-5 w-5" />}
-          corIcone="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+          tom="warning"
         />
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="visao_geral" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="visao_geral">Visão Geral</TabsTrigger>
-          <TabsTrigger value="custos">Custos</TabsTrigger>
-          <TabsTrigger value="faturamento">Faturamento</TabsTrigger>
-          <TabsTrigger value="projecao">Projeção</TabsTrigger>
+      <Tabs defaultValue="visao_geral" className="space-y-5">
+        <TabsList className={abasSublinhadas.lista}>
+          <TabsTrigger value="visao_geral" className={abasSublinhadas.gatilho}>Visão geral</TabsTrigger>
+          <TabsTrigger value="custos" className={abasSublinhadas.gatilho}>Custos</TabsTrigger>
+          <TabsTrigger value="faturamento" className={abasSublinhadas.gatilho}>Faturamento</TabsTrigger>
+          <TabsTrigger value="projecao" className={abasSublinhadas.gatilho}>Projeção</TabsTrigger>
         </TabsList>
 
         {/* Visão Geral */}
-        <TabsContent value="visao_geral" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
+        <TabsContent value="visao_geral" className="mt-0 space-y-5">
+          {/* Resultado do período: a conta explícita que a referência mostra.
+              Receita − Despesa = Lucro é o que o corretor confere primeiro, e
+              o gráfico sozinho não responde isso de bate-pronto. */}
+          <SectionCard titulo={`Resultado de ${periodoLabel[periodo].toLowerCase()}`}>
+            <div className="grid gap-5 lg:grid-cols-[auto_1fr] lg:items-center">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-[8.5rem] rounded-lg border border-success/20 bg-success-surface px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Receitas</p>
+                  <p className="mt-1 text-lg font-semibold tabular text-success">
+                    {moeda(resumo.receita_total, true)}
+                  </p>
+                </div>
+                <span className="text-lg text-muted-foreground" aria-hidden="true">−</span>
+                <div className="min-w-[8.5rem] rounded-lg border border-destructive/20 bg-destructive-surface px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Despesas</p>
+                  <p className="mt-1 text-lg font-semibold tabular text-destructive">
+                    {moeda(resumo.despesa_total, true)}
+                  </p>
+                </div>
+                <span className="text-lg text-muted-foreground" aria-hidden="true">=</span>
+                <div className="min-w-[8.5rem] rounded-lg bg-primary px-4 py-3">
+                  <p className="text-xs text-primary-foreground/75">Lucro líquido</p>
+                  <p className="mt-1 text-lg font-semibold tabular text-primary-foreground">
+                    {moeda(resumo.lucro, true)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">Margem</span>
+                  <span className="text-lg font-semibold tabular">{percentual(resumo.margem)}</span>
+                </div>
+                <div
+                  className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted"
+                  role="img"
+                  aria-label={`Margem de ${percentual(resumo.margem)}`}
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-300"
+                    // Margem negativa não tem barra: largura negativa não existe,
+                    // e mostrar 0% deixa claro que não sobrou nada.
+                    style={{ width: `${Math.max(0, Math.min(100, resumo.margem))}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Resultado calculado com os lançamentos do período.
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+
+          <div className="grid gap-5 lg:grid-cols-2">
             <GraficoReceitaDespesa lancamentos={lancamentos} />
 
             <Card>

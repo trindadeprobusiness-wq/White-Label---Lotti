@@ -3,6 +3,13 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
+import {
+  deveRegistrarAtividade,
+  marcarAtividadeRegistrada,
+  obterVisitanteId,
+  temAtribuicaoPendente,
+  limparAtribuicaoPendente,
+} from '@/lib/admin/atribuicao';
 
 interface SignUpMetadata {
   nome: string;
@@ -28,6 +35,56 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
+ * Registra que o usuário esteve presente.
+ *
+ * É o que torna "usuário ativo" calculável no back office — antes disso não
+ * existia nenhum dado de atividade fora de auth.users.last_sign_in_at, que não
+ * é consultável. O throttle de 30 min evita uma linha por navegação.
+ *
+ * Falha em silêncio de propósito: é telemetria, e não pode atrapalhar o login.
+ */
+async function registrarAtividadeSeNecessario(): Promise<void> {
+  try {
+    if (!deveRegistrarAtividade()) return;
+    await supabase.rpc('registrar_atividade' as never, {
+      p_tipo: 'login',
+      p_rota: window.location.pathname,
+    } as never);
+    marcarAtividadeRegistrada();
+  } catch {
+    /* telemetria nunca quebra a sessão */
+  }
+}
+
+/**
+ * Fecha o vínculo com o parceiro que trouxe este usuário, se houver.
+ *
+ * Só o visitante_id — um UUID opaco — sai daqui; quem é o parceiro é decidido
+ * no servidor a partir do clique que ele mesmo registrou. Idempotente pelo
+ * UNIQUE(user_id) no banco, então rodar a cada login é inofensivo.
+ */
+async function reivindicarAtribuicaoDeParceiro(): Promise<void> {
+  try {
+    if (!temAtribuicaoPendente()) return;
+
+    const { data } = await supabase.functions.invoke('parceiro-atribuir', {
+      body: { visitante_id: obterVisitanteId() },
+    });
+
+    const resposta = data as { ok?: boolean; ja_atribuido?: boolean } | null;
+
+    // Limpa quando resolveu — para o bem (vinculou) ou para o mal (expirou,
+    // parceiro inativo, autoindicação). Insistir a cada login não mudaria o
+    // resultado e só geraria chamada inútil.
+    if (resposta?.ok || resposta?.ja_atribuido) {
+      limparAtribuicaoPendente();
+    }
+  } catch {
+    /* tenta de novo no próximo login */
+  }
+}
+
+/**
  * Estado de autenticação — UM só para o app inteiro.
  *
  * Antes isto era um hook comum, e cada consumidor (ProtectedRoute, Auth,
@@ -44,10 +101,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // O listener vem antes do getSession para não perder o evento que chega
     // entre uma coisa e outra.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, sessao) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((evento, sessao) => {
       setSession(sessao);
       setUser(sessao?.user ?? null);
       setLoading(false);
+
+      // Efeitos pós-login. Rodam soltos e nunca são aguardados: o callback do
+      // onAuthStateChange não pode bloquear, e nenhum dos dois pode atrasar ou
+      // impedir a entrada do usuário.
+      if (evento === 'SIGNED_IN' && sessao) {
+        void registrarAtividadeSeNecessario();
+        void reivindicarAtribuicaoDeParceiro();
+      }
     });
 
     supabase.auth.getSession()
