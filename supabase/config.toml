@@ -26,3 +26,9 @@ verify_jwt = false
 # padrão das demais funções voltadas ao usuário.
 [functions.asaas-sync]
 verify_jwt = false
+
+# Registro do clique no link do parceiro. Roda ANTES de existir conta — é o
+# primeiro contato do visitante com a Lotti —, então não pode exigir JWT.
+# A validação é o slug: só link ativo de parceiro ativo registra.
+[functions.parceiro-clique]
+verify_jwt = false

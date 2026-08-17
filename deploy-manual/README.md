@@ -88,6 +88,55 @@ sobrescrito. Corrige também 4 valores que não existem no schema
 (`status_funil:'PROPOSTA'`, `tipo_interesse:'ALUGUEL'`, coluna `classificacao`,
 `alertas.tipo:'LEAD_QUENTE'`) e que faziam a função falhar.
 
+### 7. Back office administrativo
+
+Ordem: SQL primeiro, funções depois. As funções escrevem em tabelas que só
+existem depois do SQL.
+
+#### 7.1 `backoffice-TUDO.sql`
+
+SQL Editor → colar o arquivo inteiro → **Run**. Reúne as 5 migrations
+`20260814*` na ordem certa. Idempotente.
+
+Depois, promova o primeiro administrador (**uma vez**):
+
+```sql
+SELECT public.promover_primeiro_super_admin('seu@email.com');
+```
+
+Confira com `backoffice-VERIFICAR.sql`: todas as 11 linhas devem dar `OK`.
+
+> Atenção: esta migration altera `get_corretor_id()` para exigir
+> `status = 'ativo'`. É a função da qual dependem as ~30 policies do produto —
+> é o que faz suspender conta valer no backend. Ela faz o backfill antes e
+> aborta se sobrar corretor sem status, mas prefira horário de baixo movimento.
+
+#### 7.2 `parceiro-clique.ts` (função NOVA)
+
+Edge Functions → **Create a new function** → nome exato `parceiro-clique` →
+colar → **Deploy**.
+
+Depois, em **Settings** da função, **desmarque "Verify JWT"**. Ela roda antes de
+existir conta — é o primeiro contato do visitante com a Lotti. A validação é o
+slug: só link ativo de parceiro ativo registra clique.
+
+#### 7.3 `parceiro-atribuir.ts` (função NOVA)
+
+Mesmo caminho, nome exato `parceiro-atribuir`. **Mantenha "Verify JWT" ligado** —
+só um usuário autenticado pode reivindicar a própria origem.
+
+#### 7.4 Secrets recomendados
+
+Edge Functions → Secrets:
+
+- `PARCEIRO_ORIGENS_PERMITIDAS` — origens aceitas no CORS, separadas por
+  vírgula (ex.: `https://seu-dominio.com.br`). Vazio aceita qualquer origem.
+- `IP_HASH_SALT` — salt do hash de IP nos cliques. Sem ela, usa a service role
+  key como salt.
+
+E na Vercel: `VITE_PUBLIC_BASE_URL` com o domínio de produção, senão os links de
+parceiro saem com o domínio de fallback.
+
 ## Conferir que deu certo
 
 1. **SQL** — Central de Contratos → analisar um contrato → **Salvar Contrato**. Tem que salvar.
@@ -97,6 +146,13 @@ sobrescrito. Corrige também 4 valores que não existem no schema
    como **recebimento em dinheiro**, não mais como pendente.
 4. **analisar-contrato** — reanalisar um contrato e conferir que cliente e data de
    início vêm preenchidos.
+5. **Back office** — entrar em `/admin`. Se aparecer a tela "Back office ainda não
+   instalado", o SQL não rodou. Se voltar para o dashboard, falta a promoção.
+6. **Link de parceiro** — no painel, criar um parceiro, definir percentual e gerar
+   o link. Abrir `/r/<slug>` em **aba anônima**: deve redirecionar para `/auth` com
+   a faixa "Você chegou pela indicação de ...". Se a faixa não aparecer, a função
+   `parceiro-clique` não está publicada ou está com "Verify JWT" ligado.
+   Conferir no SQL Editor: `SELECT count(*) FROM parceiro_cliques;` deve ter subido.
 
 ## Variáveis que as funções esperam
 
