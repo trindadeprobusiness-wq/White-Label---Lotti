@@ -30,13 +30,13 @@ const moeda = (v: number) => moedaBR(v, true);
  */
 const CORES: Record<string, { ponto: string; barra: string }> = {
   slate: { ponto: 'bg-muted-foreground', barra: 'bg-muted-foreground' },
-  sky: { ponto: 'bg-funnel-qualification', barra: 'bg-funnel-qualification' },
-  blue: { ponto: 'bg-funnel-qualification', barra: 'bg-funnel-qualification' },
-  indigo: { ponto: 'bg-funnel-qualification', barra: 'bg-funnel-qualification' },
-  amber: { ponto: 'bg-funnel-visit', barra: 'bg-funnel-visit' },
-  orange: { ponto: 'bg-funnel-documentation', barra: 'bg-funnel-documentation' },
-  violet: { ponto: 'bg-funnel-documentation', barra: 'bg-funnel-documentation' },
-  green: { ponto: 'bg-funnel-closing', barra: 'bg-funnel-closing' },
+  sky: { ponto: 'bg-info', barra: 'bg-info' },
+  blue: { ponto: 'bg-info', barra: 'bg-info' },
+  indigo: { ponto: 'bg-info', barra: 'bg-info' },
+  amber: { ponto: 'bg-warning', barra: 'bg-warning' },
+  orange: { ponto: 'bg-doc', barra: 'bg-doc' },
+  violet: { ponto: 'bg-doc', barra: 'bg-doc' },
+  green: { ponto: 'bg-primary', barra: 'bg-primary' },
   red: { ponto: 'bg-destructive', barra: 'bg-destructive' },
 };
 

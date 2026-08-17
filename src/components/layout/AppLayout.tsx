@@ -1,19 +1,28 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { AIChatWidget } from '../ai/AIChatWidget';
 
 export function AppLayout() {
+  const { pathname } = useLocation();
+  // A página /assistente já é o chat em tela cheia — o widget flutuante em cima
+  // dela vira ruído visual redundante.
+  const showChatWidget = !pathname.startsWith('/assistente');
+
   return (
     // `min-h-screen` com rolagem no documento, não `h-screen` com rolagem
     // interna: o container com altura fixa quebrava o scroll do iOS e impedia
     // a barra de endereço de recolher.
     <div className="flex min-h-screen w-full bg-background selection:bg-primary/15">
       <AppSidebar />
-      <main className="min-w-0 flex-1">
-        {/* pt-20 no mobile compensa a barra fixa da sidebar; o padding lateral
-            acompanha a densidade das referências (20px → 32px). */}
+      {/* Fundo secundário suave (#F8F9F6) para separar a sidebar branca dos
+          cards brancos — mantém a leitura leve sem faixa dura de contraste.
+          Vem da identidade visual da main e é preservado. */}
+      <main className="min-w-0 flex-1 bg-secondary">
+        {/* pt-20 no mobile compensa a barra fixa da sidebar. `min-h-screen` no
+            pai com rolagem no documento: `h-screen` com overflow interno
+            quebrava o scroll do iOS. */}
         <div className="mx-auto w-full max-w-[1600px] px-5 pb-16 pt-20 md:px-8 md:pt-8">
           {/* Suspense aqui: a sidebar fica fixa enquanto a página (lazy) carrega */}
           <Suspense
@@ -27,7 +36,7 @@ export function AppLayout() {
           </Suspense>
         </div>
       </main>
-      <AIChatWidget />
+      {showChatWidget && <AIChatWidget />}
     </div>
   );
 }

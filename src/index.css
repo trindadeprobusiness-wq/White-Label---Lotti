@@ -6,64 +6,111 @@
 
 @layer base {
   :root {
-    /* =====================================================================
-       Identidade Lotti — verde institucional profundo sobre superfície clara.
-       Valores em HSL sem hsl() porque é o formato que o Tailwind precisa para
-       injetar alpha (`bg-primary/10`).
+    /* ───────────────────────────────────────────────────────────────
+       PALETA LOTTI — tema claro único
+       Fundo dominante branco, verde-escuro (#245C45) como cor de marca.
+       Todos os tokens ficam aqui para o design system inteiro herdar.
+       ─────────────────────────────────────────────────────────────── */
 
-       O grafite quase-preto que ocupava --primary não era decisão de marca:
-       veio do tema padrão do shadcn. O verde é a marca de verdade.
-       ===================================================================== */
-
-    /* Escala da marca. brand-850 (#064331) é a cor de botão, menu ativo e IA. */
-    --brand-950: 156 91% 9%;
-    --brand-900: 161 100% 12%;
-    --brand-850: 162 84% 14%;
-    --brand-800: 162 80% 16%;
-    --brand-700: 162 79% 20%;
-    --brand-600: 161 67% 26%;
-    --brand-100: 152 24% 89%;
-    --brand-50: 146 26% 95%;
-
-    /* Superfícies. O fundo NÃO é branco puro: o branco fica para os cards, e
-       o contraste sutil entre os dois é o que dá profundidade sem sombra. */
-    --background: 120 9% 98%;
-    --foreground: 210 29% 9%;
+    /* Fundos */
+    --background: 0 0% 100%;                /* #FFFFFF */
+    --foreground: 220 39% 11%;              /* #111827 */
 
     --card: 0 0% 100%;
-    --card-foreground: 210 29% 9%;
+    --card-foreground: 220 39% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 29% 9%;
+    --popover-foreground: 220 39% 11%;
 
-    --surface: 150 13% 97%;
-    --surface-brand: 146 24% 94%;
-
-    --primary: 162 84% 14%;
+    /* Verde-escuro da marca */
+    --primary: 157 70% 12%;                 /* #093323 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 150 13% 97%;
-    --secondary-foreground: 162 84% 14%;
+    /* Áreas secundárias muito suaves (#F8F9F6) */
+    --secondary: 80 14% 97%;
+    --secondary-foreground: 220 39% 11%;
 
-    --muted: 150 9% 96%;
-    --muted-foreground: 214 9% 45%;
-    --muted-strong: 213 8% 58%;
+    --muted: 80 14% 97%;
+    --muted-foreground: 220 13% 46%;        /* #667085 */
 
-    --accent: 146 24% 94%;
-    --accent-foreground: 162 84% 14%;
+    /* Hover neutro compartilhado por menus, selects e ações secundárias. */
+    --accent: 120 3% 95%;                  /* #F3F4F3 */
+    --accent-foreground: 220 39% 11%;
 
-    --destructive: 357 69% 55%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --destructive-surface: 357 82% 96%;
 
-    --success: 149 61% 34%;
+    --success: 157 70% 12%;
     --success-foreground: 0 0% 100%;
-    --success-surface: 137 50% 95%;
 
-    --warning: 44 100% 45%;
-    --warning-foreground: 210 29% 9%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --critical: 0 84% 60%;
+    --critical-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;                  /* #E5E7EB */
+    --input: 220 13% 91%;
+    --ring: 157 70% 12%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar clara */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 39% 11%;
+    --sidebar-primary: 157 70% 12%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 82 100% 95%;          /* #F6FFE7 */
+    --sidebar-accent-foreground: 157 70% 12%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 157 70% 12%;
+
+    /* Cores do funil — versões claras dos status para o kanban */
+    --funnel-qualification: 210 40% 96%;
+    --funnel-visit: 38 92% 95%;
+    --funnel-documentation: 25 95% 95%;
+    --funnel-closing: 82 100% 95%;
+
+    --gold: 43 74% 49%;
+
+    /* ─────────────────────────────────────────────────────────────
+       Tokens adicionais exigidos pelo back office e pelos componentes
+       de shell. DERIVADOS da paleta acima — o verde da marca continua
+       sendo #093323 (--primary). Nada aqui redefine cor de marca.
+
+       Existem porque o design system original cobre o essencial do
+       shadcn, mas não tinha: superfície de marca para blocos pastéis,
+       pares fundo/frente para os cinco status, nem os degraus de
+       cinza e borda que as tabelas administrativas usam.
+       ───────────────────────────────────────────────────────────── */
+
+    /* Escala da marca, a partir do #093323 do --primary. */
+    --brand-950: 157 72% 8%;
+    --brand-900: 157 70% 10%;
+    --brand-850: 157 70% 12%;
+    --brand-800: 157 66% 15%;
+    --brand-700: 157 60% 20%;
+    --brand-600: 157 52% 27%;
+    --brand-100: 150 24% 90%;
+    --brand-50: 82 100% 95%;
+
+    /* Superfícies. --surface-brand é o #F6FFE7 que a sidebar já usa
+       como hover, reaproveitado nos blocos de ícone dos indicadores. */
+    --surface: 80 14% 97%;
+    --surface-brand: 82 100% 95%;
+
+    /* Degraus que faltavam entre --muted-foreground e --foreground. */
+    --muted-strong: 220 10% 62%;
+    --border-strong: 220 13% 84%;
+
+    /* Fundos de status. O sucesso da main aponta para o verde da marca,
+       então o fundo aqui acompanha o verde, não um verde genérico. */
+    --success-surface: 140 45% 95%;
     --warning-surface: 43 100% 92%;
+    --destructive-surface: 0 85% 96%;
 
+    /* Informação e documentação: não existiam: o funil usava apenas
+       fundos pastéis, sem uma cor forte para dot, texto e ícone. */
     --info: 217 27% 56%;
     --info-foreground: 0 0% 100%;
     --info-surface: 213 44% 95%;
@@ -71,122 +118,66 @@
     --doc: 13 86% 57%;
     --doc-foreground: 0 0% 100%;
     --doc-surface: 17 100% 96%;
-
-    --critical: 357 69% 55%;
-    --critical-foreground: 0 0% 100%;
-
-    --border: 140 6% 90%;
-    --border-strong: 140 8% 86%;
-    --input: 140 8% 86%;
-    --ring: 162 84% 14%;
-
-    /* 8px em inputs/botões; cards sobem para 10–12px via rounded-card. */
-    --radius: 0.5rem;
-
-    /* Sidebar branca com item ativo verde sólido. */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 214 9% 45%;
-    --sidebar-primary: 162 84% 14%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 150 9% 96%;
-    --sidebar-accent-foreground: 210 29% 9%;
-    --sidebar-border: 140 6% 90%;
-    --sidebar-ring: 162 84% 14%;
-
-    /* Etapas do funil: o pastel é o fundo da coluna, o forte é o dot/borda. */
-    --funnel-qualification: 217 27% 56%;
-    --funnel-visit: 44 100% 45%;
-    --funnel-documentation: 13 86% 57%;
-    --funnel-closing: 149 61% 34%;
-
-    --gold: 43 74% 49%;
   }
 
-  /* Tema escuro derivado da mesma marca. Não há referência visual para ele —
-     as cinco telas de referência são claras —, então aqui o critério é
-     coerência e contraste, não fidelidade. Mantido porque o toggle já existe
-     no rodapé da sidebar e remover seria tirar funcionalidade de quem usa.
-
-     O verde precisa CLAREAR no escuro: #064331 sobre fundo escuro não passa
-     em contraste de texto. Por isso --primary aqui é brand-600 clareado. */
+  /* Tema escuro real — preto profundo, verde da marca como acento e um
+     verde bem sutil na pastilha ativa. Mantém a mesma identidade visual do
+     tema claro, apenas invertendo os fundos e ajustando contrastes. */
   .dark {
-    --brand-950: 156 91% 9%;
-    --brand-900: 161 100% 12%;
-    --brand-850: 162 84% 14%;
-    --brand-800: 162 80% 16%;
-    --brand-700: 162 79% 20%;
-    --brand-600: 161 67% 26%;
-    --brand-100: 161 40% 22%;
-    --brand-50: 162 45% 16%;
+    --background: 220 15% 7%;               /* quase-preto */
+    --foreground: 0 0% 98%;
 
-    --background: 165 22% 7%;
-    --foreground: 150 12% 95%;
+    --card: 220 15% 10%;
+    --card-foreground: 0 0% 98%;
 
-    --card: 165 20% 10%;
-    --card-foreground: 150 12% 95%;
+    --popover: 220 15% 10%;
+    --popover-foreground: 0 0% 98%;
 
-    --popover: 165 20% 10%;
-    --popover-foreground: 150 12% 95%;
+    /* Primary + accent — inversão: o verde da marca vira o "brilhante"
+       do dark mode; a pastilha ativa fica em verde-escuro com texto claro. */
+    --primary: 156 60% 45%;
+    --primary-foreground: 220 15% 7%;
 
-    --surface: 165 18% 12%;
-    --surface-brand: 162 25% 15%;
+    --secondary: 220 15% 12%;
+    --secondary-foreground: 0 0% 98%;
 
-    --primary: 158 55% 55%;
-    --primary-foreground: 165 30% 8%;
+    --muted: 220 15% 12%;
+    --muted-foreground: 220 10% 65%;
 
-    --secondary: 165 18% 14%;
-    --secondary-foreground: 150 12% 95%;
+    --accent: 220 10% 18%;
+    --accent-foreground: 0 0% 98%;
 
-    --muted: 165 15% 15%;
-    --muted-foreground: 150 8% 62%;
-    --muted-strong: 150 8% 74%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
 
-    --accent: 162 25% 16%;
-    --accent-foreground: 150 12% 95%;
+    --success: 156 60% 45%;
+    --success-foreground: 220 15% 7%;
 
-    --destructive: 357 65% 62%;
-    --destructive-foreground: 0 0% 100%;
-    --destructive-surface: 357 30% 18%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 220 15% 7%;
 
-    --success: 149 50% 50%;
-    --success-foreground: 165 30% 8%;
-    --success-surface: 149 30% 16%;
+    --critical: 0 72% 51%;
+    --critical-foreground: 0 0% 98%;
 
-    --warning: 44 85% 58%;
-    --warning-foreground: 165 30% 8%;
-    --warning-surface: 44 35% 18%;
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 156 60% 45%;
 
-    --info: 217 40% 66%;
-    --info-foreground: 165 30% 8%;
-    --info-surface: 217 25% 20%;
+    --sidebar-background: 220 15% 9%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 157 70% 15%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 157 70% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 156 60% 45%;
 
-    --doc: 13 75% 62%;
-    --doc-foreground: 165 30% 8%;
-    --doc-surface: 13 35% 18%;
+    --funnel-qualification: 210 40% 15%;
+    --funnel-visit: 38 40% 15%;
+    --funnel-documentation: 25 40% 15%;
+    --funnel-closing: 157 40% 15%;
 
-    --critical: 357 65% 62%;
-    --critical-foreground: 0 0% 100%;
-
-    --border: 165 14% 18%;
-    --border-strong: 165 14% 24%;
-    --input: 165 14% 22%;
-    --ring: 158 55% 55%;
-
-    --sidebar-background: 165 20% 9%;
-    --sidebar-foreground: 150 8% 68%;
-    --sidebar-primary: 162 60% 30%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 165 18% 15%;
-    --sidebar-accent-foreground: 150 12% 95%;
-    --sidebar-border: 165 14% 18%;
-    --sidebar-ring: 158 55% 55%;
-
-    --funnel-qualification: 217 40% 66%;
-    --funnel-visit: 44 85% 58%;
-    --funnel-documentation: 13 75% 62%;
-    --funnel-closing: 149 50% 50%;
-
-    --gold: 43 74% 60%;
+    --gold: 43 74% 55%;
   }
 }
 
@@ -195,13 +186,10 @@
     @apply border-border;
   }
 
-  /* A transição global de cor foi removida.
-     Ela existia para suavizar a troca de tema, mas aplicava-se a `html *` — ou
-     seja, a TODO elemento, o tempo inteiro. Efeito colateral: hover de item de
-     menu e de botão levava 300ms para responder, o que numa ferramenta de
-     trabalho lê como lentidão. A troca de tema agora usa
-     `disableTransitionOnChange` no provider, e as transições ficam declaradas
-     por componente, entre 120 e 200ms. */
+  /* A transição global de 300ms em `html *` fazia o toggle de tema demorar
+     segundos em telas com muitos nós (cards, tabelas, sidebar). Removida:
+     hover states e animações continuam vindo dos componentes individuais,
+     e a troca de tema fica instantânea — que é o padrão do ChatGPT/Linear. */
 
   /* Acessibilidade: respeita usuários que preferem menos movimento */
   @media (prefers-reduced-motion: reduce) {
@@ -218,32 +206,13 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
-    letter-spacing: -0.011em;
-  }
-
-  /* Títulos com tracking mais fechado que o corpo — em Inter, título grande
-     com tracking neutro parece frouxo. */
-  h1, h2, h3 {
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em; /* Premium tight tracking */
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
-  }
-
-  /* Números de KPI, moeda e contadores. Sem isto, "1.234" e "9.999" ocupam
-     larguras diferentes e a coluna dança quando o valor atualiza. */
-  .tabular {
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum';
-  }
-
-  /* Foco visível e consistente. O padrão do navegador some sobre superfície
-     clara e não atende a navegação por teclado. */
-  .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 }
 
@@ -268,5 +237,20 @@
   .fp-glass-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+}
+
+@layer utilities {
+  /* Números de KPI, moeda e contadores: sem isto "1.234" e "9.999"
+     ocupam larguras diferentes e a coluna dança ao atualizar. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* Foco visível e consistente — o padrão do navegador some sobre
+     superfície clara e não atende navegação por teclado. */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 }

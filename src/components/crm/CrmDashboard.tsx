@@ -17,10 +17,12 @@ function Indicador({ titulo, valor, icone: Icone, detalhe, destaque }: {
   titulo: string; valor: string; icone: LucideIcon; detalhe?: string; destaque?: boolean;
 }) {
   return (
-    <Card>
+    <Card className="border-border shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{titulo}</CardTitle>
-        <Icone className={`h-4 w-4 ${destaque ? 'text-amber-500' : 'text-muted-foreground'}`} />
+        <span className="rounded-lg bg-accent p-2">
+          <Icone className={`h-4 w-4 ${destaque ? 'text-amber-500' : 'text-primary'}`} />
+        </span>
       </CardHeader>
       <CardContent>
         <div className={`text-2xl font-semibold ${destaque ? 'text-amber-600 dark:text-amber-400' : ''}`}>
@@ -90,7 +92,7 @@ export function CrmDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
+        <Card className="border-border shadow-sm">
           <CardHeader className="pb-3"><CardTitle className="text-sm">Origem dos contatos</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {m.origens.length === 0 && <p className="text-sm text-muted-foreground">Sem dados de origem ainda.</p>}
@@ -103,7 +105,7 @@ export function CrmDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border shadow-sm">
           <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-1.5">
             <Inbox className="h-4 w-4" /> Leads esperando
           </CardTitle></CardHeader>

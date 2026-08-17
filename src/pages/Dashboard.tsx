@@ -44,11 +44,19 @@ function cadastroIncompleto(imovel: { valor?: number | null; endereco?: string |
   return !imovel.valor || imovel.valor <= 0 || !imovel.endereco?.trim();
 }
 
+/**
+ * Cor sólida por etapa, NÃO os tokens --funnel-*.
+ *
+ * Aqueles são fundos pastéis (ex.: 210 40% 96%), pensados para preencher a
+ * coluna do kanban. Usados no círculo numerado com texto branco resultavam em
+ * branco sobre quase-branco — o número sumia. Aqui a cor precisa ser forte o
+ * bastante para o texto branco por cima ter contraste.
+ */
 const ETAPAS = [
-  { chave: 'QUALIFICACAO', label: 'Qualificação', cor: 'bg-funnel-qualification' },
-  { chave: 'VISITA_PROPOSTA', label: 'Visita/Proposta', cor: 'bg-funnel-visit' },
-  { chave: 'DOCUMENTACAO', label: 'Documentação', cor: 'bg-funnel-documentation' },
-  { chave: 'FECHADO_GANHO', label: 'Fechamento', cor: 'bg-funnel-closing' },
+  { chave: 'QUALIFICACAO', label: 'Qualificação', cor: 'bg-info' },
+  { chave: 'VISITA_PROPOSTA', label: 'Visita/Proposta', cor: 'bg-warning' },
+  { chave: 'DOCUMENTACAO', label: 'Documentação', cor: 'bg-doc' },
+  { chave: 'FECHADO_GANHO', label: 'Fechamento', cor: 'bg-primary' },
 ] as const;
 
 export default function Dashboard() {

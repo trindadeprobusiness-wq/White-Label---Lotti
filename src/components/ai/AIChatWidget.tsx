@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Sparkles, Minimize2, Maximize2, RotateCcw, AlertCircle } from 'lucide-react';
+import { Bot, Send, Sparkles, X, Maximize2, RotateCcw, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,27 @@ export function AIChatWidget() {
   const [inputText, setInputText] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Fecha o widget ao clicar fora ou apertar Esc (padrão de popover).
+  useEffect(() => {
+    if (!isOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [isOpen]);
 
   const {
     messages,
@@ -71,7 +91,7 @@ export function AIChatWidget() {
   );
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-3">
+    <div ref={widgetRef} className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-3">
       {isOpen && (
         <Card
           {...chatDropProps}
@@ -114,8 +134,10 @@ export function AIChatWidget() {
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => setIsOpen(false)}
+                title="Fechar"
+                aria-label="Fechar assistente"
               >
-                <Minimize2 className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           </CardHeader>
