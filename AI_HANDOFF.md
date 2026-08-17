@@ -344,3 +344,43 @@ na baseline de 74 erros).
 - Validações: `npm run build` OK (4.477 módulos), `npm test -- --run` 71/71, `git diff --check` limpo. Revisão visual e de interação realizada em 1.280×800 e 390×844 nas três rotas; o bypass exclusivamente usado para inspeção local foi removido antes da validação final.
 - `npm run typecheck` continua reportando a dívida de tipagem já documentada da baseline (tabelas Supabase não regeneradas e outros módulos); nenhum erro novo permaneceu nos arquivos adicionados nesta etapa.
 - Pendente: commit/push/PR e QA autenticado com dados reais antes de promover para produção. Nenhum deploy foi executado.
+
+### 2026-08-17 — Claude (notificações do Asaas e baixa de repasse)
+
+Branch **`feat/notificacoes-asaas`**, separada a pedido do usuário.
+
+O webhook do Asaas descartava transferências: a primeira linha do
+processamento era `if (!payment?.id) { finalize('IGNORED'); return; }`, e
+evento de transferência não tem `payment`, tem `transfer`. O PIX de repasse
+saía, o Asaas avisava, e o repasse ficava `AGENDADO` para sempre.
+
+O que mudou:
+
+- `asaas-webhook` trata `TRANSFER_*`. Concluída dá baixa (`CONFIRMADO`),
+  falhada devolve para `ERRO` com alerta de prioridade alta. Em trânsito
+  (`PENDING`, `BANK_PROCESSING`) só registra o estado — dar baixa ali marcaria
+  como pago algo que ainda pode falhar.
+- Recebimento de fatura passa a gerar notificação com o nome do inquilino. O
+  alerta roda em `try/catch` e não bloqueia o `finalize`: se falhar, a fatura
+  continua paga. O dinheiro é o fato; a notificação é conveniência.
+- Sino do header virou painel real (`PainelNotificacoes`), com filtro
+  Todas/Financeiro/Operação, link para a entidade de origem e "marcar todas
+  como lidas" numa única RPC. Ligado também em Financeiro, Jurídico e
+  Fachadas, que não tinham.
+
+**Conciliação transferência → repasse.** `repasses_proprietario.external_id`
+existe desde 20260122130000 mas ninguém preenche: nada cria transferência pelo
+Asaas, o PIX é feito por fora. `conciliar_transferencia_repasse()` tenta, em
+ordem: `external_id`, `externalReference`, e por fim valor exato + chave PIX do
+proprietário entre repasses em aberto. O terceiro é o caso real hoje, e ele
+**só dá baixa com exatamente um candidato** — dois repasses de mesmo valor para
+a mesma chave são indistinguíveis, e escolher um seria adivinhar com dinheiro
+de terceiro. Ambíguo fica registrado em `conciliacao_pendente`.
+
+Validações: `npm test` **218/218** (23 novos em `lib/notificacoes.test.ts`),
+`npm run typecheck` **74 — baseline, nenhum novo**, lint limpo nos arquivos
+tocados, build OK, 6 telas sem overflow e sem erro de console.
+
+Pendências: `deploy-manual/notificacoes-asaas.sql` e `deploy-manual/asaas-webhook.ts`
+não foram aplicados. E é preciso **marcar os eventos TRANSFER_* no painel do
+Asaas** — sem isso ele não envia transferência e o resto não acontece.

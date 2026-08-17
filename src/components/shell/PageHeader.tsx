@@ -1,8 +1,8 @@
-import { Bell, HelpCircle } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
+import { PainelNotificacoes } from './PainelNotificacoes';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useCRMStore } from '@/stores/crmStore';
 
 /**
  * Faixa superior do workspace.
@@ -32,9 +32,6 @@ export function PageHeader({
   acoes,
   className,
 }: PageHeaderProps) {
-  const { alertas } = useCRMStore();
-  const naoLidos = alertas.filter((a) => !a.lido).length;
-
   return (
     <header
       className={cn(
@@ -61,32 +58,7 @@ export function PageHeader({
           // terceira linha sozinhos, abaixo dos botões, o que parecia sobra
           // de layout em vez de agrupamento.
           <div className="order-2 flex items-center gap-1">
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="relative flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-ring"
-                  aria-label={
-                    naoLidos > 0
-                      ? `Notificações: ${naoLidos} não lida(s)`
-                      : 'Notificações'
-                  }
-                >
-                  <Bell className="h-[18px] w-[18px]" />
-                  {naoLidos > 0 && (
-                    // Ponto, não contador: o número exato não muda a ação, e o
-                    // badge numérico brigaria com o ícone em 18px.
-                    <span
-                      className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-warning ring-2 ring-background"
-                      aria-hidden="true"
-                    />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {naoLidos > 0 ? `${naoLidos} alerta(s) para ver` : 'Sem alertas novos'}
-              </TooltipContent>
-            </Tooltip>
+            <PainelNotificacoes />
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>

@@ -33,6 +33,196 @@ function admin() {
     );
 }
 
+/** Valor em reais → "R$ 1.840,00", para o texto da notificação. */
+function moedaBR(v: unknown): string {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 'R$ —';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/**
+ * Chave PIX de destino da transferência.
+ *
+ * O Asaas varia o formato conforme o tipo: PIX manda `pixAddressKey`, conta
+ * bancária manda o objeto `bankAccount`. Procurar num campo só perderia
+ * metade dos casos.
+ */
+function chaveDestino(transfer: Record<string, any>): string | null {
+    return (
+        transfer?.pixAddressKey ??
+        transfer?.bankAccount?.pixAddressKey ??
+        transfer?.bankAccount?.cpfCnpj ??
+        transfer?.cpfCnpj ??
+        null
+    );
+}
+
+/**
+ * Transferência do Asaas → baixa do repasse + notificação.
+ *
+ * Só DONE dá baixa. FAILED/CANCELLED devolvem o repasse para AGENDADO, porque
+ * o dinheiro não saiu e ele precisa voltar para a fila do corretor.
+ *
+ * O que este código NÃO faz: escolher entre repasses candidatos. Quando a
+ * conciliação é ambígua, registra a pendência e notifica — dar baixa no
+ * repasse errado credita o proprietário errado, e isso não se desfaz com um
+ * update.
+ */
+async function processarTransferencia(
+    supabase: any,
+    payload: any,
+    event: string,
+    eventRowId: string,
+    finalize: (status: string, extra?: Record<string, unknown>) => Promise<void>,
+) {
+    const transfer = payload?.transfer;
+    if (!transfer?.id) {
+        await finalize('IGNORED');
+        return;
+    }
+
+    const situacao = String(transfer.status ?? '').toUpperCase();
+    const concluida = event === 'TRANSFER_DONE' || situacao === 'DONE';
+    const falhou =
+        event === 'TRANSFER_FAILED' ||
+        event === 'TRANSFER_CANCELLED' ||
+        ['FAILED', 'CANCELLED', 'BLOCKED'].includes(situacao);
+
+    // Em trânsito (PENDING, BANK_PROCESSING): registra o estado e espera. Dar
+    // baixa aqui marcaria como pago algo que ainda pode falhar.
+    if (!concluida && !falhou) {
+        await supabase
+            .from('repasses_proprietario')
+            .update({ transferencia_status: situacao, transferencia_payload: payload })
+            .eq('external_id', transfer.id);
+        await finalize('PROCESSED');
+        return;
+    }
+
+    const { data: conciliacao } = await supabase.rpc('conciliar_transferencia_repasse', {
+        _corretor_id: null,
+        _transfer_id: transfer.id,
+        _external_ref: transfer.externalReference ?? null,
+        _valor: transfer.value ?? transfer.netValue ?? null,
+        _chave_pix: chaveDestino(transfer),
+    });
+
+    const achado = Array.isArray(conciliacao) ? conciliacao[0] : conciliacao;
+    const repasseId: string | null = achado?.repasse_id ?? null;
+    const criterio: string = achado?.criterio ?? 'sem_correspondencia';
+
+    if (!repasseId) {
+        // Sem repasse identificado. Não é erro do Asaas nem falha nossa: pode
+        // ser uma transferência que não é repasse. Fica registrado e o evento
+        // não vira FAILED, para o sweeper não ficar reprocessando à toa.
+        console.log(`transferência ${transfer.id} sem repasse (${criterio})`);
+        await finalize('IGNORED', {
+            last_error: `Transferência não conciliada: ${criterio}`,
+        });
+        return;
+    }
+
+    const { data: repasse } = await supabase
+        .from('repasses_proprietario')
+        .select('id, corretor_id, proprietario_nome, valor_liquido_repasse, status')
+        .eq('id', repasseId)
+        .maybeSingle();
+
+    if (!repasse) {
+        await finalize('FAILED', { last_error: `Repasse ${repasseId} sumiu entre a conciliação e a leitura` });
+        return;
+    }
+
+    await supabase
+        .from('asaas_webhook_events')
+        .update({ corretor_id: repasse.corretor_id })
+        .eq('id', eventRowId);
+
+    const nome = repasse.proprietario_nome ?? 'proprietário';
+    const valor = moedaBR(repasse.valor_liquido_repasse ?? transfer.value);
+
+    if (concluida) {
+        // Idempotente: se já está CONFIRMADO, o update não muda nada e o alerta
+        // não é duplicado. O Asaas reentrega evento, e reentrega acontece.
+        if (repasse.status === 'CONFIRMADO') {
+            await finalize('IGNORED');
+            return;
+        }
+
+        await supabase
+            .from('repasses_proprietario')
+            .update({
+                status: 'CONFIRMADO',
+                external_id: transfer.id,
+                transferencia_status: situacao || 'DONE',
+                transferencia_efetivada_em: new Date().toISOString(),
+                data_transferencia: transfer.effectiveDate ?? transfer.dateCreated ?? new Date().toISOString(),
+                transferencia_payload: payload,
+                conciliacao_pendente: null,
+            })
+            .eq('id', repasse.id);
+
+        await supabase.rpc('registrar_alerta_financeiro', {
+            _corretor_id: repasse.corretor_id,
+            _tipo: 'TRANSFERENCIA',
+            _mensagem: `Repasse de ${valor} confirmado para ${nome}`,
+            _entidade_tipo: 'repasse',
+            _entidade_id: repasse.id,
+            _metadata: {
+                valor: repasse.valor_liquido_repasse,
+                proprietario: nome,
+                transfer_id: transfer.id,
+                criterio_conciliacao: criterio,
+            },
+            _prioridade: 'MEDIA',
+        });
+
+        await supabase.from('auditoria_financeira').insert({
+            corretor_id: repasse.corretor_id,
+            entidade: 'repasses_proprietario',
+            entidade_id: repasse.id,
+            acao: 'TRANSFERENCIA_CONFIRMADA',
+            dados_antes: { status: repasse.status },
+            dados_depois: { status: 'CONFIRMADO', transfer_id: transfer.id },
+            calculo: { criterio_conciliacao: criterio },
+            origem: 'webhook',
+            ator: 'asaas',
+        });
+
+        await finalize('PROCESSED');
+        return;
+    }
+
+    // Falhou: o dinheiro não saiu. Volta para a fila e avisa com prioridade
+    // alta — repasse parado é problema com o proprietário, não com o sistema.
+    await supabase
+        .from('repasses_proprietario')
+        .update({
+            status: 'ERRO',
+            transferencia_status: situacao || 'FAILED',
+            transferencia_payload: payload,
+            conciliacao_pendente: `Transferência ${situacao || 'falhou'} no Asaas`,
+        })
+        .eq('id', repasse.id);
+
+    await supabase.rpc('registrar_alerta_financeiro', {
+        _corretor_id: repasse.corretor_id,
+        _tipo: 'TRANSFERENCIA',
+        _mensagem: `Repasse de ${valor} para ${nome} NÃO foi concluído`,
+        _entidade_tipo: 'repasse',
+        _entidade_id: repasse.id,
+        _metadata: {
+            valor: repasse.valor_liquido_repasse,
+            proprietario: nome,
+            transfer_id: transfer.id,
+            status_asaas: situacao,
+        },
+        _prioridade: 'ALTA',
+    });
+
+    await finalize('PROCESSED');
+}
+
 // Processa um evento já persistido em asaas_webhook_events (roda em background).
 async function processEvent(eventRowId: string) {
     const supabase = admin();
@@ -59,7 +249,15 @@ async function processEvent(eventRowId: string) {
     };
 
     try {
-        // Eventos sem payment (transfers, tokens de API etc.): não há fatura a mexer
+        // Transferência (repasse ao proprietário). Antes caía no descarte
+        // abaixo junto com "eventos sem payment" — o PIX saía, o Asaas avisava,
+        // e o repasse continuava AGENDADO para sempre.
+        if (event.startsWith('TRANSFER_')) {
+            await processarTransferencia(supabase, payload, event, eventRowId, finalize);
+            return;
+        }
+
+        // Demais eventos sem payment (tokens de API, checkout): nada a fazer
         if (!payment?.id) {
             await finalize('IGNORED');
             return;
@@ -111,6 +309,40 @@ async function processEvent(eventRowId: string) {
                 recibo_url: payment.transactionReceiptUrl,
                 raw_payload: payload,
             }).eq('id', fatura.id);
+
+            // Notifica o recebimento. Vem depois do update e não bloqueia o
+            // finalize: se o alerta falhar, a fatura continua paga — o dinheiro
+            // é o fato, a notificação é conveniência.
+            try {
+                const { data: inquilino } = await supabase
+                    .from('contratos')
+                    .select('clientes(nome)')
+                    .eq('id', fatura.contrato_id)
+                    .maybeSingle();
+                const nome = inquilino?.clientes?.nome;
+                const ref = fatura.mes_referencia ? ` (${fatura.mes_referencia})` : '';
+
+                await supabase.rpc('registrar_alerta_financeiro', {
+                    _corretor_id: fatura.corretor_id,
+                    _tipo: 'PAGAMENTO',
+                    _mensagem: nome
+                        ? `Recebimento de ${moedaBR(payment.value)} de ${nome}${ref}`
+                        : `Recebimento de ${moedaBR(payment.value)}${ref}`,
+                    _entidade_tipo: 'fatura',
+                    _entidade_id: fatura.id,
+                    _metadata: {
+                        valor: payment.value,
+                        inquilino: nome ?? null,
+                        mes_referencia: fatura.mes_referencia ?? null,
+                        payment_id: payment.id,
+                        recibo_url: payment.transactionReceiptUrl ?? null,
+                    },
+                    _prioridade: 'MEDIA',
+                });
+            } catch (e) {
+                console.error('alerta de recebimento falhou (fatura segue paga)', e);
+            }
+
             await finalize('PROCESSED');
         } else if (event === 'PAYMENT_OVERDUE') {
             if (fatura.status === 'PENDENTE') {

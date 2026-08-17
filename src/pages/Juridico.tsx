@@ -302,6 +302,7 @@ export default function Juridico() {
       <PageHeader
         titulo="Jurídico"
         subtitulo="Centralize documentos, contratos e prazos com segurança."
+        comUtilitarios
         acoes={
           <>
             <Button

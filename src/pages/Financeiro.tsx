@@ -169,6 +169,7 @@ export default function Financeiro() {
       <PageHeader
         titulo="Financeiro"
         subtitulo="Acompanhe receitas, despesas e o resultado do seu negócio."
+        comUtilitarios
         acoes={
           <>
             {periodo === 'personalizado' && (

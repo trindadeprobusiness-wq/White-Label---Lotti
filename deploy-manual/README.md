@@ -137,6 +137,54 @@ Edge Functions → Secrets:
 E na Vercel: `VITE_PUBLIC_BASE_URL` com o domínio de produção, senão os links de
 parceiro saem com o domínio de fallback.
 
+### 8. Notificações do Asaas e baixa automática de repasse
+
+Ordem: SQL primeiro, função depois — a função chama RPCs que o SQL cria.
+
+#### 8.1 `notificacoes-asaas.sql`
+
+SQL Editor → colar → **Run**. Cria os tipos de alerta `PAGAMENTO` e
+`TRANSFERENCIA`, adiciona `origem`/`entidade_tipo`/`entidade_id`/`metadata` a
+`alertas`, o rastro da transferência em `repasses_proprietario`, e as funções
+`conciliar_transferencia_repasse()` e `registrar_alerta_financeiro()`.
+
+#### 8.2 `asaas-webhook.ts`
+
+Edge Functions → `asaas-webhook` → substituir TODO o conteúdo → **Deploy**.
+
+Passa a tratar `TRANSFER_*`, que antes caía no descarte de "eventos sem
+payment". Agora: transferência concluída dá baixa no repasse
+(`status = 'CONFIRMADO'`) e notifica com o nome do proprietário; transferência
+falhada devolve o repasse para `ERRO` com prioridade alta.
+
+#### 8.3 Ativar os eventos de transferência no Asaas
+
+Painel do Asaas → **Integrações → Webhooks** → editar o webhook existente →
+marcar os eventos **TRANSFER_CREATED, TRANSFER_PENDING,
+TRANSFER_IN_BANK_PROCESSING, TRANSFER_DONE, TRANSFER_FAILED,
+TRANSFER_CANCELLED**.
+
+Sem esse passo o resto não acontece: o Asaas simplesmente não envia
+transferência se o evento não estiver marcado.
+
+#### Como a conciliação encontra o repasse
+
+`repasses_proprietario.external_id` existe desde 20260122130000 mas nunca foi
+preenchido — nada no código cria transferência pelo Asaas, o PIX é feito por
+fora. Então a função tenta, em ordem:
+
+1. `external_id` — transferência criada pelo sistema (prova direta);
+2. `externalReference` — o id do repasse colado à mão no Asaas (prova direta);
+3. **valor exato + chave PIX do proprietário**, entre repasses em aberto.
+
+O caso 3 é o real hoje. E ele só dá baixa se houver **exatamente um**
+candidato: dois repasses de mesmo valor para a mesma chave são
+indistinguíveis, e escolher um seria adivinhar com dinheiro de terceiro. Nesse
+caso o repasse fica intocado e a pendência é registrada.
+
+**Para tornar a conciliação exata**, preencha o campo "Referência externa" com
+o id do repasse ao criar a transferência no painel do Asaas — aí cai no caso 2.
+
 ## Conferir que deu certo
 
 1. **SQL** — Central de Contratos → analisar um contrato → **Salvar Contrato**. Tem que salvar.

@@ -72,11 +72,27 @@ const imoveis = Array.from({ length: 27 }, (_, i) => ({
   status_venda: 'DISPONIVEL', anunciado: true, created_at: '2026-06-01T10:00:00Z',
 }));
 
-const alertas = [{
-  id: 'al-1', corretor_id: corretor[0].id,
-  mensagem: 'Contrato de locação vence em 15 dias — Rua Vítor de Azevedo, Apto 1.204',
-  tipo: 'GERAL', prioridade: 'ALTA', lido: false, created_at: '2026-08-14T09:00:00Z',
-}];
+const alertas = [
+  { id: 'al-1', corretor_id: corretor[0].id,
+    mensagem: 'Recebimento de R$ 2.300,00 de Diego Vinícius Mendes (2026-08)',
+    tipo: 'PAGAMENTO', prioridade: 'MEDIA', lido: false,
+    origem: 'asaas', entidade_tipo: 'fatura', entidade_id: 'f-1',
+    metadata: { valor: 2300 }, created_at: new Date(Date.now() - 20*60000).toISOString() },
+  { id: 'al-2', corretor_id: corretor[0].id,
+    mensagem: 'Repasse de R$ 1.840,00 confirmado para Carmen Emília de Oliveira',
+    tipo: 'TRANSFERENCIA', prioridade: 'MEDIA', lido: false,
+    origem: 'asaas', entidade_tipo: 'repasse', entidade_id: 'r-1',
+    metadata: { valor: 1840 }, created_at: new Date(Date.now() - 3*3600000).toISOString() },
+  { id: 'al-3', corretor_id: corretor[0].id,
+    mensagem: 'Repasse de R$ 970,00 para Admar Alves Rodrigues NÃO foi concluído',
+    tipo: 'TRANSFERENCIA', prioridade: 'ALTA', lido: false,
+    origem: 'asaas', entidade_tipo: 'repasse', entidade_id: 'r-2',
+    metadata: { valor: 970 }, created_at: new Date(Date.now() - 26*3600000).toISOString() },
+  { id: 'al-4', corretor_id: corretor[0].id,
+    mensagem: 'Contrato de locação vence em 15 dias — Rua Vítor de Azevedo, Apto 1.204',
+    tipo: 'GERAL', prioridade: 'ALTA', lido: true, origem: 'sistema',
+    created_at: '2026-08-14T09:00:00Z' },
+];
 
 const TABELAS = {
   corretores: corretor, clientes, imoveis, alertas,
@@ -87,7 +103,7 @@ const TABELAS = {
 };
 
 const ROTAS = [
-  { nome: '01-inicio', path: '/' },
+  { nome: '01-inicio', path: '/', abrirSino: true },
   { nome: '02-funil', path: '/crm' },
   { nome: '03-financeiro', path: '/financeiro' },
   { nome: '04-juridico', path: '/juridico' },
@@ -146,6 +162,11 @@ for (const vp of alvo) {
   for (const rota of ROTAS) {
     await page.goto(`${BASE}${rota.path}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(700);
+
+    if (rota.abrirSino) {
+      const sino = page.locator('button[aria-label*="Notifica"]').first();
+      if (await sino.count()) { await sino.click(); await page.waitForTimeout(500); }
+    }
 
     // Detecta rolagem horizontal acidental — critério explícito do pedido.
     const overflow = await page.evaluate(

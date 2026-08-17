@@ -282,6 +282,7 @@ export default function FachadasInteligentes() {
       <PageHeader
         titulo="Fachadas Inteligentes"
         subtitulo="Transforme placas com QR Code em novos contatos."
+        comUtilitarios
         acoes={
           <Button
             className="h-control"
