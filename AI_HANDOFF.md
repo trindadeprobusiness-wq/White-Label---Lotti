@@ -160,3 +160,187 @@ CRECI `'PENDENTE'`. É o onboarding que precisa pedir; hoje nada avisa.
   `C:/Users/Gabri/Downloads/LOTTI_PACOTE_ESTRATEGICO_2026-08-13`.
 - Criado `C:/Users/Gabri/Downloads/LOTTI_PACOTE_ESTRATEGICO_2026-08-13.zip`, com
   10 arquivos/entradas e 10,01 MB. Os originais do projeto foram preservados.
+
+### 2026-08-13 — Codex (memorando de lançamento da Lotti)
+
+- Criados `docs/LOTTI_MEMORANDO_LANCAMENTO_90_DIAS.docx`,
+  `output/pdf/LOTTI_MEMORANDO_LANCAMENTO_90_DIAS.pdf` e
+  `output/whatsapp/MENSAGEM_LANCAMENTO_LOTTI.txt` a partir do template Strategy
+  Memorandum. A decisão recomendada é Asaas em conta exclusiva do SaaS, com meta D30
+  de 5 pagantes e 10 pilotos ativos.
+- Taxas públicas de Asaas, Stripe e Vindi foram confirmadas nas páginas oficiais em
+  13/08/2026. As metas e projeções permanecem identificadas como hipóteses de
+  planejamento, não como histórico da empresa.
+- O DOCX preserva os 29 componentes do pacote original; somente conteúdo, cabeçalho,
+  rodapé, campos, metadados e as duas imagens previstas foram alterados. O PDF tem 8
+  páginas, foi renderizado e revisado visualmente página por página, sem cortes,
+  sobreposições, placeholders ou páginas em branco.
+- Criado simulador interativo do funil, MRR, taxas e comissão em
+  `C:/Users/Gabri/.codex/visualizations/2026/08/13/019ff871-053c-77d3-8f3a-c9db10d76d86/lotti-funil-lancamento.html`;
+  validado em 1024, 736, 360 e 320 px, nos temas claro e escuro, incluindo interação.
+- Pacote pronto para encaminhamento criado em
+  `C:/Users/Gabri/Downloads/LOTTI_LANCAMENTO_90_DIAS_2026-08-13.zip` com 4 arquivos.
+- Nenhum código, banco, migration ou integração da aplicação foi alterado. A
+  implementação do gateway permanece fora do escopo desta entrega e deve incluir
+  homologação, webhooks idempotentes e validação contábil do programa de indicação.
+
+### 2026-08-13 — Codex (posts fixados do Instagram)
+
+- Criada uma série coordenada de três posts institucionais 4:5 em
+  `output/instagram/`, usando as logos oficiais fornecidas pelo usuário e a cor de
+  marca `#093323`. A narrativa do grid é problema → resposta → plataforma.
+- Entregues três PNGs finais de 1080 × 1350 px, fontes SVG editáveis, duas prévias do
+  conjunto e `CAPTIONS_E_ORDEM_PUBLICACAO.txt` com legendas, textos alternativos e a
+  ordem inversa necessária para publicação no Instagram.
+- As bases visuais foram geradas com a ferramenta integrada de imagem e finalizadas
+  com logo e tipografia determinísticas; os textos não foram rasterizados pelo modelo
+  generativo. Os cinco PNGs passaram em abertura, dimensões, opacidade e revisão visual.
+- Pacote criado em
+  `C:/Users/Gabri/Downloads/LOTTI_POSTS_FIXADOS_INSTAGRAM_2026-08-13.zip`, com 16
+  arquivos. Nenhum código ou integração da aplicação foi alterado.
+
+### 2026-08-13 — Codex (posts fixados com dashboard — revisão V2)
+
+- Criada uma nova série, sem sobrescrever a anterior, em `output/instagram-v2/`.
+  Os três posts 4:5 (1080 × 1350 px) agora têm a interface da Lotti como elemento
+  principal: visão geral, CRM/pipeline e aluguéis/cobranças.
+- Como a aplicação local abriu sem sessão autenticada, as interfaces públicas foram
+  reconstruídas a partir dos componentes e fluxos reais do repositório, com dados
+  demonstrativos neutros; nenhuma credencial ou dado de cliente foi usado.
+- O fundo editorial foi gerado com a ferramenta integrada de imagem. Logo, textos e
+  telas foram compostos deterministicamente; o modelo generativo não inventou UI.
+- Revisados visualmente os três posts, a prévia 4:5 e o recorte quadrado do perfil.
+  O pacote pronto para envio está em
+  `C:/Users/Gabri/Downloads/LOTTI_POSTS_FIXADOS_DASHBOARD_V2_2026-08-13.zip`, com
+  seis arquivos e legendas. Nenhum código, banco, migration ou integração da
+  aplicação foi alterado.
+
+### 2026-08-13 — Codex (merge do PR de segurança #1)
+
+- Revisado e aceito o PR `#1`, `fix(security): fecha vazamento cross-tenant e
+  select(*) em endpoints service_role`, da branch
+  `security/close-crm-buscar-imoveis-leak-and-fachada-select` para `main`.
+- O merge remoto foi confirmado em `main` no commit
+  `7a7bbc61ea170a7ea5ea54100d9065ec7afe8b47`; o GitHub registra o PR como
+  `closed` e `merged`.
+- O patch altera somente `supabase/functions/crm-buscar-imoveis/index.ts` e
+  `supabase/functions/fachada-publica/index.ts`. Validações em worktree isolado:
+  `npm test` 71/71, `npm run build` OK e `deno check` OK nas duas Edge Functions.
+- O check do Vercel falhava por falta de acesso do autor ao projeto, não por erro de
+  compilação. As ações operacionais permanecem pendentes: girar
+  `N8N_SHARED_SECRET` e atualizar os workflows n8n para enviar `corretor_id`.
+- `corretor_id` informado pelo caller limita a busca, mas não é autenticação forte
+  por tenant; avaliar segredo/credencial específica por corretor como hardening
+  posterior. Nenhuma alteração local funcional foi feita nesta revisão.
+
+### 2026-08-13 — Codex (merge do PR de segurança #2)
+
+- Identificado como único PR aberto do mesmo autor do `#1` e aceito o PR `#2`,
+  `fix(security): restaura SET search_path em generate_monthly_rent_bills`, da
+  branch `security/fix-search-path-generate-monthly-rent-bills` para `main`.
+- O merge remoto foi confirmado no commit
+  `e525b0146c730e83af72ef13ffc53ca57039775b`; o GitHub registra o PR como
+  `closed` e `merged`.
+- O patch adiciona somente a migration
+  `supabase/migrations/20260813180000_fix_search_path_generate_monthly_rent_bills.sql`.
+  Ela mantém o corpo financeiro vigente da função e restaura
+  `SET search_path = public`, sem repetir o backfill da migration anterior.
+- Validações em worktree isolado: `git diff --check` limpo, `npm test` 71/71 e
+  `npm run build` OK (4.474 módulos). O aviso do Vercel continua sendo falta de
+  acesso do autor ao projeto, não falha do código.
+- O merge publica a migration no repositório, mas não confirma sua aplicação no
+  banco Supabase; executar/verificar a migration no ambiente de destino caso o
+  pipeline não aplique migrations automaticamente.
+- `npm ci` restaurou as dependências locais conforme o lockfile e reportou 12
+  alertas de auditoria já presentes (6 moderados, 5 altos e 1 crítico), não
+  introduzidos por este PR; recomenda-se uma auditoria de dependências separada.
+
+### 2026-08-14 — Claude (back office administrativo)
+
+Trabalho na branch `feat/auth-multiusuario`, **não commitado**. Documentação
+completa em `docs/BACKOFFICE.md`.
+
+**PENDÊNCIA BLOQUEANTE:** as cinco migrations `20260814*` **não foram aplicadas
+no Supabase** — não há CLI instalado neste ambiente e o MCP do Supabase não está
+autenticado. Enquanto não forem aplicadas, `/admin` mostra uma tela de
+diagnóstico explicando o que fazer; nada do back office funciona. Cópias prontas
+para colar no SQL Editor estão em `deploy-manual/backoffice-*.sql`.
+
+O que foi criado:
+
+- **Papéis**: enum `app_role` (`admin`, `super_admin`), tabela `user_roles`,
+  funções `has_role`/`is_admin`/`is_super_admin` (SECURITY DEFINER — necessário,
+  senão a policy de `user_roles` consultando `user_roles` vira recursão de RLS).
+  Um `admin` não concede papéis; só `super_admin`.
+- **Leitura multi-tenant por RPC, não por policy.** O admin precisa ler dados de
+  todos os corretores. Adicionar `OR is_admin()` nas ~30 tabelas mexeria nas
+  policies que a `20260812090000` acabou de endurecer — risco alto. Em vez disso,
+  RPCs `SECURITY DEFINER` com `exigir_admin()` no topo, devolvendo só as colunas
+  necessárias. É também o único caminho para `auth.users`.
+- **Suspensão vale no backend inteiro**: `get_corretor_id()` passou a exigir
+  `status = 'ativo'`. Como as ~30 policies dependem dela, suspender fecha tudo de
+  uma vez sem alterar policy nenhuma. A trigger `proteger_status_corretor()`
+  impede o corretor de reverter a própria suspensão.
+- **Parceiros/atribuição**: regra de **primeiro clique, janela de 90 dias**,
+  implementada como `UNIQUE (visitante_id)` em `parceiro_atribuicoes` — o segundo
+  link cai em `ON CONFLICT DO NOTHING`. O cliente guarda só um UUID opaco; quem é
+  o parceiro o servidor relê do clique que ele mesmo gravou.
+- **Comissões**: percentual e base **congelados na linha**; alterar o percentual
+  abre nova vigência e não reescreve o passado. `UNIQUE (receita_evento_id)`
+  impede comissão duplicada por construção. Estorno de receita estorna comissão
+  em aberto, mas **não** comissão já paga.
+- **Receita**: `receita_eventos` nasce vazia. Nada de valor simulado — onde não
+  há dado, a tela diz "sem eventos financeiros confirmados", não "R$ 0,00".
+  `UNIQUE (origem, external_id)` já deixa a idempotência do webhook pronta.
+- **Atividade**: `atividade_eventos` + `corretores.ultimo_acesso_em`. "Ativo" =
+  acesso dentro da janela configurável (30 dias). Quem nunca teve acesso
+  registrado é `sem_dados`, **não** inativo — o registro começou agora.
+
+Validações: `npm test` **189/189** (65 da baseline + 124 novos), `npm run
+typecheck` **74 erros — a mesma baseline, nenhum novo**, `npm run lint` limpo nos
+arquivos novos, `npm run build` OK.
+
+Não validado: `deno check` nas duas Edge Functions novas (Deno não instalado) e
+`supabase/tests/admin_rls.sql`, que precisa ser rodado no SQL Editor após as
+migrations.
+
+Fora do MVP por decisão registrada: impersonação (exigiria emitir sessão de
+terceiro via service_role) e regeneração do `types.ts` (dívida anterior, mexeria
+na baseline de 74 erros).
+
+### 2026-08-15 — Codex (responsividade mobile/tablet)
+
+- A implementação foi isolada em
+  `C:/Users/Gabri/AppData/Local/Temp/lotti-mobile-responsive`, branch
+  `codex/mobile-responsive`, criada diretamente de `origin/main` no commit
+  `e525b0146c730e83af72ef13ffc53ca57039775b`. O trabalho administrativo não foi
+  copiado para essa branch.
+- Criado o commit local `4cf656c` (`feat(ui): implement mobile-first responsive
+  experience`) com 77 arquivos, todos em `src/`: navegação mobile em drawer,
+  fundação de componentes responsivos, tabelas operacionais em cards, formulários,
+  modais, dashboards, mídia, CRM, aluguéis, jurídico, financeiro e telas públicas.
+- Validações: `git diff --check` limpo, `npm test` 71/71 e `npm run build` OK
+  (4.475 módulos). O `npm run typecheck` continua falhando pela dívida de tipos já
+  existente em `origin/main`; a filtragem dos componentes estruturais e páginas
+  principais alterados não encontrou erro novo de tipagem.
+- Validação visual local realizada em 320, 360, 375, 390, 412, 768 px, tablet em
+  paisagem e desktop. Nas rotas públicas testadas não houve overflow horizontal;
+  inputs de texto ficaram com 16 px e ações principais com aproximadamente 44 px.
+- Pendente: publicação e deploy. O GitHub CLI (`gh`) não está instalado nesta
+  máquina, requisito do fluxo de publicação; a branch permanece um commit à frente
+  de `origin/main` e ainda não foi enviada. Após instalar/autenticar `gh`, executar
+  push, abrir/revisar o PR e promover apenas `4cf656c` para `main`.
+- Pendente de QA com credencial de teste: percorrer todas as rotas protegidas e
+  níveis de acesso no navegador. A auditoria estática, os testes e o build cobrem o
+  pacote, mas a sessão local disponível não estava autenticada.
+
+### 2026-08-16 — Codex (Clientes, Funil de Vendas e Fachadas)
+
+- Implementação mantida isolada em `C:/Users/Gabri/AppData/Local/Temp/lotti-mobile-responsive`, branch `codex/mobile-responsive`; o worktree administrativo em `feat/auth-multiusuario` não foi incorporado nem alterado.
+- `Clientes` foi reconstruída com o layout operacional da referência: indicadores, busca e filtros, tabela responsiva, seleção, paginação, modos lista/grade, WhatsApp, edição/exclusão e importação CSV real (`nome` e `telefone` obrigatórios).
+- `Funil de Vendas` recebeu cabeçalho/tabs/controles e Kanban equivalentes à referência, preservando drag-and-drop e gravação das etapas. “Novo lead” cria cliente e, no CRM completo, oportunidade; “Nova tarefa” funciona também no modo legado por meio de alertas.
+- `Fachadas` recebeu KPIs, filtros, ordenação, lista/grade, cartão horizontal com foto, QR Code local, cópia de link, prévia/PDF, edição, leads e fluxo explicativo. Métricas nulas ou atrasadas agora degradam para totais calculados, sem derrubar a página.
+- Sidebar agrupada, busca global e cabeçalhos compartilhados foram alinhados ao mesmo padrão. O acionador do assistente mostra “IA Lotti” no desktop e mantém formato compacto no celular.
+- Validações: `npm run build` OK (4.477 módulos), `npm test -- --run` 71/71, `git diff --check` limpo. Revisão visual e de interação realizada em 1.280×800 e 390×844 nas três rotas; o bypass exclusivamente usado para inspeção local foi removido antes da validação final.
+- `npm run typecheck` continua reportando a dívida de tipagem já documentada da baseline (tabelas Supabase não regeneradas e outros módulos); nenhum erro novo permaneceu nos arquivos adicionados nesta etapa.
+- Pendente: commit/push/PR e QA autenticado com dados reais antes de promover para produção. Nenhum deploy foi executado.
