@@ -26,9 +26,27 @@ serve(async (req) => {
     const cidade = url.searchParams.get('cidade')
     const limit = Math.min(Number(url.searchParams.get('limit') || 5), 20)
 
+    // Resolve o corretor dono da busca. Sem esse filtro, quem tem o
+    // N8N_SHARED_SECRET enumera imóveis DISPONIVEL de todos os tenants
+    // (roda com service_role, ignora RLS). Mesma proteção que
+    // crm-upsert-lead e crm-anexar-historico já aplicam.
+    let corretor_id = url.searchParams.get('corretor_id')
+    if (corretor_id) {
+      const { data: alvo } = await supabase.from('corretores').select('id').eq('id', corretor_id).maybeSingle()
+      if (!alvo) return json({ success: false, error: 'corretor_id informado não existe' }, 400)
+    } else {
+      const { data: corretores } = await supabase.from('corretores').select('id').limit(2)
+      if (!corretores?.length) return json({ success: false, error: 'nenhum corretor cadastrado' }, 500)
+      if (corretores.length > 1) {
+        return json({ success: false, error: 'Há mais de um corretor cadastrado: informe corretor_id na query.' }, 400)
+      }
+      corretor_id = corretores[0].id
+    }
+
     let query = supabase
       .from('imoveis')
       .select('id, titulo, tipo, categoria, valor, dormitorios, bairro, cidade, url_website, fotos')
+      .eq('corretor_id', corretor_id)
       .eq('status', 'DISPONIVEL')
       .limit(limit)
 
