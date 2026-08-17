@@ -77,6 +77,13 @@ estejam concluídas ou corretas.
 - Nenhum dos arquivos funcionais já modificados foi alterado nesta etapa.
 - Próximo agente deve confirmar o Git e executar as validações listadas acima.
 
+### 2026-08-17 — Codex (favicon)
+
+- `public/favicon.svg` passou a usar o símbolo da logo branca fornecida pelo usuário.
+  O favicon mantém cor verde no tema claro e branco no tema escuro.
+- Validações: SVG XML válido e `git diff --check` sem erros. O worktree isolado não
+  possui `node_modules`, portanto não foi possível executar o build nele.
+
 ### 2026-08-12 — Codex (cobrança Asaas)
 
 - Diagnosticado que a função remota estava na versão 5, de 2026-08-05, enquanto as
