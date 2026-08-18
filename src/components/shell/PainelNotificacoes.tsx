@@ -78,11 +78,29 @@ export function PainelNotificacoes() {
   const marcarTodas = async () => {
     setMarcando(true);
     try {
-      // Uma chamada, não N updates. A RPC filtra pelo corretor da sessão.
+      // Caminho preferido: uma chamada só, com o filtro por corretor dentro da
+      // função. Mas o front NÃO pode depender de a migration já ter sido
+      // aplicada — código e banco sobem em momentos diferentes, e assumir o
+      // contrário deixou este botão quebrado em produção.
       const { error } = await supabase.rpc('marcar_alertas_lidos' as never, {
         _ids: null,
       } as never);
-      if (error) throw error;
+
+      if (error) {
+        // PGRST202 = função ausente do schema cache; 42883 = não existe.
+        const semRpc =
+          error.code === 'PGRST202' ||
+          error.code === '42883' ||
+          /could not find the function|does not exist/i.test(error.message ?? '');
+
+        if (!semRpc) throw error;
+
+        // Fallback: marca uma a uma. Mais requisições, mesmo resultado — e a
+        // RLS de `alertas` já garante que só as do próprio corretor mudam.
+        const naoLidas = lista.filter((a) => !a.lido);
+        await Promise.all(naoLidas.map((a) => marcarAlertaLido(a.id)));
+      }
+
       await fetchAlertas();
       toast.success('Notificações marcadas como lidas.');
     } catch (e) {
