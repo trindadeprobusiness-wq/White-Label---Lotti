@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { QrCodePositioner } from '@/components/fachadas/QrCodePositioner';
-import { Plus, QrCode, BarChart3, Users, LayoutTemplate, Upload, ImagePlus, Trash2, Eye, Loader2 } from 'lucide-react';
+import {
+  Plus, QrCode, BarChart3, Users, LayoutTemplate, Upload, ImagePlus,
+  Trash2, Eye, Loader2, Building2, TrendingUp,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +21,7 @@ import type { FachadaComImovel } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { MetricStrip, SectionCard } from '@/components/shell/primitivos';
 import { abasSublinhadas } from '@/components/shell/primitivos';
 
 interface CustomTemplate {
@@ -92,6 +96,7 @@ export default function FachadasInteligentes() {
     deleteLead,
   } = useFachadas();
 
+  const [abaAtiva, setAbaAtiva] = useState('fachadas');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewFachada, setPreviewFachada] = useState<FachadaComImovel | null>(null);
   const [editingFachada, setEditingFachada] = useState<FachadaComImovel | null>(null);
@@ -284,41 +289,67 @@ export default function FachadasInteligentes() {
         subtitulo="Transforme placas com QR Code em novos contatos."
         comUtilitarios
         acoes={
-          <Button
-            className="h-control"
-            onClick={() => { setEditingFachada(null); setDialogOpen(true); }}
-          >
-            <Plus className="mr-2 h-[18px] w-[18px]" />
-            Nova fachada
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              className="h-control"
+              onClick={() => setAbaAtiva('templates')}
+            >
+              <LayoutTemplate className="mr-2 h-[18px] w-[18px]" />
+              Ver templates
+            </Button>
+            <Button
+              className="h-control"
+              onClick={() => { setEditingFachada(null); setDialogOpen(true); }}
+            >
+              <Plus className="mr-2 h-[18px] w-[18px]" />
+              Nova fachada
+            </Button>
+          </>
         }
       />
 
       {/* Tabs */}
-      <Tabs defaultValue="fachadas" className="space-y-5">
+      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="space-y-5">
         <TabsList className={abasSublinhadas.lista}>
           <TabsTrigger value="fachadas" className={abasSublinhadas.gatilho}>
-            <QrCode className="h-4 w-4" />
+            <QrCode className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Fachadas</span>
           </TabsTrigger>
           <TabsTrigger value="dashboard" className={abasSublinhadas.gatilho}>
-            <BarChart3 className="h-4 w-4" />
+            <BarChart3 className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </TabsTrigger>
           <TabsTrigger value="leads" className={abasSublinhadas.gatilho}>
-            <Users className="h-4 w-4" />
+            <Users className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Leads</span>
           </TabsTrigger>
           <TabsTrigger value="templates" className={abasSublinhadas.gatilho}>
-            <LayoutTemplate className="h-4 w-4" />
+            <LayoutTemplate className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Templates</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Aba: Minhas Fachadas */}
-        <TabsContent value="fachadas">
+        <TabsContent value="fachadas" className="space-y-5">
+          {/* Indicadores. Vêm de `metricas`, que o hook já busca para o
+              Dashboard — nenhuma query nova foi adicionada. */}
+          <MetricStrip
+            carregando={loading}
+            itens={[
+              { id: 'fachadas', valor: fachadas.length, label: 'Fachadas',
+                icone: <Building2 className="h-5 w-5" />, tom: 'brand' },
+              { id: 'scans', valor: metricas?.totalEscaneamentos ?? 0, label: 'Leituras do QR Code',
+                icone: <QrCode className="h-5 w-5" />, tom: 'info' },
+              { id: 'leads', valor: metricas?.totalLeads ?? 0, label: 'Leads gerados',
+                icone: <Users className="h-5 w-5" />, tom: 'warning' },
+              { id: 'conv', valor: `${metricas?.taxaConversao ?? 0}%`, label: 'Conversão',
+                icone: <TrendingUp className="h-5 w-5" />, tom: 'success' },
+            ]}
+          />
+
           {loading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
@@ -343,7 +374,7 @@ export default function FachadasInteligentes() {
               </Button>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-4">
               {fachadas.map((f) => (
                 <FachadaCard
                   key={f.id}
@@ -355,6 +386,41 @@ export default function FachadasInteligentes() {
               ))}
             </div>
           )}
+
+          {/* Mesmo padrão de Midias.tsx e Juridico.tsx: explica o caminho que
+              vai da placa ao atendimento, que não era óbvio para quem abre a
+              tela pela primeira vez. */}
+          <SectionCard titulo="Da fachada ao atendimento">
+            <ol className="grid gap-5 sm:grid-cols-3">
+              {[
+                { n: 1, Icone: QrCode, titulo: 'Pessoa escaneia',
+                  texto: 'O visitante escaneia o QR Code na placa do imóvel.' },
+                { n: 2, Icone: Users, titulo: 'Informa o contato',
+                  texto: 'Ele preenche os dados e manifesta interesse pelo imóvel.' },
+                { n: 3, Icone: Building2, titulo: 'Lead entra na Lotti',
+                  texto: 'O lead é registrado no sistema e fica pronto para o atendimento.' },
+              ].map((passo, i, todos) => (
+                <li key={passo.n} className="relative flex min-w-0 items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {passo.n}
+                  </span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-brand text-primary">
+                    <passo.Icone className="h-[18px] w-[18px]" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{passo.titulo}</span>
+                    <span className="mt-0.5 block text-sm text-muted-foreground">{passo.texto}</span>
+                  </span>
+                  {i < todos.length - 1 && (
+                    <span
+                      className="absolute -right-3 top-3.5 hidden w-6 border-t border-dashed border-border sm:block"
+                      aria-hidden="true"
+                    />
+                  )}
+                </li>
+              ))}
+            </ol>
+          </SectionCard>
         </TabsContent>
 
         {/* Aba: Dashboard */}
@@ -387,7 +453,7 @@ export default function FachadasInteligentes() {
                   <ImagePlus className="h-4 w-4" />
                   Meus Templates Personalizados
                 </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-4">
                   {customTemplates.map((ct) => (
                     <div
                       key={ct.id}
@@ -450,10 +516,10 @@ export default function FachadasInteligentes() {
             {/* Templates Padrão */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-                <LayoutTemplate className="h-4 w-4" />
+                <LayoutTemplate className="mr-2 h-4 w-4" />
                 Templates Padrão
               </h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
                 {DEFAULT_TEMPLATES.map((t) => (
                   <div
                     key={t.nome}

@@ -98,7 +98,17 @@ const TABELAS = {
   corretores: corretor, clientes, imoveis, alertas,
   contratos: [], documentos: [], lancamentos_financeiros: [],
   crm_etapas: [], crm_oportunidades: [], crm_tarefas: [],
-  fachadas: [], fachada_leads: [], videos: [], imovel_fotos: [],
+  fachadas: [{
+    id: 'fac-1', corretor_id: corretor[0].id, imovel_id: 'imo-0',
+    tipo_negocio: 'VENDA', template_id: 'venda-classica', cta_principal: 'WHATSAPP',
+    modo_conversao: true, ativo: true,
+    total_escaneamentos: 19, total_leads: 9,
+    foto_principal_url: null, created_at: '2026-07-01T10:00:00Z',
+    imoveis: { titulo: 'Sobrado com 3 suítes, suíte master com varanda',
+               endereco: 'Rua Tocantins, bairro de Lourdes, quadra 46, lote 9',
+               bairro: 'Anápolis' },
+  }],
+  fachada_leads: [], fachada_escaneamentos: [], videos: [], imovel_fotos: [],
   faturas_aluguel: [], repasses_proprietario: [], subscriptions: [],
 };
 
