@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload, Plus } from 'lucide-react';
+import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload, Plus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +66,7 @@ export function CriarFachadaDialog({
   fachadaToEdit = null,
 }: CriarFachadaDialogProps) {
   const isEditing = !!fachadaToEdit;
-  const { imoveis } = useCRMStore();
+  const { imoveis, fetchImoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
   const [step, setStep] = useState(1);
   const [isNovoImovelOpen, setIsNovoImovelOpen] = useState(false);
@@ -86,6 +86,7 @@ export function CriarFachadaDialog({
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [qrSizePercent, setQrSizePercent] = useState(45);
 
+  const [isEditarImovelOpen, setIsEditarImovelOpen] = useState(false);
   const selectedImovel = imoveis.find((i) => i.id === imovelId);
 
   // Modo edição: pré-preenche o form com os dados da fachada.
@@ -236,15 +237,32 @@ export function CriarFachadaDialog({
                 <Label>Imóvel *</Label>
                 {/* Cadastrar sem abandonar o wizard: antes era preciso sair, ir na aba
                     Imóveis, cadastrar e recomeçar a fachada do zero. */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className="h-auto p-0 text-xs text-primary hover:text-primary/80"
-                  onClick={() => setIsNovoImovelOpen(true)}
-                >
-                  <Plus className="w-3 h-3 mr-1" /> Novo Imóvel
-                </Button>
+                <div className="flex items-center gap-3">
+                  {/* Editar o imóvel da própria fachada, sem sair daqui. Antes
+                      era preciso fechar o wizard, ir na aba Imóveis, editar e
+                      recomeçar — e no modo edição isso significava perder o
+                      progresso das 4 etapas. */}
+                  {selectedImovel && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                      onClick={() => setIsEditarImovelOpen(true)}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Editar imóvel
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                    onClick={() => setIsNovoImovelOpen(true)}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Novo Imóvel
+                  </Button>
+                </div>
               </div>
               <Select value={imovelId} onValueChange={setImovelId}>
                 <SelectTrigger>
@@ -581,6 +599,18 @@ export function CriarFachadaDialog({
         open={isNovoImovelOpen}
         onOpenChange={setIsNovoImovelOpen}
         onCreated={(novoId) => setImovelId(novoId)}
+      />
+
+      {/* Mesmo componente em modo edição — não há tela nova a manter. Ao
+          fechar, recarrega os imóveis para o resumo abaixo refletir a mudança.
+          O id da fachada NÃO é tocado aqui: o QR impresso continua o mesmo. */}
+      <NovoImovelDialog
+        open={isEditarImovelOpen}
+        onOpenChange={(aberto) => {
+          setIsEditarImovelOpen(aberto);
+          if (!aberto) void fetchImoveis();
+        }}
+        imovelToEdit={selectedImovel}
       />
     </Dialog>
   );
