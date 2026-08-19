@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { useFachadaPublica } from '@/hooks/useFachadaPublica';
 import { CTA_LABELS, TIPO_NEGOCIO_LABELS } from '@/types/fachada';
 import { formatarTelefone } from '@/lib/validators';
-import { imagemComFallback } from '@/lib/imagemOtimizada';
+import { imagemComFallback, imagemRedimensionada } from '@/lib/imagemOtimizada';
 
 /* ───── Stagger variants ───── */
 const containerVariants = {
@@ -144,12 +144,26 @@ export default function FachadaPublica() {
       fotos?.[0]?.arquivo_url ||
       fachada?.foto_principal_url;
     if (!url) return;
-    const img = new Image();
-    img.onload = () => setBgLoaded(true);
-    // Se a versão leve falhar, o <img> cai na original pelo onError — aqui
-    // basta liberar o estado para a tela não ficar presa no placeholder.
-    img.onerror = () => setBgLoaded(true);
-    img.src = imagemComFallback(url, 640, 35).src;
+    // `requestIdleCallback`: a foto de fundo só começa a baixar quando o
+    // navegador estiver ocioso, ou seja, depois de o formulário estar pronto.
+    // Sem isso ela disputa banda com o JS logo no primeiro segundo — no 4G,
+    // é a diferença entre digitar o nome em 1s ou em 5s.
+    const carregar = () => {
+      const img = new Image();
+      img.onload = () => setBgLoaded(true);
+      img.onerror = () => setBgLoaded(false); // fica só o gradiente
+      img.src = imagemRedimensionada(url, { largura: 640, qualidade: 35 });
+    };
+
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(carregar);
+      return () => (window as Window & { cancelIdleCallback?: (h: number) => void })
+        .cancelIdleCallback?.(id);
+    }
+    // Safari não tem requestIdleCallback.
+    const t = setTimeout(carregar, 300);
+    return () => clearTimeout(t);
   }, [fachada?.foto_principal_url, fotos]);
 
   // Favorito — só local, por dispositivo (delícia client-side, sem backend)
@@ -233,6 +247,9 @@ export default function FachadaPublica() {
   const imovel = fachada.imovel;
   const corretor = fachada.corretor;
   const bgUrl = fotos?.find((f) => f.principal)?.arquivo_url || fotos?.[0]?.arquivo_url || fachada.foto_principal_url || '';
+  // Versão leve do fundo. Vazio quando a URL não é do Storage — aí o gate
+  // exibe apenas o gradiente, que é instantâneo.
+  const bgLeve = imagemRedimensionada(bgUrl, { largura: 640, qualidade: 35 });
 
   // ═══════════════════════════════════════════════════════════
   // ETAPA 1 — Captura de Lead (Design Premium Glassmorphism)
@@ -260,14 +277,37 @@ export default function FachadaPublica() {
                   Sem animação de scale: animar uma imagem full-screen força
                   repaint a cada frame e trava justamente no primeiro segundo,
                   competindo com o carregamento do formulário. */}
+              {/* O gradiente aparece imediatamente e é o que o visitante vê
+                  enquanto a foto chega. Depois de blur + overlay a 45%, a
+                  diferença entre os dois é mínima — mas a diferença no tempo
+                  até o formulário estar utilizável é enorme.
+
+                  Isto NÃO depende de o Storage ter transformação de imagem
+                  habilitada (recurso de plano pago): o formulário fica pronto
+                  na hora em qualquer cenário, e a foto entra depois sem
+                  bloquear nada. */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#1a1e1d] to-[#0c0f0e]" />
+              {/* Sem fallback para a original de propósito. Se o Storage não
+                  tiver transformação (plano Free), o fundo fica só no
+                  gradiente — baixar 3,5 MB para exibir uma imagem borrada
+                  atrás de um formulário custaria 3 segundos ao visitante que
+                  está de pé na frente do imóvel. A foto em tamanho real
+                  continua disponível na galeria, depois do lead. */}
               <img
-                {...imagemComFallback(bgUrl, 640, 35)}
+                src={bgLeve}
                 alt=""
                 aria-hidden="true"
-                fetchPriority="high"
+                loading="lazy"
                 decoding="async"
-                className="absolute inset-0 w-full h-full object-cover animate-fade-in"
-                style={{ filter: 'blur(3px)', transform: 'scale(1.06)' }}
+                // fetchPriority baixa de propósito: o fundo é decorativo e não
+                // pode competir com o JS que torna o formulário interativo.
+                fetchPriority="low"
+                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+                style={{
+                  filter: 'blur(3px)',
+                  transform: 'scale(1.06)',
+                  opacity: bgLoaded ? 1 : 0,
+                }}
               />
               {/* `filter` na própria imagem, não `backdrop-filter` no overlay:
                   backdrop-filter recompõe a camada de baixo a cada frame e é
