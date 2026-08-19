@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { useFachadaPublica } from '@/hooks/useFachadaPublica';
 import { CTA_LABELS, TIPO_NEGOCIO_LABELS } from '@/types/fachada';
 import { formatarTelefone } from '@/lib/validators';
+import { imagemComFallback } from '@/lib/imagemOtimizada';
 
 /* ───── Stagger variants ───── */
 const containerVariants = {
@@ -74,8 +75,9 @@ function UnderlineInput({
         onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
         className={`
           w-full bg-transparent border-0 border-b
-          text-white text-sm pb-2.5 pt-1 outline-none
+          text-white text-base pb-3 pt-3 outline-none
           placeholder-transparent transition-colors duration-300
+          min-h-[44px]
           ${error ? 'border-red-400/70' : 'border-white/20 focus:border-amber-400/70'}
         `}
       />
@@ -131,14 +133,23 @@ export default function FachadaPublica() {
     }
   }, [fachadaId, fetchFachadaPublica, registrarEscaneamento]);
 
-  // Pré-carregar imagem de fundo
+  // Pré-carrega a MESMA versão leve que o <img> vai exibir.
+  //
+  // Antes carregava a original: o preload baixava 3,5 MB em paralelo e
+  // anulava por completo o redimensionamento, porque as duas versões acabavam
+  // na rede. Usar a mesma URL faz o navegador reaproveitar do cache.
   useEffect(() => {
-    const url = fotos?.find((f) => f.principal)?.arquivo_url || fotos?.[0]?.arquivo_url || fachada?.foto_principal_url;
-    if (url) {
-      const img = new Image();
-      img.onload = () => setBgLoaded(true);
-      img.src = url;
-    }
+    const url =
+      fotos?.find((f) => f.principal)?.arquivo_url ||
+      fotos?.[0]?.arquivo_url ||
+      fachada?.foto_principal_url;
+    if (!url) return;
+    const img = new Image();
+    img.onload = () => setBgLoaded(true);
+    // Se a versão leve falhar, o <img> cai na original pelo onError — aqui
+    // basta liberar o estado para a tela não ficar presa no placeholder.
+    img.onerror = () => setBgLoaded(true);
+    img.src = imagemComFallback(url, 640, 35).src;
   }, [fachada?.foto_principal_url, fotos]);
 
   // Favorito — só local, por dispositivo (delícia client-side, sem backend)
@@ -240,16 +251,29 @@ export default function FachadaPublica() {
         <div className="fixed inset-0 z-0">
           {bgUrl ? (
             <>
-              <motion.img
-                src={bgUrl}
+              {/* A foto ORIGINAL (2-5 MB) era baixada só para aparecer
+                  borrada atrás do card. Como o resultado é desfocado de
+                  qualquer forma, 640px a 35% de qualidade é indistinguível e
+                  custa uma fração do tráfego — decisivo no 4G, que é onde o
+                  visitante escaneia o QR.
+
+                  Sem animação de scale: animar uma imagem full-screen força
+                  repaint a cada frame e trava justamente no primeiro segundo,
+                  competindo com o carregamento do formulário. */}
+              <img
+                {...imagemComFallback(bgUrl, 640, 35)}
                 alt=""
-                className="absolute inset-0 w-full h-full object-cover"
-                initial={{ scale: 1.1, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 1.2, ease: 'easeOut' }}
+                aria-hidden="true"
+                fetchPriority="high"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover animate-fade-in"
+                style={{ filter: 'blur(3px)', transform: 'scale(1.06)' }}
               />
-              {/* Dark + blur overlay */}
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+              {/* `filter` na própria imagem, não `backdrop-filter` no overlay:
+                  backdrop-filter recompõe a camada de baixo a cada frame e é
+                  o efeito mais caro em GPU mobile. O scale de 1.06 esconde a
+                  borda transparente que o blur cria nas extremidades. */}
+              <div className="absolute inset-0 bg-black/45" />
             </>
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-[#1a1e1d] to-[#0c0f0e]" />
@@ -269,8 +293,10 @@ export default function FachadaPublica() {
               className="rounded-[28px] overflow-hidden"
               style={{
                 background: 'rgba(255,255,255,0.08)',
-                backdropFilter: 'blur(24px) saturate(1.4)',
-                WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+                // 24px de backdrop-filter sobre a imagem custava frames no
+                // celular. 12px mantém a leitura de vidro por bem menos.
+                backdropFilter: 'blur(12px) saturate(1.25)',
+                WebkitBackdropFilter: 'blur(12px) saturate(1.25)',
                 border: '1px solid rgba(255,255,255,0.12)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)',
               }}
@@ -482,8 +508,9 @@ export default function FachadaPublica() {
           {fotoAmbient && (
             <motion.img
               key={`amb-${fotoAtual}`}
-              src={fotoAmbient}
+              {...imagemComFallback(fotoAmbient, 96, 30)}
               alt=""
+              aria-hidden="true"
               decoding="async"
               className="absolute inset-0 w-full h-full object-cover scale-110 blur-[40px] opacity-40"
               initial={{ opacity: 0 }}
@@ -548,7 +575,7 @@ export default function FachadaPublica() {
               {allFotos.length > 0 ? (
                 <motion.img
                   key={fotoAtual}
-                  src={allFotos[fotoAtual].arquivo_url}
+                  {...imagemComFallback(allFotos[fotoAtual].arquivo_url, 1200, 70)}
                   alt=""
                   decoding="async"
                   className="w-full h-full object-cover cursor-zoom-in"
@@ -731,7 +758,7 @@ export default function FachadaPublica() {
             <motion.div variants={itemVariants} className="fp-glass rounded-2xl p-4 flex items-center gap-3">
               <div className="h-14 w-14 rounded-full overflow-hidden fp-glass-tile flex items-center justify-center shrink-0">
                 {corretor.foto_url ? (
-                  <img src={corretor.foto_url} alt="" className="h-full w-full object-cover" />
+                  <img {...imagemComFallback(corretor.foto_url, 96, 70)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   <User className="h-6 w-6 text-amber-300" />
                 )}
