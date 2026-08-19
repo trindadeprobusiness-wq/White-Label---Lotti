@@ -154,3 +154,104 @@ export function contarNaoLidas(alertas: readonly AlertaNotificacao[]): {
     criticas: naoLidas.filter((a) => a.prioridade === 'ALTA').length,
   };
 }
+
+/**
+ * Rótulo do badge numérico do sino.
+ *
+ * O sino do Asaas mostra o número, não um ponto: "3" e "1" pedem ações
+ * diferentes do corretor, e o ponto colapsa os dois no mesmo sinal. Acima de
+ * 99 o número deixa de informar e só quebra o círculo — vira "99+".
+ */
+export function rotuloContagem(total: number): string {
+  if (!Number.isFinite(total) || total <= 0) return '';
+  if (total > 99) return '99+';
+  return String(Math.floor(total));
+}
+
+/**
+ * Direção do dinheiro. Recebimento entra, repasse sai.
+ *
+ * Existe porque a primeira leitura de uma notificação financeira é o sinal,
+ * não o texto: o corretor precisa saber num relance se aquilo aumentou ou
+ * diminuiu o saldo dele.
+ */
+export function sinalDoAlerta(
+  alerta: Pick<AlertaNotificacao, 'tipo' | 'prioridade'>,
+): 'entrada' | 'saida' | null {
+  if (alerta.tipo === 'PAGAMENTO') return 'entrada';
+  if (alerta.tipo === 'TRANSFERENCIA') return 'saida';
+  return null;
+}
+
+/**
+ * Valor do alerta, quando o webhook gravou um.
+ *
+ * `metadata` é JSONB solto — o Asaas manda número, mas alerta antigo pode ter
+ * string, e alerta não financeiro não tem nada. Devolver `null` em vez de
+ * `NaN` é o que impede "R$ NaN" de chegar na tela.
+ */
+export function valorDoAlerta(alerta: AlertaNotificacao): number | null {
+  const bruto = alerta.metadata?.valor;
+  if (bruto === null || bruto === undefined) return null;
+  const n = typeof bruto === 'string' ? Number(bruto.replace(',', '.')) : Number(bruto);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * O dinheiro chegou a se mover?
+ *
+ * Um repasse que falhou NÃO tirou nada da conta. Mostrar "− R$ 970,00" ao lado
+ * de "NÃO foi concluído" diz o contrário do próprio texto do alerta, e o valor
+ * é justamente a parte que o olho lê primeiro — o corretor concluiria que o
+ * proprietário recebeu.
+ *
+ * O critério é a convenção do webhook: transferência só nasce com prioridade
+ * ALTA no caminho de falha (`asaas-webhook/index.ts`, ramo FAILED/CANCELLED).
+ * Recebimento nunca é ALTA.
+ */
+export function movimentouSaldo(
+  alerta: Pick<AlertaNotificacao, 'tipo' | 'prioridade'>,
+): boolean {
+  return !(alerta.tipo === 'TRANSFERENCIA' && alerta.prioridade === 'ALTA');
+}
+
+/**
+ * Agrupa por dia para os cabeçalhos "Hoje" / "Ontem" / data.
+ *
+ * O painel do Asaas separa assim, e o motivo é prático: sem a quebra, dez
+ * linhas seguidas de "há 3 h" e "há 5 h" viram um bloco onde não dá para
+ * distinguir o que é de hoje do que ficou pendente da semana passada.
+ */
+export function rotuloDoDia(iso: string, agora = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Sem data';
+
+  const dia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((dia(agora) - dia(d)) / 86400000);
+
+  if (diff <= 0) return 'Hoje';
+  if (diff === 1) return 'Ontem';
+  if (diff < 7) return 'Esta semana';
+  if (diff < 30) return 'Este mês';
+  return 'Mais antigas';
+}
+
+/**
+ * Quebra a lista já ordenada em seções por dia, preservando a ordem recebida.
+ *
+ * Não reordena: `ordenarNotificacoes` já decidiu a ordem (não lidas primeiro),
+ * e reordenar aqui desfaria isso silenciosamente.
+ */
+export function agruparPorDia(
+  alertas: readonly AlertaNotificacao[],
+  agora = new Date(),
+): { rotulo: string; itens: AlertaNotificacao[] }[] {
+  const grupos: { rotulo: string; itens: AlertaNotificacao[] }[] = [];
+  for (const alerta of alertas) {
+    const rotulo = rotuloDoDia(alerta.created_at, agora);
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.rotulo === rotulo) ultimo.itens.push(alerta);
+    else grupos.push({ rotulo, itens: [alerta] });
+  }
+  return grupos;
+}

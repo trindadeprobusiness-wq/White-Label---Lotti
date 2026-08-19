@@ -407,9 +407,19 @@ serve(async (req) => {
         const event: string = payload?.event ?? 'UNKNOWN';
         const payment = payload?.payment;
 
-        // 3. event_id: id do Asaas (evt_...) ou hash determinístico como fallback
+        // 3. event_id: id do Asaas (evt_...) ou hash determinístico como fallback.
+        //
+        // O fallback PRECISA incluir a transferência. Antes usava só `payment`,
+        // e evento de transferência não tem `payment` — todo TRANSFER_DONE sem
+        // `payload.id` gerava o hash de "TRANSFER_DONE::", idêntico para
+        // qualquer transferência. O primeiro repasse entrava, e do segundo em
+        // diante o unique de event_id descartava tudo como reentrega: o PIX
+        // saía, o Asaas avisava, e o repasse ficava AGENDADO para sempre.
+        const transfer = payload?.transfer;
+        const entidadeId = payment?.id ?? transfer?.id ?? '';
+        const entidadeCriadaEm = payment?.dateCreated ?? transfer?.dateCreated ?? '';
         const eventId: string = payload?.id
-            ?? await sha256Hex(`${event}:${payment?.id ?? ''}:${payment?.dateCreated ?? ''}`);
+            ?? await sha256Hex(`${event}:${entidadeId}:${entidadeCriadaEm}`);
 
         // 4. Idempotência na porta: insere o evento; conflito = reentrega
         const supabase = admin();

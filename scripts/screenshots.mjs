@@ -91,7 +91,19 @@ const alertas = [
   { id: 'al-4', corretor_id: corretor[0].id,
     mensagem: 'Contrato de locação vence em 15 dias — Rua Vítor de Azevedo, Apto 1.204',
     tipo: 'GERAL', prioridade: 'ALTA', lido: true, origem: 'sistema',
-    created_at: '2026-08-14T09:00:00Z' },
+    created_at: new Date(Date.now() - 4*86400000).toISOString() },
+  // Lidas e mais antigas: exercitam as quebras "Esta semana" / "Este mês" do
+  // painel, que só aparecem com histórico de mais de um dia.
+  { id: 'al-5', corretor_id: corretor[0].id,
+    mensagem: 'Recebimento de R$ 4.150,00 de Ana Beatriz Moraes (2026-07)',
+    tipo: 'PAGAMENTO', prioridade: 'MEDIA', lido: true,
+    origem: 'asaas', entidade_tipo: 'fatura', entidade_id: 'f-2',
+    metadata: { valor: 4150 }, created_at: new Date(Date.now() - 12*86400000).toISOString() },
+  { id: 'al-6', corretor_id: corretor[0].id,
+    mensagem: 'Documento pendente de assinatura — Juliana Prado',
+    tipo: 'DOCUMENTO', prioridade: 'BAIXA', lido: true, origem: 'sistema',
+    entidade_tipo: 'cliente', entidade_id: 'cli-5',
+    created_at: new Date(Date.now() - 40*86400000).toISOString() },
 ];
 
 const TABELAS = {

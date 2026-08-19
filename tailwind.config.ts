@@ -179,12 +179,23 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.7" },
         },
+        // Balanço curto do sino quando chega notificação nova. Usado só
+        // sob motion-safe: para quem pediu menos movimento no SO, o número
+        // do badge já é o aviso.
+        "sino": {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "20%": { transform: "rotate(-12deg)" },
+          "40%": { transform: "rotate(10deg)" },
+          "60%": { transform: "rotate(-6deg)" },
+          "80%": { transform: "rotate(4deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out",
         "fade-in-up": "fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+        "sino": "sino 0.6s ease-in-out 2",
         "slide-in": "slide-in 0.3s ease-out",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },
