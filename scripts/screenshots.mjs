@@ -130,7 +130,8 @@ const ROTAS = [
   { nome: '03-financeiro', path: '/financeiro' },
   { nome: '04-juridico', path: '/juridico' },
   { nome: '05-midias', path: '/midias' },
-  { nome: '06-fachadas', path: '/fachadas' },
+  { nome: '06-fachadas', path: '/fachadas', abrirAjuda: true },
+  { nome: '06b-ajuda-busca', path: '/fachadas', abrirAjuda: true, buscarAjuda: 'pix' },
   { nome: '07-clientes', path: '/clientes' },
   { nome: '08-assistente', path: '/assistente' },
 ];
@@ -186,6 +187,15 @@ for (const vp of alvo) {
   for (const rota of ROTAS) {
     await page.goto(`${BASE}${rota.path}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(700);
+
+    if (rota.abrirAjuda) {
+      const ajuda = page.locator('button[aria-label="Ajuda"]').first();
+      if (await ajuda.count()) { await ajuda.click(); await page.waitForTimeout(600); }
+      if (rota.buscarAjuda) {
+        await page.locator('input[aria-label="Buscar na ajuda"]').fill(rota.buscarAjuda);
+        await page.waitForTimeout(400);
+      }
+    }
 
     if (rota.abrirSino) {
       const sino = page.locator('button[aria-label*="Notifica"]').first();

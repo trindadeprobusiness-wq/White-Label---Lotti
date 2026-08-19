@@ -450,3 +450,38 @@ usa exatamente três escopos: `PAYMENT` escrita, `CUSTOMER` escrita,
 saída** — o repasse é feito à mão no painel. Manter "Movimentações
 financeiras / Pix" em Escrita dá a uma chave vazada o poder de mandar dinheiro
 para fora sem que isso habilite nenhuma funcionalidade do sistema.
+
+### 2026-08-19 — Claude (ajuda contextual no lugar do botão morto)
+
+O "?" do cabeçalho tinha tooltip e não abria nada. Ícone que não faz nada é
+pior que ícone ausente: a pessoa clica, nada acontece, e conclui que o sistema
+está quebrado.
+
+`src/lib/ajuda.ts` (conteúdo + busca, puro e testado) e
+`src/components/shell/PainelAjuda.tsx` (gaveta lateral). Três decisões:
+
+- **Gaveta, não modal.** A ajuda fica aberta enquanto a pessoa executa o passo
+  na tela atrás; modal obrigaria a decorar e fechar.
+- **Abre no assunto da tela.** Quem trava em Fachadas quer fachada, não um
+  índice de tudo. Os gerais ficam abaixo, na seção "Vale para todo o sistema".
+- **Busca pelo problema, sem acento.** A pessoa digita "nao recebi aviso do
+  pix", não o nome que demos ao tópico — a busca varre passos e sinônimos com
+  pesos (título 8, sinônimo 5, resumo 3, corpo 1) e a tela atual desempata.
+
+Nenhum tópico descreve função que não existe: todos os passos correspondem a
+botão ou fluxo real, e os `ATALHOS` listam só Ctrl+K, `?` e Esc, que são os que
+estão implementados. Os avisos de "atenção" cobrem as armadilhas caras — QR
+imutável, vencimento no passado, ambiguidade da conciliação de repasse, e que
+a IA de contrato erra.
+
+Atalho `?` abre a gaveta, mas nunca com foco em campo de texto — senão digitar
+uma pergunta abriria a ajuda no meio da frase. Os atalhos ficam ocultos abaixo
+de `sm`: teclado não existe no celular, e ali o espaço é justamente o que falta.
+
+Validações: `npm test` **263/263** (17 novos em `lib/ajuda.test.ts`),
+typecheck **74 — baseline**, lint limpo, build OK, 390×844 e 1600×900 sem
+overflow e sem erro de console.
+
+**Banco: `deploy-manual/asaas-ATIVAR.sql` foi aplicado pelo usuário em 19/08 —
+conferência 12/12 OK.** Continuam pendentes: republicar a Edge Function
+`asaas-webhook` e marcar os eventos `TRANSFER_*` no painel do Asaas.

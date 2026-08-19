@@ -1,8 +1,7 @@
-import { HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
 import { PainelNotificacoes } from './PainelNotificacoes';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { PainelAjuda } from './PainelAjuda';
 
 /**
  * Faixa superior do workspace.
@@ -59,19 +58,7 @@ export function PageHeader({
           // de layout em vez de agrupamento.
           <div className="order-2 flex items-center gap-1">
             <PainelNotificacoes />
-
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-ring"
-                  aria-label="Ajuda"
-                >
-                  <HelpCircle className="h-[18px] w-[18px]" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Ajuda</TooltipContent>
-            </Tooltip>
+            <PainelAjuda />
           </div>
         )}
 
