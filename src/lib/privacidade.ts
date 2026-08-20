@@ -4,12 +4,18 @@ export type TipoDadoSensivel = 'telefone' | 'email' | 'endereco' | 'documento' |
  * A máscara é apenas visual. O valor original nunca é alterado, para que
  * buscas, cálculos e ações do CRM continuem usando o dado verdadeiro.
  */
+/** Máscara única de dinheiro. Literal em um lugar só para não divergir. */
+export const VALOR_MASCARADO = 'R$ ••••••';
+
+/** Máscara de dado pessoal — sem cifrão, porque não é dinheiro. */
+export const TEXTO_MASCARADO = '••••••••';
+
 export function ocultarDadoSensivel(
   valor: string | number | null | undefined,
   tipo: TipoDadoSensivel,
 ): string {
   if (valor === null || valor === undefined || valor === '') return '—';
-  return tipo === 'valor' ? 'R$ ••••••' : '••••••••';
+  return tipo === 'valor' ? VALOR_MASCARADO : TEXTO_MASCARADO;
 }
 
 /** Chave única do interruptor global. Prefixada para não colidir no localStorage. */
@@ -46,5 +52,5 @@ export function lerPreferenciaOculta(bruto: string | null | undefined): boolean 
  * não protege ninguém e tira o sentido do aviso.
  */
 export function mascararValoresNoTexto(texto: string): string {
-  return texto.replace(/R\$\s?\d{1,3}(?:\.\d{3})*(?:,\d{2})?/g, 'R$ ••••••');
+  return texto.replace(/R\$\s?\d{1,3}(?:\.\d{3})*(?:,\d{2})?/g, VALOR_MASCARADO);
 }

@@ -9,6 +9,8 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LancamentoPorCategoria, CATEGORIA_LABELS } from '@/types/financeiro';
+import { VALOR_MASCARADO } from '@/lib/privacidade';
+import { usePrivacidade } from '@/stores/privacidadeStore';
 
 interface GraficoCategoriasProps {
   dados: LancamentoPorCategoria[];
@@ -37,6 +39,8 @@ const CORES_RECEITA = [
 ];
 
 export function GraficoCategorias({ dados, titulo, tipo }: GraficoCategoriasProps) {
+  // O gráfico também expõe dinheiro: tooltip, legenda e totais.
+  const oculto = usePrivacidade((s) => s.valoresOcultos);
   const cores = tipo === 'despesa' ? CORES_DESPESA : CORES_RECEITA;
 
   const dadosFormatados = useMemo(() => 
@@ -90,7 +94,9 @@ export function GraficoCategorias({ dados, titulo, tipo }: GraficoCategoriasProp
               </Pie>
               <Tooltip
                 formatter={(value: number) => [
-                  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+                  oculto
+                    ? VALOR_MASCARADO
+                    : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
                   'Valor'
                 ]}
                 contentStyle={{
@@ -117,7 +123,9 @@ export function GraficoCategorias({ dados, titulo, tipo }: GraficoCategoriasProp
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">
-                  {item.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {oculto
+                    ? VALOR_MASCARADO
+                    : item.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
                 <span className="text-muted-foreground text-xs">
                   ({item.percentual.toFixed(0)}%)

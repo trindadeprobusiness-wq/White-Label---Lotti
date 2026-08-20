@@ -121,7 +121,27 @@ const TABELAS = {
                bairro: 'Anápolis' },
   }],
   fachada_leads: [], fachada_escaneamentos: [], videos: [], imovel_fotos: [],
-  faturas_aluguel: [], repasses_proprietario: [], subscriptions: [],
+  faturas_aluguel: [
+    { id: 'fat-1', corretor_id: corretor[0].id, contrato_id: 'ctr-1', imovel_id: 'imo-0',
+      cliente_id: 'cli-0', mes_referencia: '08/2026', valor_total: 1900, status: 'PAGO',
+      data_vencimento: '2026-08-05', valor_pago: 1900, data_pagamento: '2026-08-05',
+      contratos: { taxa_administracao_percentual: 10 },
+      imoveis: { titulo: 'Galpão - Av. Paranapanema, 106', endereco: 'Av. Paranapanema, Qd. 31' },
+      clientes: { nome: 'Diego Henrique Caldeira Gomes' } },
+    { id: 'fat-2', corretor_id: corretor[0].id, contrato_id: 'ctr-2', imovel_id: 'imo-1',
+      cliente_id: 'cli-1', mes_referencia: '08/2026', valor_total: 2170, status: 'ATRASADO',
+      data_vencimento: '2026-08-07', valor_pago: null, data_pagamento: null,
+      contratos: { taxa_administracao_percentual: 10 },
+      imoveis: { titulo: 'Apartamento 702 Residencial Gemini', endereco: 'Fundo do vale Forte' },
+      clientes: { nome: 'Hugo Brito Lins' } },
+  ],
+  repasses_proprietario: [
+    { id: 'rep-1', corretor_id: corretor[0].id, fatura_id: 'fat-1', proprietario_id: 'prop-1',
+      proprietario_nome: 'Ingrid Atades Nascimento', valor_bruto_recebido: 1900,
+      valor_taxa_adm: 190, valor_liquido_repasse: 1710, status: 'AGENDADO',
+      data_prevista: '2026-08-10' },
+  ],
+  subscriptions: [],
 };
 
 const ROTAS = [
@@ -129,6 +149,9 @@ const ROTAS = [
   { nome: '01b-inicio-oculto', path: '/', ocultarValores: true, abrirSino: true },
   { nome: '02-funil', path: '/crm' },
   { nome: '03-financeiro', path: '/financeiro' },
+  { nome: '09-alugueis', path: '/alugueis' },
+  { nome: '09b-alugueis-oculto', path: '/alugueis', ocultarValores: true },
+  { nome: '07b-clientes-oculto', path: '/clientes', ocultarValores: true },
   { nome: '03b-financeiro-oculto', path: '/financeiro', ocultarValores: true },
   { nome: '04-juridico', path: '/juridico' },
   { nome: '05-midias', path: '/midias' },

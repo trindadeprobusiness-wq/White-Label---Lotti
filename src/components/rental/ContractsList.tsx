@@ -17,6 +17,7 @@ import { parseContratoContent } from "@/types/rental";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dinheiro } from "@/components/ui/dinheiro";
 
 export function ContractsList() {
     const queryClient = useQueryClient(); // Ensure this hook is used or imported if checking logic
@@ -250,17 +251,17 @@ export function ContractsList() {
                                                 <TableCell className="text-right">
                                                     <div className="flex flex-col items-end gap-0.5">
                                                         <div className="font-semibold text-sm">
-                                                            R$ {contract.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                            <Dinheiro valor={contract.valor} />
                                                         </div>
                                                         <div className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                                                            Taxa: {contractFeePct}% (- R$ {currentFee.toLocaleString("pt-BR", { minimumFractionDigits: 0 })})
+                                                            Taxa: {contractFeePct}% (- <Dinheiro valor={currentFee} casas={0} />)
                                                         </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex flex-col items-center justify-center gap-0.5">
                                                         <div className="font-medium text-green-600 dark:text-green-400 text-sm">
-                                                            R$ {currentNet.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                            <Dinheiro valor={currentNet} />
                                                         </div>
                                                         <div className="text-xs text-muted-foreground flex items-center">
                                                             Dia {content.dia_repasse || contract.dia_vencimento + 5}
@@ -349,7 +350,7 @@ export function ContractsList() {
                                 <div className="flex gap-6">
                                     <div className="flex items-center gap-2">
                                         <span className="text-muted-foreground">Volume de Aluguéis:</span>
-                                        <span className="font-semibold text-foreground">R$ {totalRent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                                        <span className="font-semibold text-foreground"><Dinheiro valor={totalRent} /></span>
                                     </div>
                                 </div>
                             </div>
@@ -406,13 +407,13 @@ export function ContractsList() {
                                 <div className="p-4 rounded-lg border bg-blue-50/50 dark:bg-blue-900/10 space-y-1">
                                     <div className="text-xs text-muted-foreground font-medium">Taxa ({feePct}%)</div>
                                     <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                                        R$ {fee.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                        <Dinheiro valor={fee} />
                                     </div>
                                 </div>
                                 <div className="p-4 rounded-lg border bg-green-50/50 dark:bg-green-900/10 space-y-1">
                                     <div className="text-xs text-muted-foreground font-medium">Líquido Proprietário</div>
                                     <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                                        R$ {net.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                        <Dinheiro valor={net} />
                                     </div>
                                 </div>
                             </div>

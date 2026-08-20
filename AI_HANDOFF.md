@@ -594,3 +594,43 @@ abertas e intactas, junto com `asaas-sync/index.ts`.
 Validações: `npm test` **278/278** (10 em `privacidade.test.ts`), typecheck
 **74 — baseline**, lint limpo nos arquivos tocados, build OK, 1600×900 e
 390×844 sem overflow e sem erro de console.
+
+### 2026-08-20 — Claude (modo privado cobrindo Aluguéis, Clientes e Financeiro)
+
+Três defeitos apontados por captura de tela do usuário, todos reais.
+
+**1. O olho era opt-in por página.** `PageHeader` tinha ganho um prop
+`comPrivacidade`, e só Dashboard e Financeiro o passavam. Clientes, Funil,
+Jurídico, Mídias e Fachadas ficaram **sem o controle** — e como o modo é global
+e lembrado, dava para ligar no Financeiro e não conseguir desligar em Clientes.
+O prop foi removido: o botão é sempre renderizado. Opt-in por página, num
+recurso global, garante página esquecida.
+
+**2. Um olhinho por linha na lista de Clientes.** Com 32 clientes eram 32
+botões empilhados na coluna de contato, e ver os telefones exigia 32 cliques.
+Pior: não protegia — em tela compartilhada bastava um clique para expor.
+`DadoSensivel` perdeu o botão próprio; tudo segue o interruptor do cabeçalho.
+Dado pessoal passa a aparecer por padrão, como dinheiro.
+
+**3. Valores vazando com o modo ligado.** Aluguéis inteiro e as abas Custos,
+Faturamento e Projeção do Financeiro mostravam números crus. A causa era
+`R$ {x.toLocaleString(...)}` repetido em 29 lugares — mascarar à mão dependia de
+ninguém esquecer. Criado `components/ui/dinheiro.tsx`: agora ou o valor passa
+pelo componente, ou ele aparece cru numa busca por `toLocaleString`.
+
+Também mascarado o **eixo dos gráficos**. "R$ 40k" no topo entrega a ordem de
+grandeza mesmo com todos os números escondidos; no modo privado o eixo fica sem
+rótulo e o gráfico mostra só a forma. Fora do escopo de propósito:
+`NewContractDialog`, onde o corretor está digitando o valor e precisa vê-lo.
+
+O botão em Aluguéis estava colado no título, parecendo sobra de layout; foi
+para a direita, alinhado com os cartões que ele governa.
+
+**Verificação.** Varredura com Playwright em 14 telas e abas, com o modo ligado,
+procurando qualquer `R$` seguido de dígito: **nenhum valor cru**. É esse o teste
+que vale a pena repetir ao mexer em dinheiro na interface.
+
+Validações: `npm test` **278/278**, typecheck **74 — baseline**, lint sem erro
+novo (RepassesList 5 e ContractsList 9 são `no-explicit-any` pré-existentes,
+idênticos ao HEAD), build OK, 1600×900 e 390×844 sem overflow nem erro de
+console.

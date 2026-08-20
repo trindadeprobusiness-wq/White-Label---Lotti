@@ -40,8 +40,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { parseContratoContent } from "@/types/rental";
-import { DadoSensivel } from "@/components/ui/dado-sensivel";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
+import { Dinheiro } from "@/components/ui/dinheiro";
 
 export function BillsList() {
     const queryClient = useQueryClient();
@@ -739,7 +739,7 @@ export function BillsList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">A Receber</p>
-                            <h3 className="text-2xl font-bold text-yellow-600">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-yellow-600"><Dinheiro valor={totalPending} /></h3>
                         </div>
                         <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">
                             <AlertCircle className="h-5 w-5" />
@@ -750,7 +750,7 @@ export function BillsList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Recebido</p>
-                            <h3 className="text-2xl font-bold text-green-600">R$ {totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-green-600"><Dinheiro valor={totalPaid} /></h3>
                         </div>
                         <div className="p-2 bg-green-100 rounded-full text-green-600">
                             <CheckCircle className="h-5 w-5" />
@@ -777,10 +777,7 @@ export function BillsList() {
                                 </h3>
                             ) : saldoAsaas != null ? (
                                 <h3 className="text-2xl font-bold text-blue-600">
-                                    <DadoSensivel
-                                        tipo="valor"
-                                        valor={`R$ ${saldoAsaas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                                    />
+                                    <Dinheiro valor={saldoAsaas} />
                                 </h3>
                             ) : (
                                 <button onClick={fetchSaldo} className="text-left" title={saldoNote ?? undefined}>
@@ -937,7 +934,7 @@ export function BillsList() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="font-semibold text-foreground">
-                                                        R$ {bill.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        <Dinheiro valor={bill.valor_total} />
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
@@ -1208,7 +1205,7 @@ export function BillsList() {
                             <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30">
                                 <p className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold mb-1">Aluguel</p>
                                 <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                                    R$ {contractViewerDetails.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <Dinheiro valor={contractViewerDetails.valor} />
                                 </p>
                             </div>
                             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30">
@@ -1220,7 +1217,7 @@ export function BillsList() {
                             <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30">
                                 <p className="text-[10px] uppercase tracking-wider text-green-600 dark:text-green-400 font-semibold mb-1">Líquido</p>
                                 <p className="text-lg font-bold text-green-700 dark:text-green-300">
-                                    R$ {(contractViewerDetails.valor - (contractViewerDetails.valor * contractViewerDetails.taxaAdm / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <Dinheiro valor={(contractViewerDetails.valor - (contractViewerDetails.valor * contractViewerDetails.taxaAdm / 100))} />
                                 </p>
                             </div>
                         </div>

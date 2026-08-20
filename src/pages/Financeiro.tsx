@@ -37,6 +37,7 @@ import { LancamentoFinanceiro, ProjecaoMensal, TipoLancamento } from '@/types/fi
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { toast } from 'sonner';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import { Dinheiro } from '@/components/ui/dinheiro';
 
 type Periodo = 'mes_atual' | 'trimestre' | 'ano' | 'todos' | 'personalizado';
 
@@ -171,7 +172,6 @@ export default function Financeiro() {
         titulo="Financeiro"
         subtitulo="Acompanhe receitas, despesas e o resultado do seu negócio."
         comUtilitarios
-        comPrivacidade
         acoes={
           <>
             {periodo === 'personalizado' && (
@@ -389,10 +389,9 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
-                  {despesasPorCategoria
+                  <Dinheiro valor={despesasPorCategoria
                     .filter(d => d.categoria.startsWith('ANUNCIO'))
-                    .reduce((acc, d) => acc + d.total, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    .reduce((acc, d) => acc + d.total, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -405,10 +404,9 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
-                  {despesasPorCategoria
+                  <Dinheiro valor={despesasPorCategoria
                     .filter(d => d.categoria.startsWith('OPERACIONAL'))
-                    .reduce((acc, d) => acc + d.total, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    .reduce((acc, d) => acc + d.total, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -421,10 +419,9 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
-                  {despesasPorCategoria
+                  <Dinheiro valor={despesasPorCategoria
                     .filter(d => d.categoria.startsWith('IMPOSTO'))
-                    .reduce((acc, d) => acc + d.total, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    .reduce((acc, d) => acc + d.total, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -475,10 +472,9 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {receitasPorCategoria
+                  <Dinheiro valor={receitasPorCategoria
                     .filter(d => d.categoria === 'COMISSAO_VENDA')
-                    .reduce((acc, d) => acc + d.total, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    .reduce((acc, d) => acc + d.total, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -491,10 +487,9 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {receitasPorCategoria
+                  <Dinheiro valor={receitasPorCategoria
                     .filter(d => d.categoria === 'COMISSAO_LOCACAO')
-                    .reduce((acc, d) => acc + d.total, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    .reduce((acc, d) => acc + d.total, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -507,10 +502,9 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {receitasPorCategoria
+                  <Dinheiro valor={receitasPorCategoria
                     .filter(d => !['COMISSAO_VENDA', 'COMISSAO_LOCACAO'].includes(d.categoria))
-                    .reduce((acc, d) => acc + d.total, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    .reduce((acc, d) => acc + d.total, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -530,8 +524,7 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {projecao.reduce((acc, p) => acc + p.receita, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <Dinheiro valor={projecao.reduce((acc, p) => acc + p.receita, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -544,8 +537,7 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {projecao.reduce((acc, p) => acc + p.despesa, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <Dinheiro valor={projecao.reduce((acc, p) => acc + p.despesa, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -558,8 +550,7 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {projecao.reduce((acc, p) => acc + p.lucro, 0)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <Dinheiro valor={projecao.reduce((acc, p) => acc + p.lucro, 0)} />
                 </p>
               </CardContent>
             </Card>
@@ -572,8 +563,7 @@ export default function Financeiro() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
-                  {(projecao.reduce((acc, p) => acc + p.lucro, 0) / 12)
-                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <Dinheiro valor={(projecao.reduce((acc, p) => acc + p.lucro, 0) / 12)} />
                 </p>
               </CardContent>
             </Card>

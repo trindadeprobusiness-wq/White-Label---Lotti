@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dinheiro } from '@/components/ui/dinheiro';
 
 export function RepassesList() {
     const [searchTerm, setSearchTerm] = useState("");
@@ -100,7 +101,7 @@ export function RepassesList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Agendado (Líquido)</p>
-                            <h3 className="text-2xl font-bold text-yellow-600">R$ {totalScheduled.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-yellow-600"><Dinheiro valor={totalScheduled} /></h3>
                         </div>
                         <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">
                             <CalendarDays className="h-5 w-5" />
@@ -111,7 +112,7 @@ export function RepassesList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Confirmado (Mês)</p>
-                            <h3 className="text-2xl font-bold text-green-600">R$ {totalConfirmed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-green-600"><Dinheiro valor={totalConfirmed} /></h3>
                         </div>
                         <div className="p-2 bg-green-100 rounded-full text-green-600">
                             <CheckCircle2 className="h-5 w-5" />
@@ -192,14 +193,14 @@ export function RepassesList() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-muted-foreground">
-                                                    R$ {payout.valor_bruto_recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    <Dinheiro valor={payout.valor_bruto_recebido} />
                                                 </TableCell>
                                                 <TableCell className="text-red-500 text-xs">
-                                                    - R$ {payout.valor_taxa_adm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    - <Dinheiro valor={payout.valor_taxa_adm} />
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="font-bold text-green-600">
-                                                        R$ {payout.valor_liquido_repasse.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        <Dinheiro valor={payout.valor_liquido_repasse} />
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
