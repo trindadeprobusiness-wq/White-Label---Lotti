@@ -509,14 +509,14 @@ export default function ImovelDetalhes() {
             {imovel.proprietario_telefone && (
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-muted-foreground" />
-                <DadoSensivel valor={imovel.proprietario_telefone} tipo="telefone" />
+                <DadoSensivel valor={imovel.proprietario_telefone} tipo="telefone" href={`tel:${imovel.proprietario_telefone}`} />
               </div>
             )}
 
             {imovel.proprietario_email && (
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-muted-foreground" />
-                <DadoSensivel valor={imovel.proprietario_email} tipo="email" />
+                <DadoSensivel valor={imovel.proprietario_email} tipo="email" href={`mailto:${imovel.proprietario_email}`} />
               </div>
             )}
           </CardContent>

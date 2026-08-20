@@ -42,6 +42,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { deveBloquearCliqueDoCard } from '@/lib/funilDrag';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 // Paleta de cores das etapas — 6 opções fixas, apresentadas como bolinhas.
 // Manter tudo em Tailwind evita malabarismo com CSS-in-JS e permite dark theme
@@ -195,9 +196,7 @@ function DraggableCard({
         </p>
       </div>
       <div className={cn('flex items-center justify-between pt-1', selectionMode && 'pl-6')}>
-        <p className="text-sm font-semibold text-primary">
-          {imovel ? formatValor(imovel.valor) : 'R$ 0'}
-        </p>
+        <DadoSensivel valor={imovel ? formatValor(imovel.valor) : 'R$ 0'} tipo="valor" className="text-sm font-semibold text-primary" />
         <MessageCircle className="h-4 w-4 text-muted-foreground" aria-label="Conversa do cliente" />
       </div>
     </div>
@@ -261,9 +260,7 @@ function CardEmArraste({
           {imovel?.titulo ?? cliente.tipo_interesse}
         </p>
         <div className="flex items-center justify-between pt-1">
-          <p className="text-sm font-semibold text-primary">
-            {imovel ? formatValor(imovel.valor) : 'R$ 0'}
-          </p>
+          <DadoSensivel valor={imovel ? formatValor(imovel.valor) : 'R$ 0'} tipo="valor" className="text-sm font-semibold text-primary" />
           <MessageCircle className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>

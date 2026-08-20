@@ -32,7 +32,7 @@ describe('acabamento visual do funil e da sidebar', () => {
     vi.mocked(useDroppable).mockReturnValue({
       setNodeRef: vi.fn(),
       isOver: true,
-    } as ReturnType<typeof useDroppable>);
+    } as unknown as ReturnType<typeof useDroppable>);
 
     const html = renderToStaticMarkup(
       <DroppableColumn id="DOCUMENTACAO">Conteúdo</DroppableColumn>,

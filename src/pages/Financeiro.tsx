@@ -248,21 +248,21 @@ export default function Financeiro() {
                 <div className="min-w-[8.5rem] rounded-lg border border-success/20 bg-success-surface px-4 py-3">
                   <p className="text-xs text-muted-foreground">Receitas</p>
                   <p className="mt-1 text-lg font-semibold tabular text-success">
-                    {moeda(resumo.receita_total, true)}
+                    <DadoSensivel valor={moeda(resumo.receita_total, true)} tipo="valor" />
                   </p>
                 </div>
                 <span className="text-lg text-muted-foreground" aria-hidden="true">−</span>
                 <div className="min-w-[8.5rem] rounded-lg border border-destructive/20 bg-destructive-surface px-4 py-3">
                   <p className="text-xs text-muted-foreground">Despesas</p>
                   <p className="mt-1 text-lg font-semibold tabular text-destructive">
-                    {moeda(resumo.despesa_total, true)}
+                    <DadoSensivel valor={moeda(resumo.despesa_total, true)} tipo="valor" />
                   </p>
                 </div>
                 <span className="text-lg text-muted-foreground" aria-hidden="true">=</span>
                 <div className="min-w-[8.5rem] rounded-lg bg-primary px-4 py-3">
                   <p className="text-xs text-primary-foreground/75">Lucro líquido</p>
                   <p className="mt-1 text-lg font-semibold tabular text-primary-foreground">
-                    {moeda(resumo.lucro, true)}
+                    <DadoSensivel valor={moeda(resumo.lucro, true)} tipo="valor" />
                   </p>
                 </div>
               </div>

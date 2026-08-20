@@ -101,6 +101,9 @@ estejam concluídas ou corretas.
   preservada. O menu recolhido mantém os divisores existentes.
 - O subtítulo compartilhado das abas do CRM teve o travessão removido: “Leads,
   negócios e follow-up do primeiro contato ao fechamento.”
+- Revisão pré-merge corrigiu propagação do botão de olho dentro de cards/drag,
+  restaurou links `tel:`/`mailto:` após revelar contatos e mascarou valores que
+  ainda apareciam no Funil, totais do CRM e lançamentos/resumo financeiro.
 - Adicionado teste de renderização para esses acabamentos visuais.
 - Validações: `npm test` 233/233, `npm run build` e `git diff --check` passaram.
 

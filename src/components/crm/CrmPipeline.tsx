@@ -175,7 +175,7 @@ function Coluna({
 
         {coluna.total > 0 && (
           <div className="border-t border-border px-4 py-2.5">
-            <p className="text-sm font-medium tabular text-foreground">{moeda(coluna.total)}</p>
+            <DadoSensivel valor={moeda(coluna.total)} tipo="valor" className="text-sm font-medium tabular text-foreground" />
           </div>
         )}
       </div>
