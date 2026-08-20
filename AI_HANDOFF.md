@@ -82,6 +82,16 @@ estejam concluídas ou corretas.
 - `public/favicon.svg` atualizado com o símbolo fornecido pelo usuário.
 - Validações: `npm test` 228/228 e `npm run build` passaram.
 
+### 2026-08-20 — Codex (interação e cards do Funil)
+
+- O arraste dos cards do Funil agora usa uma camada de sobreposição, evitando
+  que o card fique atrás das colunas; o clique sintético posterior ao arraste
+  não navega para o cadastro do cliente.
+- Os cards foram compactados para nome, detalhe do imóvel/interesse, valor e
+  indicador de conversa. O estado visual dos botões de dados sensíveis foi
+  corrigido: olho aberto para dado visível e olho riscado para dado oculto.
+- Validações: `npm test` 231/231, `npm run build` e `git diff --check` passaram.
+
 ### 2026-08-12 — Codex
 
 - Criada a ponte de contexto entre Codex e Claude.

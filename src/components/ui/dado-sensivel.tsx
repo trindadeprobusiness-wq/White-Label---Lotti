@@ -25,7 +25,7 @@ export function DadoSensivel({ valor, tipo, className }: DadoSensivelProps) {
           aria-label={visivel ? 'Ocultar dado sensível' : 'Mostrar dado sensível'}
           title={visivel ? 'Ocultar dado' : 'Mostrar dado'}
         >
-          {visivel ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {visivel ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
         </button>
       )}
     </span>
