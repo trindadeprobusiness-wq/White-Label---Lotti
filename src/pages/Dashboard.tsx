@@ -11,6 +11,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import { mascararValoresNoTexto } from '@/lib/privacidade';
+import { usePrivacidade } from '@/stores/privacidadeStore';
 import {
   SectionCard, MetricStrip, QuickActionRow, StatusBadge, Avatar, EmptyState,
 } from '@/components/shell/primitivos';
@@ -69,6 +72,11 @@ export default function Dashboard() {
   useEffect(() => { fetchCorretor(); }, [fetchCorretor]);
 
   const alertasNaoLidos = useMemo(() => alertas.filter((a) => !a.lido), [alertas]);
+  // As acoes criticas repetem a mensagem do alerta, que ja vem do webhook
+  // com o valor embutido no texto. Sem isto, o modo privado esconderia o
+  // numero do cartao e o deixaria exposto na frase logo ao lado.
+  const valoresOcultos = usePrivacidade((s) => s.valoresOcultos);
+  const textoAlerta = (m: string) => (valoresOcultos ? mascararValoresNoTexto(m) : m);
 
   const contagemEtapas = useMemo(() => {
     const mapa: Record<string, number> = {};
@@ -185,7 +193,7 @@ export default function Dashboard() {
                     "Contrato de loc..." e deixava de dizer o que é. Com a
                     ação embaixo, cabe em duas linhas. */}
                 <p className="min-w-0 flex-1 text-sm font-medium sm:truncate">
-                  {alerta.mensagem}
+                  {textoAlerta(alerta.mensagem)}
                 </p>
                 <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                   <Button variant="ghost" size="sm" onClick={() => setAlertaSelecionado(alerta)}>
@@ -202,7 +210,7 @@ export default function Dashboard() {
                     size="icon"
                     className="h-9 w-9 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
                     onClick={() => marcarAlertaLido(alerta.id)}
-                    aria-label={`Dispensar alerta: ${alerta.mensagem}`}
+                    aria-label={`Dispensar alerta: ${textoAlerta(alerta.mensagem)}`}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -427,9 +435,13 @@ export default function Dashboard() {
                         </span>
                         <span className="flex items-center gap-1 truncate text-sm text-muted-foreground">
                           <MapPin className="h-3.5 w-3.5 shrink-0" />
-                          {[imovel.cidade, imovel.valor ? moeda(imovel.valor, true) : null]
-                            .filter(Boolean)
-                            .join(' • ') || 'Sem localização'}
+                          <span className="truncate">{imovel.cidade || 'Sem localização'}</span>
+                          {imovel.valor > 0 && (
+                            <>
+                              <span aria-hidden="true">•</span>
+                              <DadoSensivel valor={moeda(imovel.valor, true)} tipo="valor" />
+                            </>
+                          )}
                         </span>
                       </span>
                       <StatusBadge tom={incompleto ? 'warning' : 'success'} comPonto>
@@ -461,7 +473,7 @@ export default function Dashboard() {
 
           {alertaSelecionado && (
             <div className="space-y-3">
-              <p className="text-sm">{alertaSelecionado.mensagem}</p>
+              <p className="text-sm">{textoAlerta(alertaSelecionado.mensagem)}</p>
               <dl className="grid grid-cols-2 gap-3 rounded-lg bg-muted p-3">
                 <div>
                   <dt className="text-xs text-muted-foreground">Tipo</dt>

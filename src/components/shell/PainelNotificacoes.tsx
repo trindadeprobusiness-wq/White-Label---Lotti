@@ -10,6 +10,8 @@ import { useCRMStore } from '@/stores/crmStore';
 import { useAlertasAoVivo } from '@/hooks/useAlertasAoVivo';
 import { mensagemDeErro } from '@/lib/errors';
 import { moeda } from '@/lib/formato';
+import { ocultarDadoSensivel, mascararValoresNoTexto } from '@/lib/privacidade';
+import { usePrivacidade } from '@/stores/privacidadeStore';
 import {
   ordenarNotificacoes,
   filtrarPorCategoria,
@@ -74,6 +76,9 @@ export function PainelNotificacoes() {
   const navigate = useNavigate();
 
   const { alertas, marcarAlertaLido, fetchAlertas } = useCRMStore();
+  // O sino mostra quanto entrou e quanto saiu. Com o modo privado ligado,
+  // e ele fica aberto na tela, seria a maior brecha do sistema.
+  const valoresOcultos = usePrivacidade((s) => s.valoresOcultos);
 
   // Realtime + sondagem. Sem isto, todo o resto mostra dado do bootstrap.
   useAlertasAoVivo();
@@ -302,7 +307,9 @@ export function PainelNotificacoes() {
                                 alerta.lido ? 'text-muted-foreground' : 'font-medium text-foreground',
                               )}
                             >
-                              {alerta.mensagem}
+                              {valoresOcultos
+                                ? mascararValoresNoTexto(alerta.mensagem)
+                                : alerta.mensagem}
                             </span>
                           </span>
 
@@ -318,8 +325,11 @@ export function PainelNotificacoes() {
                                       : 'text-foreground',
                                 )}
                               >
-                                {moveu && (sinal === 'entrada' ? '+ ' : '− ')}
-                                {moeda(valor)}
+                                {!valoresOcultos && moveu &&
+                                  (sinal === 'entrada' ? '+ ' : '− ')}
+                                {valoresOcultos
+                                  ? ocultarDadoSensivel(valor, 'valor')
+                                  : moeda(valor)}
                               </span>
                             )}
                             {!alerta.lido && (

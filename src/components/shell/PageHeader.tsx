@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
 import { PainelNotificacoes } from './PainelNotificacoes';
+import { BotaoPrivacidade } from './BotaoPrivacidade';
 import { PainelAjuda } from './PainelAjuda';
 
 /**
@@ -57,6 +58,7 @@ export function PageHeader({
           // terceira linha sozinhos, abaixo dos botões, o que parecia sobra
           // de layout em vez de agrupamento.
           <div className="order-2 flex items-center gap-1">
+            <BotaoPrivacidade />
             <PainelNotificacoes />
             <PainelAjuda />
           </div>

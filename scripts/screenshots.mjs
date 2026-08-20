@@ -126,8 +126,10 @@ const TABELAS = {
 
 const ROTAS = [
   { nome: '01-inicio', path: '/', abrirSino: true },
+  { nome: '01b-inicio-oculto', path: '/', ocultarValores: true, abrirSino: true },
   { nome: '02-funil', path: '/crm' },
   { nome: '03-financeiro', path: '/financeiro' },
+  { nome: '03b-financeiro-oculto', path: '/financeiro', ocultarValores: true },
   { nome: '04-juridico', path: '/juridico' },
   { nome: '05-midias', path: '/midias' },
   { nome: '06-fachadas', path: '/fachadas', abrirAjuda: true },
@@ -187,6 +189,18 @@ for (const vp of alvo) {
   for (const rota of ROTAS) {
     await page.goto(`${BASE}${rota.path}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(700);
+
+    // O modo privado é lembrado no localStorage — de propósito. Aqui isso
+    // vazaria para as rotas seguintes e todas sairiam mascaradas, então cada
+    // captura declara o estado que quer e o harness garante esse estado.
+    const alvoOculto = !!rota.ocultarValores;
+    const botaoOculto = page.locator(
+      `button[aria-label="${alvoOculto ? 'Ocultar' : 'Mostrar'} valores"]`,
+    ).first();
+    if (await botaoOculto.count()) {
+      await botaoOculto.click();
+      await page.waitForTimeout(350);
+    }
 
     if (rota.abrirAjuda) {
       const ajuda = page.locator('button[aria-label="Ajuda"]').first();

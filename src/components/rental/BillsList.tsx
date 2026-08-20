@@ -39,6 +39,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { parseContratoContent } from "@/types/rental";
+import { DadoSensivel } from "@/components/ui/dado-sensivel";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
 
 export function BillsList() {
@@ -738,7 +739,10 @@ export function BillsList() {
                                 </h3>
                             ) : saldoAsaas != null ? (
                                 <h3 className="text-2xl font-bold text-blue-600">
-                                    R$ {saldoAsaas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <DadoSensivel
+                                        tipo="valor"
+                                        valor={`R$ ${saldoAsaas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                    />
                                 </h3>
                             ) : (
                                 <button onClick={fetchSaldo} className="text-left" title={saldoNote ?? undefined}>

@@ -548,3 +548,49 @@ conferência 12/12 OK.
 de cache logo no começo — mover para o fim vale 53% da conta de qualificação;
 não registramos tokens em lugar nenhum; e `ImovelFotosUpload` sobe foto de até 5 MB
 e vídeo de até 500 MB sem compressão, embora `downscaleToBase64()` já exista.
+
+### 2026-08-20 — Claude (esconder valores, no modelo do banco)
+
+Construído em cima de `privacidade.ts` e `dado-sensivel.tsx`, que o Codex subiu
+horas antes — nada foi duplicado.
+
+**O que estava invertido.** Cada valor tinha o próprio olhinho e começava
+escondido. Em Financeiro isso obrigava o corretor a clicar em três olhos para
+ver os próprios números, toda vez que a página abria e de novo ao voltar.
+Proteger dado é bom; esconder do dono por padrão é outra coisa. Aplicativo de
+banco faz o contrário: mostra, e o olho é para esconder.
+
+Agora há um interruptor único no cabeçalho (`BotaoPrivacidade`), lembrado em
+`localStorage` via `stores/privacidadeStore.ts`. Dinheiro segue o interruptor e
+aparece por padrão; **dado pessoal** (telefone, e-mail, documento, endereço)
+mantém o olho individual começando escondido — ali a proteção é contra expor
+dado de terceiro e o padrão certo é o inverso. Com o modo privado ligado, o
+olho individual **some**: seria uma brecha na própria proteção deixar algo
+increvável enquanto a tela está sendo compartilhada.
+
+**O furo que só a captura de tela pegou.** Com o modo ligado, o valor sumia do
+canto do cartão e continuava escrito por extenso na frase: "Recebimento de
+R$ 2.300,00 de Diego Vinícius Mendes". O webhook grava a mensagem já com o
+valor embutido, e reescrever no banco não serve — a mensagem é histórico.
+`mascararValoresNoTexto()` resolve na exibição, no sino e nas Ações críticas.
+Ele não toca em número que não é dinheiro: "vence em 15 dias" segue legível,
+porque esconder o prazo não protege ninguém e tira o sentido do aviso.
+
+Cobertura adicionada além do que já usava `DadoSensivel`: **Saldo Asaas** (a tela
+do print), valores do sino, `KPICard` do Financeiro e o preço do imóvel no
+Início. Percentual e contagem ficam de fora — não expõem patrimônio e mascarar
+deixaria o cartão sem sentido.
+
+**`scripts/screenshots.mjs`** ganhou o estado do modo privado por rota. A
+preferência é lembrada de propósito, e isso vazava entre as capturas — uma rota
+com o modo ligado mascarava todas as seguintes. Agora cada rota declara o
+estado e o harness o garante.
+
+**BillsList.tsx tinha trabalho não commitado do Codex.** Foi indexada apenas a
+minha alteração (5 linhas), montando a versão HEAD+mudança com `hash-object` e
+`update-index`, sem tocar na árvore de trabalho. As 80 linhas dele seguem
+abertas e intactas, junto com `asaas-sync/index.ts`.
+
+Validações: `npm test` **278/278** (10 em `privacidade.test.ts`), typecheck
+**74 — baseline**, lint limpo nos arquivos tocados, build OK, 1600×900 e
+390×844 sem overflow e sem erro de console.
