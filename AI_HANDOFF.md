@@ -71,6 +71,42 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-08-20 — Codex (Funil, marca e privacidade visual)
+
+- Branch `codex/merge-funil-brand-privacy` criada a partir da `main` remota
+  (`300dc7e`) para integrar o Funil legado quando o módulo CRM não está ativo,
+  preservando cabeçalho, abas e ações atuais.
+- Adicionado componente visual de dado sensível, inicialmente oculto e revelado
+  por botão olho individual, aplicado a contatos, valores, endereços e documentos
+  em telas selecionadas do produto. A máscara não altera dados ou cálculos.
+- `public/favicon.svg` atualizado com o símbolo fornecido pelo usuário.
+- Validações: `npm test` 228/228 e `npm run build` passaram.
+
+### 2026-08-20 — Codex (interação e cards do Funil)
+
+- O arraste dos cards do Funil agora usa uma camada de sobreposição, evitando
+  que o card fique atrás das colunas; o clique sintético posterior ao arraste
+  não navega para o cadastro do cliente.
+- Os cards foram compactados para nome, detalhe do imóvel/interesse, valor e
+  indicador de conversa. O estado visual dos botões de dados sensíveis foi
+  corrigido: olho aberto para dado visível e olho riscado para dado oculto.
+- Validações: `npm test` 231/231, `npm run build` e `git diff --check` passaram.
+
+### 2026-08-20 — Codex (acabamento do arraste e divisor da marca)
+
+- A coluna de destino do Funil passou a usar contorno interno uniforme durante
+  o arraste; removido o `ring` externo que era recortado em cima e embaixo.
+- A sidebar ganhou uma linha divisória discreta entre a marca Lotti e o primeiro
+  grupo, Operação. A linha foi aproximada da marca e a scrollbar nativa foi
+  preservada. O menu recolhido mantém os divisores existentes.
+- O subtítulo compartilhado das abas do CRM teve o travessão removido: “Leads,
+  negócios e follow-up do primeiro contato ao fechamento.”
+- Revisão pré-merge corrigiu propagação do botão de olho dentro de cards/drag,
+  restaurou links `tel:`/`mailto:` após revelar contatos e mascarou valores que
+  ainda apareciam no Funil, totais do CRM e lançamentos/resumo financeiro.
+- Adicionado teste de renderização para esses acabamentos visuais.
+- Validações: `npm test` 233/233, `npm run build` e `git diff --check` passaram.
+
 ### 2026-08-12 — Codex
 
 - Criada a ponte de contexto entre Codex e Claude.

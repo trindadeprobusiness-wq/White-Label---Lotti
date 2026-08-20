@@ -33,6 +33,7 @@ import { useVideos, VideoRow } from '@/hooks/useVideos';
 import { VideoCard } from '@/components/midias/VideoCard';
 import { VideoUploadArea } from '@/components/midias/VideoUploadArea';
 import { VideoPlayerDialog } from '@/components/midias/VideoPlayerDialog';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -453,10 +454,10 @@ export default function ImovelDetalhes() {
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-1 text-muted-foreground" />
                 <div>
-                  <p className="font-medium">{imovel.endereco}</p>
+                  <DadoSensivel valor={imovel.endereco} tipo="endereco" className="font-medium" />
                   <p className="text-sm text-muted-foreground">
-                    {imovel.bairro && `${imovel.bairro}, `}{imovel.cidade}{imovel.estado && `/${imovel.estado}`}
-                    {imovel.cep && ` - CEP ${imovel.cep}`}
+                    <DadoSensivel valor={[imovel.bairro, imovel.cidade, imovel.estado].filter(Boolean).join(', ')} tipo="endereco" />
+                    {imovel.cep && <><span> - CEP </span><DadoSensivel valor={imovel.cep} tipo="documento" /></>}
                   </p>
                 </div>
               </div>
@@ -501,25 +502,21 @@ export default function ImovelDetalhes() {
             <div>
               <p className="font-semibold text-lg">{imovel.proprietario_nome}</p>
               {imovel.proprietario_cpf && (
-                <p className="text-sm text-muted-foreground">CPF: {imovel.proprietario_cpf}</p>
+                <p className="text-sm text-muted-foreground">CPF: <DadoSensivel valor={imovel.proprietario_cpf} tipo="documento" /></p>
               )}
             </div>
 
             {imovel.proprietario_telefone && (
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-muted-foreground" />
-                <a href={`tel:${imovel.proprietario_telefone}`} className="hover:underline">
-                  {imovel.proprietario_telefone}
-                </a>
+                <DadoSensivel valor={imovel.proprietario_telefone} tipo="telefone" href={`tel:${imovel.proprietario_telefone}`} />
               </div>
             )}
 
             {imovel.proprietario_email && (
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-muted-foreground" />
-                <a href={`mailto:${imovel.proprietario_email}`} className="hover:underline">
-                  {imovel.proprietario_email}
-                </a>
+                <DadoSensivel valor={imovel.proprietario_email} tipo="email" href={`mailto:${imovel.proprietario_email}`} />
               </div>
             )}
           </CardContent>
@@ -546,7 +543,7 @@ export default function ImovelDetalhes() {
                   >
                     <div>
                       <p className="font-medium">{cliente.nome}</p>
-                      <p className="text-sm text-muted-foreground">{cliente.telefone}</p>
+                      <DadoSensivel valor={cliente.telefone} tipo="telefone" className="text-sm text-muted-foreground" />
                     </div>
                     <Badge variant="outline" className="text-xs">
                       {cliente.status_funil.replace('_', ' ')}

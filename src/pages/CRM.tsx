@@ -32,7 +32,7 @@ export default function CRM() {
     <div className="animate-fade-in">
       <PageHeader
         titulo="Funil de Vendas"
-        subtitulo="Leads, negócios e follow-up — do primeiro contato ao fechamento."
+        subtitulo="Leads, negócios e follow-up do primeiro contato ao fechamento."
         comBusca
         comUtilitarios
         acoes={

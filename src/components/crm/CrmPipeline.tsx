@@ -3,7 +3,7 @@ import {
   DndContext, DragEndEvent, MouseSensor, TouchSensor,
   useDraggable, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
-import { Building2, CalendarClock, Loader2, AlertTriangle, MessageCircle } from 'lucide-react';
+import { Building2, CalendarClock, Loader2, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,8 @@ import { useEtapas, useOportunidades, useMoverOportunidade, useModoCrm } from '@
 import type { CrmOportunidade, ColunaPipeline } from '@/lib/crm/tipos';
 import { WhatsAppDialog } from './WhatsAppDialog';
 import { moeda as moedaBR } from '@/lib/formato';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import FunilVendas from '@/pages/FunilVendas';
 
 /** Sem centavos no Kanban: o valor é referência de negócio, não extrato. */
 const moeda = (v: number) => moedaBR(v, true);
@@ -76,7 +78,11 @@ function Card({ oportunidade, onWhatsApp }: { oportunidade: CardOportunidade; on
         </p>
       )}
       <div className="flex items-center justify-between pt-0.5">
-        <span className="text-sm font-semibold">{moeda(Number(oportunidade.valor_estimado) || 0)}</span>
+        <DadoSensivel
+          valor={moeda(Number(oportunidade.valor_estimado) || 0)}
+          tipo="valor"
+          className="text-sm font-semibold"
+        />
         <div className="flex items-center gap-1">
           {atrasada(oportunidade) && (
             <Badge variant="secondary" className="gap-1 border-destructive/20 bg-destructive-surface text-[10px] text-destructive">
@@ -169,7 +175,7 @@ function Coluna({
 
         {coluna.total > 0 && (
           <div className="border-t border-border px-4 py-2.5">
-            <p className="text-sm font-medium tabular text-foreground">{moeda(coluna.total)}</p>
+            <DadoSensivel valor={moeda(coluna.total)} tipo="valor" className="text-sm font-medium tabular text-foreground" />
           </div>
         )}
       </div>
@@ -228,21 +234,12 @@ export function CrmPipeline() {
     );
   }
 
+  // Mantém a experiência completa que já existia quando as tabelas crm_* ainda
+  // não estão disponíveis: busca, filtros, seleção e etapas legadas.
+  if (modo === 'legado') return <FunilVendas embedded />;
+
   return (
     <div className="space-y-2">
-      {/* Honestidade sobre o que está rodando: no modo legado o card É o cliente,
-          então não há valor por negócio nem dois negócios para a mesma pessoa. */}
-      {modo === 'legado' && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-surface px-3 py-2.5 text-xs">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-          <p className="text-muted-foreground">
-            <span className="font-medium text-foreground">Modo simplificado.</span>{' '}
-            Cada card é um cliente e arrastar grava a etapa dele, como no funil de sempre.
-            Aplicando a migration <code className="text-[11px]">crm-module.sql</code>, cada cliente
-            passa a poder ter vários negócios, com valor, probabilidade e motivo de perda.
-          </p>
-        </div>
-      )}
       {mover.isPending && (
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Loader2 className="h-3 w-3 animate-spin" /> Salvando...

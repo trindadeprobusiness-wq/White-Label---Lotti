@@ -36,6 +36,7 @@ import { GraficoCategorias } from '@/components/financeiro/GraficoCategorias';
 import { LancamentoFinanceiro, ProjecaoMensal, TipoLancamento } from '@/types/financeiro';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { toast } from 'sonner';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 type Periodo = 'mes_atual' | 'trimestre' | 'ano' | 'todos' | 'personalizado';
 
@@ -203,19 +204,19 @@ export default function Financeiro() {
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Receita total"
-          valor={moeda(resumo.receita_total, true)}
+          valor={<DadoSensivel valor={moeda(resumo.receita_total, true)} tipo="valor" />}
           icone={<TrendingUp className="h-5 w-5" />}
           tom="success"
         />
         <MetricCard
           label="Despesas"
-          valor={moeda(resumo.despesa_total, true)}
+          valor={<DadoSensivel valor={moeda(resumo.despesa_total, true)} tipo="valor" />}
           icone={<TrendingDown className="h-5 w-5" />}
           tom="destructive"
         />
         <MetricCard
           label="Lucro líquido"
-          valor={moeda(resumo.lucro, true)}
+          valor={<DadoSensivel valor={moeda(resumo.lucro, true)} tipo="valor" />}
           icone={<Wallet className="h-5 w-5" />}
           tom={resumo.lucro >= 0 ? 'brand' : 'warning'}
         />
@@ -247,21 +248,21 @@ export default function Financeiro() {
                 <div className="min-w-[8.5rem] rounded-lg border border-success/20 bg-success-surface px-4 py-3">
                   <p className="text-xs text-muted-foreground">Receitas</p>
                   <p className="mt-1 text-lg font-semibold tabular text-success">
-                    {moeda(resumo.receita_total, true)}
+                    <DadoSensivel valor={moeda(resumo.receita_total, true)} tipo="valor" />
                   </p>
                 </div>
                 <span className="text-lg text-muted-foreground" aria-hidden="true">−</span>
                 <div className="min-w-[8.5rem] rounded-lg border border-destructive/20 bg-destructive-surface px-4 py-3">
                   <p className="text-xs text-muted-foreground">Despesas</p>
                   <p className="mt-1 text-lg font-semibold tabular text-destructive">
-                    {moeda(resumo.despesa_total, true)}
+                    <DadoSensivel valor={moeda(resumo.despesa_total, true)} tipo="valor" />
                   </p>
                 </div>
                 <span className="text-lg text-muted-foreground" aria-hidden="true">=</span>
                 <div className="min-w-[8.5rem] rounded-lg bg-primary px-4 py-3">
                   <p className="text-xs text-primary-foreground/75">Lucro líquido</p>
                   <p className="mt-1 text-lg font-semibold tabular text-primary-foreground">
-                    {moeda(resumo.lucro, true)}
+                    <DadoSensivel valor={moeda(resumo.lucro, true)} tipo="valor" />
                   </p>
                 </div>
               </div>

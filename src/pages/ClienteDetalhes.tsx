@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 const statusColors: Record<StatusFunil, string> = {
   QUALIFICACAO: 'bg-primary text-primary-foreground',
@@ -114,12 +115,12 @@ export default function ClienteDetalhes() {
           <div className="flex items-center gap-4 mt-1 text-muted-foreground">
             <span className="flex items-center gap-1">
               <Phone className="w-4 h-4" />
-              {cliente.telefone}
+              <DadoSensivel valor={cliente.telefone} tipo="telefone" />
             </span>
             {cliente.email && (
               <span className="flex items-center gap-1">
                 <Mail className="w-4 h-4" />
-                {cliente.email}
+                <DadoSensivel valor={cliente.email} tipo="email" />
               </span>
             )}
           </div>
