@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock, MoreHorizontal } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock, MoreHorizontal, Trash2 } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { parseContratoContent } from "@/types/rental";
@@ -435,6 +436,8 @@ export function BillsList() {
     const [billToEditDate, setBillToEditDate] = useState<any>(null);
     const [newDueDate, setNewDueDate] = useState("");
     const [savingDate, setSavingDate] = useState(false);
+    // Excluir boleto (cancela cobrança no Asaas + marca CANCELADO no banco).
+    const [billToDelete, setBillToDelete] = useState<any>(null);
 
     // Garante que a fatura exista no banco (persiste virtuais como PENDENTE) e
     // devolve o id real. A transição para PAGO é feita à parte para o trigger
@@ -560,6 +563,41 @@ export function BillsList() {
         } finally {
             setProcessingId(null);
             setBillToRevert(null);
+        }
+    };
+
+    // Exclui o boleto: cancela no Asaas (se emitido) e marca como CANCELADO no
+    // banco. O registro permanece para auditoria — nunca fazemos DELETE físico.
+    const handleDeleteBill = async (bill: any) => {
+        setProcessingId(bill.id);
+        const loadingToast = toast.loading("Excluindo boleto...");
+        const avisos: string[] = [];
+        try {
+            // Se emitida no Asaas, cancela via Edge Function (que faz DELETE na
+            // API + marca CANCELADO no banco + registra na auditoria)
+            if (bill.externalId) {
+                const r = await chamarAsaas('excluir_cobranca', bill.id);
+                if (Array.isArray(r?.avisos) && r.avisos.length) avisos.push(...r.avisos);
+            } else {
+                // Fatura local sem cobrança: marca direto como CANCELADO
+                const { error } = await (supabase as any)
+                    .from('faturas_aluguel')
+                    .update({ status: 'CANCELADO' })
+                    .eq('id', bill.id);
+                if (error) throw error;
+            }
+
+            toast.dismiss(loadingToast);
+            toast.success("Boleto excluído com sucesso.");
+            if (avisos.length) toast.warning(avisos.join(" "), { duration: 10000 });
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao excluir boleto:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Não foi possível excluir: " + (error?.message ?? "erro desconhecido"));
+        } finally {
+            setProcessingId(null);
+            setBillToDelete(null);
         }
     };
 
@@ -984,6 +1022,19 @@ export function BillsList() {
                                                                         <RotateCcw className="h-4 w-4 mr-2" /> Desfazer pagamento
                                                                     </DropdownMenuItem>
                                                                 )}
+
+                                                                {/* Excluir: só para faturas materializadas (não virtuais) e que não estejam pagas */}
+                                                                {!bill.isVirtual && bill.status !== 'PAGO' && bill.status !== 'CANCELADO' && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => setBillToDelete(bill)}
+                                                                            className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4 mr-2" /> Excluir boleto
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
                                                     </div>
@@ -1041,6 +1092,34 @@ export function BillsList() {
                         onClick={() => billToRevert && handleRevertPayment(billToRevert)}
                     >
                         Desfazer pagamento
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Excluir boleto (confirmação antes de cancelar) */}
+        <AlertDialog open={!!billToDelete} onOpenChange={(o) => { if (!o) setBillToDelete(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir este boleto?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {billToDelete && (
+                            <>
+                                A fatura de <strong>{billToDelete.contract?.imoveis?.titulo || billToDelete.contract?.titulo || 'imóvel'}</strong>
+                                {' '}({billToDelete.mesReferencia}) será <strong>cancelada</strong>
+                                {billToDelete.externalId ? ' e a cobrança no Asaas será removida' : ''}.
+                                {' '}O registro permanece no histórico para auditoria. Essa ação <strong>não pode ser desfeita</strong>.
+                            </>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => billToDelete && handleDeleteBill(billToDelete)}
+                    >
+                        Excluir boleto
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

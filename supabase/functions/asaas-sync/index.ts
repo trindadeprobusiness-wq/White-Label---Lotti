@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { asaasGet, asaasPost, asaasPut, AsaasError } from "../_shared/asaas.ts";
+import { asaasGet, asaasPost, asaasPut, asaasDelete, AsaasError } from "../_shared/asaas.ts";
 import { telefoneParaAsaas } from "../_shared/telefone.ts";
 
 const AVISO_TELEFONE =
@@ -94,6 +94,7 @@ serve(async (req) => {
 
         const ACOES_FATURA = [
             "emitir_cobranca", "atualizar_cobranca", "receber_em_dinheiro", "desfazer_recebimento",
+            "excluir_cobranca",
         ];
         if (!ACOES_FATURA.includes(action) || !fatura_id) {
             return json({ error: "Requisição inválida" }, 400);
@@ -285,6 +286,60 @@ serve(async (req) => {
             });
 
             return json({ ok: true, status: desfeito?.status ?? null, avisos: [] });
+        }
+
+        // ── Ação: EXCLUIR cobrança (cancela no Asaas + marca CANCELADO no banco) ──
+        if (action === "excluir_cobranca") {
+            if (fatura.status === "PAGO") {
+                return json({ error: "Fatura já está paga — use 'Desfazer pagamento' se foi um erro." }, 409);
+            }
+            if (fatura.status === "CANCELADO") {
+                return json({ error: "Fatura já está cancelada." }, 409);
+            }
+
+            const avisos: string[] = [];
+
+            // Cancela a cobrança no Asaas, se existir
+            if (fatura.external_id) {
+                try {
+                    await asaasDelete(`/payments/${fatura.external_id}`);
+                } catch (e: unknown) {
+                    // Se o Asaas já removeu ou a cobrança não existe mais, segue
+                    const msg = e instanceof AsaasError
+                        ? ((typeof e.body === "object" && e.body !== null
+                            ? ((e.body as Record<string, unknown>).errors as Array<{ description?: string }>)?.[0]?.description
+                            : null) ?? `HTTP ${e.status}`)
+                        : (e instanceof Error ? e.message : "erro desconhecido");
+                    if (e instanceof AsaasError && e.status === 404) {
+                        // Já não existe no Asaas — segue normalmente
+                    } else {
+                        avisos.push(
+                            `A fatura foi excluída aqui, mas a cobrança pode continuar ativa no Asaas — cancele manualmente no painel. (${msg})`,
+                        );
+                    }
+                }
+            }
+
+            // Marca como CANCELADO no banco (não deleta o registro para auditoria)
+            await admin.from("faturas_aluguel").update({
+                status: "CANCELADO",
+                asaas_status: "DELETED",
+            }).eq("id", fatura.id);
+
+            await admin.from("auditoria_financeira").insert({
+                corretor_id: fatura.corretor_id,
+                entidade: "faturas_aluguel",
+                entidade_id: fatura.id,
+                acao: "COBRANCA_EXCLUIDA",
+                dados_depois: {
+                    external_id: fatura.external_id ?? null,
+                    status_anterior: fatura.status,
+                },
+                origem: "ui",
+                ator: user.id,
+            });
+
+            return json({ ok: true, avisos });
         }
 
         // ── Ação: EMITIR (idempotente) ──

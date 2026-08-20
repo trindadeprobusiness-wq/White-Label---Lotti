@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3240" height="1080" viewBox="0 0 3240 1080">
+  <defs>
+    <clipPath id="left"><rect x="0" y="0" width="1080" height="1080"/></clipPath>
+    <clipPath id="center"><rect x="1080" y="0" width="1080" height="1080"/></clipPath>
+    <clipPath id="right"><rect x="2160" y="0" width="1080" height="1080"/></clipPath>
+  </defs>
+  <image href="POST_FIXO_01_ESQUERDA_MENOS_IMPROVISO.png" x="0" y="-135" width="1080" height="1350" clip-path="url(#left)"/>
+  <image href="POST_FIXO_02_CENTRO_ISTO_E_LOTTI.png" x="1080" y="-135" width="1080" height="1350" clip-path="url(#center)"/>
+  <image href="POST_FIXO_03_DIREITA_TUDO_EM_UM_LUGAR.png" x="2160" y="-135" width="1080" height="1350" clip-path="url(#right)"/>
+  <line x1="1080" y1="0" x2="1080" y2="1080" stroke="#f2eee5" stroke-opacity="0.5" stroke-width="3"/>
+  <line x1="2160" y1="0" x2="2160" y2="1080" stroke="#f2eee5" stroke-opacity="0.5" stroke-width="3"/>
+</svg>
