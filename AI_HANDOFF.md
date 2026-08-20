@@ -485,3 +485,30 @@ overflow e sem erro de console.
 **Banco: `deploy-manual/asaas-ATIVAR.sql` foi aplicado pelo usuário em 19/08 —
 conferência 12/12 OK.** Continuam pendentes: republicar a Edge Function
 `asaas-webhook` e marcar os eventos `TRANSFER_*` no painel do Asaas.
+
+### 2026-08-20 — Claude (merge e deploy do sino e da ajuda)
+
+`feat/sino-asaas-ao-vivo` mesclada na main em **9d4a09f** e publicada.
+
+Conferência do deploy: a API da Vercel não expunha o SHA do commit neste projeto,
+e comparar o hash do bundle não serve — a Vercel builda com as próprias variáveis
+de ambiente, então o hash sempre difere do build local. A verificação foi feita por
+**conteúdo**: baixados os 110 chunks servidos em produção e confirmadas 8 marcas do
+código novo (`postgres_changes`, `animate-sino`, `Marcar lidas`, `Esta semana`,
+`cliente-novo`, `qrcode`, `Vale para todo o sistema`, `Busque pelo que`). Todas
+presentes. Fica registrado como o método para as próximas vezes.
+
+**O sino ainda não recebe transferência**, e isso não depende de código:
+
+1. Republicar a Edge Function `asaas-webhook` — a versão no ar lê `payment` e
+   descarta evento de transferência, que traz `transfer`.
+2. Marcar `TRANSFER_*` no painel do Asaas.
+
+O SQL (`deploy-manual/asaas-ATIVAR.sql`) já foi aplicado pelo usuário em 19/08,
+conferência 12/12 OK.
+
+**Dívida levantada pela modelagem de custo desta sessão**, em ordem de retorno:
+`crmContext` está na 3ª linha do system prompt do `ai-assistant` e quebra o prefixo
+de cache logo no começo — mover para o fim vale 53% da conta de qualificação;
+não registramos tokens em lugar nenhum; e `ImovelFotosUpload` sobe foto de até 5 MB
+e vídeo de até 500 MB sem compressão, embora `downscaleToBase64()` já exista.
