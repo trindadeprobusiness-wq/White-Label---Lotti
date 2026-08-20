@@ -5,16 +5,20 @@ import { RepassesList } from "@/components/rental/RepassesList";
 import { ContractsList } from "@/components/rental/ContractsList";
 import { DashboardKPICards } from "@/components/rental/DashboardKPICards";
 import { DashboardCharts } from "@/components/rental/DashboardCharts";
+import { BotaoPrivacidade } from "@/components/shell/BotaoPrivacidade";
 
 const RentalManagement = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Gestão de Aluguéis</h1>
-                    <p className="text-muted-foreground">
-                        Gerencie faturas e repasses de forma automatizada.
-                    </p>
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Gestão de Aluguéis</h1>
+                        <p className="text-muted-foreground">
+                            Gerencie faturas e repasses de forma automatizada.
+                        </p>
+                    </div>
+                    <BotaoPrivacidade />
                 </div>
             </div>
 

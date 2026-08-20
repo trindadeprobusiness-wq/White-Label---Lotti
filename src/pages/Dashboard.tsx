@@ -120,6 +120,7 @@ export default function Dashboard() {
         subtitulo={hoje.charAt(0).toUpperCase() + hoje.slice(1)}
         comBusca
         comUtilitarios
+        comPrivacidade
         acoes={
           <>
             <Button variant="outline" className="h-control" asChild>

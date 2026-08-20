@@ -19,6 +19,12 @@ interface PageHeaderProps {
   comBusca?: boolean;
   /** Sino de alertas e ajuda. Ligados onde a referência os mostra. */
   comUtilitarios?: boolean;
+  /**
+   * Mostra o olhinho de ocultar valores financeiros. Ligado só nas telas com
+   * valores em dinheiro (Dashboard, Financeiro, Aluguéis). Nas demais o botão
+   * não faz sentido — Clientes, Funil, Imóveis etc. não têm o que esconder.
+   */
+  comPrivacidade?: boolean;
   /** Botões da página, do secundário para o primário (o primário é o último). */
   acoes?: React.ReactNode;
   className?: string;
@@ -29,6 +35,7 @@ export function PageHeader({
   subtitulo,
   comBusca = false,
   comUtilitarios = false,
+  comPrivacidade = false,
   acoes,
   className,
 }: PageHeaderProps) {
@@ -58,7 +65,7 @@ export function PageHeader({
           // terceira linha sozinhos, abaixo dos botões, o que parecia sobra
           // de layout em vez de agrupamento.
           <div className="order-2 flex items-center gap-1">
-            <BotaoPrivacidade />
+            {comPrivacidade && <BotaoPrivacidade />}
             <PainelNotificacoes />
             <PainelAjuda />
           </div>

@@ -171,6 +171,7 @@ export default function Financeiro() {
         titulo="Financeiro"
         subtitulo="Acompanhe receitas, despesas e o resultado do seu negócio."
         comUtilitarios
+        comPrivacidade
         acoes={
           <>
             {periodo === 'personalizado' && (
