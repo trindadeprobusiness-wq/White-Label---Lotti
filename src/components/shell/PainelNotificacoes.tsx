@@ -1,11 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Inbox, ArrowDownLeft, ArrowUpRight, AlertTriangle } from 'lucide-react';
+import {
+  Bell, CheckCheck, Inbox, ArrowDownLeft, ArrowUpRight, AlertTriangle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useCRMStore } from '@/stores/crmStore';
+import { useAlertasAoVivo } from '@/hooks/useAlertasAoVivo';
 import { mensagemDeErro } from '@/lib/errors';
+import { moeda } from '@/lib/formato';
 import {
   ordenarNotificacoes,
   filtrarPorCategoria,
@@ -13,6 +17,11 @@ import {
   tempoRelativo,
   tomDoAlerta,
   contarNaoLidas,
+  rotuloContagem,
+  sinalDoAlerta,
+  valorDoAlerta,
+  movimentouSaldo,
+  agruparPorDia,
   ROTULO_TIPO,
   type AlertaNotificacao,
   type CategoriaNotificacao,
@@ -23,15 +32,21 @@ import {
 import { Button } from '@/components/ui/button';
 
 /**
- * Sino de notificações.
+ * Sino de notificações, no modelo do painel do Asaas.
  *
- * Antes o sino era decorativo: mostrava um ponto quando havia alerta não lido,
- * mas não abria nada — não dava para ver o que era nem agir. Agora ele lista
- * os alertas, leva à entidade de origem e permite marcar como lido.
+ * Três coisas o definem, e as três vieram de como o Asaas resolve o mesmo
+ * problema:
  *
- * O que motivou: recebimento de fatura e confirmação de repasse passaram a
- * chegar pelo webhook do Asaas, e essas são as duas coisas que o corretor mais
- * quer saber assim que acontecem.
+ *  1. **Número, não ponto.** "3" e "1" pedem ações diferentes do corretor; o
+ *     ponto colapsava as duas no mesmo sinal.
+ *  2. **Valor na própria linha.** A primeira pergunta diante de um alerta de
+ *     dinheiro é "quanto", e a segunda é "de quem" — as duas ficam visíveis
+ *     sem precisar abrir a fatura.
+ *  3. **Chega sozinho.** Ver `useAlertasAoVivo`: antes o sino só atualizava no
+ *     F5, o que o tornava histórico em vez de notificação.
+ *
+ * A fonte continua sendo a tabela `alertas`, alimentada pelo webhook do Asaas.
+ * Nenhuma regra de negócio vive aqui.
  */
 
 const ICONE_TOM: Record<string, { classe: string; Icone: typeof Bell }> = {
@@ -48,22 +63,44 @@ const CATEGORIAS: { valor: CategoriaNotificacao; label: string }[] = [
   { valor: 'operacao', label: 'Operação' },
 ];
 
+/** Quanto o painel mostra antes de virar rolagem infinita sem valor. */
+const LIMITE_PAINEL = 30;
+
 export function PainelNotificacoes() {
   const [aberto, setAberto] = useState(false);
   const [categoria, setCategoria] = useState<CategoriaNotificacao>('todas');
   const [marcando, setMarcando] = useState(false);
+  const [chegouAgora, setChegouAgora] = useState(false);
   const navigate = useNavigate();
 
   const { alertas, marcarAlertaLido, fetchAlertas } = useCRMStore();
 
+  // Realtime + sondagem. Sem isto, todo o resto mostra dado do bootstrap.
+  useAlertasAoVivo();
+
   const lista = alertas as unknown as AlertaNotificacao[];
   const contagem = useMemo(() => contarNaoLidas(lista), [lista]);
-  const visiveis = useMemo(
-    () => ordenarNotificacoes(filtrarPorCategoria(lista, categoria)).slice(0, 30),
+  const grupos = useMemo(
+    () => agruparPorDia(
+      ordenarNotificacoes(filtrarPorCategoria(lista, categoria)).slice(0, LIMITE_PAINEL),
+    ),
     [lista, categoria],
   );
 
-  const abrirAlerta = async (alerta: AlertaNotificacao) => {
+  // Balança o sino quando o número sobe. É o único aviso que o corretor tem se
+  // estiver noutra tela do sistema — sem isso, dinheiro entra e nada muda.
+  const anterior = useRef(contagem.total);
+  useEffect(() => {
+    if (contagem.total > anterior.current) {
+      anterior.current = contagem.total;
+      setChegouAgora(true);
+      const t = setTimeout(() => setChegouAgora(false), 1200);
+      return () => clearTimeout(t);
+    }
+    anterior.current = contagem.total;
+  }, [contagem.total]);
+
+  const abrirAlerta = (alerta: AlertaNotificacao) => {
     const destino = destinoDoAlerta(alerta);
     if (!alerta.lido) {
       // Não aguarda: navegar é a intenção do clique, marcar como lido é efeito.
@@ -110,6 +147,8 @@ export function PainelNotificacoes() {
     }
   };
 
+  const badge = rotuloContagem(contagem.total);
+
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger asChild>
@@ -122,28 +161,41 @@ export function PainelNotificacoes() {
               : 'Notificações'
           }
         >
-          <Bell className="h-[18px] w-[18px]" />
-          {contagem.total > 0 && (
+          <Bell
+            className={cn(
+              'h-[18px] w-[18px]',
+              chegouAgora && 'motion-safe:animate-sino',
+            )}
+          />
+          {badge && (
             <span
               className={cn(
-                'absolute right-2 top-2 h-2.5 w-2.5 rounded-full ring-2 ring-background',
-                // Ponto vermelho quando há algo crítico — um repasse que falhou
-                // não pode ter o mesmo peso visual de um follow-up.
-                contagem.criticas > 0 ? 'bg-destructive' : 'bg-warning',
+                // Encostado na borda do ícone, como no Asaas, em vez de
+                // flutuar no meio da área de toque de 44px.
+                'absolute right-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center',
+                'rounded-full px-1 text-[10px] font-semibold leading-none tabular',
+                'ring-2 ring-background',
+                // Vermelho só quando há algo crítico: um repasse que falhou não
+                // pode ter o mesmo peso visual de um follow-up.
+                contagem.criticas > 0
+                  ? 'bg-destructive text-destructive-foreground'
+                  : 'bg-primary text-primary-foreground',
               )}
               aria-hidden="true"
-            />
+            >
+              {badge}
+            </span>
           )}
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-0">
+      <PopoverContent align="end" className="w-[min(25rem,calc(100vw-2rem))] p-0">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">Notificações</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {contagem.total > 0
-                ? `${contagem.total} não lida(s)`
+                ? `${contagem.total} não lida${contagem.total > 1 ? 's' : ''}`
                 : 'Tudo em dia'}
             </p>
           </div>
@@ -183,7 +235,7 @@ export function PainelNotificacoes() {
         </div>
 
         <div className="max-h-[26rem] overflow-y-auto">
-          {visiveis.length === 0 ? (
+          {grupos.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Inbox className="h-5 w-5" />
@@ -200,63 +252,90 @@ export function PainelNotificacoes() {
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-border">
-              {visiveis.map((alerta) => {
-                const tom = tomDoAlerta(alerta);
-                const { classe, Icone } = ICONE_TOM[tom] ?? ICONE_TOM.neutro;
-                const clicavel = !!destinoDoAlerta(alerta);
+            grupos.map((grupo, i) => (
+              <div key={`${grupo.rotulo}-${i}`}>
+                <p className="sticky top-0 z-10 bg-muted/80 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur-sm">
+                  {grupo.rotulo}
+                </p>
+                <ul className="divide-y divide-border">
+                  {grupo.itens.map((alerta) => {
+                    const tom = tomDoAlerta(alerta);
+                    const { classe, Icone } = ICONE_TOM[tom] ?? ICONE_TOM.neutro;
+                    const clicavel = !!destinoDoAlerta(alerta);
+                    const valor = valorDoAlerta(alerta);
+                    const sinal = sinalDoAlerta(alerta);
+                    const moveu = movimentouSaldo(alerta);
 
-                return (
-                  <li key={alerta.id}>
-                    <button
-                      type="button"
-                      onClick={() => void abrirAlerta(alerta)}
-                      className={cn(
-                        'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150',
-                        'hover:bg-muted focus-ring',
-                        !clicavel && 'cursor-default',
-                        !alerta.lido && 'bg-surface-brand/40',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                          classe,
-                        )}
-                      >
-                        <Icone className="h-4 w-4" />
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            {ROTULO_TIPO[alerta.tipo ?? ''] ?? 'Aviso'}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {tempoRelativo(alerta.created_at)}
-                          </span>
-                        </span>
-                        <span
+                    return (
+                      <li key={alerta.id}>
+                        <button
+                          type="button"
+                          onClick={() => abrirAlerta(alerta)}
                           className={cn(
-                            'mt-0.5 block text-sm leading-snug',
-                            alerta.lido ? 'text-muted-foreground' : 'font-medium text-foreground',
+                            'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150',
+                            'hover:bg-muted focus-ring',
+                            !clicavel && 'cursor-default',
+                            !alerta.lido && 'bg-surface-brand/40',
                           )}
                         >
-                          {alerta.mensagem}
-                        </span>
-                      </span>
+                          <span
+                            className={cn(
+                              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                              classe,
+                            )}
+                          >
+                            <Icone className="h-4 w-4" />
+                          </span>
 
-                      {!alerta.lido && (
-                        <span
-                          className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary"
-                          aria-label="Não lida"
-                        />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                {ROTULO_TIPO[alerta.tipo ?? ''] ?? 'Aviso'}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {tempoRelativo(alerta.created_at)}
+                              </span>
+                            </span>
+                            <span
+                              className={cn(
+                                'mt-0.5 block text-sm leading-snug',
+                                alerta.lido ? 'text-muted-foreground' : 'font-medium text-foreground',
+                              )}
+                            >
+                              {alerta.mensagem}
+                            </span>
+                          </span>
+
+                          <span className="flex shrink-0 flex-col items-end gap-1.5">
+                            {valor !== null && sinal && (
+                              <span
+                                className={cn(
+                                  'whitespace-nowrap text-sm font-semibold tabular',
+                                  !moveu
+                                    ? 'text-destructive line-through decoration-1'
+                                    : sinal === 'entrada'
+                                      ? 'text-success'
+                                      : 'text-foreground',
+                                )}
+                              >
+                                {moveu && (sinal === 'entrada' ? '+ ' : '− ')}
+                                {moeda(valor)}
+                              </span>
+                            )}
+                            {!alerta.lido && (
+                              <span
+                                className="h-2 w-2 rounded-full bg-primary"
+                                aria-label="Não lida"
+                              />
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))
           )}
         </div>
       </PopoverContent>

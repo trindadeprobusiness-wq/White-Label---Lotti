@@ -17,6 +17,12 @@ import {
   tempoRelativo,
   tomDoAlerta,
   contarNaoLidas,
+  rotuloContagem,
+  sinalDoAlerta,
+  valorDoAlerta,
+  movimentouSaldo,
+  rotuloDoDia,
+  agruparPorDia,
   type AlertaNotificacao,
 } from './notificacoes';
 
@@ -194,5 +200,129 @@ describe('contarNaoLidas', () => {
 
   it('lista vazia devolve zeros, não NaN', () => {
     expect(contarNaoLidas([])).toEqual({ total: 0, financeiro: 0, criticas: 0 });
+  });
+});
+
+describe('rotuloContagem', () => {
+  it('esconde o badge quando não há nada não lido', () => {
+    expect(rotuloContagem(0)).toBe('');
+    expect(rotuloContagem(-1)).toBe('');
+  });
+
+  it('mostra o número exato até 99', () => {
+    expect(rotuloContagem(1)).toBe('1');
+    expect(rotuloContagem(99)).toBe('99');
+  });
+
+  it('corta em 99+ para o círculo não deformar', () => {
+    expect(rotuloContagem(100)).toBe('99+');
+    expect(rotuloContagem(4321)).toBe('99+');
+  });
+
+  it('não quebra com valor inválido vindo de contagem assíncrona', () => {
+    expect(rotuloContagem(NaN)).toBe('');
+  });
+});
+
+describe('sinalDoAlerta', () => {
+  it('recebimento entra, repasse sai', () => {
+    expect(sinalDoAlerta({ tipo: 'PAGAMENTO', prioridade: 'MEDIA' })).toBe('entrada');
+    expect(sinalDoAlerta({ tipo: 'TRANSFERENCIA', prioridade: 'MEDIA' })).toBe('saida');
+  });
+
+  it('repasse que falhou continua sendo saída de dinheiro', () => {
+    // Prioridade ALTA muda a cor, não a direção — o dinheiro ainda era de saída.
+    expect(sinalDoAlerta({ tipo: 'TRANSFERENCIA', prioridade: 'ALTA' })).toBe('saida');
+  });
+
+  it('alerta não financeiro não tem sinal', () => {
+    expect(sinalDoAlerta({ tipo: 'FOLLOWUP', prioridade: 'BAIXA' })).toBeNull();
+  });
+});
+
+describe('valorDoAlerta', () => {
+  it('lê o valor gravado pelo webhook', () => {
+    expect(valorDoAlerta(alerta({ metadata: { valor: 1840.5 } }))).toBe(1840.5);
+  });
+
+  it('aceita valor que veio como string', () => {
+    expect(valorDoAlerta(alerta({ metadata: { valor: '2300.00' } }))).toBe(2300);
+  });
+
+  it('devolve null em vez de NaN — é isso que evita "R$ NaN" na tela', () => {
+    expect(valorDoAlerta(alerta({ metadata: { valor: 'indisponível' } }))).toBeNull();
+    expect(valorDoAlerta(alerta({ metadata: {} }))).toBeNull();
+    expect(valorDoAlerta(alerta())).toBeNull();
+  });
+
+  it('zero é um valor legítimo, não ausência', () => {
+    expect(valorDoAlerta(alerta({ metadata: { valor: 0 } }))).toBe(0);
+  });
+});
+
+describe('rotuloDoDia', () => {
+  const agora = new Date('2026-08-19T15:00:00');
+
+  it('separa hoje, ontem e o resto', () => {
+    expect(rotuloDoDia('2026-08-19T02:00:00', agora)).toBe('Hoje');
+    expect(rotuloDoDia('2026-08-18T23:00:00', agora)).toBe('Ontem');
+    expect(rotuloDoDia('2026-08-16T10:00:00', agora)).toBe('Esta semana');
+    expect(rotuloDoDia('2026-08-01T10:00:00', agora)).toBe('Este mês');
+    expect(rotuloDoDia('2026-05-01T10:00:00', agora)).toBe('Mais antigas');
+  });
+
+  it('compara por dia do calendário, não por 24 h corridas', () => {
+    // 23h50 de ontem e 00h10 de hoje distam 20 minutos, mas são dias
+    // diferentes — e é o dia que o corretor enxerga.
+    expect(rotuloDoDia('2026-08-19T00:10:00', new Date('2026-08-19T00:30:00'))).toBe('Hoje');
+    expect(rotuloDoDia('2026-08-18T23:50:00', new Date('2026-08-19T00:30:00'))).toBe('Ontem');
+  });
+
+  it('alerta com data futura (relógio do servidor adiantado) cai em Hoje', () => {
+    expect(rotuloDoDia('2026-08-20T10:00:00', agora)).toBe('Hoje');
+  });
+
+  it('não quebra com data inválida', () => {
+    expect(rotuloDoDia('', agora)).toBe('Sem data');
+  });
+});
+
+describe('agruparPorDia', () => {
+  const agora = new Date('2026-08-19T15:00:00');
+
+  it('preserva a ordem recebida e não reordena por data', () => {
+    const lista = [
+      alerta({ id: 'nova-nao-lida', created_at: '2026-08-19T09:00:00', lido: false }),
+      alerta({ id: 'antiga-nao-lida', created_at: '2026-08-10T09:00:00', lido: false }),
+      alerta({ id: 'hoje-lida', created_at: '2026-08-19T08:00:00', lido: true }),
+    ];
+    const grupos = agruparPorDia(lista, agora);
+
+    // "Hoje" aparece duas vezes porque a ordenação por não-lidas colocou uma
+    // antiga no meio. Reordenar aqui desfaria a regra de leitura.
+    expect(grupos.map((g) => g.rotulo)).toEqual(['Hoje', 'Este mês', 'Hoje']);
+    expect(grupos[0].itens.map((a) => a.id)).toEqual(['nova-nao-lida']);
+  });
+
+  it('lista vazia não gera seção vazia', () => {
+    expect(agruparPorDia([], agora)).toEqual([]);
+  });
+});
+
+describe('movimentouSaldo', () => {
+  it('repasse que falhou não tirou dinheiro da conta', () => {
+    // O alerta diz "NÃO foi concluído". Um "− R$ 970,00" ao lado diria o
+    // contrário, e o valor é a parte que o olho lê primeiro.
+    expect(movimentouSaldo({ tipo: 'TRANSFERENCIA', prioridade: 'ALTA' })).toBe(false);
+  });
+
+  it('repasse confirmado e recebimento moveram o saldo', () => {
+    expect(movimentouSaldo({ tipo: 'TRANSFERENCIA', prioridade: 'MEDIA' })).toBe(true);
+    expect(movimentouSaldo({ tipo: 'PAGAMENTO', prioridade: 'MEDIA' })).toBe(true);
+  });
+
+  it('alerta operacional urgente não é tratado como falha de dinheiro', () => {
+    // Contrato vencendo também é ALTA, e não tem valor nenhum envolvido.
+    expect(movimentouSaldo({ tipo: 'GERAL', prioridade: 'ALTA' })).toBe(true);
   });
 });

@@ -384,3 +384,104 @@ tocados, build OK, 6 telas sem overflow e sem erro de console.
 Pendências: `deploy-manual/notificacoes-asaas.sql` e `deploy-manual/asaas-webhook.ts`
 não foram aplicados. E é preciso **marcar os eventos TRANSFER_* no painel do
 Asaas** — sem isso ele não envia transferência e o resto não acontece.
+
+### 2026-08-19 — Claude (sino do Asaas ao vivo + ativação)
+
+Branch **`feat/sino-asaas-ao-vivo`**, separada por ser trabalho de Asaas.
+
+**A falha central: o sino só atualizava no F5.** `fetchAlertas()` rodava uma
+única vez, no `DataLoader`, durante o bootstrap. O webhook gravava o
+recebimento em `alertas`, o corretor ficava com a tela aberta a tarde inteira,
+e o número continuava zerado. Um sino que só atualiza no reload é histórico,
+não notificação — e era esse o estado de tudo que subiu em 17/08.
+
+`src/hooks/useAlertasAoVivo.ts` resolve em duas camadas, de propósito:
+
+1. **Realtime** (`postgres_changes` em `alertas`, filtrado por `corretor_id`)
+   — chega em ~1 s.
+2. **Sondagem** (90 s + no foco da janela) — rede de segurança. O Realtime
+   exige `alertas` na publication `supabase_realtime`, que é configuração de
+   banco e pode não estar aplicada. Sem a camada 2 o sino ficaria
+   silenciosamente morto nesse cenário — exatamente o estado atual do projeto.
+
+A sondagem no foco é a que mais rende: o corretor sai para o app do banco,
+confirma o PIX e volta; é ao voltar que ele quer ver o alerta.
+
+**Painel no modelo do Asaas.** Badge numérico (`rotuloContagem`, corta em
+`99+`) no lugar do ponto — "3" e "1" pedem ações diferentes e o ponto colapsava
+as duas. Valor na própria linha com sinal e cor, quebras por dia
+(Hoje / Ontem / Esta semana / Este mês), e balanço do sino sob `motion-safe`
+quando o número sobe.
+
+**Erro que a captura de tela pegou e a leitura de código não pegaria:** o
+repasse que FALHOU aparecia como `− R$ 970,00`, ao lado do texto "NÃO foi
+concluído". O valor é a parte que o olho lê primeiro — dizia o contrário do
+alerta. `movimentouSaldo()` agora separa os dois casos, e a falha rende valor
+riscado em vermelho, sem sinal.
+
+**Bug de idempotência no webhook, no caminho de transferência.** O fallback do
+`event_id` era `sha256(event : payment.id : payment.dateCreated)`. Evento de
+transferência não tem `payment` — todo `TRANSFER_DONE` sem `payload.id` gerava
+o hash de `"TRANSFER_DONE::"`, idêntico para qualquer transferência. O primeiro
+repasse entraria e, do segundo em diante, o unique de `event_id` descartaria
+tudo como reentrega. Corrigido para incluir `transfer.id`/`transfer.dateCreated`.
+
+Validações: `npm test` **246/246** (28 novos em `lib/notificacoes.test.ts`),
+`npm run typecheck` **74 — baseline, nenhum novo**, lint limpo nos arquivos
+tocados (webhook mantém os mesmos 8 erros pré-existentes), build OK, 8 telas em
+1600×900 e 390×844 sem overflow horizontal e sem erro de console.
+
+**Pendências de ativação — nada disso funciona até serem feitas:**
+
+1. `deploy-manual/asaas-ATIVAR.sql` no SQL Editor. Três blocos; o BLOCO 1
+   (valores do enum) roda **sozinho**, porque Postgres não deixa usar um valor
+   de enum na mesma transação em que foi criado — junto, a função que grava o
+   alerta falharia com "invalid input value for enum" e o webhook confirmaria o
+   repasse perdendo a notificação. BLOCO 3 devolve tabela de conferência com 12
+   linhas, todas devendo sair `OK`.
+2. Republicar a Edge Function `asaas-webhook` (`deploy-manual/asaas-webhook.ts`).
+   A versão em produção ainda descarta transferência.
+3. Painel do Asaas → Webhooks: marcar `TRANSFER_CREATED`, `TRANSFER_PENDING`,
+   `TRANSFER_DONE`, `TRANSFER_FAILED`, `TRANSFER_CANCELLED`.
+
+**Observação de segurança sobre a chave de API (menor privilégio).** O código
+usa exatamente três escopos: `PAYMENT` escrita, `CUSTOMER` escrita,
+`FINANCIAL_TRANSACTION` leitura. **Nada no código cria transferência nem PIX de
+saída** — o repasse é feito à mão no painel. Manter "Movimentações
+financeiras / Pix" em Escrita dá a uma chave vazada o poder de mandar dinheiro
+para fora sem que isso habilite nenhuma funcionalidade do sistema.
+
+### 2026-08-19 — Claude (ajuda contextual no lugar do botão morto)
+
+O "?" do cabeçalho tinha tooltip e não abria nada. Ícone que não faz nada é
+pior que ícone ausente: a pessoa clica, nada acontece, e conclui que o sistema
+está quebrado.
+
+`src/lib/ajuda.ts` (conteúdo + busca, puro e testado) e
+`src/components/shell/PainelAjuda.tsx` (gaveta lateral). Três decisões:
+
+- **Gaveta, não modal.** A ajuda fica aberta enquanto a pessoa executa o passo
+  na tela atrás; modal obrigaria a decorar e fechar.
+- **Abre no assunto da tela.** Quem trava em Fachadas quer fachada, não um
+  índice de tudo. Os gerais ficam abaixo, na seção "Vale para todo o sistema".
+- **Busca pelo problema, sem acento.** A pessoa digita "nao recebi aviso do
+  pix", não o nome que demos ao tópico — a busca varre passos e sinônimos com
+  pesos (título 8, sinônimo 5, resumo 3, corpo 1) e a tela atual desempata.
+
+Nenhum tópico descreve função que não existe: todos os passos correspondem a
+botão ou fluxo real, e os `ATALHOS` listam só Ctrl+K, `?` e Esc, que são os que
+estão implementados. Os avisos de "atenção" cobrem as armadilhas caras — QR
+imutável, vencimento no passado, ambiguidade da conciliação de repasse, e que
+a IA de contrato erra.
+
+Atalho `?` abre a gaveta, mas nunca com foco em campo de texto — senão digitar
+uma pergunta abriria a ajuda no meio da frase. Os atalhos ficam ocultos abaixo
+de `sm`: teclado não existe no celular, e ali o espaço é justamente o que falta.
+
+Validações: `npm test` **263/263** (17 novos em `lib/ajuda.test.ts`),
+typecheck **74 — baseline**, lint limpo, build OK, 390×844 e 1600×900 sem
+overflow e sem erro de console.
+
+**Banco: `deploy-manual/asaas-ATIVAR.sql` foi aplicado pelo usuário em 19/08 —
+conferência 12/12 OK.** Continuam pendentes: republicar a Edge Function
+`asaas-webhook` e marcar os eventos `TRANSFER_*` no painel do Asaas.
