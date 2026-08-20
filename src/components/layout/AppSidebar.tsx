@@ -149,7 +149,7 @@ function Conteudo({
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
-      <div className={cn('flex items-center px-5 py-5', recolhida && 'justify-center px-0')}>
+      <div className={cn('flex items-center px-5 pb-2 pt-5', recolhida && 'justify-center px-0 py-5')}>
         <Link to="/" onClick={aoNavegar} className="rounded focus-ring text-primary">
           {recolhida ? (
             <LottiMark className="h-7 w-auto" />
@@ -159,8 +159,15 @@ function Conteudo({
         </Link>
       </div>
 
+      {!recolhida && (
+        <div role="separator" className="mx-5 border-t border-sidebar-border" />
+      )}
+
       <nav
-        className={cn('flex-1 space-y-6 overflow-y-auto px-3 pb-4', recolhida && 'px-2')}
+        className={cn(
+          'flex-1 space-y-6 overflow-y-auto px-3 pb-4 pt-2',
+          recolhida && 'px-2 pt-0',
+        )}
         aria-label="Navegação principal"
       >
         {grupos.map((grupo) => (

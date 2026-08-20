@@ -92,6 +92,18 @@ estejam concluídas ou corretas.
   corrigido: olho aberto para dado visível e olho riscado para dado oculto.
 - Validações: `npm test` 231/231, `npm run build` e `git diff --check` passaram.
 
+### 2026-08-20 — Codex (acabamento do arraste e divisor da marca)
+
+- A coluna de destino do Funil passou a usar contorno interno uniforme durante
+  o arraste; removido o `ring` externo que era recortado em cima e embaixo.
+- A sidebar ganhou uma linha divisória discreta entre a marca Lotti e o primeiro
+  grupo, Operação. A linha foi aproximada da marca e a scrollbar nativa foi
+  preservada. O menu recolhido mantém os divisores existentes.
+- O subtítulo compartilhado das abas do CRM teve o travessão removido: “Leads,
+  negócios e follow-up do primeiro contato ao fechamento.”
+- Adicionado teste de renderização para esses acabamentos visuais.
+- Validações: `npm test` 233/233, `npm run build` e `git diff --check` passaram.
+
 ### 2026-08-12 — Codex
 
 - Criada a ponte de contexto entre Codex e Claude.

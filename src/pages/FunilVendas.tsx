@@ -115,7 +115,7 @@ const formatValor = (valor: number) =>
     ? `R$ ${(valor / 1000).toFixed(0)}k`
     : `R$ ${valor.toLocaleString('pt-BR')}/mês`;
 
-function DroppableColumn({
+export function DroppableColumn({
   id,
   children,
 }: {
@@ -132,7 +132,7 @@ function DroppableColumn({
         // preserva a leitura; acima dela, as colunas se redistribuem para
         // preencher o espaço após adicionar ou remover uma etapa.
         'min-w-[260px] flex-1 rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
-        isOver && 'ring-2 ring-primary/40 border-primary/40'
+        isOver && 'border-primary/40 outline outline-2 -outline-offset-2 outline-primary/40'
       )}
     >
       {children}
