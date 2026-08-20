@@ -71,6 +71,17 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-08-20 — Codex (Funil, marca e privacidade visual)
+
+- Branch `codex/merge-funil-brand-privacy` criada a partir da `main` remota
+  (`300dc7e`) para integrar o Funil legado quando o módulo CRM não está ativo,
+  preservando cabeçalho, abas e ações atuais.
+- Adicionado componente visual de dado sensível, inicialmente oculto e revelado
+  por botão olho individual, aplicado a contatos, valores, endereços e documentos
+  em telas selecionadas do produto. A máscara não altera dados ou cálculos.
+- `public/favicon.svg` atualizado com o símbolo fornecido pelo usuário.
+- Validações: `npm test` 228/228 e `npm run build` passaram.
+
 ### 2026-08-12 — Codex
 
 - Criada a ponte de contexto entre Codex e Claude.

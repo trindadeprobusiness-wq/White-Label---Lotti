@@ -11,6 +11,7 @@ import {
 import { useCRMStore } from '@/stores/crmStore';
 import { possiveisDuplicados, normalizarLead } from '@/lib/crm/pipeline';
 import { useLeadsPendentes, useEtapas, useConverterLead } from '@/hooks/crm/useCrm';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 type Lead = { id: string; nome: string; telefone: string; email?: string | null; created_at: string };
 
@@ -64,7 +65,8 @@ export function CrmLeadsInbox() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium truncate">{lead.nome}</p>
                 <p className="text-sm text-muted-foreground">
-                  {lead.telefone}{lead.email ? ` · ${lead.email}` : ''}
+                  <DadoSensivel valor={lead.telefone} tipo="telefone" />
+                  {lead.email && <><span className="mx-1">·</span><DadoSensivel valor={lead.email} tipo="email" /></>}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -93,7 +95,7 @@ export function CrmLeadsInbox() {
             <div className="space-y-3">
               <div className="rounded-lg border p-3 text-sm space-y-0.5">
                 <p className="font-medium">{normalizarLead(emAnalise).nome}</p>
-                <p className="text-muted-foreground">{normalizarLead(emAnalise).telefone}</p>
+                <DadoSensivel valor={normalizarLead(emAnalise).telefone} tipo="telefone" className="text-muted-foreground" />
               </div>
 
               {duplicados.length > 0 && (

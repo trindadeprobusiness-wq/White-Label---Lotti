@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCRMStore } from '@/stores/crmStore';
 import { taxaConversao, totalPorEtapa, tarefaAtrasada } from '@/lib/crm/pipeline';
 import { useEtapas, useOportunidades, useTarefas, useLeadsPendentes } from '@/hooks/crm/useCrm';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 const moeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -14,7 +15,7 @@ const moeda = (v: number) =>
 type ClienteComOrigem = { tracking_data?: { utm_source?: string; origem?: string } | null };
 
 function Indicador({ titulo, valor, icone: Icone, detalhe, destaque }: {
-  titulo: string; valor: string; icone: LucideIcon; detalhe?: string; destaque?: boolean;
+  titulo: string; valor: React.ReactNode; icone: LucideIcon; detalhe?: string; destaque?: boolean;
 }) {
   return (
     <Card className="border-border shadow-sm">
@@ -82,11 +83,11 @@ export function CrmDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Indicador titulo="Contatos" valor={String(m.totalClientes)} icone={Users} />
         <Indicador titulo="Negócios abertos" valor={String(m.abertas)} icone={Target} />
-        <Indicador titulo="Valor no pipeline" valor={moeda(m.pipeline)} icone={CircleDollarSign}
+        <Indicador titulo="Valor no pipeline" valor={<DadoSensivel valor={moeda(m.pipeline)} tipo="valor" />} icone={CircleDollarSign}
           detalhe="Soma dos negócios em aberto" />
         <Indicador titulo="Taxa de conversão" valor={`${m.conversao}%`} icone={TrendingUp}
           detalhe="Ganhos sobre negócios encerrados" />
-        <Indicador titulo="Ganho" valor={moeda(m.ganho)} icone={CircleDollarSign} />
+        <Indicador titulo="Ganho" valor={<DadoSensivel valor={moeda(m.ganho)} tipo="valor" />} icone={CircleDollarSign} />
         <Indicador titulo="Tarefas atrasadas" valor={String(m.atrasadas)} icone={AlertTriangle}
           destaque={m.atrasadas > 0} />
       </div>

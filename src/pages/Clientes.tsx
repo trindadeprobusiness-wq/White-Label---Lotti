@@ -30,6 +30,7 @@ import { dataBR, numero } from '@/lib/formato';
 import { FLAGS } from '@/lib/flags';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 const ROTA_FUNIL = FLAGS.crm ? '/crm' : '/funil';
 const POR_PAGINA = 6;
@@ -345,7 +346,7 @@ export default function Clientes() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <span className="text-sm text-muted-foreground">
-                          {cliente.telefone || cliente.email || '—'}
+                          <DadoSensivel valor={cliente.telefone || cliente.email} tipo={cliente.telefone ? 'telefone' : 'email'} />
                         </span>
                       </TableCell>
                       <TableCell>
@@ -432,7 +433,7 @@ export default function Clientes() {
                       {cliente.nome}
                     </Link>
                     <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                      {cliente.telefone || cliente.email || 'Sem contato'}
+                      <DadoSensivel valor={cliente.telefone || cliente.email} tipo={cliente.telefone ? 'telefone' : 'email'} />
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <StatusBadge tom={TOM_STATUS[cliente.status_funil] ?? 'neutro'}>
