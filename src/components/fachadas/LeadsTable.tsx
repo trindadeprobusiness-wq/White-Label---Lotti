@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import type { FachadaLead } from '@/types/fachada';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 interface LeadsTableProps {
   leads: FachadaLead[];
@@ -65,25 +66,21 @@ export function LeadsTable({ leads, onDeleteLead }: LeadsTableProps) {
               <TableRow key={lead.id}>
                 <TableCell className="font-medium">{lead.nome}</TableCell>
                 <TableCell>
-                  <a
-                    href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-primary hover:underline"
-                  >
+                  <span className="flex items-center gap-1.5 text-primary">
                     <Phone className="h-3.5 w-3.5" />
-                    {lead.telefone}
-                  </a>
+                    <DadoSensivel
+                      valor={lead.telefone}
+                      tipo="telefone"
+                      href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}`}
+                    />
+                  </span>
                 </TableCell>
                 <TableCell>
                   {lead.email ? (
-                    <a
-                      href={`mailto:${lead.email}`}
-                      className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
-                    >
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
                       <Mail className="h-3.5 w-3.5" />
-                      {lead.email}
-                    </a>
+                      <DadoSensivel valor={lead.email} tipo="email" href={`mailto:${lead.email}`} />
+                    </span>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}

@@ -634,3 +634,11 @@ Validações: `npm test` **278/278**, typecheck **74 — baseline**, lint sem er
 novo (RepassesList 5 e ContractsList 9 são `no-explicit-any` pré-existentes,
 idênticos ao HEAD), build OK, 1600×900 e 390×844 sem overflow nem erro de
 console.
+
+### 2026-08-20 — Codex (Mídias e leads de Fachadas)
+
+- Mídias mantém sino e ajuda, mas não exibe o interruptor de privacidade.
+- Em Fachadas > Leads, telefone e e-mail usam `DadoSensivel`; quando o modo
+  privado está ativo, deixam de aparecer em texto.
+- Testes específicos criados para os dois comportamentos e `npm run build`
+  passou nesta etapa.

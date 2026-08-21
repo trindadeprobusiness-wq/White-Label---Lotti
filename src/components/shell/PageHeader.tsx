@@ -19,6 +19,8 @@ interface PageHeaderProps {
   comBusca?: boolean;
   /** Sino, ajuda e o interruptor de esconder valores. */
   comUtilitarios?: boolean;
+  /** Permite manter sino e ajuda sem o interruptor global de privacidade. */
+  mostrarPrivacidade?: boolean;
   /**
    * Mostra o olhinho de ocultar valores financeiros. Ligado só nas telas com
    * valores em dinheiro (Dashboard, Financeiro, Aluguéis). Nas demais o botão
@@ -34,6 +36,7 @@ export function PageHeader({
   subtitulo,
   comBusca = false,
   comUtilitarios = false,
+  mostrarPrivacidade = true,
   acoes,
   className,
 }: PageHeaderProps) {
@@ -63,11 +66,9 @@ export function PageHeader({
           // terceira linha sozinhos, abaixo dos botões, o que parecia sobra
           // de layout em vez de agrupamento.
           <div className="order-2 flex items-center gap-1">
-            {/* Sempre presente. Como opt-in por página, Clientes, Funil,
-                Jurídico, Mídias e Fachadas ficaram sem o controle — e o modo
-                privado é global: ligar numa tela e não conseguir desligar na
-                outra é pior do que não ter. */}
-            <BotaoPrivacidade />
+            {/* Padrão global; Mídias é a exceção explícita solicitada para não
+                exibir esse controle nesta tela. */}
+            {mostrarPrivacidade && <BotaoPrivacidade />}
             <PainelNotificacoes />
             <PainelAjuda />
           </div>
