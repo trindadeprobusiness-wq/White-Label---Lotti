@@ -159,6 +159,7 @@ export default function Midias() {
         titulo="Mídias"
         subtitulo="Organize vídeos, fotos e conteúdos dos seus imóveis."
         comUtilitarios
+        mostrarPrivacidade={false}
         acoes={
           <>
             <Button
