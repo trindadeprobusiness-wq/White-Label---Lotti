@@ -1,6 +1,7 @@
 export type RouteLoader = () => Promise<unknown>;
 
 export const dashboardLoader = () => import('@/pages/Dashboard');
+export const rotinaLoader = () => import('@/pages/Rotina');
 export const clientesLoader = () => import('@/pages/Clientes');
 export const imoveisLoader = () => import('@/pages/Imoveis');
 export const funilLoader = () => import('@/pages/FunilVendas');
@@ -15,6 +16,7 @@ export const crmLoader = () => import('@/pages/CRM');
 
 export const SIDEBAR_ROUTE_LOADERS: Record<string, RouteLoader> = {
   '/': dashboardLoader,
+  '/rotina': rotinaLoader,
   '/clientes': clientesLoader,
   '/imoveis': imoveisLoader,
   '/funil': funilLoader,

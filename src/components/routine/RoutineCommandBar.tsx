@@ -1,0 +1,244 @@
+import { useState } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { AlertTriangle, ArrowRight, Bot, CalendarClock, Check, Loader2, Sparkles, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { interpretRoutineCommandLocally, isRoutineActivity } from '@/lib/routine/command';
+import { getRoutineCategory } from '@/lib/routine/categories';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { RoutineCategoryIcon } from './RoutineCategoryIcon';
+import type { RoutineCommandProposal, RoutineDraft } from '@/types/routine';
+
+type MatchOption = { id: string; label: string; location?: string | null };
+
+function normalize(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function bestMatch(query: string | null, options: MatchOption[]): MatchOption | null {
+  if (!query) return null;
+  const wanted = normalize(query);
+  return options.find((option) => normalize(option.label) === wanted)
+    ?? options.find((option) => normalize(option.label).includes(wanted) || wanted.includes(normalize(option.label)))
+    ?? null;
+}
+
+function validProposal(value: unknown): value is RoutineCommandProposal {
+  if (!value || typeof value !== 'object') return false;
+  const proposal = value as Partial<RoutineCommandProposal>;
+  return (proposal.kind === 'event' || proposal.kind === 'task')
+    && typeof proposal.title === 'string'
+    && typeof proposal.activity_type === 'string'
+    && isRoutineActivity(proposal.activity_type)
+    && Array.isArray(proposal.missing_fields);
+}
+
+export function RoutineCommandBar({
+  userId,
+  timezone,
+  clients,
+  properties,
+  checkConflicts,
+  onConfirm,
+  onEdit,
+}: {
+  userId: string;
+  timezone: string;
+  clients: MatchOption[];
+  properties: MatchOption[];
+  checkConflicts: (assignedTo: string, startAt: string, endAt: string) => Promise<RoutineCommandProposal['conflicts']>;
+  onConfirm: (draft: RoutineDraft) => Promise<unknown>;
+  onEdit: (draft: Partial<RoutineDraft>) => void;
+}) {
+  const [command, setCommand] = useState('');
+  const [proposal, setProposal] = useState<RoutineCommandProposal | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState('');
+
+  const enrich = async (base: RoutineCommandProposal): Promise<RoutineCommandProposal> => {
+    const client = bestMatch(base.client_query, clients);
+    const property = bestMatch(base.property_query, properties);
+    const assignedTo = base.assigned_to || userId;
+    const conflicts = base.kind === 'event' && base.start_at && base.end_at
+      ? await checkConflicts(assignedTo, base.start_at, base.end_at)
+      : [];
+    return {
+      ...base,
+      client_id: base.client_id || client?.id || null,
+      property_id: base.property_id || property?.id || null,
+      location: base.location || property?.location || null,
+      assigned_to: assignedTo,
+      conflicts,
+    };
+  };
+
+  const interpret = async () => {
+    if (!command.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('routine-command', {
+        body: { command: command.trim(), timezone },
+      });
+      let base: RoutineCommandProposal;
+      if (!functionError && validProposal(data?.proposal)) {
+        base = { ...data.proposal, requires_confirmation: true, conflicts: [], interpretation_source: 'ai' };
+      } else {
+        base = interpretRoutineCommandLocally(command.trim());
+      }
+      setProposal(await enrich(base));
+    } catch {
+      try {
+        setProposal(await enrich(interpretRoutineCommandLocally(command.trim())));
+      } catch {
+        setError('Não consegui interpretar esse pedido. Inclua a atividade, a data e o horário.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toDraft = (value: RoutineCommandProposal): RoutineDraft => ({
+    kind: value.kind,
+    title: value.title,
+    activity_type: value.activity_type,
+    priority: value.priority,
+    assigned_to: value.assigned_to || userId,
+    visibility: 'team',
+    start_at: value.start_at,
+    end_at: value.end_at,
+    due_at: value.due_at,
+    location: value.location,
+    client_id: value.client_id,
+    property_id: value.property_id,
+    reminder_minutes: value.reminder_minutes,
+    source: 'ai',
+  });
+
+  const confirm = async () => {
+    if (!proposal) return;
+    setConfirming(true);
+    try {
+      await onConfirm(toDraft(proposal));
+      setProposal(null);
+      setCommand('');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-primary/15 bg-card p-3 shadow-sm sm:p-4">
+      <div className="flex items-center gap-2 px-1 pb-3 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+        <Sparkles className="h-3.5 w-3.5" />
+        Comando da Lotti
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Bot className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                void interpret();
+              }
+            }}
+            className="h-11 border-0 bg-secondary pl-10 pr-4 shadow-none focus-visible:ring-1"
+            placeholder="Ex.: Marque uma visita com a Ana amanhã às 15h"
+            aria-label="Criar atividade por linguagem natural"
+          />
+        </div>
+        <Button className="h-11 px-5" onClick={() => void interpret()} disabled={loading || !command.trim()}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
+          Interpretar
+        </Button>
+      </div>
+      <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+        A Lotti sempre mostra uma prévia. Nada é criado, reagendado ou enviado sem sua confirmação.
+      </p>
+      {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+
+      {proposal && (
+        <div className="mt-4 rounded-xl border bg-secondary/60 p-4" aria-live="polite">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <RoutineCategoryIcon categoryId={proposal.activity_type} withSurface />
+              <div>
+                <p className="text-sm font-semibold">{proposal.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {getRoutineCategory(proposal.activity_type).label} · {proposal.kind === 'event' ? 'Compromisso' : 'Tarefa'}
+                </p>
+              </div>
+            </div>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setProposal(null)} aria-label="Fechar prévia">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-xs text-muted-foreground">Quando</dt>
+              <dd className="mt-0.5 font-medium">
+                {proposal.start_at
+                  ? format(new Date(proposal.start_at), "EEE, dd 'de' MMM · HH:mm", { locale: ptBR })
+                  : proposal.due_at
+                    ? format(new Date(proposal.due_at), "dd/MM · HH:mm", { locale: ptBR })
+                    : 'Não informado'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Cliente</dt>
+              <dd className="mt-0.5 font-medium">{proposal.client_query || 'Sem cliente relacionado'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Imóvel / local</dt>
+              <dd className="mt-0.5 font-medium">{proposal.property_query || proposal.location || 'Sem imóvel relacionado'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Lembrete</dt>
+              <dd className="mt-0.5 font-medium">{proposal.reminder_minutes == null ? 'Padrão da conta' : `${proposal.reminder_minutes} min antes`}</dd>
+            </div>
+          </dl>
+
+          {proposal.missing_fields.length > 0 && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>Preciso somente de: <strong>{proposal.missing_fields.join(' e ')}</strong>.</p>
+            </div>
+          )}
+          {proposal.conflicts.length > 0 && (
+            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+              <p className="font-medium text-destructive">Conflito de horário detectado</p>
+              {proposal.conflicts.map((conflict) => (
+                <p key={conflict.event_id} className="mt-1 text-xs text-muted-foreground">
+                  {format(new Date(conflict.start_at), 'HH:mm')}–{format(new Date(conflict.end_at), 'HH:mm')} · {conflict.title}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => onEdit(toDraft(proposal))}>
+              <CalendarClock className="mr-2 h-4 w-4" />Revisar detalhes
+            </Button>
+            <Button
+              onClick={() => void confirm()}
+              disabled={confirming || proposal.missing_fields.length > 0 || proposal.conflicts.length > 0}
+            >
+              {confirming ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+              Confirmar e criar
+            </Button>
+          </div>
+          {proposal.interpretation_source === 'local' && (
+            <div className="mt-3 text-right"><Badge variant="outline" className="text-[10px]">Interpretação segura local</Badge></div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
