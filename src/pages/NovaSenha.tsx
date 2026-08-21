@@ -36,7 +36,7 @@ export default function NovaSenha() {
 
   const curta = senha.length > 0 && senha.length < MINIMO;
   const naoConfere = confirma.length > 0 && senha !== confirma;
-  const podeSalvar = senha.length >= MINIMO && senha === confirma && !salvando;
+  const podeSalvar = !!session && !loading && senha.length >= MINIMO && senha === confirma && !salvando;
 
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,14 +59,18 @@ export default function NovaSenha() {
 
         <Card>
           <CardContent className="pt-6">
-            {linkInvalido ? (
+            {loading ? (
+              <div className="flex min-h-40 items-center justify-center" role="status" aria-label="Validando link">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : linkInvalido ? (
               <div className="text-center space-y-3">
                 <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
                   <AlertTriangle className="h-6 w-6 text-amber-500" />
                 </div>
                 <h1 className="text-lg font-semibold">Link expirado</h1>
                 <p className="text-sm text-muted-foreground">
-                  Links de recuperação valem por 1 hora e só podem ser usados uma vez.
+                  Links de recuperação valem por tempo limitado e só podem ser usados uma vez.
                 </p>
                 <Button asChild className="w-full mt-2">
                   <Link to="/recuperar-senha">Pedir um novo link</Link>

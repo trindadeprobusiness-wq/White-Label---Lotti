@@ -24,6 +24,7 @@ import type {
   LinkParceiro,
   AtribuicaoParceiro,
 } from '@/integrations/supabase/admin-types';
+import { somarDias } from '@/lib/admin/periodo';
 
 const POR_PAGINA = 25;
 
@@ -36,6 +37,31 @@ export function useMetricas(periodo: Periodo) {
         p_inicio: periodo.inicio,
         p_fim: periodo.fim,
       }),
+    retry: false,
+  });
+}
+
+export interface MetricasOnboarding {
+  novos_cadastros: number;
+  iniciados: number;
+  concluidos: number;
+  travados: number;
+  primeiro_valor: number;
+  usaram_demonstracao: number;
+  convites: number;
+  trials_encerrando: number;
+  por_etapa: Record<string, number>;
+}
+
+export function useMetricasOnboarding(periodo: Periodo) {
+  return useQuery({
+    queryKey: adminKeys.onboarding(periodo.inicio, periodo.fim),
+    queryFn: () => chamarRpc<MetricasOnboarding>('admin_onboarding_metricas', {
+      p_inicio: `${periodo.inicio}T00:00:00`,
+      // A RPC usa limite superior exclusivo; soma um dia para incluir a data
+      // final escolhida no filtro.
+      p_fim: `${somarDias(periodo.fim, 1)}T00:00:00`,
+    }),
     retry: false,
   });
 }

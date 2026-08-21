@@ -151,6 +151,7 @@ export function RoutineBriefing({
               <button type="button" onClick={() => onOpen(task)} className="min-w-0 flex-1 text-left">
                 <span className="flex items-center gap-1.5 truncate text-xs font-medium">
                   <span className="truncate">{task.title}</span>
+                  {task.is_sample_data && <Badge variant="outline" className="h-4 px-1 text-[9px]">Demo</Badge>}
                 </span>
                 <span className={cn('mt-0.5 block text-[10px] text-muted-foreground', taskIsOverdue(task, now) && 'font-medium text-destructive')}>
                   {taskIsOverdue(task, now) ? 'Atrasada · ' : ''}{task.due_at ? format(new Date(task.due_at), "dd/MM 'às' HH:mm") : 'Sem prazo'}

@@ -68,7 +68,10 @@ function Card({ oportunidade, onWhatsApp }: { oportunidade: CardOportunidade; on
           : 'hover:border-border-strong hover:shadow-card',
       )}
     >
-      <p className="text-sm font-medium leading-tight">{oportunidade.titulo}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-tight">{oportunidade.titulo}</p>
+        {oportunidade.is_sample_data && <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-700">Demo</span>}
+      </div>
       {oportunidade.clientes?.nome && (
         <p className="text-xs text-muted-foreground truncate">{oportunidade.clientes.nome}</p>
       )}

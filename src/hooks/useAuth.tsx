@@ -13,7 +13,7 @@ import {
 
 interface SignUpMetadata {
   nome: string;
-  creci: string;
+  cnpj: string;
   telefone: string;
 }
 
@@ -133,7 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        data: { nome: metadata.nome, creci: metadata.creci, telefone: metadata.telefone },
+        data: {
+          nome: metadata.nome,
+          cnpj: metadata.cnpj,
+          // Mantém compatibilidade até a migration do cadastro por CNPJ ser
+          // aplicada: a coluna legada continua NOT NULL no banco.
+          creci: 'PENDENTE',
+          telefone: metadata.telefone,
+        },
       },
     });
 
@@ -173,14 +180,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * não há o que fazer aqui além de disparar.
    *
    * O trigger `handle_new_user` cria o corretor para QUALQUER novo usuário do
-   * auth, inclusive social — mas o Google não manda CRECI nem telefone, então
-   * esses campos nascem 'PENDENTE'/'' e o onboarding precisa pedir.
+   * auth, inclusive social — mas o Google não manda CNPJ nem telefone, então
+   * esses campos continuam pendentes para um onboarding futuro.
    */
   const entrarCom = useCallback(async (provedor: 'google' | 'azure') => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: provedor,
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/auth`,
         // Microsoft: sem 'email' explícito o token volta sem endereço e o
         // corretor nasce sem e-mail.
         scopes: provedor === 'azure' ? 'email openid profile' : undefined,

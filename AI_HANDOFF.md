@@ -71,6 +71,20 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-08-21 — Codex (branch isolada de autenticação e Lotti AI Gateway)
+
+- Criada e enviada ao GitHub a branch
+  `codex/google-auth-lotti-ai-gateway`, baseada em `main` (`a9866d3`).
+- A branch contém dois commits: `681e163` (Google, CNPJ e recuperação de senha)
+  e `820f474` (fundação do Lotti AI Gateway). Rotina, Google Calendar,
+  onboarding, admin, `.env.example` e alterações paralelas do handoff ficaram fora.
+- Validação em worktree limpo da própria branch: 314/314 testes, build de produção,
+  Deno check nas 8 Edge Functions e ESLint sem erros (1 aviso conhecido de Fast
+  Refresh em `useAuth.tsx`). O typecheck global mantém 67 erros da baseline de tipos
+  Supabase; não foi usado como gate da branch.
+- A branch remota está pronta para PR. Nenhuma migration nem Edge Function do AI
+  Gateway foi publicada no Supabase por esta ação.
+
 ### 2026-08-20 — Codex (Funil, marca e privacidade visual)
 
 - Branch `codex/merge-funil-brand-privacy` criada a partir da `main` remota
@@ -642,3 +656,199 @@ console.
   privado está ativo, deixam de aparecer em texto.
 - Testes específicos criados para os dois comportamentos e `npm run build`
   passou nesta etapa.
+### 2026-08-20 — Codex (fundação do Lotti AI Gateway)
+
+- O prompt de arquitetura anexado foi convertido em contrato executável em
+  `docs/AI-SPEC.md`. A decisão foi manter um gateway fino nas Edge Functions e
+  Gemini 2.5 Flash, sem adicionar framework de agentes nesta fase.
+- Provedor, modelo, timeout, retry e versões de prompt foram centralizados em
+  `supabase/functions/_shared/ai`. As seis funções que chamavam Gemini diretamente
+  agora passam por esse provider. O BYOK de fotos e a chave no `localStorage` foram
+  removidos.
+- `ai-assistant` agora recebe módulo/intenção/fuso/trace, carrega as mensagens mais
+  recentes, limita o loop de tools, escapa documento externo, usa rate limit atômico,
+  respeita `ai_assistant_monthly` e registra telemetria sem conteúdo bruto, com
+  estimativa configurável de tokens/custo.
+- Escritas sugeridas deixaram de ser executadas pelo navegador. A nova `ai-action`
+  carrega uma proposta persistida pelo tenant/usuário, revalida o schema, exige
+  confirmação, reivindica o estado de forma condicional e executa com idempotência.
+- A migration `20260821002556_lotti_ai_gateway_fundacao.sql` endurece o bucket de
+  anexos, fecha o contador de rate limit, cria registros de prompt/run/tool/feedback/
+  memória/proposta e mantém `plan_entitlements`/`usage_counters` como fonte de cotas.
+- Validações: 333/333 testes Vitest, build de produção, ESLint dos arquivos frontend,
+  Deno check nas 8 Edge Functions, Deno lint nos 14 arquivos backend relevantes
+  (excluídas `no-import-prefix` e `no-explicit-any`, incompatíveis com o padrão atual) e
+  parse PostgreSQL das 66 instruções da migration, além de `git diff --check` sem
+  erro. O typecheck global caiu de 74 para 66 erros de baseline;
+  nenhum erro novo aparece no trecho alterado do fluxo de confirmação.
+- Pendências: migration e Edge Functions desta fundação ainda não foram publicadas;
+  Docker está desligado e o projeto não está ligado no Supabase CLI, portanto a
+  migration ainda precisa de validação dinâmica/staging. O n8n legado também segue
+  fora do gateway e não deve operar multiempresa antes de receber tenant confiável.
+
+### 2026-08-20 — Codex (Google, CNPJ e recuperação de senha)
+
+- O botão Google passou a aparecer sempre no login e dispara OAuth com retorno
+  para `/auth`; erros/cancelamento do provedor são traduzidos sem expor tokens.
+- O cadastro trocou CRECI por CNPJ, com máscara e validação de dígitos, e envia
+  o documento nos metadados. A migration
+  `20260820191200_cadastro_cnpj_auth.sql` grava o valor em `corretores.cnpj_cpf`
+  e mantém `creci = 'PENDENTE'` somente por compatibilidade com o schema legado.
+- Recuperação ganhou validação local de e-mail, espera explícita pela sessão do
+  link e tratamento de link inválido/expirado. O endpoint remoto de recuperação
+  respondeu HTTP 200 em smoke test com endereço sintético não entregável.
+- Verificação remota pública do Auth: Google está desabilitado e
+  `disable_signup = true`. Portanto OAuth/cadastro real só fica ativo depois
+  de configurar as credenciais Google e permitir novos cadastros no Supabase.
+- O usuário aplicou `20260820191200_cadastro_cnpj_auth.sql` no SQL Editor em
+  2026-08-20 e apresentou o resultado `Success. No rows returned`, esperado para
+  a definição da função e para o backfill quando não há linhas elegíveis.
+- Validações: `npm test` 287/287, `npm run build`, lint dos arquivos tocados
+  (0 erros, 1 aviso pré-existente de Fast Refresh), smoke em 390 px sem overflow
+  e `git diff --check` limpo. `npm run typecheck` mantém os 74 erros da baseline
+  já documentada e não aponta erro nos arquivos desta alteração.
+- Deploy de produção criado na Vercel em 2026-08-20 (`dpl_5ZGNjSwzBZZ3dYxKGsk1iwDzDxdX`)
+  e confirmado como `Ready`. O domínio principal `https://olivercrm.vercel.app/auth`
+  foi aberto e validado por conteúdo: botão Google, recuperação de senha e cadastro
+  com CNPJ aparecem na versão publicada. A ativação do Google e de novos cadastros
+  no Supabase continua pendente.
+
+### 2026-08-20 — Codex (Central de Rotina operacional)
+
+- A rota `/rotina`, a navegação e a aba **Configurações → Agenda** foram integradas
+  ao app. A tela entrega briefing, próxima ação, tarefas, sinais do CRM, inbox,
+  visão dia/semana/mês/lista, agenda de equipe autorizada, filtros e CRUD em drawer,
+  incluindo drag, resize, recorrência, conflito, delegação e histórico.
+- A migration `20260821004218_rotina_operacional.sql` cria organização/membros,
+  eventos, tarefas, checklist, lembretes, preferências, automações, auditoria e toda
+  a persistência do Google. RLS restringe usuário comum à própria rotina, libera
+  coordenação não privada para gestores e mascara colisão privada como “Horário
+  ocupado”. Tokens/mappings/watch não são expostos à Data API.
+- O comando em linguagem natural usa o Lotti AI Gateway e fallback local, sempre
+  produzindo proposta confirmável. A conclusão chama RPC protegido para registrar
+  histórico e atualizar o último contato no CRM, compatível com os dois schemas de
+  histórico encontrados no projeto.
+- Google Calendar foi preparado com OAuth 2.0, state hash, PKCE, refresh token
+  AES-256-GCM, calendários/direção/padrão, privacidade completa/parcial/ocupado,
+  syncToken, full sync após 410, recorrência/cancelamento, IDs determinísticos,
+  extended properties, etag, resolução explícita de conflito, events.watch,
+  renovação, webhook idempotente e retry com backoff. Configuração e deploy estão
+  documentados em `docs/ROTINA_GOOGLE_CALENDAR.md`.
+- Validações: migration aplicada em PostgreSQL 17 isolado; `routine_rls.sql` passou
+  9/9 cenários; Deno check passou nas 4 funções e 2 módulos compartilhados; testes
+  Deno 10/10; Vitest 342/342; ESLint dos arquivos tocados; build de produção; smoke
+  visual em 1440 px e 390 px sem overflow nem erro de console. O typecheck global
+  mantém 67 erros de baseline e não aponta erro em nenhum arquivo tocado da Rotina.
+- Pendências verificáveis: migration e Edge Functions ainda não foram publicadas no
+  projeto remoto; Client ID/Secret do Google não estão disponíveis, portanto OAuth,
+  webhook HTTPS e ida/volta com uma conta Google real ainda exigem homologação após
+  configurar os secrets. As regras padrão de automação estão preparadas, desligadas
+  por padrão; disparos de e-mail/WhatsApp/push continuam evolução posterior.
+### 2026-08-21 — Codex (onboarding de ativação)
+
+- Foi implementado onboarding persistente por persona para corretor autônomo,
+  gestor/proprietário, usuário convidado e profissional administrativo. O fluxo
+  cria os primeiros imóvel, cliente, oportunidade e tarefa nas tabelas operacionais,
+  permite continuar depois e mantém checklist, tours e ajuda contextual no produto.
+- A migration `20260821130000_onboarding_ativacao.sql` reutiliza
+  `routine_organizations`, `routine_memberships`, `routine_tasks` e
+  `calendar_connections`; adiciona perfis/progresso/eventos/checklist/tours/convites,
+  dados de demonstração isolados, RPCs idempotentes, métricas agregadas e RLS.
+- Dados de demonstração são marcados, excluídos dos indicadores e removíveis sem
+  apagar dados reais. Convites exigem compartilhamento explícito e aceitação por
+  e-mail; nenhum envio externo silencioso foi introduzido.
+- Verificações: `npm test` passou 342/342 em 31 arquivos, build de produção passou,
+  ESLint direcionado aos arquivos do onboarding e integrações passou sem achados e
+  QA visual em 1440x1000 e 390x844 ficou sem overflow e sem violações axe A/AA nas
+  telas verificadas. O typecheck global ainda aponta 67 erros nos módulos legados de
+  assinatura/fachadas/IA/sidebar, sem erro nos arquivos novos do onboarding.
+- Pendente: aplicar as migrations em ambiente isolado/staging e executar
+  `supabase/tests/onboarding_ativacao.sql`. O runner local não pôde executar porque
+  a rede Docker esperada para este projeto não existe; a porta 54322 encontrada
+  pertence ao projeto `upstage` e foi preservada sem alterações.
+- Em 2026-08-21, a branch local `codex/onboarding-ativacao` foi criada a partir de
+  `main` para isolar a entrega. O worktree permanece sem commit/push porque também
+  contém alterações não commitadas de Rotina, IA e autenticação; `npm test` foi
+  repetido após a decisão de branch e passou 342/342.
+
+### 2026-08-21 — Codex (branch isolada da Central de Rotina)
+
+- A entrega da Central de Rotina foi isolada na branch local
+  `codex/central-rotina`, criada a partir de `main`, no commit `994e0f7`
+  (`feat: adicionar central de rotina e Google Agenda`). O commit contém somente
+  os arquivos e trechos da Rotina e sua dependência mínima do provedor Gemini;
+  alterações paralelas de autenticação, onboarding e gateway permaneceram fora.
+- O commit foi verificado em worktree temporário independente: Vitest 307/307,
+  build de produção, `deno check` das quatro Edge Functions e dois módulos
+  compartilhados, além de testes Deno 10/10. O worktree temporário foi removido.
+- A branch foi enviada para `origin/codex/central-rotina` e o pull request rascunho
+  `#4` foi aberto contra `main`:
+  `https://github.com/trindadeprobusiness-wq/casa-mente-contrato/pull/4`.
+
+### 2026-08-21 — Codex (diagnóstico remoto da Central de Rotina)
+
+- Consultas somente leitura ao projeto `dqlolypbmsjgqrvdesev` confirmaram que
+  `routine_memberships` ainda responde `PGRST205` e que `google-calendar-auth`,
+  `google-calendar-sync`, `google-calendar-webhook` e `routine-command` ainda
+  respondem `404 NOT_FOUND`; nenhuma alteração remota foi realizada.
+- `crm_oportunidades` também responde `PGRST205`. Como
+  `20260821004218_rotina_operacional.sql` cria chaves estrangeiras e policy sobre
+  essa tabela, a migration `20260811150000_crm_module.sql` é pré-requisito e deve
+  ser aplicada antes da migration da Rotina.
+- As dependências legadas verificadas pela Data API (`corretores`, `clientes`,
+  `fachadas`, `fachada_leads`, `cliente_imovel`, `contratos`, `alertas` e
+  `historico_contatos`) existem; `get_corretor_id()` também respondeu. A migration
+  da Rotina faz o bootstrap de organização e membership dos corretores existentes.
+
+### 2026-08-21 — Codex (SQL da Central de Rotina aplicado pelo usuário)
+
+- O usuário aplicou as migrations de CRM e Rotina no projeto remoto e apresentou
+  verificação com `crm_oportunidades`, `routine_memberships`, 1 organização e
+  1 membership ativo.
+- Smoke remoto somente leitura confirmou que as tabelas operacionais da Rotina
+  entraram no schema da Data API. `routine_detect_conflicts` e
+  `routine_register_completion` existem e rejeitam o papel anônimo com `42501`,
+  conforme esperado.
+- `calendar_connections`, estados/tokens de sincronização, watches, mappings e
+  recibos de webhook permanecem inacessíveis ao papel anônimo. As Edge Functions
+  `google-calendar-auth`, `google-calendar-sync`, `google-calendar-webhook` e
+  `routine-command` ainda respondem `404 NOT_FOUND` e continuam pendentes de deploy.
+
+### 2026-08-21 — Codex (tentativa de ativação administrativa)
+
+- O Supabase CLI local está instalado (versão 2.115.0), mas não possui sessão nem
+  `SUPABASE_ACCESS_TOKEN`; a listagem de secrets exige autenticação administrativa.
+- Não há navegador automatizável conectado nesta sessão para reutilizar o login já
+  aberto pelo usuário no Dashboard. Nenhum secret, migration ou Edge Function foi
+  alterado nesta tentativa.
+
+### 2026-08-21 — Codex (publicação da Rotina e manutenção do Google Calendar)
+
+- Publicadas no projeto `dqlolypbmsjgqrvdesev`, versão 1 e estado `ACTIVE`, as
+  Edge Functions `google-calendar-auth`, `google-calendar-sync`,
+  `google-calendar-webhook` e `routine-command`, todas com validação própria e
+  `verify_jwt = false` conforme o código e `supabase/config.toml`.
+- Cadastradas as URLs de callback/webhook/retorno e chaves internas independentes.
+  A chave de manutenção foi armazenada também no Vault, sem valor em SQL ou neste
+  handoff.
+- Criado o Cron `routine-google-calendar-maintain` com agenda `*/30 * * * *`.
+  Chamada real via `pg_net` retornou HTTP 200, sem timeout, com zero conexões ativas,
+  resultado esperado antes do primeiro vínculo com uma conta Google.
+- Smoke público confirmou `401` para auth/sync/comando sem sessão e `400` para o
+  webhook sem cabeçalhos, comprovando que os quatro endpoints existem e estão
+  protegidos.
+- Pendente: cadastrar `GOOGLE_CALENDAR_CLIENT_SECRET`. O projeto remoto contém o
+  Client ID, mas não contém esse secret; a busca local não encontrou JSON de
+  credenciais baixado do Google. OAuth real não pode ser concluído sem essa
+  credencial emitida pelo Google Cloud.
+
+### 2026-08-21 — Usuário/Codex (credencial OAuth completa)
+
+- O usuário apresentou confirmação do Dashboard de que o secret
+  `GOOGLE_CALENDAR_CLIENT_SECRET` foi criado com o nome esperado.
+- Smoke posterior confirmou `google-calendar-auth` publicado e o callback redirecionando
+  para `https://olivercrm.vercel.app/configuracoes?tab=agenda&google_calendar=error`
+  quando recebe state/código deliberadamente inválidos, comportamento esperado.
+- Pendente apenas homologação interativa: o próprio usuário deve autorizar a conta
+  Google em **Configurações → Agenda**; essa etapa de consentimento não pode ser
+  executada em nome do titular.

@@ -402,7 +402,7 @@ export function RoutineCalendar({
                   return (
                     <button data-routine-month-item key={item.id + (isEvent ? item.occurrence_id || '' : '')} type="button" onClick={() => onOpen(item)} className="mb-1 flex w-full items-center gap-1 truncate rounded px-1.5 py-1 text-left text-[10px] font-medium hover:brightness-95" style={{ background: style.surface, color: '#17211d' }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: style.color }} />
-                      <span className="truncate">{isEvent && format(new Date(item.start_at), 'HH:mm')} {item.title}</span>
+                      <span className="truncate">{isEvent && format(new Date(item.start_at), 'HH:mm')} {item.title}{!isEvent && item.is_sample_data ? ' · Demo' : ''}</span>
                     </button>
                   );
                 })}
@@ -432,6 +432,7 @@ export function RoutineCalendar({
                     </p>
                   </div>
                   {!isEvent && taskIsOverdue(item) && <Badge variant="destructive">Atrasada</Badge>}
+                  {!isEvent && item.is_sample_data && <Badge variant="outline">Demo</Badge>}
                   {isEvent && item.source === 'google' && <Badge variant="outline" className="hidden sm:inline-flex">Google</Badge>}
                 </button>
               );

@@ -12,7 +12,7 @@ const moeda = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
 /** O que precisamos ler de `clientes.tracking_data` (jsonb, ausente no types.ts). */
-type ClienteComOrigem = { tracking_data?: { utm_source?: string; origem?: string } | null };
+type ClienteComOrigem = { tracking_data?: { utm_source?: string; origem?: string } | null; is_sample_data?: boolean };
 
 function Indicador({ titulo, valor, icone: Icone, detalhe, destaque }: {
   titulo: string; valor: React.ReactNode; icone: LucideIcon; detalhe?: string; destaque?: boolean;
@@ -43,7 +43,9 @@ export function CrmDashboard() {
   const { clientes } = useCRMStore();
 
   const m = useMemo(() => {
-    const ops = oportunidades ?? [];
+    const ops = (oportunidades ?? []).filter((item) => !item.is_sample_data);
+    const tarefasReais = (tarefas ?? []).filter((item) => !item.is_sample_data);
+    const clientesReais = (clientes as ClienteComOrigem[]).filter((item) => !item.is_sample_data);
     const eta = etapas ?? [];
     const tipoPorEtapa = new Map(eta.map((e) => [e.id, e.tipo]));
     const abertas = ops.filter((o) => tipoPorEtapa.get(o.etapa_id) === 'ABERTA');
@@ -53,18 +55,18 @@ export function CrmDashboard() {
     // nunca exibido em lugar nenhum do sistema. `tracking_data` não está no
     // types.ts gerado, daí a leitura estrutural.
     const porOrigem = new Map<string, number>();
-    for (const c of clientes as ClienteComOrigem[]) {
+    for (const c of clientesReais) {
       const origem = c.tracking_data?.utm_source ?? c.tracking_data?.origem ?? 'Direto';
       porOrigem.set(origem, (porOrigem.get(origem) ?? 0) + 1);
     }
 
     return {
-      totalClientes: clientes.length,
+      totalClientes: clientesReais.length,
       abertas: abertas.length,
       pipeline: totalPorEtapa(abertas),
       ganho: totalPorEtapa(ganhas),
       conversao: taxaConversao(eta, ops),
-      atrasadas: (tarefas ?? []).filter((t) => tarefaAtrasada(t)).length,
+      atrasadas: tarefasReais.filter((t) => tarefaAtrasada(t)).length,
       leads: leads?.length ?? 0,
       origens: [...porOrigem.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
     };

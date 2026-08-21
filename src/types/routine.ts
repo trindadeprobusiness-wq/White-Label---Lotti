@@ -87,6 +87,7 @@ export interface RoutineTask {
   rental_id: string | null;
   completed_at: string | null;
   deleted_at: string | null;
+  is_sample_data?: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { AIChatWidget } from '../ai/AIChatWidget';
+import { OnboardingTour } from '../onboarding/OnboardingTour';
 
 export function AppLayout() {
   const { pathname } = useLocation();
@@ -37,6 +38,7 @@ export function AppLayout() {
         </div>
       </main>
       {showChatWidget && <AIChatWidget />}
+      <OnboardingTour />
     </div>
   );
 }

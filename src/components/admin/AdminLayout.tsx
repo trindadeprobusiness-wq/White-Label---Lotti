@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AdminSidebar } from './AdminSidebar';
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 
 /**
  * Shell do back office.
@@ -28,6 +29,7 @@ export function AdminLayout() {
           </Suspense>
         </div>
       </main>
+      <OnboardingTour />
     </div>
   );
 }

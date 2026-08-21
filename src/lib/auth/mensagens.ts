@@ -63,6 +63,14 @@ const REGRAS: { casa: RegExp; texto: string | ((m: RegExpMatchArray) => string) 
     casa: /same password|should be different/i,
     texto: 'A nova senha precisa ser diferente da anterior.',
   },
+  {
+    casa: /unsupported provider|provider.*not enabled/i,
+    texto: 'O login com Google ainda não está disponível. Entre com e-mail e senha.',
+  },
+  {
+    casa: /access_denied|access denied|user denied|cancelled/i,
+    texto: 'O login com Google foi cancelado.',
+  },
 ];
 
 export function mensagemDeAuth(erro: unknown, padrao = PADRAO): string {

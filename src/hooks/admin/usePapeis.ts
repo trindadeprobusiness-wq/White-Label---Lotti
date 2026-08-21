@@ -17,6 +17,7 @@ export const adminKeys = {
   metricas: (inicio: string, fim: string) =>
     [...adminKeys.todos, 'metricas', inicio, fim] as const,
   usuarios: (filtros: unknown) => [...adminKeys.todos, 'usuarios', filtros] as const,
+  onboarding: (inicio: string, fim: string) => [...adminKeys.todos, 'onboarding', inicio, fim] as const,
   usuario: (id: string) => [...adminKeys.todos, 'usuario', id] as const,
   parceiros: (filtros: unknown) => [...adminKeys.todos, 'parceiros', filtros] as const,
   parceiro: (id: string) => [...adminKeys.todos, 'parceiro', id] as const,
