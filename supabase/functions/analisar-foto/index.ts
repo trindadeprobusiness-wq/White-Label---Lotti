@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { LOTTI_PROMPT_VERSIONS } from "../_shared/ai/prompt-registry.ts";
+import { requestGeminiContent } from "../_shared/ai/provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -88,7 +90,7 @@ serve(async (req) => {
     if (authError || !user) return jsonResponse({ error: "Invalid session" }, 401);
 
     // 2. Validação de entrada.
-    const { imageBase64, mimeType, userApiKey } = await req.json();
+    const { imageBase64, mimeType } = await req.json();
 
     if (typeof imageBase64 !== "string" || imageBase64.length === 0 || imageBase64.length > MAX_BASE64_LENGTH) {
       return jsonResponse({ error: "Imagem inválida ou muito grande" }, 400);
@@ -97,41 +99,26 @@ serve(async (req) => {
       return jsonResponse({ error: "Formato de imagem inválido" }, 400);
     }
 
-    // 3. Resolução da chave: override do usuário (opcional) ou segredo do servidor.
-    const geminiKey = (typeof userApiKey === "string" && userApiKey.trim())
-      ? userApiKey.trim()
-      : Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) {
-      return jsonResponse({ error: "GEMINI_API_KEY não configurada" }, 500);
-    }
-
-    // 4. Análise com Gemini. Em qualquer falha, cai para os parâmetros padrão
+    // 3. Análise com o provedor central. Em qualquer falha, cai para os parâmetros padrão
     //    (a foto ainda é melhorada localmente — resiliência preservada).
     let params = DEFAULT_PARAMS;
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: AI_ANALYSIS_PROMPT },
-                { inline_data: { mime_type: mimeType, data: imageBase64 } },
-              ],
-            }],
-            generationConfig: {
-              response_mime_type: "application/json",
-              temperature: 0.2,
-              // Sem thinking (o gemini-2.5-flash o liga por padrão e consumia o teto,
-              // truncando o JSON). Extração determinística; teto folgado.
-              thinkingConfig: { thinkingBudget: 0 },
-              maxOutputTokens: 2048,
-            },
-          }),
+      const response = await requestGeminiContent({
+        contents: [{
+          parts: [
+            { text: `${AI_ANALYSIS_PROMPT}\n\nPrompt version: ${LOTTI_PROMPT_VERSIONS.photoEnhancement}` },
+            { inline_data: { mime_type: mimeType, data: imageBase64 } },
+          ],
+        }],
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.2,
+          // Sem thinking (o gemini-2.5-flash o liga por padrão e consumia o teto,
+          // truncando o JSON). Extração determinística; teto folgado.
+          thinkingConfig: { thinkingBudget: 0 },
+          maxOutputTokens: 2048,
         },
-      );
+      }, { timeoutMs: 45_000, retries: 1 });
 
       if (response.ok) {
         const data = await response.json();
@@ -139,8 +126,7 @@ serve(async (req) => {
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         params = clampParams(JSON.parse(cleaned) as Partial<EnhancementParams>);
       } else {
-        const errText = await response.text();
-        console.warn("Gemini analysis failed:", response.status, errText);
+        console.warn("AI provider error status:", response.status);
       }
     } catch (e) {
       console.warn("Gemini analysis error, using defaults:", e);

@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export function AIActionCard({ action, onConfirm, onReject }: AIActionCardProps) {
   const isDone = action.status !== 'pending';
+  const fields = Object.keys(action.params).slice(0, 8);
 
   return (
     <Card className="border-primary/20 bg-primary/5 max-w-[85%]">
@@ -30,18 +31,28 @@ export function AIActionCard({ action, onConfirm, onReject }: AIActionCardProps)
           {ACTION_LABELS[action.action_type] || action.action_type}
         </div>
         <p className="text-sm">{action.description}</p>
+        {fields.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Campos envolvidos: {fields.join(', ')}
+          </p>
+        )}
         {isDone ? (
           <p className="text-xs text-muted-foreground">
             {action.status === 'confirmed' ? '✓ Ação executada' : '✗ Ação recusada'}
           </p>
         ) : (
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onConfirm(action)}>
-              <Check className="h-3 w-3 mr-1" /> Confirmar
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onReject(action.id)}>
-              <X className="h-3 w-3 mr-1" /> Recusar
-            </Button>
+          <div className="space-y-2 pt-1">
+            <p className="text-xs text-muted-foreground">
+              A alteração só será executada depois da sua confirmação.
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onConfirm(action)}>
+                <Check className="h-3 w-3 mr-1" /> Confirmar
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onReject(action.id)}>
+                <X className="h-3 w-3 mr-1" /> Recusar
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>

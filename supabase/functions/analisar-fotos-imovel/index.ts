@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { LOTTI_PROMPT_VERSIONS } from "../_shared/ai/prompt-registry.ts";
+import { requestGeminiContent } from "../_shared/ai/provider.ts";
 
 // Classifica o cômodo de cada foto do imóvel e reescreve a descrição do anúncio.
 //
@@ -114,9 +116,6 @@ serve(async (req) => {
       return json({ error: "Alguma foto está inválida ou grande demais." }, 400);
     }
 
-    const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
-
     const contexto = [
       asString(dados_imovel?.titulo, 200) && `Título: ${asString(dados_imovel.titulo, 200)}`,
       asString(dados_imovel?.tipo, 40) && `Tipo: ${asString(dados_imovel.tipo, 40)}`,
@@ -128,33 +127,27 @@ serve(async (req) => {
     // Uma chamada só com todas as fotos: mais barato que uma por foto e o modelo
     // enxerga o conjunto, o que melhora a classificação (dois quartos parecidos,
     // sala x varanda, etc.).
-    const partes: unknown[] = [{ text: contexto ? `${PROMPT}\n\nDados do imóvel:\n${contexto}` : PROMPT }];
+    const promptVersionado = `${PROMPT}\n\nPrompt version: ${LOTTI_PROMPT_VERSIONS.propertyPhotos}`;
+    const partes: unknown[] = [{ text: contexto ? `${promptVersionado}\n\nDados do imóvel:\n${contexto}` : promptVersionado }];
     for (const b64 of imagens) {
       partes.push({ inline_data: { mime_type: "image/jpeg", data: b64 } });
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: partes }],
-          generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0.2,
-            // Classificação não precisa de "pensamento", e os tokens de raciocínio
-            // comiam o teto de saída truncando o JSON (mesmo problema já visto na
-            // analisar-contrato).
-            thinkingConfig: { thinkingBudget: 0 },
-            maxOutputTokens: 4096,
-          },
-        }),
+    const response = await requestGeminiContent({
+      contents: [{ parts: partes }],
+      generationConfig: {
+        response_mime_type: "application/json",
+        temperature: 0.2,
+        // Classificação não precisa de "pensamento", e os tokens de raciocínio
+        // comiam o teto de saída truncando o JSON (mesmo problema já visto na
+        // analisar-contrato).
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 4096,
       },
-    );
+    }, { timeoutMs: 90_000 });
 
     if (!response.ok) {
-      console.error("Gemini falhou:", response.status, await response.text());
+      console.error("AI provider error status:", response.status);
       return json({ error: "Falha ao analisar as fotos com a IA" }, 502);
     }
 

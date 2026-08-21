@@ -17,7 +17,7 @@ interface UseAIChatReturn {
   togglePin: (id: string, pinned: boolean) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   confirmAction: (action: AISuggestedAction) => Promise<void>;
-  rejectAction: (actionId: string) => void;
+  rejectAction: (actionId: string) => Promise<void>;
   retry: () => Promise<void>;
   pendingActions: AISuggestedAction[];
 }
@@ -28,6 +28,24 @@ function sortConversations(list: AIConversation[]): AIConversation[] {
   return [...list].sort(
     (a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false)
   );
+}
+
+function aiModuleFromPath(pathname: string): string {
+  const routes: Array<[string, string]> = [
+    ['/clientes', 'clients'],
+    ['/crm', 'funnel'],
+    ['/funil', 'funnel'],
+    ['/imoveis', 'properties'],
+    ['/contratos', 'contracts'],
+    ['/juridico', 'legal'],
+    ['/alugueis', 'rentals'],
+    ['/financeiro', 'finance'],
+    ['/midias', 'media'],
+    ['/rotina', 'agenda'],
+    ['/agenda', 'agenda'],
+    ['/dashboard', 'dashboard'],
+  ];
+  return routes.find(([route]) => pathname.startsWith(route))?.[1] ?? 'assistant';
 }
 
 export function useAIChat(): UseAIChatReturn {
@@ -154,6 +172,12 @@ export function useAIChat(): UseAIChatReturn {
             message: text,
             conversation_id: activeConversation,
             file_context: fileContext,
+            module: aiModuleFromPath(window.location.pathname),
+            intent: 'assistant.chat',
+            locale: 'pt-BR',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+            output_mode: 'text',
+            trace_id: crypto.randomUUID(),
           }),
           signal: abortRef.current.signal,
         }
@@ -265,103 +289,24 @@ export function useAIChat(): UseAIChatReturn {
 
   const confirmAction = useCallback(async (action: AISuggestedAction) => {
     try {
-      const { data: corretorData } = await supabase.rpc('get_corretor_id');
-      if (!corretorData) throw new Error('Corretor not found');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
 
-      switch (action.action_type) {
-        case 'create_client': {
-          const p = action.params as { nome: string; telefone: string; tipo_interesse?: string };
-          await supabase.from('clientes').insert({
-            nome: p.nome,
-            telefone: p.telefone || '',
-            tipo_interesse: p.tipo_interesse || 'COMPRA',
-            corretor_id: corretorData,
-          });
-          break;
-        }
-        case 'update_client_status': {
-          const p = action.params as { client_id: string; status: string };
-          await supabase.from('clientes').update({ status_funil: p.status }).eq('id', p.client_id);
-          break;
-        }
-        case 'schedule_followup': {
-          const p = action.params as { client_id: string; date: string };
-          await supabase.from('clientes').update({ proximo_followup: p.date }).eq('id', p.client_id);
-          break;
-        }
-        case 'create_alert': {
-          const p = action.params as { mensagem: string; tipo?: string; prioridade?: string };
-          await supabase.from('alertas').insert({
-            mensagem: p.mensagem,
-            tipo: p.tipo || 'GERAL',
-            prioridade: p.prioridade || 'MEDIA',
-            corretor_id: corretorData,
-          });
-          break;
-        }
-        case 'register_contact': {
-          const p = action.params as { client_id: string; tipo: string; descricao: string };
-          await supabase.from('historico_contatos').insert({
-            cliente_id: p.client_id,
-            tipo: p.tipo || 'NOTA',
-            descricao: p.descricao,
-            corretor_id: corretorData,
-          });
-          break;
-        }
-        case 'create_property': {
-          // Cadastra um imóvel na aba Imóveis (mesmas colunas do NovoImovelDialog).
-          const p = action.params as {
-            titulo: string;
-            tipo?: string;
-            valor?: number;
-            area_m2?: number;
-            dormitorios?: number;
-            garagem?: number;
-            endereco?: string;
-            bairro?: string;
-            cidade?: string;
-            proprietario_nome?: string;
-          };
-          const tiposValidos = ['APARTAMENTO', 'CASA', 'COMERCIAL', 'TERRENO'];
-          const { error: insErr } = await supabase.from('imoveis').insert({
-            titulo: p.titulo,
-            tipo: tiposValidos.includes(p.tipo || '') ? p.tipo : 'APARTAMENTO',
-            valor: Number(p.valor) || 0,
-            area_m2: Number(p.area_m2) || 0,
-            dormitorios: Number(p.dormitorios) || 0,
-            garagem: Number(p.garagem) || 0,
-            endereco: p.endereco || '',
-            bairro: p.bairro || '',
-            cidade: p.cidade || '',
-            proprietario_nome: p.proprietario_nome || '',
-            corretor_id: corretorData,
-          });
-          if (insErr) throw insErr;
-          break;
-        }
-        case 'create_financial_entry': {
-          // Lança uma receita/despesa na aba Financeiro.
-          const p = action.params as {
-            tipo?: string;
-            categoria?: string;
-            descricao: string;
-            valor?: number;
-            data?: string;
-            recorrente?: boolean;
-          };
-          const { error: insErr } = await supabase.from('lancamentos_financeiros').insert({
-            tipo: p.tipo === 'RECEITA' ? 'RECEITA' : 'DESPESA',
-            categoria: p.categoria || 'OUTROS',
-            descricao: p.descricao,
-            valor: Number(p.valor) || 0,
-            data: p.data || new Date().toISOString().slice(0, 10),
-            recorrente: p.recorrente ?? false,
-            corretor_id: corretorData,
-          });
-          if (insErr) throw insErr;
-          break;
-        }
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-action`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ proposal_id: action.id, decision: 'confirm' }),
+        },
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Não foi possível executar a ação.');
       }
 
       setPendingActions(prev =>
@@ -375,10 +320,31 @@ export function useAIChat(): UseAIChatReturn {
     }
   }, []);
 
-  const rejectAction = useCallback((actionId: string) => {
-    setPendingActions(prev =>
-      prev.map(a => (a.id === actionId ? { ...a, status: 'rejected' as const } : a))
-    );
+  const rejectAction = useCallback(async (actionId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-action`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ proposal_id: actionId, decision: 'reject' }),
+        },
+      );
+      if (!response.ok) throw new Error('Não foi possível recusar a ação.');
+      setPendingActions(prev =>
+        prev.map(a => (a.id === actionId ? { ...a, status: 'rejected' as const } : a))
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível recusar a ação.';
+      setError(message);
+      toast.error(message);
+    }
   }, []);
 
   const retry = useCallback(async () => {

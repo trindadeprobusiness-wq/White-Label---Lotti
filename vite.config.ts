@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Edge Functions usam o specifier pinado do Deno; nos testes Node/Vitest,
+      // resolve para a mesma versão instalada e travada no package-lock.
+      "npm:zod@3.25.76": "zod",
     },
   },
   build: {
