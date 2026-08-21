@@ -13,6 +13,8 @@ describe('mensagemDeAuth', () => {
     ['User already registered', 'Este e-mail já tem conta. Faça login ou use "Esqueci minha senha".'],
     ['Password should be at least 6 characters', 'A senha precisa ter pelo menos 6 caracteres.'],
     ['Email rate limit exceeded', 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.'],
+    ['Unsupported provider', 'O login com Google ainda não está disponível. Entre com e-mail e senha.'],
+    ['access_denied', 'O login com Google foi cancelado.'],
   ];
 
   for (const [bruto, esperado] of casos) {

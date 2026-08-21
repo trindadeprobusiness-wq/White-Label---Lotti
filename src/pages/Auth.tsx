@@ -14,19 +14,10 @@ import { PainelInstitucional } from '@/components/auth/PainelInstitucional';
 import { BotoesSociais } from '@/components/auth/BotoesSociais';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { nomeParceiroIndicador } from '@/lib/admin/atribuicao';
-
-const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
-});
-
-const signupSchema = z.object({
-  nome: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
-  email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
-  creci: z.string().min(3, 'CRECI é obrigatório'),
-  telefone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
-});
+import { formatarCNPJ } from '@/lib/validators';
+import { cadastroSchema, loginSchema } from '@/lib/auth/validacao';
+import { extrairErroDeRetornoAuth } from '@/lib/auth/retorno';
+import { mensagemDeAuth } from '@/lib/auth/mensagens';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -48,7 +39,7 @@ export default function Auth() {
   const [signupNome, setSignupNome] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
-  const [signupCreci, setSignupCreci] = useState('');
+  const [signupCnpj, setSignupCnpj] = useState('');
   const [signupTelefone, setSignupTelefone] = useState('');
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
@@ -64,6 +55,20 @@ export default function Auth() {
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, authLoading, navigate, from]);
+
+  // O provedor volta para /auth também quando a pessoa cancela ou quando há
+  // erro de configuração. Traduzimos a falha e limpamos os parâmetros para que
+  // ela não reapareça ao atualizar a página.
+  useEffect(() => {
+    const erro = extrairErroDeRetornoAuth(location.search, location.hash);
+    if (!erro) return;
+
+    toast.error(mensagemDeAuth(
+      erro,
+      'Não foi possível entrar com Google. Tente novamente ou use e-mail e senha.',
+    ));
+    navigate(location.pathname, { replace: true, state: location.state });
+  }, [location.hash, location.pathname, location.search, location.state, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,11 +106,11 @@ export default function Auth() {
     e.preventDefault();
     
     try {
-      const validated = signupSchema.parse({
+      const validated = cadastroSchema.parse({
         nome: signupNome,
         email: signupEmail,
         password: signupPassword,
-        creci: signupCreci,
+        cnpj: signupCnpj,
         telefone: signupTelefone,
       });
       
@@ -113,7 +118,7 @@ export default function Auth() {
       
       const r = await signUp(validated.email, validated.password, {
         nome: validated.nome,
-        creci: validated.creci,
+        cnpj: validated.cnpj,
         telefone: validated.telefone,
       });
 
@@ -326,17 +331,19 @@ export default function Auth() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="signup-creci">CRECI</Label>
+                      <Label htmlFor="signup-cnpj">CNPJ</Label>
                       <div className="relative">
                         <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="signup-creci"
+                          id="signup-cnpj"
                           type="text"
-                          placeholder="12345-F"
-                          value={signupCreci}
-                          onChange={(e) => setSignupCreci(e.target.value)}
+                          inputMode="numeric"
+                          autoComplete="organization"
+                          placeholder="00.000.000/0000-00"
+                          value={signupCnpj}
+                          onChange={(e) => setSignupCnpj(formatarCNPJ(e.target.value))}
                           className="pl-10"
                           disabled={isLoading}
                           required
