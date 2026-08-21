@@ -158,21 +158,31 @@ export function useCheckLimit() {
     ratio: number | null;
     status: 'ok' | 'warning' | 'exceeded';
   } => {
-    // Sem assinatura → tudo bloqueado
-    if (!subscription || !plans) {
-      return { allowed: false, used: 0, limit: 0, unlimited: false, ratio: 1, status: 'exceeded' };
-    }
+    // Sem assinatura, sem plano ou sem entitlement → LIBERA.
+    //
+    // Antes bloqueava, e isso teria travado a base inteira no dia em que os
+    // limites fossem ligados: hoje nenhum corretor tem linha em `subscriptions`,
+    // e nada cria uma. Todo botão protegido apareceria desabilitado para todo
+    // mundo, sem ninguém entender por quê.
+    //
+    // A assimetria é deliberada. Aqui, no front, o risco é impedir o corretor de
+    // usar o CRM DELE por causa de uma consulta de cobrança que falhou — e isso
+    // é muito pior que alguém passar um pouco da cota. No servidor
+    // (`_shared/cotas.ts`) o padrão é o oposto: sem assinatura, a IA não roda,
+    // porque ali o risco é gastar inferência por quem não paga. Dado do cliente
+    // falha aberto; nosso dinheiro falha fechado.
+    const LIBERADO = {
+      allowed: true, used: 0, limit: null, unlimited: true,
+      ratio: null, status: 'ok',
+    } as const;
 
-    // Encontrar o entitlement do plano
+    if (!subscription || !plans) return LIBERADO;
+
     const plan = plans.find((p) => p.id === subscription.plan_id);
-    if (!plan) {
-      return { allowed: false, used: 0, limit: 0, unlimited: false, ratio: 1, status: 'exceeded' };
-    }
+    if (!plan) return LIBERADO;
 
     const entitlement = plan.entitlements.find((e) => e.feature_key === featureKey);
-    if (!entitlement) {
-      return { allowed: false, used: 0, limit: 0, unlimited: false, ratio: 1, status: 'exceeded' };
-    }
+    if (!entitlement) return LIBERADO;
 
     // Feature boolean (tem ou não tem)
     if (entitlement.limit_value === null && !entitlement.unlimited) {
@@ -309,6 +319,10 @@ export function useSubscriptionSummary(): {
 
   // Construir resumo de uso
   const measurableKeys: FeatureKey[] = [
+    // Primeiro da lista de propósito: é a cota que o corretor precisa
+    // acompanhar, e a única que gera cobrança de excedente.
+    'leads_qualificados_monthly',
+    'max_contratos_locacao',
     'max_users',
     'max_imoveis',
     'max_fachadas',

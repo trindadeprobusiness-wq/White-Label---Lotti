@@ -48,8 +48,12 @@ const Assistente = lazy(assistenteLoader);
 const FachadasInteligentes = lazy(fachadasLoader);
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
 const CRM = lazy(crmLoader);
-// Assinatura/Planos: código mantido no repositório para o back office futuro,
-// mas fora do grafo de rotas — não faz sentido expor ao corretor hoje.
+// Assinatura/Planos. Passou a fazer sentido expor quando as cotas deixaram de
+// ser decorativas: o corretor precisa ver quanto da cota de leads já usou e
+// para onde ir quando ela acabar.
+const PlanoAssinatura = lazy(() =>
+  import("@/pages/PlanoAssinatura").then((m) => ({ default: m.PlanoAssinatura })),
+);
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 // Rota pública do link de parceiro: registra o clique no servidor e segue para
@@ -133,6 +137,7 @@ const App = () => (
             <Route path="/juridico" element={<Juridico />} />
             <Route path="/midias" element={<Midias />} />
             <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/plano" element={<PlanoAssinatura />} />
             <Route path="/alugueis" element={<RentalManagement />} />
             <Route path="/assistente" element={<Assistente />} />
             <Route path="/fachadas" element={<FachadasInteligentes />} />

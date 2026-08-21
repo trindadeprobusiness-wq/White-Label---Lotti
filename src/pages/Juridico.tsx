@@ -44,6 +44,7 @@ import {
   abasSublinhadas, SectionCard, QuickActionRow,
 } from '@/components/shell/primitivos';
 import { numero } from '@/lib/formato';
+import { LimitGuard } from '@/components/subscription/LimitGuard';
 
 interface ClienteSimples {
   id: string;
@@ -315,10 +316,12 @@ export default function Juridico() {
               <Upload className="mr-2 h-[18px] w-[18px]" />
               Enviar documento
             </Button>
-            <Button className="h-control" onClick={() => setContratoDialogOpen(true)}>
-              <Sparkles className="mr-2 h-[18px] w-[18px]" />
-              Gerar contrato com IA
-            </Button>
+            <LimitGuard featureKey="ai_contracts_monthly">
+              <Button className="h-control" onClick={() => setContratoDialogOpen(true)}>
+                <Sparkles className="mr-2 h-[18px] w-[18px]" />
+                Gerar contrato com IA
+              </Button>
+            </LimitGuard>
           </>
         }
       />

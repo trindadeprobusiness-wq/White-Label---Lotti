@@ -86,6 +86,9 @@ export function destinoDoAlerta(alerta: AlertaNotificacao): string | null {
       // As duas vivem na tela de Aluguéis; o id vai como âncora para a tela
       // poder destacar a linha correspondente.
       return alerta.entidade_id ? `/alugueis?destaque=${alerta.entidade_id}` : '/alugueis';
+    case 'plano':
+      // Aviso de cota. Leva direto para onde dá para resolver.
+      return '/plano';
     case 'contrato':
       return '/juridico';
     case 'cliente':

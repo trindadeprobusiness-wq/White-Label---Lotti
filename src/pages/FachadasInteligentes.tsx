@@ -23,6 +23,7 @@ import { toast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { MetricStrip, SectionCard } from '@/components/shell/primitivos';
 import { abasSublinhadas } from '@/components/shell/primitivos';
+import { LimitGuard } from '@/components/subscription/LimitGuard';
 
 interface CustomTemplate {
   id: string;
@@ -298,13 +299,15 @@ export default function FachadasInteligentes() {
               <LayoutTemplate className="mr-2 h-[18px] w-[18px]" />
               Ver templates
             </Button>
-            <Button
-              className="h-control"
-              onClick={() => { setEditingFachada(null); setDialogOpen(true); }}
-            >
-              <Plus className="mr-2 h-[18px] w-[18px]" />
-              Nova fachada
-            </Button>
+            <LimitGuard featureKey="max_fachadas">
+              <Button
+                className="h-control"
+                onClick={() => { setEditingFachada(null); setDialogOpen(true); }}
+              >
+                <Plus className="mr-2 h-[18px] w-[18px]" />
+                Nova fachada
+              </Button>
+            </LimitGuard>
           </>
         }
       />
