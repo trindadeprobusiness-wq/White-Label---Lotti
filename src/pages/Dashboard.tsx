@@ -22,6 +22,7 @@ import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
 import { cn } from '@/lib/utils';
 import type { Alerta } from '@/types/crm';
+import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
 const ROTA_FUNIL = FLAGS.crm ? '/crm' : '/funil';
 
@@ -69,6 +70,9 @@ export default function Dashboard() {
   } = useCRMStore();
   const [alertaSelecionado, setAlertaSelecionado] = useState<Alerta | null>(null);
 
+  const clientesReais = useMemo(() => clientes.filter((item) => !item.is_sample_data), [clientes]);
+  const imoveisReais = useMemo(() => imoveis.filter((item) => !item.is_sample_data), [imoveis]);
+
   useEffect(() => { fetchCorretor(); }, [fetchCorretor]);
 
   const alertasNaoLidos = useMemo(() => alertas.filter((a) => !a.lido), [alertas]);
@@ -81,16 +85,16 @@ export default function Dashboard() {
   const contagemEtapas = useMemo(() => {
     const mapa: Record<string, number> = {};
     for (const e of ETAPAS) {
-      mapa[e.chave] = clientes.filter((c) => c.status_funil === e.chave).length;
+      mapa[e.chave] = clientesReais.filter((c) => c.status_funil === e.chave).length;
     }
     return mapa;
-  }, [clientes]);
+  }, [clientesReais]);
 
-  const incompletos = useMemo(() => imoveis.filter(cadastroIncompleto), [imoveis]);
+  const incompletos = useMemo(() => imoveisReais.filter(cadastroIncompleto), [imoveisReais]);
 
   const proximosContatos = useMemo(
     () =>
-      [...clientes]
+      [...clientesReais]
         .filter((c) => c.status_funil !== 'FECHADO_PERDIDO')
         .sort((a, b) => {
           // Quem tem follow-up marcado vem primeiro, do mais próximo ao mais
@@ -103,12 +107,12 @@ export default function Dashboard() {
           return ua - ub;
         })
         .slice(0, 3),
-    [clientes],
+    [clientesReais],
   );
 
   const imoveisAtencao = useMemo(
-    () => [...incompletos, ...imoveis.filter((i) => !cadastroIncompleto(i))].slice(0, 3),
-    [incompletos, imoveis],
+    () => [...incompletos, ...imoveisReais.filter((i) => !cadastroIncompleto(i))].slice(0, 3),
+    [incompletos, imoveisReais],
   );
 
   const hoje = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -144,14 +148,14 @@ export default function Dashboard() {
         itens={[
           {
             id: 'clientes',
-            valor: numero(clientes.length),
+            valor: numero(clientesReais.length),
             label: 'Clientes',
             icone: <Users className="h-5 w-5" />,
             tom: 'brand',
           },
           {
             id: 'imoveis',
-            valor: numero(imoveis.length),
+            valor: numero(imoveisReais.length),
             label: 'Imóveis',
             icone: <Building2 className="h-5 w-5" />,
             tom: 'brand',
@@ -172,6 +176,8 @@ export default function Dashboard() {
           },
         ]}
       />
+
+      <OnboardingChecklist />
 
       {alertasNaoLidos.length > 0 && (
         <SectionCard

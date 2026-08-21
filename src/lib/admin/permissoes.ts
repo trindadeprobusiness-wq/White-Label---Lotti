@@ -16,6 +16,7 @@ export type Papel = 'admin' | 'super_admin';
 export type Recurso =
   | 'visao_geral'
   | 'usuarios'
+  | 'onboarding'
   | 'parceiros'
   | 'comissoes'
   | 'receita'
@@ -43,6 +44,7 @@ export type Acao =
 const RECURSOS_ADMIN: readonly Recurso[] = [
   'visao_geral',
   'usuarios',
+  'onboarding',
   'parceiros',
   'comissoes',
   'receita',

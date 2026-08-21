@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DataLoader } from "@/components/DataLoader";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { AdminRoute } from "@/components/admin/AdminRoute";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -29,11 +30,13 @@ import {
   imoveisLoader,
   juridicoLoader,
   midiasLoader,
+  rotinaLoader,
 } from "@/lib/routePreloaders";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
 const Dashboard = lazy(dashboardLoader);
+const Rotina = lazy(rotinaLoader);
 const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
 const Imoveis = lazy(imoveisLoader);
@@ -55,6 +58,7 @@ const PlanoAssinatura = lazy(() =>
   import("@/pages/PlanoAssinatura").then((m) => ({ default: m.PlanoAssinatura })),
 );
 const NotFound = lazy(() => import("@/pages/NotFound"));
+const Onboarding = lazy(() => import("@/pages/Onboarding"));
 
 // Rota pública do link de parceiro: registra o clique no servidor e segue para
 // o cadastro. Fica fora do ProtectedRoute porque acontece antes de existir conta.
@@ -65,6 +69,7 @@ const RedirectParceiro = lazy(() => import("@/pages/RedirectParceiro"));
 const AdminVisaoGeral = lazy(() => import("@/pages/admin/AdminVisaoGeral"));
 const AdminUsuarios = lazy(() => import("@/pages/admin/AdminUsuarios"));
 const AdminUsuarioDetalhe = lazy(() => import("@/pages/admin/AdminUsuarioDetalhe"));
+const AdminOnboarding = lazy(() => import("@/pages/admin/AdminOnboarding"));
 const AdminParceiros = lazy(() => import("@/pages/admin/AdminParceiros"));
 const AdminParceiroDetalhe = lazy(() => import("@/pages/admin/AdminParceiroDetalhe"));
 const AdminComissoes = lazy(() => import("@/pages/admin/AdminComissoes"));
@@ -109,15 +114,29 @@ const App = () => (
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
 
+          {/* Experiência protegida em tela própria: não carrega sidebar nem os
+              dados operacionais antes de a pessoa escolher seu caminho. */}
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Protected routes */}
           <Route element={
             <ProtectedRoute>
-              <DataLoader>
-                <AppLayout />
-              </DataLoader>
+              <OnboardingGate>
+                <DataLoader>
+                  <AppLayout />
+                </DataLoader>
+              </OnboardingGate>
             </ProtectedRoute>
           }>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/rotina" element={<Rotina />} />
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />
             <Route path="/imoveis" element={<Imoveis />} />
@@ -160,6 +179,7 @@ const App = () => (
             <Route path="/admin" element={<AdminVisaoGeral />} />
             <Route path="/admin/usuarios" element={<AdminUsuarios />} />
             <Route path="/admin/usuarios/:id" element={<AdminUsuarioDetalhe />} />
+            <Route path="/admin/onboarding" element={<AdminOnboarding />} />
             <Route path="/admin/parceiros" element={<AdminParceiros />} />
             <Route path="/admin/parceiros/:id" element={<AdminParceiroDetalhe />} />
             <Route path="/admin/comissoes" element={<AdminComissoes />} />

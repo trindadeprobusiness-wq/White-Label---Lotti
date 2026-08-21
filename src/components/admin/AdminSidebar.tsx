@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Menu,
   X,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LottiLogo } from '@/components/brand/LottiLogo';
@@ -37,6 +38,7 @@ interface ItemMenu {
 const ITENS: ItemMenu[] = [
   { recurso: 'visao_geral', label: 'Visão geral', href: '/admin', icone: <LayoutDashboard className="h-4 w-4 flex-shrink-0" /> },
   { recurso: 'usuarios', label: 'Usuários', href: '/admin/usuarios', icone: <Users className="h-4 w-4 flex-shrink-0" /> },
+  { recurso: 'onboarding', label: 'Onboarding', href: '/admin/onboarding', icone: <ListChecks className="h-4 w-4 flex-shrink-0" /> },
   { recurso: 'parceiros', label: 'Parceiros', href: '/admin/parceiros', icone: <Handshake className="h-4 w-4 flex-shrink-0" /> },
   { recurso: 'comissoes', label: 'Comissões', href: '/admin/comissoes', icone: <Receipt className="h-4 w-4 flex-shrink-0" /> },
   { recurso: 'receita', label: 'Receita', href: '/admin/receita', icone: <Wallet className="h-4 w-4 flex-shrink-0" /> },

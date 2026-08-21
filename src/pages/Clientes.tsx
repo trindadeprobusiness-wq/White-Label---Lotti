@@ -281,7 +281,7 @@ export default function Clientes() {
             descricao={
               comFiltro
                 ? 'Ajuste a busca ou limpe os filtros para ver mais resultados.'
-                : 'Cadastre o primeiro cliente para começar a acompanhar o funil.'
+                : 'Seus próximos negócios começam aqui. Cadastre um contato ou prepare uma importação revisada para começar.'
             }
             acao={
               comFiltro ? (
@@ -292,10 +292,18 @@ export default function Clientes() {
                   Limpar filtros
                 </Button>
               ) : (
-                <Button onClick={() => { setClienteToEdit(null); setDialogOpen(true); }}>
-                  <Plus className="mr-2 h-[18px] w-[18px]" />
-                  Cadastrar cliente
-                </Button>
+                <>
+                  <Button onClick={() => { setClienteToEdit(null); setDialogOpen(true); }}>
+                    <Plus className="mr-2 h-[18px] w-[18px]" />
+                    Cadastrar cliente
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link to="/onboarding?etapa=entrada_dados">
+                      <Upload className="mr-2 h-4 w-4" />
+                      Importar leads
+                    </Link>
+                  </Button>
+                </>
               )
             }
           />
@@ -342,6 +350,7 @@ export default function Clientes() {
                           >
                             {cliente.nome}
                           </Link>
+                          {cliente.is_sample_data && <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-violet-700">Demo</span>}
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -432,6 +441,7 @@ export default function Clientes() {
                     >
                       {cliente.nome}
                     </Link>
+                    {cliente.is_sample_data && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-violet-700">Demonstração</span>}
                     <p className="mt-0.5 truncate text-sm text-muted-foreground">
                       <DadoSensivel valor={cliente.telefone || cliente.email} tipo={cliente.telefone ? 'telefone' : 'email'} />
                     </p>

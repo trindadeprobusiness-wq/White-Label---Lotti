@@ -1,0 +1,65 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { addHours, subMinutes } from 'date-fns';
+import { describe, expect, it, vi } from 'vitest';
+import type { RoutineEvent, RoutineMember, RoutineTask } from '@/types/routine';
+import { RoutineBriefing } from './RoutineBriefing';
+import { RoutineCalendar } from './RoutineCalendar';
+
+const today = new Date();
+const member: RoutineMember = {
+  id: 'member-1', organization_id: 'org-1', user_id: 'user-1', role: 'corretor',
+  status: 'active', team_name: null, unit_name: null, display_name: 'Gabri Teste',
+};
+const event: RoutineEvent = {
+  id: 'event-1', organization_id: 'org-1', assigned_to: 'user-1', created_by: 'user-1',
+  title: 'Visita no Jardim América', description: null, activity_type: 'visita_imovel', status: 'confirmed',
+  priority: 'high', start_at: addHours(today, 1).toISOString(), end_at: addHours(today, 2).toISOString(),
+  all_day: false, timezone: 'America/Sao_Paulo', recurrence_rule: null, location: 'Rua das Flores, 10',
+  visibility: 'team', source: 'lotti', client_id: null, property_id: null, deal_id: null,
+  contract_id: null, rental_id: null, sync_status: 'local', sync_version: 1, completed_at: null,
+  deleted_at: null, created_at: today.toISOString(), updated_at: today.toISOString(),
+};
+const task: RoutineTask = {
+  id: 'task-1', organization_id: 'org-1', assigned_to: 'user-1', created_by: 'user-1',
+  title: 'Enviar documentos', description: null, activity_type: 'documentacao', status: 'todo',
+  priority: 'medium', due_at: subMinutes(today, 1).toISOString(), estimated_minutes: 20,
+  timezone: 'America/Sao_Paulo', recurrence_rule: null, visibility: 'team', source: 'lotti',
+  client_id: null, property_id: null, deal_id: null, contract_id: null, rental_id: null,
+  completed_at: null, deleted_at: null, created_at: today.toISOString(), updated_at: today.toISOString(),
+};
+
+describe('acabamento visual e responsivo da Central de Rotina', () => {
+  it('mantém a linha do tempo navegável no mobile e oferece as quatro visualizações no desktop', () => {
+    const html = renderToStaticMarkup(
+      <RoutineCalendar
+        view="day" onViewChange={vi.fn()} anchor={today} onAnchorChange={vi.fn()}
+        scope="mine" onScopeChange={vi.fn()} canViewTeam onMemberChange={vi.fn()} category="all"
+        onCategoryChange={vi.fn()} members={[member]} events={[event]} tasks={[task]}
+        onCreateAt={vi.fn()} onOpen={vi.fn()} onMoveEvent={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain('overflow-x-auto');
+    expect(html).toContain('min-w-[440px]');
+    expect(html).toContain('>Dia<');
+    expect(html).toContain('>Semana<');
+    expect(html).toContain('>Mês<');
+    expect(html).toContain('>Lista<');
+    expect(html).toContain('aria-label="Visita no Jardim América,');
+  });
+
+  it('prioriza próxima ação, tarefas e captura rápida nessa ordem', () => {
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
+        members={[member]} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+      />,
+    );
+
+    expect(html.indexOf('Próxima ação · Gabri')).toBeLessThan(html.indexOf('Tarefas que pedem ação'));
+    expect(html.indexOf('Tarefas que pedem ação')).toBeLessThan(html.indexOf('Caixa de entrada'));
+    expect(html).toContain('Visita no Jardim América');
+    expect(html).toContain('Enviar documentos');
+  });
+});

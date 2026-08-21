@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, Menu, X, KanbanSquare,
+  LogOut, Sun, Moon, Menu, X, KanbanSquare, CalendarCheck2,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -60,6 +60,7 @@ function montarGrupos(): GrupoNav[] {
       titulo: 'Operação',
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
+        { label: 'Rotina', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
         { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
         { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
         // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.

@@ -47,6 +47,7 @@ export interface Cliente {
   imoveis_interesse: string[];
   created_at: string;
   tracking_data?: Record<string, any>;
+  is_sample_data?: boolean;
 }
 
 export interface Imovel {
@@ -74,6 +75,7 @@ export interface Imovel {
   status_venda?: 'DISPONIVEL' | 'VENDIDO' | 'ALUGADO';
   tracking_data?: Record<string, any>;
   anunciado?: boolean;
+  is_sample_data?: boolean;
 }
 
 export interface Documento {

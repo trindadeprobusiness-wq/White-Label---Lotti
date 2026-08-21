@@ -27,6 +27,21 @@ verify_jwt = false
 [functions.asaas-sync]
 verify_jwt = false
 
+# OAuth do Google volta sem JWT da Lotti; todas as rotas validam sessão, state
+# ou segredo interno dentro da função. Webhook e sync também possuem guards
+# próprios porque o Google não envia Authorization do Supabase.
+[functions.google-calendar-auth]
+verify_jwt = false
+
+[functions.google-calendar-sync]
+verify_jwt = false
+
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+[functions.routine-command]
+verify_jwt = false
+
 # Registro do clique no link do parceiro. Roda ANTES de existir conta — é o
 # primeiro contato do visitante com a Lotti —, então não pode exigir JWT.
 # A validação é o slug: só link ativo de parceiro ativo registra.

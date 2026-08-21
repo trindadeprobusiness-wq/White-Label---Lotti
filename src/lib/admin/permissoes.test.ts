@@ -61,6 +61,11 @@ describe('podeAcessar', () => {
     expect(podeAcessar(['super_admin'], 'configuracoes')).toBe(true);
   });
 
+  it('métricas de onboarding ficam disponíveis para suporte administrativo', () => {
+    expect(podeAcessar(['admin'], 'onboarding')).toBe(true);
+    expect(podeAcessar(['super_admin'], 'onboarding')).toBe(true);
+  });
+
   it('usuário sem papel não acessa nem a visão geral', () => {
     expect(podeAcessar([], 'visao_geral')).toBe(false);
     expect(podeAcessar(null, 'usuarios')).toBe(false);
