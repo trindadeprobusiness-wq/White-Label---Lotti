@@ -405,18 +405,6 @@ export default function Auth() {
           Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade
         </p>
 
-        {/* Acesso administrativo: um link, não um segundo formulário. A
-            autenticação é a mesma; o AdminRoute devolve para cá guardando o
-            destino, e quem tem papel volta direto ao painel. Nenhuma credencial
-            administrativa existe no frontend. */}
-        <p className="mt-2 text-center">
-          <Link
-            to="/admin"
-            className="text-xs text-muted-foreground/70 underline-offset-4 transition-colors hover:text-muted-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          >
-            Acesso administrativo
-          </Link>
-        </p>
       </div>
       </div>
 

@@ -50,8 +50,14 @@ describe('tela de autenticação', () => {
     expect(html).toContain('Mais controle.');
     expect(html).toContain('Mais vendas.');
     expect(html).toContain('text-foreground');
-    expect(html).toContain('text-primary');
+    expect(html).toContain('bg-gradient-to-r');
+    expect(html).toContain('from-primary');
+    expect(html).toContain('bg-clip-text');
+    expect(html).toContain('text-transparent');
+    expect(html).toContain('text-3xl');
+    expect(html).not.toContain('xl:text-5xl');
     expect(html).toContain('num lugar só com a IA');
     expect(html).not.toContain('lugar só — com a IA');
+    expect(html).not.toContain('Acesso administrativo');
   });
 });

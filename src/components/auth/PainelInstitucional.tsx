@@ -24,10 +24,10 @@ export function PainelInstitucional() {
       className="hidden min-h-0 flex-col items-center justify-center gap-9 border-l bg-primary/[0.03] px-10 py-8 lg:flex xl:px-12"
     >
       <div className="max-w-2xl space-y-1 text-center">
-        <h2 className="text-4xl font-black leading-[0.98] tracking-[-0.045em] text-foreground xl:text-5xl">
+        <h2 className="text-3xl font-black leading-tight tracking-[-0.04em] text-foreground xl:text-4xl">
           Mais organização. Mais controle.
         </h2>
-        <p className="text-4xl font-black leading-[0.98] tracking-[-0.045em] text-primary xl:text-5xl">
+        <p className="bg-gradient-to-r from-primary via-emerald-700 to-emerald-400 bg-clip-text text-3xl font-black leading-tight tracking-[-0.04em] text-transparent xl:text-4xl">
           Mais vendas.
         </p>
       </div>

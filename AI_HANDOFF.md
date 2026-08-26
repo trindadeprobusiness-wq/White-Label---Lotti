@@ -77,7 +77,9 @@ estejam concluídas ou corretas.
 - `src/pages/Auth.tsx`: removido o bloco visual de login social e compactado o layout
   desktop para uma única viewport.
 - `src/components/auth/PainelInstitucional.tsx`: título passou a usar preto com destaque
-  verde, em tipografia pesada, e foi removido somente o travessão da frase final.
+  em degradê verde, em tipografia pesada, e foi removido somente o travessão da frase
+  final.
+- Removido o link público `Acesso administrativo` do rodapé do formulário.
 - `src/pages/Auth.visual.test.tsx`: teste de regressão cobre ausência do Google, cores do
   título, texto sem travessão e contenção da viewport.
 - Validação visual em 1920×918 e 1366×768 confirmou `scrollHeight === clientHeight` nas
