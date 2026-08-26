@@ -76,9 +76,9 @@ estejam concluídas ou corretas.
 - Trabalho isolado na branch `codex/auth-one-screen`.
 - `src/pages/Auth.tsx`: removido o bloco visual de login social e compactado o layout
   desktop para uma única viewport.
-- `src/components/auth/PainelInstitucional.tsx`: título passou a usar preto com destaque
-  em degradê verde, em tipografia pesada, e foi removido somente o travessão da frase
-  final.
+- `src/components/auth/PainelInstitucional.tsx`: as duas linhas do título usam degradê
+  horizontal `#093323` → `#000000`, em tamanho reduzido e tipografia pesada; foi
+  removido somente o travessão da frase final.
 - Removido o link público `Acesso administrativo` do rodapé do formulário.
 - `src/pages/Auth.visual.test.tsx`: teste de regressão cobre ausência do Google, cores do
   título, texto sem travessão e contenção da viewport.
