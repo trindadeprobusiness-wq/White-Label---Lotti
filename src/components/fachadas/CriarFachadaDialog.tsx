@@ -144,38 +144,48 @@ export function CriarFachadaDialog({
 
       // Upload do template customizado
       if (templateId === 'custom' && customTemplateFile) {
+        // O corretor vem ANTES do upload: a policy de storage escopa a gravação
+        // por `fachadas/<corretor_id>/`, então o caminho precisa carregá-lo.
+        const { data: corretorId } = await supabase.rpc('get_corretor_id');
+        if (!corretorId) {
+          throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
+        }
+
         const ext = customTemplateFile.name.split('.').pop();
         const fileName = `fachada-template-${Date.now()}.${ext}`;
-        const result = await upload(customTemplateFile, `fachadas/${fileName}`);
-        if (result?.url) {
-          finalTemplateId = result.url;
-          
-          try {
-            const { data: corretorId } = await supabase.rpc('get_corretor_id');
-            if (corretorId) {
-              // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
-              // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
-              await (supabase as any).from('fachada_templates').insert({
-                corretor_id: corretorId,
-                nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
-                categoria: tipoNegocio,
-                padrao: false,
-                config: {
-                  imagem_url: result.url,
-                  qrPosition: { x: qrPosition.x, y: qrPosition.y },
-                  qrSize: qrSizePercent,
-                  corPrimaria: '#000000',
-                  corSecundaria: '#ffffff',
-                  corTexto: '#ffffff',
-                  corFundo: '#000000',
-                  estilo: 'profissional',
-                  layout: 'vertical',
-                },
-              } as any);
-            }
-          } catch (e) {
-            console.error('Erro ao salvar template avulso:', e);
-          }
+        const result = await upload(customTemplateFile, `fachadas/${corretorId}/${fileName}`);
+        // Sem arte não há fachada personalizada. Seguir em silêncio deixaria
+        // `finalTemplateId` como a string 'custom', que não é um template.
+        if (!result?.url) throw new Error('Não foi possível enviar a arte do template.');
+
+        finalTemplateId = result.url;
+
+        try {
+          // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
+          // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
+          await (supabase as any).from('fachada_templates').insert({
+            corretor_id: corretorId,
+            nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
+            categoria: tipoNegocio,
+            padrao: false,
+            config: {
+              imagem_url: result.url,
+              qrPosition: { x: qrPosition.x, y: qrPosition.y },
+              qrSize: qrSizePercent,
+              corPrimaria: '#000000',
+              corSecundaria: '#ffffff',
+              corTexto: '#ffffff',
+              corFundo: '#000000',
+              estilo: 'profissional',
+              layout: 'vertical',
+            },
+          } as any);
+        } catch (e) {
+          // Aqui o catch é intencional e diferente do outro caso: a fachada já
+          // tem a arte pelo `finalTemplateId`, e ela funciona mesmo que o
+          // template não fique salvo na biblioteca para reuso. Falhar a criação
+          // inteira por causa do reuso seria pior para quem está criando.
+          console.error('Erro ao salvar template avulso na biblioteca:', e);
         }
       }
 

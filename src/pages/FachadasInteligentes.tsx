@@ -24,6 +24,16 @@ import { PageHeader } from '@/components/shell/PageHeader';
 import { MetricStrip, SectionCard } from '@/components/shell/primitivos';
 import { abasSublinhadas } from '@/components/shell/primitivos';
 import { LimitGuard } from '@/components/subscription/LimitGuard';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * `fachada_templates` nao esta no `types.ts` gerado (que cobre 11 das ~40
+ * tabelas do projeto). Em vez de espalhar `as any` por tres chamadas, o acesso
+ * passa por um cliente sem o generico de schema — mesmo padrao ja usado em
+ * `hooks/crm/useCrm.ts` e em `CriarFachadaDialog`. Some quando os tipos forem
+ * regerados.
+ */
+const db = () => supabase as unknown as SupabaseClient;
 
 interface CustomTemplate {
   id: string;
@@ -143,7 +153,7 @@ export default function FachadasInteligentes() {
       const { data: corretorId } = await supabase.rpc('get_corretor_id');
       if (!corretorId) return;
 
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from('fachada_templates')
         .select('*')
         .eq('corretor_id', corretorId)
@@ -204,46 +214,60 @@ export default function FachadasInteligentes() {
     setSavingTemplate(true);
 
     try {
-      const ext = templateFile.name.split('.').pop();
-      const fileName = `fachada-template-custom-${Date.now()}.${ext}`;
-      const result = await upload(templateFile, `fachadas/${fileName}`);
-      if (!result?.url) throw new Error('Falha no upload');
-
-      // Try to save to fachada_templates table
-      try {
-        const { data: corretorId } = await supabase.rpc('get_corretor_id');
-        if (corretorId) {
-          await supabase.from('fachada_templates').insert({
-            corretor_id: corretorId,
-            nome: templateNome.trim(),
-            categoria: 'VENDA',
-            padrao: false,
-            config: {
-              imagem_url: result.url,
-              corPrimaria: '#000000',
-              corSecundaria: '#ffffff',
-              corTexto: '#ffffff',
-              corFundo: '#000000',
-              estilo: 'profissional',
-              layout: 'vertical',
-              qrPosition: { x: qrPosition.x, y: qrPosition.y },
-              qrSize: qrSizePercent,
-            },
-          } as any);
-        }
-      } catch {
-        // Table might not exist — template still works via URL
+      // O corretor é resolvido ANTES do upload porque o caminho precisa
+      // carregá-lo: a policy de storage escopa a gravação por
+      // `fachadas/<corretor_id>/`. Buscar o id depois era tarde demais — foi
+      // essa ordem que deixou o caminho sem dono e fez a RLS negar todo envio.
+      const { data: corretorId } = await supabase.rpc('get_corretor_id');
+      if (!corretorId) {
+        throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
       }
 
-      // Add to local state immediately
+      const ext = templateFile.name.split('.').pop();
+      const fileName = `fachada-template-custom-${Date.now()}.${ext}`;
+      const result = await upload(templateFile, `fachadas/${corretorId}/${fileName}`);
+      if (!result?.url) throw new Error('Falha no upload');
+
+      // O erro desta gravação NÃO é mais engolido. Antes era, e a tela dizia
+      // "Template salvo com sucesso!" mesmo sem nada ter sido gravado: o
+      // template aparecia na lista vindo só do estado local e sumia no primeiro
+      // reload. Falhar visivelmente é melhor que perder em silêncio.
+      const { data: salvo, error: erroInsert } = await db()
+        .from('fachada_templates')
+        .insert({
+          corretor_id: corretorId,
+          nome: templateNome.trim(),
+          categoria: 'VENDA',
+          padrao: false,
+          config: {
+            imagem_url: result.url,
+            corPrimaria: '#000000',
+            corSecundaria: '#ffffff',
+            corTexto: '#ffffff',
+            corFundo: '#000000',
+            estilo: 'profissional',
+            layout: 'vertical',
+            qrPosition: { x: qrPosition.x, y: qrPosition.y },
+            qrSize: qrSizePercent,
+          },
+        } as any)
+        // O genérico tipa a linha devolvida sem `as any`: `db()` perde o
+        // schema, mas o formato deste SELECT é conhecido aqui.
+        .select('id, created_at')
+        .single<{ id: string; created_at: string | null }>();
+
+      if (erroInsert) throw erroInsert;
+
+      // Usa o id real da linha. Antes era `local-<timestamp>`, que não é UUID —
+      // excluir o template recém-criado sem recarregar a página falhava.
       setCustomTemplates((prev) => [
         {
-          id: `local-${Date.now()}`,
+          id: salvo.id,
           nome: templateNome.trim(),
           imagem_url: result.url,
           qrPosition: { x: qrPosition.x, y: qrPosition.y },
           qrSize: qrSizePercent,
-          created_at: new Date().toISOString(),
+          created_at: salvo.created_at ?? new Date().toISOString(),
         },
         ...prev,
       ]);
@@ -275,7 +299,7 @@ export default function FachadasInteligentes() {
     setCustomTemplates((prev) => prev.filter((t) => t.id !== template.id));
     try {
       if (!template.id.startsWith('local-')) {
-        await supabase.from('fachada_templates').delete().eq('id', template.id);
+        await db().from('fachada_templates').delete().eq('id', template.id);
       }
       toast({ title: 'Template removido' });
     } catch {
