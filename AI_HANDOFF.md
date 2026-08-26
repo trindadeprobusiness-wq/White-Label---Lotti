@@ -71,6 +71,18 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-08-26 — Codex (login em uma tela)
+
+- Trabalho isolado na branch `codex/auth-one-screen`.
+- `src/pages/Auth.tsx`: removido o bloco visual de login social e compactado o layout
+  desktop para uma única viewport.
+- `src/components/auth/PainelInstitucional.tsx`: título passou a usar preto com destaque
+  verde, em tipografia pesada, e foi removido somente o travessão da frase final.
+- `src/pages/Auth.visual.test.tsx`: teste de regressão cobre ausência do Google, cores do
+  título, texto sem travessão e contenção da viewport.
+- Validação visual em 1920×918 e 1366×768 confirmou `scrollHeight === clientHeight` nas
+  abas Entrar e Cadastrar; o botão Criar Conta permaneceu visível.
+
 ### 2026-08-21 — Codex (branch isolada de autenticação e Lotti AI Gateway)
 
 - Criada e enviada ao GitHub a branch

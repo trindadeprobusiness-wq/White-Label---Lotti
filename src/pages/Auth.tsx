@@ -11,7 +11,6 @@ import { Loader2, Building2, Mail, Lock, User, Phone, CreditCard, Eye, EyeOff } 
 import { z } from 'zod';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PainelInstitucional } from '@/components/auth/PainelInstitucional';
-import { BotoesSociais } from '@/components/auth/BotoesSociais';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { nomeParceiroIndicador } from '@/lib/admin/atribuicao';
 import { formatarCNPJ } from '@/lib/validators';
@@ -161,12 +160,12 @@ export default function Auth() {
   return (
     // Duas colunas no desktop; no celular só o formulário — quem abre o login
     // quer entrar, não ler material institucional.
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="flex items-center justify-center p-4 lg:p-12">
+    <div className="min-h-dvh grid bg-background lg:h-dvh lg:grid-cols-2 lg:overflow-hidden">
+      <div className="flex items-center justify-center p-4 lg:min-h-0 lg:px-10 lg:py-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <LottiLogo variant="full" className="text-4xl mb-4" />
+        <div className="mb-4 flex flex-col items-center lg:mb-3">
+          <LottiLogo variant="full" className="text-4xl" />
         </div>
 
         {/* Sem isto o clique em "Acesso administrativo" era invisível: quem
@@ -198,21 +197,21 @@ export default function Auth() {
 
         <Card className="border-border/50 shadow-xl">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <CardHeader className="pb-4">
+            <CardHeader className="p-4 pb-3 lg:px-5 lg:pt-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Entrar</TabsTrigger>
                 <TabsTrigger value="signup">Cadastrar</TabsTrigger>
               </TabsList>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="p-4 pt-0 lg:px-5 lg:pb-5">
               <TabsContent value="login" className="mt-0">
                 <CardTitle className="text-xl mb-2">Bem-vindo de volta!</CardTitle>
-                <CardDescription className="mb-6">
+                <CardDescription className="mb-4">
                   Entre com suas credenciais para acessar o sistema
                 </CardDescription>
 
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleLogin} className="space-y-3.5">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
                     <div className="relative">
@@ -285,18 +284,15 @@ export default function Auth() {
                   </Button>
                 </form>
 
-                <div className="mt-4">
-                  <BotoesSociais desabilitado={isLoading} />
-                </div>
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0">
                 <CardTitle className="text-xl mb-2">Crie sua conta</CardTitle>
-                <CardDescription className="mb-6">
+                <CardDescription className="mb-4">
                   Preencha os dados abaixo para começar a usar a Lotti
                 </CardDescription>
 
-                <form onSubmit={handleSignup} className="space-y-4">
+                <form onSubmit={handleSignup} className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="signup-nome">Nome Completo</Label>
                     <div className="relative">
@@ -405,7 +401,7 @@ export default function Auth() {
           </Tabs>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade
         </p>
 
@@ -413,7 +409,7 @@ export default function Auth() {
             autenticação é a mesma; o AdminRoute devolve para cá guardando o
             destino, e quem tem papel volta direto ao painel. Nenhuma credencial
             administrativa existe no frontend. */}
-        <p className="mt-4 text-center">
+        <p className="mt-2 text-center">
           <Link
             to="/admin"
             className="text-xs text-muted-foreground/70 underline-offset-4 transition-colors hover:text-muted-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
