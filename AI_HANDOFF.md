@@ -1200,5 +1200,10 @@ credencial); nao foi contornada.
 - Smoke remoto: `asaas-conexao` e `asaas-sync` sem sessão retornaram 401,
   `asaas-webhook` sem token retornou 401 e o preflight CORS do domínio oficial
   retornou 200.
-- Pendente nesta entrada: commit/push da entrega e confirmação do deploy do frontend
-  na Vercel.
+- Prova RLS com os dois contextos autenticados ativos de produção: o dono da conexão
+  herdada enxerga uma linha e a outra operação enxerga zero. O teste retornou apenas
+  contagens e a função auxiliar existiu somente em `pg_temp` durante a conexão.
+- Commit `5fdfdfc` enviado à `main`. O deployment Git correspondente ficou `READY`
+  na Vercel com os aliases oficiais; `/`, `/sobre` e
+  `/configuracoes?tab=asaas` responderam 200, e o chunk público do novo painel Asaas
+  respondeu 200 contendo a ação de conexão e a chave mascarada.
