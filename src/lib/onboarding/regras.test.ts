@@ -14,6 +14,7 @@ describe('regras do onboarding', () => {
       'persona',
       'perfil',
       'objetivo',
+      'asaas',
       'entrada_dados',
       'primeiro_imovel',
       'primeiro_cliente',
@@ -37,8 +38,16 @@ describe('regras do onboarding', () => {
   it('inclui configuração da empresa e equipe somente no caminho gestor', () => {
     const etapas = etapasDaPersona('gestor_imobiliaria');
     expect(etapas).toContain('empresa');
+    expect(etapas).toContain('asaas');
     expect(etapas).toContain('equipe');
     expect(etapas.indexOf('empresa')).toBeLessThan(etapas.indexOf('primeiro_imovel'));
+  });
+
+  it('oferece conexão Asaas a contas próprias, mas não ao usuário convidado', () => {
+    expect(etapasDaPersona('corretor_autonomo')).toContain('asaas');
+    expect(etapasDaPersona('gestor_imobiliaria')).toContain('asaas');
+    expect(etapasDaPersona('profissional_administrativo')).toContain('asaas');
+    expect(etapasDaPersona('usuario_convidado')).not.toContain('asaas');
   });
 
   it('calcula progresso com etapas concluídas e puladas sem ultrapassar 100%', () => {

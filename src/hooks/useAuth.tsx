@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
+import { isolarTrocaDeSessao } from '@/lib/auth/isolamentoSessao';
 import {
   deveRegistrarAtividade,
   marcarAtividadeRegistrada,
@@ -94,16 +96,25 @@ async function reivindicarAtribuicaoDeParceiro(): Promise<void> {
  * o spinner até a sessão resolver de novo.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const ultimoUsuarioId = useRef<string | null | undefined>(undefined);
+
+  const aplicarSessao = useCallback((sessao: Session | null) => {
+    const usuarioAtual = sessao?.user.id ?? null;
+    isolarTrocaDeSessao(ultimoUsuarioId.current, usuarioAtual, queryClient);
+    ultimoUsuarioId.current = usuarioAtual;
+    setSession(sessao);
+    setUser(sessao?.user ?? null);
+  }, [queryClient]);
 
   useEffect(() => {
     // O listener vem antes do getSession para não perder o evento que chega
     // entre uma coisa e outra.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((evento, sessao) => {
-      setSession(sessao);
-      setUser(sessao?.user ?? null);
+      aplicarSessao(sessao);
       setLoading(false);
 
       // Efeitos pós-login. Rodam soltos e nunca são aguardados: o callback do
@@ -118,14 +129,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession()
       .then(({ data: { session: sessao }, error }) => {
         if (error) console.error('Erro ao obter sessão:', error);
-        setSession(sessao);
-        setUser(sessao?.user ?? null);
+        aplicarSessao(sessao);
       })
       .catch((e) => console.error('Erro inesperado ao obter sessão:', e))
       .finally(() => setLoading(false));
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [aplicarSessao]);
 
   const signUp = useCallback(async (email: string, password: string, metadata: SignUpMetadata) => {
     const { data, error } = await supabase.auth.signUp({

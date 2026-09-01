@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +66,9 @@ export function BillsList() {
     const [saldoAsaas, setSaldoAsaas] = useState<number | null>(null);
     const [saldoLoading, setSaldoLoading] = useState(true);
     const [saldoNote, setSaldoNote] = useState<string | null>(null);
+    // Diferente de "indisponível": aqui não há conta ligada, e o certo é convidar
+    // a conectar. Mostrar "Indisponível" faria parecer defeito do sistema.
+    const [naoConectado, setNaoConectado] = useState(false);
 
     const referenceMonthStr = format(referenceDate, 'MM/yyyy');
     const refYear = referenceDate.getFullYear();
@@ -697,9 +701,20 @@ export function BillsList() {
             });
             if (error) {
                 let msg = error.message;
-                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
+                let corpo: { error?: string; codigo?: string } | null = null;
+                try { corpo = await error.context?.json(); msg = corpo?.error ?? msg; } catch { /* ignore */ }
+
+                // Conta Asaas ainda não conectada não é falha: é convite. A decisão
+                // vem do CÓDIGO, não do texto — melhorar a frase não pode quebrar a tela.
+                if (corpo?.codigo === 'ASAAS_NAO_CONECTADO') {
+                    setNaoConectado(true);
+                    setSaldoAsaas(null);
+                    setSaldoNote(null);
+                    return;
+                }
                 throw new Error(msg);
             }
+            setNaoConectado(false);
             if (data?.error) throw new Error(data.error);
             // Saldo indisponível por falta de permissão na chave → nota amigável, não é erro.
             if (data?.unavailable || data?.balance == null) {
@@ -709,6 +724,10 @@ export function BillsList() {
                 setSaldoAsaas(Number(data.balance));
             }
         } catch {
+            // Limpa o estado de "não conectada": sem isto, uma falha de rede
+            // depois de uma conexão bem-sucedida deixaria o cartão pedindo para
+            // conectar uma conta que já está conectada, escondendo o erro real.
+            setNaoConectado(false);
             setSaldoAsaas(null);
             setSaldoNote("Não foi possível carregar o saldo agora.");
         } finally {
@@ -775,6 +794,18 @@ export function BillsList() {
                                 <h3 className="text-2xl font-bold text-blue-600 flex items-center h-8">
                                     <Loader2 className="h-5 w-5 animate-spin" />
                                 </h3>
+                            ) : naoConectado ? (
+                                <div className="text-left">
+                                    <span className="text-lg font-semibold text-muted-foreground">
+                                        Conta não conectada
+                                    </span>
+                                    <span className="block text-[10px] text-muted-foreground/80 leading-tight max-w-[15rem] mt-0.5">
+                                        Conecte sua conta Asaas em Configurações para emitir cobranças e ver seu saldo.
+                                    </span>
+                                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" asChild>
+                                        <Link to="/configuracoes?tab=asaas">Conectar agora</Link>
+                                    </Button>
+                                </div>
                             ) : saldoAsaas != null ? (
                                 <h3 className="text-2xl font-bold text-blue-600">
                                     <Dinheiro valor={saldoAsaas} />

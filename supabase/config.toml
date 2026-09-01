@@ -27,6 +27,12 @@ verify_jwt = false
 [functions.asaas-sync]
 verify_jwt = false
 
+# Conexão self-service: recebe a chave apenas sobre HTTPS e valida a sessão
+# dentro da função antes de cifrar/persistir. verify_jwt fica desligado no
+# gateway pelo mesmo motivo de asaas-sync; a validação não foi removida.
+[functions.asaas-conexao]
+verify_jwt = false
+
 # OAuth do Google volta sem JWT da Lotti; todas as rotas validam sessão, state
 # ou segredo interno dentro da função. Webhook e sync também possuem guards
 # próprios porque o Google não envia Authorization do Supabase.

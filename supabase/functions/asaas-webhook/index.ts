@@ -1,25 +1,12 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { decifrar } from "../_shared/asaas-crypto.ts";
+import { resolverOrigem } from "../_shared/asaas-origem.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Comparação em tempo constante via digests SHA-256 (evita timing attack no token)
-async function tokenValido(fornecido: string | null, esperado: string): Promise<boolean> {
-    if (!fornecido) return false;
-    const enc = new TextEncoder();
-    const [a, b] = await Promise.all([
-        crypto.subtle.digest('SHA-256', enc.encode(fornecido)),
-        crypto.subtle.digest('SHA-256', enc.encode(esperado)),
-    ]);
-    const va = new Uint8Array(a);
-    const vb = new Uint8Array(b);
-    let diff = 0;
-    for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
-    return diff === 0;
-}
 
 async function sha256Hex(input: string): Promise<string> {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
@@ -31,6 +18,88 @@ function admin() {
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
+}
+
+interface TransferenciaWebhookAsaas {
+    id: string;
+    status?: string | null;
+    externalReference?: string | null;
+    value?: number | null;
+    netValue?: number | null;
+    pixAddressKey?: string | null;
+    cpfCnpj?: string | null;
+    bankAccount?: {
+        pixAddressKey?: string | null;
+        cpfCnpj?: string | null;
+    } | null;
+    effectiveDate?: string | null;
+    dateCreated?: string | null;
+}
+
+interface PagamentoWebhookAsaas {
+    id: string;
+    status?: string | null;
+    value?: number | null;
+    paymentDate?: string | null;
+    creditDate?: string | null;
+    transactionReceiptUrl?: string | null;
+    externalReference?: string | null;
+    dateCreated?: string | null;
+}
+
+interface PayloadWebhookAsaas {
+    id?: string | null;
+    event?: string | null;
+    payment?: PagamentoWebhookAsaas | null;
+    transfer?: TransferenciaWebhookAsaas | null;
+}
+
+interface FaturaWebhook {
+    id: string;
+    corretor_id: string;
+    contrato_id: string;
+    status: string;
+    mes_referencia?: string | null;
+}
+
+/**
+ * De qual inquilino é este evento.
+ *
+ * Com conta Asaas por inquilino, cada corretor cadastra o webhook no painel
+ * DELE. A URL carrega `?t=<webhook_slug>` para que dê para descobrir a origem
+ * antes de conferir o token — o slug é opaco e não autoriza nada sozinho; quem
+ * autoriza é o token cifrado da conexão.
+ *
+ * Sem `?t=` o evento vem do webhook legado, cadastrado quando existia uma conta
+ * só. Ele continua valendo pelo token global e é atribuído a quem herdou a
+ * chave do ambiente. É essa atribuição que tira o `null` da conciliação.
+ */
+async function resolverInquilino(supabase: ReturnType<typeof admin>, req: Request) {
+    let slug: string | null = null;
+    try { slug = new URL(req.url).searchParams.get('t'); } catch { slug = null; }
+
+    return await resolverOrigem({
+        buscarConexaoPorSlug: async (s: string) => {
+            const { data } = await supabase.from('asaas_conexoes')
+                .select('id, corretor_id').eq('webhook_slug', s).maybeSingle();
+            return data ?? null;
+        },
+        buscarTokenCifrado: async (conexaoId: string) => {
+            const { data } = await supabase.from('asaas_conexao_segredos')
+                .select('webhook_token_ciphertext').eq('conexao_id', conexaoId).maybeSingle();
+            return data?.webhook_token_ciphertext ?? null;
+        },
+        decifrar: (c: string) => decifrar(c),
+        tokenGlobal: () => Deno.env.get('ASAAS_WEBHOOK_TOKEN'),
+        buscarHerdada: async () => {
+            const { data } = await supabase.from('asaas_conexoes')
+                .select('corretor_id').eq('herdada_do_ambiente', true).maybeSingle();
+            return data ?? null;
+        },
+    }, {
+        slug,
+        tokenRecebido: req.headers.get('asaas-access-token') ?? req.headers.get('x-hook-token'),
+    });
 }
 
 /** Valor em reais → "R$ 1.840,00", para o texto da notificação. */
@@ -47,7 +116,7 @@ function moedaBR(v: unknown): string {
  * bancária manda o objeto `bankAccount`. Procurar num campo só perderia
  * metade dos casos.
  */
-function chaveDestino(transfer: Record<string, any>): string | null {
+function chaveDestino(transfer: TransferenciaWebhookAsaas): string | null {
     return (
         transfer?.pixAddressKey ??
         transfer?.bankAccount?.pixAddressKey ??
@@ -69,11 +138,12 @@ function chaveDestino(transfer: Record<string, any>): string | null {
  * update.
  */
 async function processarTransferencia(
-    supabase: any,
-    payload: any,
+    supabase: ReturnType<typeof admin>,
+    payload: PayloadWebhookAsaas,
     event: string,
     eventRowId: string,
     finalize: (status: string, extra?: Record<string, unknown>) => Promise<void>,
+    corretorId: string | null,
 ) {
     const transfer = payload?.transfer;
     if (!transfer?.id) {
@@ -91,16 +161,26 @@ async function processarTransferencia(
     // Em trânsito (PENDING, BANK_PROCESSING): registra o estado e espera. Dar
     // baixa aqui marcaria como pago algo que ainda pode falhar.
     if (!concluida && !falhou) {
-        await supabase
+        let atualizacao = supabase
             .from('repasses_proprietario')
             .update({ transferencia_status: situacao, transferencia_payload: payload })
             .eq('external_id', transfer.id);
+        if (corretorId) atualizacao = atualizacao.eq('corretor_id', corretorId);
+        await atualizacao;
         await finalize('PROCESSED');
         return;
     }
 
+    // Escopado ao dono da conta Asaas que enviou o evento.
+    //
+    // Quando a origem não é identificável (webhook legado sem conexão herdada),
+    // vai NULL — e a própria RPC recusa a heurística de valor + chave PIX nesse
+    // caso, devolvendo `heuristica_sem_inquilino`. A proteção mora no SQL, não
+    // aqui, de propósito: recusar o evento inteiro nesta função o deixaria
+    // preso, porque o sweeper só resgata PROCESSING e nunca reprocessa FAILED —
+    // e repasse preso em AGENDADO para sempre é a regressão que 17/08 corrigiu.
     const { data: conciliacao } = await supabase.rpc('conciliar_transferencia_repasse', {
-        _corretor_id: null,
+        _corretor_id: corretorId,
         _transfer_id: transfer.id,
         _external_ref: transfer.externalReference ?? null,
         _valor: transfer.value ?? transfer.netValue ?? null,
@@ -233,12 +313,12 @@ async function processEvent(eventRowId: string) {
         .update({ status: 'PROCESSING' })
         .eq('id', eventRowId)
         .in('status', ['RECEIVED', 'FAILED'])
-        .select('id, event_type, payload')
+        .select('id, event_type, payload, corretor_id, attempts')
         .single();
 
     if (!claimed) return; // outro worker já pegou
 
-    const payload = claimed.payload as any;
+    const payload = claimed.payload as unknown as PayloadWebhookAsaas;
     const event = claimed.event_type as string;
     const payment = payload?.payment;
 
@@ -253,7 +333,7 @@ async function processEvent(eventRowId: string) {
         // abaixo junto com "eventos sem payment" — o PIX saía, o Asaas avisava,
         // e o repasse continuava AGENDADO para sempre.
         if (event.startsWith('TRANSFER_')) {
-            await processarTransferencia(supabase, payload, event, eventRowId, finalize);
+            await processarTransferencia(supabase, payload, event, eventRowId, finalize, claimed.corretor_id ?? null);
             return;
         }
 
@@ -263,16 +343,24 @@ async function processEvent(eventRowId: string) {
             return;
         }
 
-        // Resolve a fatura por external_id; fallback pelo externalReference (= fatura.id)
-        let fatura: any = null;
+        // Resolve a fatura por external_id; fallback pelo externalReference (= fatura.id).
+        // O filtro do tenant entra NA consulta, não apenas na checagem posterior:
+        // dois provedores externos nunca devem poder fazer uma busca atravessar
+        // operações, mesmo se um id remoto colidir ou for conhecido.
+        const donoDoEvento = claimed.corretor_id ?? null;
+        let fatura: FaturaWebhook | null = null;
         {
-            const byExt = await supabase.from('faturas_aluguel')
-                .select('*').eq('external_id', payment.id).maybeSingle();
-            fatura = byExt.data;
+            let consultaPorId = supabase.from('faturas_aluguel')
+                .select('*').eq('external_id', payment.id);
+            if (donoDoEvento) consultaPorId = consultaPorId.eq('corretor_id', donoDoEvento);
+            const byExt = await consultaPorId.maybeSingle();
+            fatura = byExt.data as unknown as FaturaWebhook | null;
             if (!fatura && payment.externalReference) {
-                const byRef = await supabase.from('faturas_aluguel')
-                    .select('*').eq('id', payment.externalReference).maybeSingle();
-                fatura = byRef.data;
+                let consultaPorReferencia = supabase.from('faturas_aluguel')
+                    .select('*').eq('id', payment.externalReference);
+                if (donoDoEvento) consultaPorReferencia = consultaPorReferencia.eq('corretor_id', donoDoEvento);
+                const byRef = await consultaPorReferencia.maybeSingle();
+                fatura = byRef.data as unknown as FaturaWebhook | null;
             }
         }
 
@@ -281,6 +369,19 @@ async function processEvent(eventRowId: string) {
             await finalize('FAILED', {
                 attempts: 1,
                 last_error: `Fatura não encontrada para payment ${payment.id}`,
+            });
+            return;
+        }
+
+        // A fatura tem de pertencer ao dono da conta Asaas que mandou o evento.
+        // `external_id` é único global, então divergir aqui significa conta trocada
+        // — e dar a fatura como paga nesse caso credita o aluguel de um inquilino
+        // com o dinheiro que entrou na conta de outro. Fica FAILED para inspeção,
+        // nunca silenciosamente processado.
+        if (donoDoEvento && fatura.corretor_id !== donoDoEvento) {
+            await finalize('FAILED', {
+                attempts: 1,
+                last_error: `Pagamento ${payment.id} veio de outra conta Asaas que não a dona da fatura`,
             });
             return;
         }
@@ -374,7 +475,7 @@ async function processEvent(eventRowId: string) {
     } catch (err) {
         console.error('processEvent error:', err);
         await finalize('FAILED', {
-            attempts: (claimed as any).attempts ? (claimed as any).attempts + 1 : 1,
+            attempts: claimed.attempts ? Number(claimed.attempts) + 1 : 1,
             last_error: err instanceof Error ? err.message : String(err),
         });
     }
@@ -386,24 +487,22 @@ serve(async (req) => {
     }
 
     try {
-        // 1. Valida o token do webhook (header que o Asaas realmente envia)
-        const requestToken = req.headers.get('asaas-access-token') ?? req.headers.get('x-hook-token');
-        const secretToken = Deno.env.get('ASAAS_WEBHOOK_TOKEN');
-        if (!secretToken) {
-            console.error("ASAAS_WEBHOOK_TOKEN não configurado");
-            return new Response(JSON.stringify({ error: "Server misconfiguration" }), {
-                status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        // 1. Autentica E identifica de quem é o evento, na mesma passada. Com uma
+        //    conta por inquilino as duas perguntas deixaram de ser separáveis: o
+        //    token que prova a origem é o token DAQUELA conexão.
+        const supabaseAuth = admin();
+        const origem = await resolverInquilino(supabaseAuth, req);
+        if (!origem.ok) {
+            console.error("Webhook recusado:", origem.motivo);
+            const status = origem.motivo.includes('não configurado') ? 500 : 401;
+            return new Response(JSON.stringify({ error: status === 500 ? "Server misconfiguration" : "Unauthorized" }), {
+                status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
-        if (!(await tokenValido(requestToken, secretToken))) {
-            console.error("Invalid Webhook Token");
-            return new Response(JSON.stringify({ error: "Unauthorized" }), {
-                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-        }
+        const corretorDaOrigem = origem.corretorId;
 
         // 2. Parse do payload
-        const payload = await req.json();
+        const payload = await req.json() as PayloadWebhookAsaas;
         const event: string = payload?.event ?? 'UNKNOWN';
         const payment = payload?.payment;
 
@@ -431,6 +530,10 @@ serve(async (req) => {
                 payment_id: payment?.id ?? null,
                 payload,
                 status: 'RECEIVED',
+                // Gravado já na entrada, não só depois de achar a fatura: é o que
+                // permite escopar a conciliação de transferência, que não tem
+                // fatura nenhuma de onde deduzir o dono.
+                corretor_id: corretorDaOrigem,
             })
             .select('id')
             .maybeSingle();
@@ -447,7 +550,7 @@ serve(async (req) => {
 
         // 5. Responde 200 IMEDIATAMENTE; processa em background (fila do Asaas nunca pausa)
         if (inserted?.id) {
-            // @ts-ignore EdgeRuntime é global no runtime do Supabase
+            // @ts-expect-error EdgeRuntime é global apenas no runtime do Supabase
             EdgeRuntime.waitUntil(processEvent(inserted.id));
         }
 

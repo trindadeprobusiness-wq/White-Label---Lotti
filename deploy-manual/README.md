@@ -202,11 +202,52 @@ o id do repasse ao criar a transferência no painel do Asaas — aí cai no caso
    `parceiro-clique` não está publicada ou está com "Verify JWT" ligado.
    Conferir no SQL Editor: `SELECT count(*) FROM parceiro_cliques;` deve ter subido.
 
+## ⚠ Conta Asaas por inquilino — os bundles desta pasta estão DESATUALIZADOS
+
+`deploy-manual/asaas-sync.ts` (11/08) e `deploy-manual/asaas-webhook.ts` (19/08)
+são cópias inline **anteriores** à mudança de conta por inquilino: ainda leem a
+`ASAAS_API_KEY` global. Colá-los depois de rodar
+`asaas-CONTA-POR-INQUILINO.sql` cria o pior estado possível — o banco passa a
+esperar credencial por inquilino, o código continua usando a conta-mãe, e o
+vazamento segue aberto com aparência de resolvido.
+
+As funções novas dependem de quatro módulos compartilhados
+(`_shared/asaas.ts`, `_shared/asaas-conexao.ts`, `_shared/asaas-crypto.ts`,
+`_shared/asaas-origem.ts`), então
+**não dá para publicá-las colando um arquivo só**. Use o Supabase CLI:
+
+```
+supabase functions deploy asaas-sync
+supabase functions deploy asaas-webhook
+supabase functions deploy asaas-conexao
+```
+
+Ordem obrigatória: **secrets → SQL → funções**. Publicar a função antes de
+`ASAAS_TOKEN_ENCRYPTION_KEY` existir derruba toda emissão de cobrança.
+
+`asaas-conexao` é a função do onboarding e de **Configurações → Asaas**. Ela
+recebe a chave apenas na requisição autenticada, valida a conta, cifra o segredo
+e cria/atualiza o webhook por inquilino. Sem o deploy dessa terceira função, o
+isolamento fail-closed funciona, mas o usuário novo não consegue concluir a
+conexão sozinho.
+
 ## Variáveis que as funções esperam
 
 Já devem estar configuradas (as funções rodam hoje), mas para referência —
 Dashboard → Edge Functions → Secrets:
 
-- `ASAAS_API_KEY`, `ASAAS_BASE_URL` (opcional, default produção)
+- `ASAAS_TOKEN_ENCRYPTION_KEY` — **novo e obrigatório** desde
+  `asaas-CONTA-POR-INQUILINO.sql`. 32 bytes (`openssl rand -hex 32`). Cifra a
+  chave Asaas de cada inquilino. Tem de ser **diferente** de
+  `META_TOKEN_ENCRYPTION_KEY`: chave compartilhada entre integrações transforma
+  o vazamento de uma no vazamento de todas. Sem ela, `asaas-sync` falha ao
+  decifrar e nenhuma cobrança é emitida.
+- `ASAAS_API_KEY` — deixou de valer para todos. Agora atende **só** o inquilino
+  marcado como herdado no banco; os demais conectam a própria conta pelo
+  produto. Remover quando a conta herdada rotacionar a chave.
+- `ASAAS_BASE_URL` (opcional, default produção; ignorado em sandbox)
+- `ASAAS_PERMITIR_CHAVE_GLOBAL` (opcional) — `"true"` religa a chave global para
+  todos os inquilinos. É a válvula de reversão sem redeploy e **reabre o
+  vazamento**; nasce desligada e deve voltar a desligar.
 - `GEMINI_API_KEY`
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`

@@ -21,7 +21,25 @@ interface e o schema que existe no Supabase.
 
 ## Estado verificado
 
-Última leitura: **2026-08-12 — Codex**.
+Última leitura: **2026-09-01 — Codex**.
+
+Diagnóstico da exclusão de boleto em produção:
+
+- O Dashboard do Supabase mostrou `asaas-sync` publicada há 19 dias, anterior ao
+  commit de 2026-08-20 que adicionou `excluir_cobranca`. A função remota antiga
+  rejeita essa ação no allowlist com HTTP 400 `Requisição inválida`, exatamente o
+  erro mostrado pela interface.
+- `supabase/functions/asaas-sync/index.ts` agora consulta o estado externo, exige
+  confirmação `deleted: true` do Asaas e somente depois marca a fatura local como
+  `CANCELADO`; falhas externas deixam a fatura visível e propagam o erro.
+- `supabase/functions/_shared/excluir-cobranca.ts` centraliza a exclusão segura e
+  idempotente para 404, `deleted: true` e status `DELETED`, além de bloquear cobrança
+  já paga/confirmada.
+- `supabase/functions/_shared/excluir-cobranca.test.ts` cobre sete cenários de
+  sucesso, falha, pagamento e repetição da operação.
+- A atualização está preparada no editor do Dashboard do Supabase, mas o botão final
+  de confirmação ainda não foi acionado; o próprio Dashboard avisa que a publicação
+  altera imediatamente a função live e não oferece rollback automático.
 
 Correção de cobrança Asaas concluída nesta leitura:
 
@@ -52,6 +70,12 @@ estejam concluídas ou corretas.
 
 ## Validação conhecida
 
+- `npm test`: **351/351 passaram** em 2026-08-31.
+- `npm run build`: **passou** (4556 módulos) em 2026-08-31.
+- Bundle de `supabase/functions/asaas-sync/index.ts` com esbuild: **passou**.
+- ESLint dos dois arquivos novos: **passou**; os 3 `no-explicit-any` do index da
+  função são idênticos aos 3 já presentes no `HEAD`.
+- `git diff --check`: **passou**.
 - `package.json` oferece: `npm run typecheck`, `npm test`, `npm run build` e `npm run lint`.
 - `npm test -- --run supabase/functions/_shared/telefone.test.ts`: **8/8 passaram**.
 - `npm run build`: **passou** (4466 módulos).
@@ -63,13 +87,36 @@ estejam concluídas ou corretas.
 
 ## Próximos passos sugeridos
 
-1. Rodar o teste específico de `src/lib/crm/historico.test.ts`.
-2. Rodar `npm run typecheck` e `npm run build`.
-3. Corrigir somente erros introduzidos por este conjunto de mudanças; separar baseline.
-4. Revisar a migration do inbox contra o schema e os tipos atuais do Supabase.
-5. Testar manualmente: abrir cliente, carregar timeline e registrar contato/WhatsApp.
+1. Confirmar o deploy preparado de `asaas-sync` no Dashboard do Supabase.
+2. Após o deploy, fazer smoke sem sessão (401 esperado) e repetir a exclusão da
+   cobrança indicada pelo usuário, conferindo o cancelamento também no Asaas.
+3. Rodar o teste específico de `src/lib/crm/historico.test.ts`.
+4. Rodar `npm run typecheck` e `npm run build`.
+5. Corrigir somente erros introduzidos por este conjunto de mudanças; separar baseline.
+6. Revisar a migration do inbox contra o schema e os tipos atuais do Supabase.
+7. Testar manualmente: abrir cliente, carregar timeline e registrar contato/WhatsApp.
 
 ## Diário de handoff
+
+### 2026-08-31 — Codex (acesso de teste no Supabase Auth)
+
+- Supabase CLI autenticado localmente e projeto de produção vinculado, sem gravar
+  chaves no repositório ou exibi-las na saída.
+- Conta de teste solicitada foi atualizada pela API administrativa, com e-mail
+  confirmado e perfil correspondente em `corretores` preservado.
+- Smoke test real com `signInWithPassword` retornou sessão válida; a sessão usada no
+  teste foi encerrada em seguida. Nenhuma credencial foi registrada neste handoff.
+
+### 2026-08-31 — Codex (exclusão segura de boleto Asaas)
+
+- Identificado descompasso entre frontend e Edge Function publicada: a interface já
+  enviava `excluir_cobranca`, mas produção ainda executava versão anterior à ação.
+- Implementada proteção para nunca ocultar/cancelar somente no banco uma cobrança que
+  continue ativa no Asaas; links de boleto e PIX são limpos após confirmação externa.
+- Validações: 351/351 testes, build, bundle da função, lint dos arquivos novos e
+  `git diff --check` passaram.
+- Pendente confirmação humana no aviso final do Dashboard e teste destrutivo da
+  cobrança real indicada nas imagens.
 
 ### 2026-08-26 — Codex (login em uma tela)
 
@@ -866,3 +913,292 @@ console.
 - Pendente apenas homologação interativa: o próprio usuário deve autorizar a conta
   Google em **Configurações → Agenda**; essa etapa de consentimento não pode ser
   executada em nome do titular.
+
+### 2026-08-31 — Claude (conta Asaas por inquilino — contencao)
+
+Branch **`fix/asaas-por-inquilino`**, criada de `main`. Nada commitado, nada
+publicado. O trabalho nao commitado do Codex (`excluir-cobranca.ts` +
+`asaas-sync`) foi preservado e esta na arvore junto.
+
+**Sobre o Git, porque mexeu no seu estado.** Durante esta sessao algo commitou a
+arvore de `feat/ui-responsivo` como `f1af885` ("Implement contract management
+workflow", 76 arquivos, 8830 insercoes) e trocou para `main`. O reflog registra o
+que e quando; nao registra quem. Nada se perdeu: os 76 arquivos estao em
+`f1af885` e `feat/ui-responsivo` aponta para ele.
+
+**O defeito.** `_shared/asaas.ts:18` lia uma `ASAAS_API_KEY` global, sem
+parametro de inquilino. Nao era so o saldo compartilhado da tela: `asaas-sync`
+faz `POST /payments` e `POST /customers`, entao um corretor novo criava a
+cobranca DENTRO da conta da imobiliaria-piloto e o aluguel do cliente dele caia
+la. Custodia de dinheiro de terceiro, anterior a discussao de interface.
+
+**O desenho** copia o precedente da Meta (`meta_connection_secrets`), que resolveu
+o mesmo problema neste repo: `asaas_conexoes` guarda metadado com RLS por
+corretor; `asaas_conexao_segredos` guarda a chave cifrada em tabela com RLS
+ligada e NENHUMA policy, mais REVOKE — inalcancavel pela Data API ate para o
+dono. Cifra AES-256-GCM em `_shared/asaas-crypto.ts`, com chave
+`ASAAS_TOKEN_ENCRYPTION_KEY` **propria**, nunca a da Meta.
+
+**A heranca sem segredo em SQL.** A migration nao grava chave: marca
+`herdada_do_ambiente` para quem ja emitiu cobranca, e a fabrica resolve essa
+linha para a `ASAAS_API_KEY` do ambiente. Quem herda e deduzido de evidencia
+(`faturas_aluguel.external_id` preenchido) e so quando ha **exatamente um**
+candidato — com zero ou 2+, ninguem herda e todos conectam a propria chave.
+Adivinhar ali reabriria o vazamento.
+
+**Dois furos que a revisao pegou no meu proprio codigo, ambos corrigidos:**
+
+1. **Escalacao de privilegio pela Data API.** A policy que chamei de "atualiza o
+   passo do guia" liberava UPDATE de TODAS as colunas da propria linha — RLS
+   decide linha, nao coluna. O corretor podia marcar `herdada_do_ambiente = true`
+   em si mesmo e passar a usar a chave da conta-mae. O indice unico parcial so
+   barra isso quando ja existe outra linha herdada, ou seja, nao barra nada no
+   caso de ninguem ter herdado. Fechado com `REVOKE ALL` +
+   `GRANT SELECT` + `GRANT UPDATE (passo_guia)`.
+2. **Fail-open na conciliacao de repasse.** No webhook legado sem conexao
+   herdada, o inquilino vinha nulo e desligava o escopo: o criterio de valor +
+   chave PIX voltava a varrer a base inteira, e os dois valores sao adivinhaveis
+   (aluguel redondo, chave PIX e CPF/CNPJ/telefone). Um `TRANSFER_DONE` forjado
+   confirmaria repasse de qualquer corretor sem dinheiro nenhum ter saido.
+
+   **Minha primeira correcao estava errada e o code review pegou.** Eu fiz o
+   webhook recusar o evento com FAILED "para o sweeper reprocessar". O sweeper
+   NAO faz isso: `sweeper-webhook-events`
+   (`20260708150000_asaas_core_financeiro.sql:412-415`) so devolve `PROCESSING`
+   parado ha 10 min para `RECEIVED`, e nunca toca em `FAILED`. A correcao
+   trocava um furo de seguranca por uma regressao funcional — repasse preso em
+   AGENDADO para sempre, exatamente o bug que 17/08 consertou.
+
+   A correcao boa mora no SQL: a migration redefine
+   `conciliar_transferencia_repasse` para recusar **so o criterio heuristico**
+   quando `_corretor_id IS NULL`, devolvendo `heuristica_sem_inquilino`. Os
+   criterios 1 e 2 (id da transferencia, UUID do repasse) seguem valendo, porque
+   sao precisos e nao enumeraveis. O evento volta ao caminho IGNORED de sempre e
+   nao fica preso. O criterio 1 tambem ganhou o filtro por inquilino, que nao
+   tinha.
+
+O caminho de PAGAMENTO ficou de proposito sem recusa por origem: casa por
+`external_id`, que e unico global e nao enumeravel, entao o proprio achado ja
+identifica o dono. Ha uma conferencia redundante `fatura.corretor_id !==
+donoDoEvento` quando a origem E conhecida.
+
+**Outros achados do code review, corrigidos:** a credencial era resolvida antes
+de ler o corpo da requisicao, o que fazia acoes que nem falam com a Asaas
+exigirem conta conectada (dar baixa em fatura nunca emitida passava a estourar
+409) — agora o cliente e preguicoso e so nasce no primeiro uso real;
+`conexao.status` era lido e nunca verificado, entao chave ja recusada pela Asaas
+virava 502 em vez do convite a reconectar; e `naoConectado` no `BillsList` nao
+era limpo no catch, entao uma falha de rede posterior deixava o cartao pedindo
+para conectar uma conta ja conectada.
+
+**Achado do review que NAO corrigi, por ser de outro autor:**
+`_shared/excluir-cobranca.ts:28` lanca `Error` cru para cobranca ja paga, o que
+vira HTTP 500 em vez do 409 que os irmaos usam. E trabalho nao commitado do
+Codex; nao mexi.
+
+`resolverOrigem` foi extraida para `_shared/asaas-origem.ts` porque
+`asaas-webhook/index.ts` chama `serve()` no topo e nao pode ser importado por
+teste — o portao que decide de quem e o dinheiro precisava de cobertura.
+
+**Validacoes.** `npm test` **390/390** (351 da baseline + 39 novos: cifra 12,
+precedencia da credencial 14, origem do webhook 13). `npm run typecheck`
+**64 — a baseline desta branch, nenhum novo**. ESLint em `BillsList.tsx`
+**34 = 34 contra o HEAD** (um `any` que eu havia somado foi tipado). Build OK.
+As duas migrations passam no parser real do PostgreSQL (22 e 23 instrucoes).
+
+**Nao validado, e importante saber:** Deno nao esta instalado, entao
+`asaas-sync/index.ts` e `asaas-webhook/index.ts` **nao foram type-checked** —
+so passaram por parse de sintaxe (esbuild). `tsconfig.app.json` tem
+`include: ["src"]`, entao Edge Function nunca entra no `tsc`. Docker e psql
+tambem ausentes: a migration nao foi aplicada em banco real, so parseada.
+
+**Pendencias de ativacao — nada disso funciona ate serem feitas:**
+
+1. Gerar `ASAAS_TOKEN_ENCRYPTION_KEY` (`openssl rand -hex 32`) nos secrets,
+   DIFERENTE de `META_TOKEN_ENCRYPTION_KEY`.
+2. Rodar `deploy-manual/asaas-CONTA-POR-INQUILINO.sql`. O BLOCO 2 devolve 15
+   linhas de conferencia, todas devendo sair `OK`.
+3. Publicar `asaas-sync` e `asaas-webhook` **pelo CLI**. Os bundles em
+   `deploy-manual/*.ts` sao de 11/08 e 19/08, ainda com a chave global: cola-los
+   aplicaria SQL novo com codigo velho e o vazamento seguiria aberto parecendo
+   resolvido. As funcoes agora dependem de tres modulos `_shared`, entao nao ha
+   arquivo unico para colar.
+4. **Rotacao da chave: NAO proposta, por decisao registrada do usuario em
+   2026-07-21** — manter a chave atual em uso, guardada e nao exposta. A conexao
+   herdada nasce com `rotacao_pendente = false` por isso. A coluna existe para
+   quando alguem pedir a troca, nao para insistir nela.
+
+**Fora desta entrega:** o Commit 2 (tela de conectar em Configuracoes, Edge
+Function `asaas-conexao`, guia em passos) nao foi feito — sem ele, um inquilino
+novo ve "conta nao conectada" mas ainda nao tem por onde conectar. E
+`20260825090000_fix_get_corretor_id_suspensao.sql` **nao existe nesta base**: a
+regressao que torna a suspensao de corretor decorativa segue aberta na `main`.
+
+### 2026-09-01 — Claude (Commit 2 verificado; SQL de deploy ressincronizado)
+
+O Commit 2 (tela de conectar) **ja existia na arvore** quando retomei — feito em
+paralelo por outro agente ou pelo usuario: `supabase/functions/asaas-conexao/`,
+`_shared/asaas-conexao.ts`, `src/hooks/useAsaasConnection.ts`,
+`src/components/configuracoes/AsaasConnectionPanel.tsx` e a 5a aba em
+`Configuracoes.tsx`. Nao dupliquei nem reescrevi nada; revisei e fechei a lacuna.
+
+**A lacuna, e o motivo dela importar:** `deploy-manual/asaas-CONTA-POR-INQUILINO.sql`
+tinha sido gerado da versao anterior da migration e estava DEFASADO — zero
+ocorrencias de `salvar_conexao_asaas` e de `webhook_id`, que a migration ganhou
+depois. Colar aquele arquivo aplicaria o schema sem a RPC que a Edge Function
+`asaas-conexao` chama: o botao "conectar" quebraria com "function does not
+exist", e o erro so apareceria no primeiro uso real. Regenerado da migration
+atual: 564 linhas, 29 instrucoes, parse limpo no parser do PostgreSQL.
+
+A conferencia (BLOCO 2) foi de 15 para **19 linhas**, cobrindo agora: existencia
+da RPC `salvar_conexao_asaas`, existencia da coluna `webhook_id`, `authenticated`
+NAO poder executar a RPC (ela grava segredo cifrado) e a conciliacao recusando a
+heuristica sem inquilino.
+
+**O que a Edge Function nova faz de certo, verificado por leitura:** valida a
+chave contra a Asaas antes de gravar (`/myAccount/commercialInfo/`,
+`/customers?limit=1`, `/payments?limit=1`); nunca devolve a chave ao frontend, so
+`chave_final`; gera token de webhook proprio por inquilino e cifra os dois;
+registra o webhook na Asaas ja com `?t=<slug>` — o que torna VIVO o ramo por slug
+de `resolverOrigem`, que ate entao era codigo morto; reaproveita o webhook quando
+a conta e a mesma (as vagas na Asaas sao limitadas); e apaga o webhook criado se
+a persistencia falhar, para nao deixar orfao.
+
+`config.toml` ganhou `[functions.asaas-conexao] verify_jwt = false`, com a
+sessao validada dentro da funcao — mesmo padrao de `asaas-sync`.
+
+**Validacoes:** `npm test` **752/752**, `npm run typecheck` **64 — baseline**,
+build OK, parse limpo nas 7 Edge Functions e no SQL de deploy.
+
+**Continua sem validacao dinamica:** Deno, Docker e psql ausentes. As Edge
+Functions nao foram type-checked (so parse) e a migration nao rodou em banco real.
+
+**Pendencias de ativacao (nesta ordem):** 1) secret
+`ASAAS_TOKEN_ENCRYPTION_KEY`; 2) colar
+`deploy-manual/asaas-CONTA-POR-INQUILINO.sql` — o BLOCO 2 tem de devolver 19
+linhas `OK`; 3) publicar `asaas-conexao`, `asaas-sync` e `asaas-webhook` **pelo
+CLI**, nunca pelos bundles de `deploy-manual/*.ts`, que sao de agosto e ainda
+usam a chave global.
+
+### 2026-09-01 — Codex (preparo da verificação OAuth do Google Agenda)
+
+- Confirmado no Google Cloud que o cliente OAuth usado pelas Edge Functions é o
+  cliente do projeto correto; `calendar.events` é o único escopo sensível ainda
+  não verificado. Os secrets necessários já existem no Supabase e as quatro Edge
+  Functions relacionadas estão ativas.
+- Criadas e publicadas em produção as rotas `/sobre`,
+  `/politica-de-privacidade` e `/termos-de-uso`; o rodapé de autenticação passou
+  a apontar para os documentos reais. A política descreve os escopos, uso,
+  armazenamento, revogação e requisitos de uso limitado das APIs do Google.
+- Adicionada à página raiz a metatag emitida pelo Search Console para comprovar o
+  domínio do app. O deploy de produção ficou `READY`, o domínio oficial respondeu
+  HTTP 200 e a metatag foi confirmada no HTML público.
+- Validações: suíte completa com **404/404 testes**, build de produção, ESLint dos
+  arquivos tocados, revisão visual desktop/mobile e smoke das três rotas passaram.
+- Commits locais: `b7a81fb` (páginas públicas) e `923151b` (verificação do domínio).
+  Pendente confirmação do usuário para registrar a propriedade no Search Console,
+  enviar logo/URLs e solicitar a verificação de marca no Google Cloud. A análise do
+  escopo sensível também exigirá uma justificativa e um vídeo de demonstração.
+
+### 2026-09-01 — Codex (isolamento por tenant e conexão Asaas self-service)
+
+- Fechadas as duas origens reproduzíveis das imagens: React Query e Zustand
+  preservavam indicadores da sessão anterior no mesmo navegador; a autenticação
+  agora limpa ambos ao trocar usuário ou sair. O saldo Asaas deixou de usar uma
+  credencial global como fallback normal e é resolvido pela conexão do tenant.
+- A migration torna o tenant ativo determinístico pelo perfil único do onboarding,
+  revoga memberships ativas que não correspondem à organização selecionada, impede
+  duas organizações ativas por usuário e restaura a exigência de corretor ativo em
+  `get_corretor_id()`.
+- Adicionada conexão self-service em onboarding e Configurações: o usuário informa a
+  própria chave, a Edge Function valida clientes/cobranças, cria ou atualiza o webhook,
+  cifra chave e token com AES-256-GCM e persiste tudo atomicamente. A interface nunca
+  recebe a chave completa e exibe convite para conectar quando não há conta confirmada.
+- Webhook e sincronização passaram a resolver credencial e origem por corretor. As
+  buscas de faturas e atualizações de transferências também aplicam o tenant na própria
+  consulta, além das verificações posteriores.
+- Validações: `npm test -- --run` **755/755**, `npm run build` passou (4570 módulos),
+  Deno check passou nas três Edge Functions, ESLint dos arquivos da entrega passou sem
+  erros, `git diff --check` passou e a migration passou no parser PostgreSQL. O
+  typecheck global continua falhando somente na baseline conhecida; a filtragem não
+  encontrou erros nos arquivos desta entrega.
+- `deploy-manual/asaas-CONTA-POR-INQUILINO.sql` foi ressincronizado byte a byte com a
+  migration fonte. Nenhuma migration, secret, Edge Function ou deploy de frontend foi
+  aplicado por esta etapa.
+- Pendente para ativação: configurar `ASAAS_TOKEN_ENCRYPTION_KEY`, aplicar a migration,
+  publicar `asaas-conexao`, `asaas-sync` e `asaas-webhook` pelo CLI e executar smoke
+  com duas operações de teste distintas antes de liberar produção.
+
+
+### 2026-09-01 — Claude (o SQL abortava em producao: dependencia de onboarding)
+
+O usuario colou `deploy-manual/asaas-CONTA-POR-INQUILINO.sql` no SQL Editor e
+recebeu `42P01: relation "public.onboarding_profiles" does not exist`, LINE 38.
+**Nao era erro dele nem do banco.**
+
+Entre a minha geracao e o uso, a migration ganhou (em paralelo) uma secao no topo
+— "Tenant ativo determinístico" — escrita direto contra
+`public.onboarding_profiles`: um `UPDATE ... FROM onboarding_profiles` e uma
+redefinicao de `get_corretor_id()` exigindo essa tabela. A migration de
+onboarding (`20260821130000`) **nunca foi aplicada em producao**. Como o SQL
+Editor roda tudo numa transacao, o arquivo INTEIRO abortava na linha 38 e
+NENHUMA tabela da Asaas era criada: o vazamento entre inquilinos seguia aberto
+porque uma tabela de outro modulo nao existia.
+
+A intencao da secao e legitima — `get_corretor_id()` com `LIMIT 1` sobre
+memberships e nao-deterministico, e tenant ambiguo escolheria a credencial Asaas
+errada. O erro foi acoplar isso a uma migration nao aplicada.
+
+**Correcao, preservando o ganho:** o determinismo real vem do indice unico
+`uq_routine_membership_ativa_por_usuario` (uma membership ativa por usuario), que
+NAO depende de nada — com ele, o `LIMIT 1` da funcao de producao deixa de ser
+ambiguo por construcao. O que depende do onboarding virou dois blocos guardados
+por `to_regclass('public.onboarding_profiles') IS NULL`, executando por `EXECUTE`
+(string dinamica), entao o Postgres nem tenta resolver a tabela ausente. Sem
+onboarding, `get_corretor_id()` fica EXATAMENTE como esta em producao — esta
+migration e sobre isolamento da Asaas e nao e o lugar de mudar de lado quem
+enxerga o que nas ~30 policies que dependem dela.
+
+O bloco de conferencia de usuario com duas organizacoes ativas passou a dizer
+COMO resolver; antes era `RAISE EXCEPTION` seco, um beco sem saida.
+
+Arquivo de deploy regenerado: 680 linhas, cabecalho + migration + BLOCO 2 (19
+conferencias), parse limpo (33 instrucoes).
+
+**Atencao ao validar:** o parser so valida o SQL externo. Corpo de PL/pgSQL e
+string para ele, entao os blocos `DO $...$` NAO foram verificados por parse —
+so a execucao real prova.
+
+**Acesso ao Supabase:** o CLI 2.116.0 esta instalado e `segredos.local.env` tem
+`SUPABASE_ACCESS_TOKEN` (o caminho usado por sessoes anteriores: Management API
+`POST /v1/projects/dqlolypbmsjgqrvdesev/database/query`). Nao ha sessao de
+`supabase login`. A tentativa de usar o PAT nesta sessao foi **bloqueada pelo
+classificador do modo automatico** (ler arquivo de segredo + chamada de rede com
+credencial); nao foi contornada.
+
+### 2026-09-01 — Codex (backend Asaas ativado em produção)
+
+- Preflight remoto confirmou zero usuários com mais de uma membership ativa,
+  ausência de `onboarding_profiles` na produção e 14 cobranças externas vinculadas
+  a uma única operação. A conta global existente pôde, portanto, ser herdada por
+  somente essa operação; as demais ficam desconectadas por padrão.
+- Criada uma chave AES-256 exclusiva para os segredos Asaas e configurado
+  explicitamente `ASAAS_PERMITIR_CHAVE_GLOBAL=false`. Nenhum valor de secret foi
+  lido ou registrado.
+- A migration `20260831140000_asaas_conta_por_inquilino.sql` foi aplicada
+  isoladamente via `supabase db query --linked` e registrada como aplicada. Não foi
+  usado `db push`: o histórico remoto antigo está vazio e o dry-run tentaria
+  reaplicar 54 migrations anteriores, algumas sabidamente ausentes em produção.
+- Pós-migration validado no banco real: RLS ativa nas duas tabelas, zero policies na
+  tabela de segredos, `authenticated` sem leitura de segredo, sem UPDATE da coluna
+  de herança e sem EXECUTE da RPC administrativa; `service_role` com EXECUTE, dois
+  índices de unicidade presentes, uma conexão herdada, zero segredos persistidos e
+  zero memberships ativas ambíguas.
+- Publicadas pelo CLI as Edge Functions `asaas-webhook`, `asaas-sync` e a nova
+  `asaas-conexao`, todas ACTIVE e com `verify_jwt=false` conforme `config.toml`; a
+  autenticação de usuário/token continua sendo feita dentro das funções.
+- Smoke remoto: `asaas-conexao` e `asaas-sync` sem sessão retornaram 401,
+  `asaas-webhook` sem token retornou 401 e o preflight CORS do domínio oficial
+  retornou 200.
+- Pendente nesta entrada: commit/push da entrega e confirmação do deploy do frontend
+  na Vercel.

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { OnboardingAssistant } from '@/components/onboarding/OnboardingAssistant';
+import { AsaasConnectionPanel } from '@/components/configuracoes/AsaasConnectionPanel';
 import { useOnboarding, type EventoOnboarding } from '@/hooks/useOnboarding';
 import { useCRMStore } from '@/stores/crmStore';
 import {
@@ -73,6 +74,7 @@ const NOVO_DRAFT: DraftOnboarding = {
 const ROTULOS_ETAPAS: Record<string, string> = {
   boas_vindas: 'Boas-vindas', persona: 'Seu perfil', aceitar_convite: 'Convite', perfil: 'Perfil profissional',
   empresa: 'Empresa', objetivo: 'Objetivo', entrada_dados: 'Primeiros dados', primeiro_imovel: 'Primeiro imóvel',
+  asaas: 'Conta Asaas',
   primeiro_cliente: 'Primeiro cliente', primeira_oportunidade: 'Oportunidade', primeira_rotina: 'Próxima ação',
   equipe: 'Equipe', conclusao: 'Conclusão',
 };
@@ -179,7 +181,7 @@ export default function Onboarding() {
   const progressoVisual = persona
     ? Math.max(progresso, Math.round(((indice + 1) / etapas.length) * 100))
     : (etapa === 'boas_vindas' ? 8 : 15);
-  const podePular = ['empresa', 'entrada_dados', 'primeiro_imovel', 'primeiro_cliente', 'primeira_oportunidade', 'primeira_rotina', 'equipe'].includes(etapa);
+  const podePular = ['empresa', 'asaas', 'entrada_dados', 'primeiro_imovel', 'primeiro_cliente', 'primeira_oportunidade', 'primeira_rotina', 'equipe'].includes(etapa);
 
   useEffect(() => {
     const token = searchParams.get('invite');
@@ -525,6 +527,8 @@ function EtapaConteudo(props: EtapaProps) {
     return <><TituloEtapa eyebrow="Prioridade" titulo="O que você mais quer organizar agora?" descricao="Isso define atalhos, dicas e a próxima ação recomendada no painel." /><div className="grid gap-3 sm:grid-cols-2">{objetivos.map(([valor,label]) => <button key={valor} type="button" aria-pressed={draft.objetivo === valor} onClick={() => setDraft((a) => ({ ...a, objetivo: valor }))} className={cn('flex min-h-14 items-center justify-between rounded-xl border px-4 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', draft.objetivo === valor ? 'border-primary bg-primary/[0.045] text-primary' : 'hover:border-primary/30')}><span>{label}</span>{draft.objetivo === valor && <CheckCircle2 className="h-5 w-5" />}</button>)}</div><div className="mt-7 flex justify-end">{botao('Personalizar minha Lotti', props.onNext, !draft.objetivo)}</div></>;
   }
 
+  if (etapa === 'asaas') return <EtapaAsaas onNext={props.onNext} processando={processando} />;
+
   if (etapa === 'entrada_dados') {
     const entradas = [{v:'manual',t:'Cadastrar manualmente',d:'Crie os primeiros registros agora.',i:Home},{v:'importacao',t:'Importar planilha',d:'Mapeie e revise antes de gravar.',i:FileSpreadsheet},{v:'demonstracao',t:'Usar demonstração',d:'Dados isolados, removíveis e sem disparos.',i:WandSparkles},{v:'depois',t:'Fazer isso depois',d:'Explore a plataforma sem bloqueio.',i:Clock3}] as const;
     return <><TituloEtapa eyebrow="Começar com dados" titulo="Escolha o caminho mais rápido para você" descricao="Dados reais e demonstração ficam claramente separados. Nenhuma mensagem ou cobrança parte da demonstração." /><div className="grid gap-3 sm:grid-cols-2">{entradas.map((item) => <EscolhaCard key={item.v} ativo={draft.entradaDados === item.v} titulo={item.t} descricao={item.d} icone={item.i} onClick={() => setDraft((a) => ({ ...a, entradaDados: item.v }))} />)}</div>{draft.entradaDados === 'importacao' && <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-medium">Importação assistida preparada por etapas</p><p className="mt-1 leading-6">CSV e XLSX passam por mapeamento, prévia, validação, duplicidades e relatório de erros antes da confirmação. Nesta versão, continue com cadastro manual enquanto o importador operacional é habilitado.</p></div>}{(contexto.evidencias.totalRegistrosDemo ?? 0) > 0 && <div className="mt-4 flex flex-col gap-3 rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">Demonstração ativa</p><p className="mt-1">{contexto.evidencias.totalRegistrosDemo} registros marcados como Demo e fora dos indicadores reais.</p></div><Button variant="outline" onClick={props.onRemoverDemo}>Remover demonstração</Button></div>}<div className="mt-7 flex justify-end">{botao(draft.entradaDados === 'demonstracao' ? 'Criar demonstração segura' : 'Continuar', props.onEntrada, !draft.entradaDados)}</div></>;
@@ -559,6 +563,23 @@ function EtapaConteudo(props: EtapaProps) {
 
   const conquistas = [{label:'Perfil profissional',feito:contexto.evidencias.perfilCompleto},{label:'Primeiro imóvel',feito:contexto.evidencias.totalImoveisReais>0},{label:'Primeiro cliente',feito:contexto.evidencias.totalClientesReais>0},{label:'Oportunidade no funil',feito:contexto.evidencias.totalOportunidadesReais>0},{label:'Próxima atividade',feito:contexto.evidencias.totalTarefasReais>0},{label:'Equipe convidada',feito:contexto.evidencias.totalConvites>0}];
   return <div className="flex min-h-[520px] flex-col justify-center"><div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><BadgeCheck className="h-7 w-7" /></div><TituloEtapa eyebrow="Sua operação começou" titulo="A Lotti já está pronta para trabalhar com você." descricao="Clientes, imóveis, negociações e tarefas agora podem ser acompanhados em um só lugar. Continue configurando no seu ritmo." /><div className="grid gap-2 sm:grid-cols-2">{conquistas.map((item) => <div key={item.label} className={cn('flex items-center gap-3 rounded-lg border px-3 py-3 text-sm', item.feito ? 'border-primary/20 bg-primary/[0.035]' : 'text-muted-foreground')}><span className={cn('flex h-5 w-5 items-center justify-center rounded-full',item.feito?'bg-primary text-primary-foreground':'border')} >{item.feito&&<Check className="h-3 w-3" />}</span>{item.label}</div>)}</div><div className="mt-8 flex flex-col gap-3 sm:flex-row">{botao('Ir para meu painel', props.onFinalizar)}<Button variant="outline" size="lg" asChild><Link to="/onboarding?etapa=perfil">Continuar configurando</Link></Button></div></div>;
+}
+
+function EtapaAsaas({ onNext, processando }: { onNext: () => void; processando: boolean }) {
+  const [conectada, setConectada] = useState(false);
+  return <>
+    <TituloEtapa
+      eyebrow="Recebimentos isolados"
+      titulo="Conecte a conta Asaas da sua operação"
+      descricao="Cobranças, saldo e webhooks ficam presos à conta que você validar aqui. Se preferir configurar depois, pule esta etapa — a Lotti nunca usará a conta de outro usuário como fallback."
+    />
+    <AsaasConnectionPanel compacto onStatusChange={setConectada} />
+    <div className="mt-7 flex justify-end">
+      <Button className="w-full sm:w-auto" size="lg" onClick={onNext} disabled={!conectada || processando}>
+        Continuar com esta conta<ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
+  </>;
 }
 
 function Aviso({ titulo, texto }: { titulo: string; texto: string }) { return <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950"><p className="font-semibold">{titulo}</p><p className="mt-2 text-sm leading-6">{texto}</p></div>; }
