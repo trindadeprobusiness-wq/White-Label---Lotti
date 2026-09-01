@@ -402,7 +402,10 @@ export default function Auth() {
         </Card>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade
+          Ao continuar, você concorda com nossos{' '}
+          <Link className="font-medium text-foreground underline underline-offset-2" to="/termos-de-uso">Termos de Uso</Link>
+          {' '}e{' '}
+          <Link className="font-medium text-foreground underline underline-offset-2" to="/politica-de-privacidade">Política de Privacidade</Link>
         </p>
 
       </div>

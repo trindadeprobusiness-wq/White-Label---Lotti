@@ -61,4 +61,15 @@ describe('tela de autenticação', () => {
     expect(html).not.toContain('lugar só — com a IA');
     expect(html).not.toContain('Acesso administrativo');
   });
+
+  it('oferece acesso público aos termos e à política de privacidade', () => {
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/auth">
+        <Auth />
+      </StaticRouter>,
+    );
+
+    expect(html).toContain('href="/termos-de-uso"');
+    expect(html).toContain('href="/politica-de-privacidade"');
+  });
 });

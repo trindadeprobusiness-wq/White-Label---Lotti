@@ -63,6 +63,9 @@ const Onboarding = lazy(() => import("@/pages/Onboarding"));
 // Rota pública do link de parceiro: registra o clique no servidor e segue para
 // o cadastro. Fica fora do ProtectedRoute porque acontece antes de existir conta.
 const RedirectParceiro = lazy(() => import("@/pages/RedirectParceiro"));
+const PaginaInicialPublica = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PaginaInicialPublica })));
+const PoliticaPrivacidade = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PoliticaPrivacidade })));
+const TermosUso = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.TermosUso })));
 
 // Back office. Bundle próprio e só baixado por quem tem papel administrativo —
 // o corretor comum nunca carrega este código.
@@ -113,6 +116,9 @@ const App = () => (
               a senha ficava trancado fora para sempre. */}
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
+          <Route path="/sobre" element={<PaginaInicialPublica />} />
+          <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
+          <Route path="/termos-de-uso" element={<TermosUso />} />
 
           {/* Experiência protegida em tela própria: não carrega sidebar nem os
               dados operacionais antes de a pessoa escolher seu caminho. */}
