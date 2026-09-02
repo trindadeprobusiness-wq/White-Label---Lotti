@@ -98,6 +98,70 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-02 — Codex (prévia de reconciliação do quadro CRM)
+
+- Criada a branch isolada `codex/reconcile-crm`, baseada em `origin/main`, para
+  conciliar o quadro do Pipeline com o acabamento compacto do Funil legado. Não
+  houve push, PR ou alteração direta da `main`.
+- `CrmPipeline` mantém as abas e ações existentes do CRM e ganhou busca local por
+  negócio, cliente ou imóvel, filtro funcional de atrasadas, colunas compactas
+  com rolagem vertical independente, contagem em selo e arraste com overlay.
+- Refinamento visual solicitado: a aba Pipeline não duplica a busca global do
+  cabeçalho; colunas, cabeçalhos e cards foram adensados, nomes repetidos foram
+  suprimidos e a ação de WhatsApp passou ao canto superior do card.
+- Telefone exibido em card do CRM usa o mesmo controle de dado sensível já usado
+  nas outras informações. A coluna de destino do arraste mantém contorno interno
+  uniforme.
+- Validações: testes visuais de CRM/Pipeline (3/3), ESLint dos arquivos alterados,
+  `npm run build` (4560 módulos) e `git diff --check` passaram. Prévia local:
+  `http://127.0.0.1:8093/`.
+
+### 2026-09-02 — Codex (menu do Pipeline)
+
+- O Pipeline nativo substitui o botão de filtros pelo menu de três pontos; o menu
+  mantém seleção, recarregamento das etapas/oportunidades e o acesso ao gerenciamento
+  de etapas já existente no modo legado.
+- Validações: teste visual específico do Pipeline (3/3), `npm run build` e
+  `git diff --check` passaram.
+
+### 2026-09-02 — Codex (seleção em lote do Pipeline)
+
+- O modo “Selecionar vários” passou a marcar os cards com checkbox e destaque;
+  a barra inferior permite mover os selecionados entre etapas, limpar ou cancelar.
+- O aviso central de seleção foi removido. Validação: teste do Pipeline 4/4 e
+  `git diff --check` passaram; o build de produção também passou nesta etapa.
+
+### 2026-09-02 — Codex (posição da seleção em lote)
+
+- A barra de ações da seleção passou a flutuar centralizada no rodapé interno do
+  quadro, sem reduzir a área das colunas, seguindo a referência do Clix.
+- Validações: teste do Pipeline 4/4 e `git diff --check` passaram.
+
+### 2026-09-02 — Codex (acabamento da barra de seleção)
+
+- A barra flutuante passou a usar fundo escuro e um afastamento maior da borda
+  inferior interna do quadro, acompanhando a referência visual do Clix.
+- Validações: teste do Pipeline 4/4 e `git diff --check` passaram.
+
+### 2026-09-02 — Codex (espaço da seleção)
+
+- A barra foi baixada para a base do quadro e ganhou cantos mais arredondados;
+  as colunas reservam espaço no rodapé enquanto a seleção estiver ativa para não
+  esconder cards.
+- Validações: teste do Pipeline 4/4 e `git diff --check` passaram.
+
+### 2026-09-02 — Codex (barra compacta abaixo do quadro)
+
+- A seleção em lote foi centralizada na faixa livre abaixo da rolagem horizontal
+  do quadro e recebeu dimensões menores para a barra e seus botões.
+- Validações: teste do Pipeline 4/4 e `git diff --check` passaram.
+
+### 2026-09-02 — Codex (seleção de coluna)
+
+- Cada cabeçalho de etapa agora seleciona ou limpa todos os cards da própria
+  coluna; o estado selecionado usa ícone vetorial em vez de caractere emoji.
+- Validações: teste do Pipeline 4/4 e `git diff --check` passaram.
+
 ### 2026-08-31 — Codex (acesso de teste no Supabase Auth)
 
 - Supabase CLI autenticado localmente e projeto de produção vinculado, sem gravar

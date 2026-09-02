@@ -33,7 +33,7 @@ export default function CRM() {
       <PageHeader
         titulo="Funil de Vendas"
         subtitulo="Leads, negócios e follow-up do primeiro contato ao fechamento."
-        comBusca
+        comBusca={aba !== 'pipeline'}
         comUtilitarios
         acoes={
           <>
