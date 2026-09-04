@@ -1,0 +1,31 @@
+LOTTI — TRÊS POSTS FIXADOS | VERSÃO DASHBOARD V2
+
+ORDEM DE PUBLICAÇÃO NO INSTAGRAM (para o grid final ficar 01 → 02 → 03):
+1. Publicar primeiro: POST_FIXO_03_DIREITA_COBRANCAS.png
+2. Publicar depois: POST_FIXO_02_CENTRO_CRM.png
+3. Publicar por último: POST_FIXO_01_ESQUERDA_VISAO_GERAL.png
+
+POST 01 — VISÃO GERAL
+Sua operação, sob controle.
+
+Clientes, imóveis, oportunidades e prioridades reunidos em uma visão clara.
+A Lotti mostra o que merece atenção para você agir com contexto — e não no improviso.
+
+CTA: Fale com a gente pelo WhatsApp e conheça a plataforma.
+
+POST 02 — CRM
+Oportunidades não podem se perder.
+
+Visualize cada negociação por etapa, organize follow-ups e acompanhe o valor de cada oportunidade até o fechamento.
+
+CTA: Quer ver o pipeline funcionando? Chame a Lotti no WhatsApp.
+
+POST 03 — ALUGUÉIS E COBRANÇAS
+Do contrato à cobrança, tudo conectado.
+
+Controle vencimentos, status de pagamento, contratos e repasses no mesmo fluxo — com menos tarefas soltas e mais previsibilidade.
+
+CTA: Conheça a gestão de aluguéis da Lotti pelo WhatsApp.
+
+OBSERVAÇÃO
+As interfaces usam o desenho e os fluxos reais da aplicação Lotti com dados demonstrativos e neutros, preparados para comunicação pública.

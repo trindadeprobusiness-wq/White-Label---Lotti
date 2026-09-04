@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LancamentoFinanceiro } from '@/types/financeiro';
 import { format, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { VALOR_MASCARADO } from '@/lib/privacidade';
+import { usePrivacidade } from '@/stores/privacidadeStore';
 
 interface GraficoReceitaDespesaProps {
   lancamentos: LancamentoFinanceiro[];
@@ -20,6 +22,8 @@ interface GraficoReceitaDespesaProps {
 }
 
 export function GraficoReceitaDespesa({ lancamentos, meses = 6 }: GraficoReceitaDespesaProps) {
+  // O gráfico também expõe dinheiro: tooltip, legenda e totais.
+  const oculto = usePrivacidade((s) => s.valoresOcultos);
   const dados = useMemo(() => {
     const hoje = new Date();
     const resultado = [];
@@ -51,6 +55,10 @@ export function GraficoReceitaDespesa({ lancamentos, meses = 6 }: GraficoReceita
   }, [lancamentos, meses]);
 
   const formatarValor = (value: number) => {
+    // O eixo também entrega dinheiro: quem lê "R$ 40k" no topo sabe a ordem
+    // de grandeza mesmo com todos os números mascarados. No modo privado o
+    // eixo fica sem rótulo e o gráfico mostra só a forma.
+    if (oculto) return '';
     if (value >= 1000) {
       return `R$ ${(value / 1000).toFixed(0)}k`;
     }
@@ -79,7 +87,9 @@ export function GraficoReceitaDespesa({ lancamentos, meses = 6 }: GraficoReceita
               />
               <Tooltip
                 formatter={(value: number) => [
-                  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+                  oculto
+                    ? VALOR_MASCARADO
+                    : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
                 ]}
                 labelStyle={{ color: 'hsl(var(--foreground))' }}
                 contentStyle={{

@@ -10,6 +10,9 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DataLoader } from "@/components/DataLoader";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
+import { AdminRoute } from "@/components/admin/AdminRoute";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
 import RecuperarSenha from "@/pages/RecuperarSenha";
@@ -27,11 +30,13 @@ import {
   imoveisLoader,
   juridicoLoader,
   midiasLoader,
+  rotinaLoader,
 } from "@/lib/routePreloaders";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
 const Dashboard = lazy(dashboardLoader);
+const Rotina = lazy(rotinaLoader);
 const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
 const Imoveis = lazy(imoveisLoader);
@@ -46,9 +51,34 @@ const Assistente = lazy(assistenteLoader);
 const FachadasInteligentes = lazy(fachadasLoader);
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
 const CRM = lazy(crmLoader);
-// Assinatura/Planos: código mantido no repositório para o back office futuro,
-// mas fora do grafo de rotas — não faz sentido expor ao corretor hoje.
+// Assinatura/Planos. Passou a fazer sentido expor quando as cotas deixaram de
+// ser decorativas: o corretor precisa ver quanto da cota de leads já usou e
+// para onde ir quando ela acabar.
+const PlanoAssinatura = lazy(() =>
+  import("@/pages/PlanoAssinatura").then((m) => ({ default: m.PlanoAssinatura })),
+);
 const NotFound = lazy(() => import("@/pages/NotFound"));
+const Onboarding = lazy(() => import("@/pages/Onboarding"));
+
+// Rota pública do link de parceiro: registra o clique no servidor e segue para
+// o cadastro. Fica fora do ProtectedRoute porque acontece antes de existir conta.
+const RedirectParceiro = lazy(() => import("@/pages/RedirectParceiro"));
+const PaginaInicialPublica = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PaginaInicialPublica })));
+const PoliticaPrivacidade = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PoliticaPrivacidade })));
+const TermosUso = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.TermosUso })));
+
+// Back office. Bundle próprio e só baixado por quem tem papel administrativo —
+// o corretor comum nunca carrega este código.
+const AdminVisaoGeral = lazy(() => import("@/pages/admin/AdminVisaoGeral"));
+const AdminUsuarios = lazy(() => import("@/pages/admin/AdminUsuarios"));
+const AdminUsuarioDetalhe = lazy(() => import("@/pages/admin/AdminUsuarioDetalhe"));
+const AdminOnboarding = lazy(() => import("@/pages/admin/AdminOnboarding"));
+const AdminParceiros = lazy(() => import("@/pages/admin/AdminParceiros"));
+const AdminParceiroDetalhe = lazy(() => import("@/pages/admin/AdminParceiroDetalhe"));
+const AdminComissoes = lazy(() => import("@/pages/admin/AdminComissoes"));
+const AdminReceita = lazy(() => import("@/pages/admin/AdminReceita"));
+const AdminAuditoria = lazy(() => import("@/pages/admin/AdminAuditoria"));
+const AdminConfiguracoes = lazy(() => import("@/pages/admin/AdminConfiguracoes"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,16 +116,33 @@ const App = () => (
               a senha ficava trancado fora para sempre. */}
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
+          <Route path="/sobre" element={<PaginaInicialPublica />} />
+          <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
+          <Route path="/termos-de-uso" element={<TermosUso />} />
+
+          {/* Experiência protegida em tela própria: não carrega sidebar nem os
+              dados operacionais antes de a pessoa escolher seu caminho. */}
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected routes */}
           <Route element={
             <ProtectedRoute>
-              <DataLoader>
-                <AppLayout />
-              </DataLoader>
+              <OnboardingGate>
+                <DataLoader>
+                  <AppLayout />
+                </DataLoader>
+              </OnboardingGate>
             </ProtectedRoute>
           }>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/rotina" element={<Rotina />} />
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />
             <Route path="/imoveis" element={<Imoveis />} />
@@ -115,6 +162,7 @@ const App = () => (
             <Route path="/juridico" element={<Juridico />} />
             <Route path="/midias" element={<Midias />} />
             <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/plano" element={<PlanoAssinatura />} />
             <Route path="/alugueis" element={<RentalManagement />} />
             <Route path="/assistente" element={<Assistente />} />
             <Route path="/fachadas" element={<FachadasInteligentes />} />
@@ -122,8 +170,46 @@ const App = () => (
 
 
 
+          {/* Back office — exige papel admin/super_admin, não só sessão.
+              Fora da árvore ProtectedRoute > DataLoader > AppLayout: o
+              DataLoader carrega clientes/imóveis do corretor logado, que aqui
+              não servem para nada. O AdminRoute é navegação; a autorização de
+              verdade está nas policies e no guard das RPCs. */}
+          <Route
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route path="/admin" element={<AdminVisaoGeral />} />
+            <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+            <Route path="/admin/usuarios/:id" element={<AdminUsuarioDetalhe />} />
+            <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+            <Route path="/admin/parceiros" element={<AdminParceiros />} />
+            <Route path="/admin/parceiros/:id" element={<AdminParceiroDetalhe />} />
+            <Route path="/admin/comissoes" element={<AdminComissoes />} />
+            <Route path="/admin/receita" element={<AdminReceita />} />
+            <Route path="/admin/auditoria" element={<AdminAuditoria />} />
+          </Route>
+
+          {/* Configurações mexem em como a receita é atribuída e como a
+              operação é medida: só super_admin. */}
+          <Route
+            element={
+              <AdminRoute recurso="configuracoes">
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route path="/admin/configuracoes" element={<AdminConfiguracoes />} />
+          </Route>
+
           {/* Public route — QR Code landing page (no auth required) */}
           <Route path="/p/:fachadaId" element={<FachadaPublica />} />
+
+          {/* Link exclusivo do parceiro */}
+          <Route path="/r/:slug" element={<RedirectParceiro />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

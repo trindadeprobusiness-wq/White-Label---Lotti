@@ -221,19 +221,24 @@ export function AIChatWidget() {
       )}
 
       {!isOpen && (
-        <Button
+        // Pill com rótulo, não botão redondo com ícone: um círculo com robô
+        // não diz o que faz nem a quem pertence. "IA Lotti" identifica o
+        // recurso e a marca de uma vez.
+        <button
+          type="button"
           onClick={() => setIsOpen(true)}
-          size="lg"
-          aria-label="Abrir assistente IA"
-          className="relative h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 transition-all hover:scale-110"
+          aria-label="Abrir assistente IA Lotti"
+          className="group relative inline-flex h-12 items-center gap-2 rounded-full bg-primary pl-4 pr-5 text-sm font-medium text-primary-foreground shadow-floating transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <Bot className="h-7 w-7" />
-          {/* Indicador sutil de IA disponível */}
-          <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-60" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-gold" />
-          </span>
-        </Button>
+          <Sparkles className="h-[18px] w-[18px]" />
+          <span>IA Lotti</span>
+          {/* Sem `animate-ping`: pulsar para sempre num elemento fixo compete
+              com o conteúdo da tela e cansa em uso prolongado. */}
+          <span
+            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-gold ring-2 ring-background"
+            aria-hidden="true"
+          />
+        </button>
       )}
     </div>
   );

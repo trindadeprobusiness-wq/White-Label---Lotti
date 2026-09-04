@@ -88,6 +88,103 @@ sobrescrito. Corrige também 4 valores que não existem no schema
 (`status_funil:'PROPOSTA'`, `tipo_interesse:'ALUGUEL'`, coluna `classificacao`,
 `alertas.tipo:'LEAD_QUENTE'`) e que faziam a função falhar.
 
+### 7. Back office administrativo
+
+Ordem: SQL primeiro, funções depois. As funções escrevem em tabelas que só
+existem depois do SQL.
+
+#### 7.1 `backoffice-TUDO.sql`
+
+SQL Editor → colar o arquivo inteiro → **Run**. Reúne as 5 migrations
+`20260814*` na ordem certa. Idempotente.
+
+Depois, promova o primeiro administrador (**uma vez**):
+
+```sql
+SELECT public.promover_primeiro_super_admin('seu@email.com');
+```
+
+Confira com `backoffice-VERIFICAR.sql`: todas as 11 linhas devem dar `OK`.
+
+> Atenção: esta migration altera `get_corretor_id()` para exigir
+> `status = 'ativo'`. É a função da qual dependem as ~30 policies do produto —
+> é o que faz suspender conta valer no backend. Ela faz o backfill antes e
+> aborta se sobrar corretor sem status, mas prefira horário de baixo movimento.
+
+#### 7.2 `parceiro-clique.ts` (função NOVA)
+
+Edge Functions → **Create a new function** → nome exato `parceiro-clique` →
+colar → **Deploy**.
+
+Depois, em **Settings** da função, **desmarque "Verify JWT"**. Ela roda antes de
+existir conta — é o primeiro contato do visitante com a Lotti. A validação é o
+slug: só link ativo de parceiro ativo registra clique.
+
+#### 7.3 `parceiro-atribuir.ts` (função NOVA)
+
+Mesmo caminho, nome exato `parceiro-atribuir`. **Mantenha "Verify JWT" ligado** —
+só um usuário autenticado pode reivindicar a própria origem.
+
+#### 7.4 Secrets recomendados
+
+Edge Functions → Secrets:
+
+- `PARCEIRO_ORIGENS_PERMITIDAS` — origens aceitas no CORS, separadas por
+  vírgula (ex.: `https://seu-dominio.com.br`). Vazio aceita qualquer origem.
+- `IP_HASH_SALT` — salt do hash de IP nos cliques. Sem ela, usa a service role
+  key como salt.
+
+E na Vercel: `VITE_PUBLIC_BASE_URL` com o domínio de produção, senão os links de
+parceiro saem com o domínio de fallback.
+
+### 8. Notificações do Asaas e baixa automática de repasse
+
+Ordem: SQL primeiro, função depois — a função chama RPCs que o SQL cria.
+
+#### 8.1 `notificacoes-asaas.sql`
+
+SQL Editor → colar → **Run**. Cria os tipos de alerta `PAGAMENTO` e
+`TRANSFERENCIA`, adiciona `origem`/`entidade_tipo`/`entidade_id`/`metadata` a
+`alertas`, o rastro da transferência em `repasses_proprietario`, e as funções
+`conciliar_transferencia_repasse()` e `registrar_alerta_financeiro()`.
+
+#### 8.2 `asaas-webhook.ts`
+
+Edge Functions → `asaas-webhook` → substituir TODO o conteúdo → **Deploy**.
+
+Passa a tratar `TRANSFER_*`, que antes caía no descarte de "eventos sem
+payment". Agora: transferência concluída dá baixa no repasse
+(`status = 'CONFIRMADO'`) e notifica com o nome do proprietário; transferência
+falhada devolve o repasse para `ERRO` com prioridade alta.
+
+#### 8.3 Ativar os eventos de transferência no Asaas
+
+Painel do Asaas → **Integrações → Webhooks** → editar o webhook existente →
+marcar os eventos **TRANSFER_CREATED, TRANSFER_PENDING,
+TRANSFER_IN_BANK_PROCESSING, TRANSFER_DONE, TRANSFER_FAILED,
+TRANSFER_CANCELLED**.
+
+Sem esse passo o resto não acontece: o Asaas simplesmente não envia
+transferência se o evento não estiver marcado.
+
+#### Como a conciliação encontra o repasse
+
+`repasses_proprietario.external_id` existe desde 20260122130000 mas nunca foi
+preenchido — nada no código cria transferência pelo Asaas, o PIX é feito por
+fora. Então a função tenta, em ordem:
+
+1. `external_id` — transferência criada pelo sistema (prova direta);
+2. `externalReference` — o id do repasse colado à mão no Asaas (prova direta);
+3. **valor exato + chave PIX do proprietário**, entre repasses em aberto.
+
+O caso 3 é o real hoje. E ele só dá baixa se houver **exatamente um**
+candidato: dois repasses de mesmo valor para a mesma chave são
+indistinguíveis, e escolher um seria adivinhar com dinheiro de terceiro. Nesse
+caso o repasse fica intocado e a pendência é registrada.
+
+**Para tornar a conciliação exata**, preencha o campo "Referência externa" com
+o id do repasse ao criar a transferência no painel do Asaas — aí cai no caso 2.
+
 ## Conferir que deu certo
 
 1. **SQL** — Central de Contratos → analisar um contrato → **Salvar Contrato**. Tem que salvar.
@@ -97,12 +194,60 @@ sobrescrito. Corrige também 4 valores que não existem no schema
    como **recebimento em dinheiro**, não mais como pendente.
 4. **analisar-contrato** — reanalisar um contrato e conferir que cliente e data de
    início vêm preenchidos.
+5. **Back office** — entrar em `/admin`. Se aparecer a tela "Back office ainda não
+   instalado", o SQL não rodou. Se voltar para o dashboard, falta a promoção.
+6. **Link de parceiro** — no painel, criar um parceiro, definir percentual e gerar
+   o link. Abrir `/r/<slug>` em **aba anônima**: deve redirecionar para `/auth` com
+   a faixa "Você chegou pela indicação de ...". Se a faixa não aparecer, a função
+   `parceiro-clique` não está publicada ou está com "Verify JWT" ligado.
+   Conferir no SQL Editor: `SELECT count(*) FROM parceiro_cliques;` deve ter subido.
+
+## ⚠ Conta Asaas por inquilino — os bundles desta pasta estão DESATUALIZADOS
+
+`deploy-manual/asaas-sync.ts` (11/08) e `deploy-manual/asaas-webhook.ts` (19/08)
+são cópias inline **anteriores** à mudança de conta por inquilino: ainda leem a
+`ASAAS_API_KEY` global. Colá-los depois de rodar
+`asaas-CONTA-POR-INQUILINO.sql` cria o pior estado possível — o banco passa a
+esperar credencial por inquilino, o código continua usando a conta-mãe, e o
+vazamento segue aberto com aparência de resolvido.
+
+As funções novas dependem de quatro módulos compartilhados
+(`_shared/asaas.ts`, `_shared/asaas-conexao.ts`, `_shared/asaas-crypto.ts`,
+`_shared/asaas-origem.ts`), então
+**não dá para publicá-las colando um arquivo só**. Use o Supabase CLI:
+
+```
+supabase functions deploy asaas-sync
+supabase functions deploy asaas-webhook
+supabase functions deploy asaas-conexao
+```
+
+Ordem obrigatória: **secrets → SQL → funções**. Publicar a função antes de
+`ASAAS_TOKEN_ENCRYPTION_KEY` existir derruba toda emissão de cobrança.
+
+`asaas-conexao` é a função do onboarding e de **Configurações → Asaas**. Ela
+recebe a chave apenas na requisição autenticada, valida a conta, cifra o segredo
+e cria/atualiza o webhook por inquilino. Sem o deploy dessa terceira função, o
+isolamento fail-closed funciona, mas o usuário novo não consegue concluir a
+conexão sozinho.
 
 ## Variáveis que as funções esperam
 
 Já devem estar configuradas (as funções rodam hoje), mas para referência —
 Dashboard → Edge Functions → Secrets:
 
-- `ASAAS_API_KEY`, `ASAAS_BASE_URL` (opcional, default produção)
+- `ASAAS_TOKEN_ENCRYPTION_KEY` — **novo e obrigatório** desde
+  `asaas-CONTA-POR-INQUILINO.sql`. 32 bytes (`openssl rand -hex 32`). Cifra a
+  chave Asaas de cada inquilino. Tem de ser **diferente** de
+  `META_TOKEN_ENCRYPTION_KEY`: chave compartilhada entre integrações transforma
+  o vazamento de uma no vazamento de todas. Sem ela, `asaas-sync` falha ao
+  decifrar e nenhuma cobrança é emitida.
+- `ASAAS_API_KEY` — deixou de valer para todos. Agora atende **só** o inquilino
+  marcado como herdado no banco; os demais conectam a própria conta pelo
+  produto. Remover quando a conta herdada rotacionar a chave.
+- `ASAAS_BASE_URL` (opcional, default produção; ignorado em sandbox)
+- `ASAAS_PERMITIR_CHAVE_GLOBAL` (opcional) — `"true"` religa a chave global para
+  todos os inquilinos. É a válvula de reversão sem redeploy e **reabre o
+  vazamento**; nasce desligada e deve voltar a desligar.
 - `GEMINI_API_KEY`
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`

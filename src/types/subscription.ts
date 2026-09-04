@@ -48,6 +48,10 @@ export interface PlanEntitlement {
 
 // Feature keys — mapeiam diretamente ao seed do banco
 export type FeatureKey =
+  // A cota que dirige o custo do produto: cada lead qualificado custa
+  // R$ 0,396 entre IA de conversa e template de WhatsApp.
+  | 'leads_qualificados_monthly'
+  | 'max_contratos_locacao'
   | 'max_users'
   | 'max_imoveis'
   | 'max_fachadas'

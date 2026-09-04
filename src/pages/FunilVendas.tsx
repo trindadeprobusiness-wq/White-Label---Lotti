@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useCRMStore } from '@/stores/crmStore';
 import { StatusFunil, Cliente, Imovel, TipoInteresse } from '@/types/crm';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getCommonSelectedStageId } from '@/lib/funnelSelection';
-import { AlertTriangle, GripVertical, MoreHorizontal, Plus, Search, Settings2, SlidersHorizontal, SquareCheckBig, Trash2, X } from 'lucide-react';
+import { AlertTriangle, MessageCircle, MoreHorizontal, Plus, Search, Settings2, SlidersHorizontal, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +33,7 @@ import { Link } from 'react-router-dom';
 import {
   DndContext,
   DragEndEvent,
+  DragOverlay,
   MouseSensor,
   TouchSensor,
   useDraggable,
@@ -40,6 +41,8 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import { deveBloquearCliqueDoCard } from '@/lib/funilDrag';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 // Paleta de cores das etapas — 6 opções fixas, apresentadas como bolinhas.
 // Manter tudo em Tailwind evita malabarismo com CSS-in-JS e permite dark theme
@@ -113,7 +116,7 @@ const formatValor = (valor: number) =>
     ? `R$ ${(valor / 1000).toFixed(0)}k`
     : `R$ ${valor.toLocaleString('pt-BR')}/mês`;
 
-function DroppableColumn({
+export function DroppableColumn({
   id,
   children,
 }: {
@@ -130,7 +133,7 @@ function DroppableColumn({
         // preserva a leitura; acima dela, as colunas se redistribuem para
         // preencher o espaço após adicionar ou remover uma etapa.
         'min-w-[260px] flex-1 rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
-        isOver && 'ring-2 ring-primary/40 border-primary/40'
+        isOver && 'border-primary/40 outline outline-2 -outline-offset-2 outline-primary/40'
       )}
     >
       {children}
@@ -145,6 +148,8 @@ function DraggableCard({
   selectionMode,
   selected,
   onToggleSelect,
+  bloquearCliqueRef,
+  arrasteAtivo,
 }: {
   cliente: Cliente;
   imovel: Imovel | null;
@@ -152,55 +157,48 @@ function DraggableCard({
   selectionMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
+  bloquearCliqueRef: MutableRefObject<boolean>;
+  arrasteAtivo: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: cliente.id,
     // No modo seleção o card não deve arrastar — o clique é para marcar.
     disabled: selectionMode,
   });
 
-  // Após um drag, o navegador ainda dispara o click no card — sem este guard
-  // soltar o card navegaria para a página do cliente.
-  const wasDragged = useRef(false);
-  if (isDragging) wasDragged.current = true;
-
   const commonClasses = cn(
-    'block bg-card rounded-lg p-3 shadow-sm border transition-shadow',
+    'block rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow',
     selectionMode
       ? cn('cursor-pointer hover:border-primary/40', selected && 'border-primary bg-primary/5')
       : 'cursor-grab active:cursor-grabbing hover:shadow-md',
-    isDragging && 'opacity-80 shadow-lg relative z-50',
+    isDragging && 'opacity-0',
   );
 
   const inner = (
-    <div className="flex items-start gap-2">
+    <div className="flex min-w-0 flex-col gap-1">
       {selectionMode && (
         <input
           type="checkbox"
           checked={selected}
           onChange={onToggleSelect}
           onClick={(e) => e.stopPropagation()}
-          className="mt-0.5 h-4 w-4 rounded border-border accent-primary cursor-pointer flex-shrink-0"
+          className="absolute h-4 w-4 rounded border-border accent-primary cursor-pointer"
           aria-label={`Selecionar ${cliente.nome}`}
         />
       )}
-      <div className="flex-1 min-w-0">
+      <div className={cn('min-w-0', selectionMode && 'pl-6')}>
         <div className="flex items-center gap-2">
-          {alert && (
-            <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
-          )}
-          <p className="font-medium text-sm truncate">{cliente.nome}</p>
+          {alert && <AlertTriangle className="h-4 w-4 flex-shrink-0 text-destructive" />}
+          <p className="truncate text-sm font-semibold">{cliente.nome}</p>
         </div>
-        {imovel && (
-          <p className="text-xs text-muted-foreground truncate mt-1">{imovel.titulo}</p>
-        )}
-        {imovel && (
-          <p className="text-xs font-medium text-primary mt-0.5">{formatValor(imovel.valor)}</p>
-        )}
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {imovel?.titulo ?? cliente.tipo_interesse}
+        </p>
       </div>
-      {!selectionMode && (
-        <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
-      )}
+      <div className={cn('flex items-center justify-between pt-1', selectionMode && 'pl-6')}>
+        <DadoSensivel valor={imovel ? formatValor(imovel.valor) : 'R$ 0'} tipo="valor" className="text-sm font-semibold text-primary" />
+        <MessageCircle className="h-4 w-4 text-muted-foreground" aria-label="Conversa do cliente" />
+      </div>
     </div>
   );
 
@@ -231,21 +229,42 @@ function DraggableCard({
       {...attributes}
       to={`/clientes/${cliente.id}`}
       onClick={(e) => {
-        if (wasDragged.current) {
+        if (deveBloquearCliqueDoCard(arrasteAtivo, bloquearCliqueRef.current)) {
           e.preventDefault();
-          wasDragged.current = false;
+          e.stopPropagation();
         }
       }}
       style={{
-        transform: transform
-          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-          : undefined,
         touchAction: 'manipulation',
       }}
       className={commonClasses}
     >
       {inner}
     </Link>
+  );
+}
+
+function CardEmArraste({
+  cliente,
+  imovel,
+  alert,
+}: Pick<Parameters<typeof DraggableCard>[0], 'cliente' | 'imovel' | 'alert'>) {
+  return (
+    <div className="w-[260px] rounded-lg border border-primary/30 bg-card p-3 shadow-xl ring-1 ring-primary/20">
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex items-center gap-2">
+          {alert && <AlertTriangle className="h-4 w-4 flex-shrink-0 text-destructive" />}
+          <p className="truncate text-sm font-semibold">{cliente.nome}</p>
+        </div>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {imovel?.titulo ?? cliente.tipo_interesse}
+        </p>
+        <div className="flex items-center justify-between pt-1">
+          <DadoSensivel valor={imovel ? formatValor(imovel.valor) : 'R$ 0'} tipo="valor" className="text-sm font-semibold text-primary" />
+          <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -266,6 +285,7 @@ const FILTROS_INICIAIS: FunnelFilters = {
 export default function FunilVendas({ embedded = false }: { embedded?: boolean }) {
   const { clientes, imoveis, alertas, updateClienteStatus, removeCliente } = useCRMStore();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const bloquearCliqueAposArraste = useRef(false);
   const [busca, setBusca] = useState('');
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const [filtros, setFiltros] = useState<FunnelFilters>(FILTROS_INICIAIS);
@@ -350,6 +370,9 @@ export default function FunilVendas({ embedded = false }: { embedded?: boolean }
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null);
+    window.setTimeout(() => {
+      bloquearCliqueAposArraste.current = false;
+    }, 0);
     const { active, over } = event;
     if (!over) return;
 
@@ -681,9 +704,17 @@ export default function FunilVendas({ embedded = false }: { embedded?: boolean }
           herda essa altura via items-stretch. Nada rola na página. */}
       <DndContext
         sensors={sensors}
-        onDragStart={(e) => setActiveDragId(String(e.active.id))}
+        onDragStart={(e) => {
+          bloquearCliqueAposArraste.current = true;
+          setActiveDragId(String(e.active.id));
+        }}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveDragId(null)}
+        onDragCancel={() => {
+          setActiveDragId(null);
+          window.setTimeout(() => {
+            bloquearCliqueAposArraste.current = false;
+          }, 0);
+        }}
       >
         <div className="flex-1 min-h-0 flex gap-3 overflow-x-auto items-stretch">
           {columns.map((column) => {
@@ -747,6 +778,8 @@ export default function FunilVendas({ embedded = false }: { embedded?: boolean }
                       alert={hasAlert(cliente.id)}
                       selectionMode={modoSelecao}
                       selected={selecionados.has(cliente.id)}
+                      bloquearCliqueRef={bloquearCliqueAposArraste}
+                      arrasteAtivo={activeDragId === cliente.id}
                       onToggleSelect={() => {
                         setSelecionados((prev) => {
                           const next = new Set(prev);
@@ -773,6 +806,18 @@ export default function FunilVendas({ embedded = false }: { embedded?: boolean }
             );
           })}
         </div>
+        <DragOverlay dropAnimation={null} zIndex={1000}>
+          {activeDragId && (() => {
+            const cliente = clientes.find((item) => item.id === activeDragId);
+            return cliente ? (
+              <CardEmArraste
+                cliente={cliente}
+                imovel={getImovelPrincipal(cliente)}
+                alert={hasAlert(cliente.id)}
+              />
+            ) : null;
+          })()}
+        </DragOverlay>
       </DndContext>
       </div>{/* fim do card envolvente */}
 

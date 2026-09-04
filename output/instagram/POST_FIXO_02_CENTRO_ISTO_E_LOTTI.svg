@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">Isto é Lotti.</title>
+  <desc id="desc">Post central de apresentação da plataforma de gestão imobiliária Lotti.</desc>
+  <defs>
+    <clipPath id="frame"><rect width="1080" height="1350"/></clipPath>
+    <linearGradient id="shade" x1="0.15" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#04110c" stop-opacity="0.2"/>
+      <stop offset="0.55" stop-color="#04110c" stop-opacity="0.52"/>
+      <stop offset="1" stop-color="#020706" stop-opacity="0.78"/>
+    </linearGradient>
+    <filter id="whiteLogo" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="1080" height="1350" fill="#093323"/>
+    <image href="assets/base-02-centro.png" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/>
+    <rect width="1080" height="1350" fill="url(#shade)"/>
+    <rect x="64" y="64" width="952" height="1222" rx="4" fill="none" stroke="#f2eee5" stroke-opacity="0.2"/>
+
+    <image href="assets/logo-lotti-branca.svg" x="80" y="145" width="255" height="82" preserveAspectRatio="xMinYMid meet" filter="url(#whiteLogo)"/>
+    <text x="80" y="270" fill="#f2eee5" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="600" letter-spacing="4">02 / A RESPOSTA</text>
+    <line x1="80" y1="300" x2="270" y2="300" stroke="#f2eee5" stroke-width="2"/>
+
+    <text x="80" y="540" fill="#ffffff" font-family="Georgia, Times New Roman, serif" font-size="96" font-weight="400" letter-spacing="-3">
+      <tspan x="80" dy="0">Isto é</tspan>
+      <tspan x="80" dy="116" font-style="italic">Lotti.</tspan>
+    </text>
+
+    <text x="82" y="815" fill="#f2eee5" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="400">
+      <tspan x="82" dy="0">A plataforma que organiza sua operação</tspan>
+      <tspan x="82" dy="44">imobiliária — do primeiro contato</tspan>
+      <tspan x="82" dy="44">ao contrato assinado.</tspan>
+    </text>
+
+    <line x1="80" y1="1115" x2="1000" y2="1115" stroke="#f2eee5" stroke-opacity="0.5"/>
+    <text x="80" y="1165" fill="#f2eee5" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="600" letter-spacing="3">ORGANIZAR · ACOMPANHAR · DECIDIR</text>
+    <text x="998" y="1165" text-anchor="end" fill="#f2eee5" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="600">02</text>
+  </g>
+</svg>

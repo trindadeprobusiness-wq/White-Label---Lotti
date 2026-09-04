@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { QrCodePositioner } from '@/components/fachadas/QrCodePositioner';
-import { Plus, QrCode, BarChart3, Users, LayoutTemplate, Upload, ImagePlus, Trash2, Eye, Loader2 } from 'lucide-react';
+import {
+  Plus, QrCode, BarChart3, Users, LayoutTemplate, Upload, ImagePlus,
+  Trash2, Eye, Loader2, Building2, TrendingUp,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +20,20 @@ import { DEFAULT_TEMPLATES } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { MetricStrip, SectionCard } from '@/components/shell/primitivos';
+import { abasSublinhadas } from '@/components/shell/primitivos';
+import { LimitGuard } from '@/components/subscription/LimitGuard';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * `fachada_templates` nao esta no `types.ts` gerado (que cobre 11 das ~40
+ * tabelas do projeto). Em vez de espalhar `as any` por tres chamadas, o acesso
+ * passa por um cliente sem o generico de schema — mesmo padrao ja usado em
+ * `hooks/crm/useCrm.ts` e em `CriarFachadaDialog`. Some quando os tipos forem
+ * regerados.
+ */
+const db = () => supabase as unknown as SupabaseClient;
 
 interface CustomTemplate {
   id: string;
@@ -90,6 +107,7 @@ export default function FachadasInteligentes() {
     deleteLead,
   } = useFachadas();
 
+  const [abaAtiva, setAbaAtiva] = useState('fachadas');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewFachada, setPreviewFachada] = useState<FachadaComImovel | null>(null);
   const [editingFachada, setEditingFachada] = useState<FachadaComImovel | null>(null);
@@ -135,7 +153,7 @@ export default function FachadasInteligentes() {
       const { data: corretorId } = await supabase.rpc('get_corretor_id');
       if (!corretorId) return;
 
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from('fachada_templates')
         .select('*')
         .eq('corretor_id', corretorId)
@@ -196,46 +214,60 @@ export default function FachadasInteligentes() {
     setSavingTemplate(true);
 
     try {
-      const ext = templateFile.name.split('.').pop();
-      const fileName = `fachada-template-custom-${Date.now()}.${ext}`;
-      const result = await upload(templateFile, `fachadas/${fileName}`);
-      if (!result?.url) throw new Error('Falha no upload');
-
-      // Try to save to fachada_templates table
-      try {
-        const { data: corretorId } = await supabase.rpc('get_corretor_id');
-        if (corretorId) {
-          await supabase.from('fachada_templates').insert({
-            corretor_id: corretorId,
-            nome: templateNome.trim(),
-            categoria: 'VENDA',
-            padrao: false,
-            config: {
-              imagem_url: result.url,
-              corPrimaria: '#000000',
-              corSecundaria: '#ffffff',
-              corTexto: '#ffffff',
-              corFundo: '#000000',
-              estilo: 'profissional',
-              layout: 'vertical',
-              qrPosition: { x: qrPosition.x, y: qrPosition.y },
-              qrSize: qrSizePercent,
-            },
-          } as any);
-        }
-      } catch {
-        // Table might not exist — template still works via URL
+      // O corretor é resolvido ANTES do upload porque o caminho precisa
+      // carregá-lo: a policy de storage escopa a gravação por
+      // `fachadas/<corretor_id>/`. Buscar o id depois era tarde demais — foi
+      // essa ordem que deixou o caminho sem dono e fez a RLS negar todo envio.
+      const { data: corretorId } = await supabase.rpc('get_corretor_id');
+      if (!corretorId) {
+        throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
       }
 
-      // Add to local state immediately
+      const ext = templateFile.name.split('.').pop();
+      const fileName = `fachada-template-custom-${Date.now()}.${ext}`;
+      const result = await upload(templateFile, `fachadas/${corretorId}/${fileName}`);
+      if (!result?.url) throw new Error('Falha no upload');
+
+      // O erro desta gravação NÃO é mais engolido. Antes era, e a tela dizia
+      // "Template salvo com sucesso!" mesmo sem nada ter sido gravado: o
+      // template aparecia na lista vindo só do estado local e sumia no primeiro
+      // reload. Falhar visivelmente é melhor que perder em silêncio.
+      const { data: salvo, error: erroInsert } = await db()
+        .from('fachada_templates')
+        .insert({
+          corretor_id: corretorId,
+          nome: templateNome.trim(),
+          categoria: 'VENDA',
+          padrao: false,
+          config: {
+            imagem_url: result.url,
+            corPrimaria: '#000000',
+            corSecundaria: '#ffffff',
+            corTexto: '#ffffff',
+            corFundo: '#000000',
+            estilo: 'profissional',
+            layout: 'vertical',
+            qrPosition: { x: qrPosition.x, y: qrPosition.y },
+            qrSize: qrSizePercent,
+          },
+        } as any)
+        // O genérico tipa a linha devolvida sem `as any`: `db()` perde o
+        // schema, mas o formato deste SELECT é conhecido aqui.
+        .select('id, created_at')
+        .single<{ id: string; created_at: string | null }>();
+
+      if (erroInsert) throw erroInsert;
+
+      // Usa o id real da linha. Antes era `local-<timestamp>`, que não é UUID —
+      // excluir o template recém-criado sem recarregar a página falhava.
       setCustomTemplates((prev) => [
         {
-          id: `local-${Date.now()}`,
+          id: salvo.id,
           nome: templateNome.trim(),
           imagem_url: result.url,
           qrPosition: { x: qrPosition.x, y: qrPosition.y },
           qrSize: qrSizePercent,
-          created_at: new Date().toISOString(),
+          created_at: salvo.created_at ?? new Date().toISOString(),
         },
         ...prev,
       ]);
@@ -267,7 +299,7 @@ export default function FachadasInteligentes() {
     setCustomTemplates((prev) => prev.filter((t) => t.id !== template.id));
     try {
       if (!template.id.startsWith('local-')) {
-        await supabase.from('fachada_templates').delete().eq('id', template.id);
+        await db().from('fachada_templates').delete().eq('id', template.id);
       }
       toast({ title: 'Template removido' });
     } catch {
@@ -276,49 +308,75 @@ export default function FachadasInteligentes() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <QrCode className="h-7 w-7 text-primary" />
-            Fachadas Inteligentes
-          </h1>
-          <p className="text-muted-foreground">
-            Gere materiais com QR Code que capturam leads automaticamente
-          </p>
-        </div>
-        <Button onClick={() => { setEditingFachada(null); setDialogOpen(true); }} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Criar Nova Fachada
-        </Button>
-      </div>
+    <div className="animate-fade-in">
+      <PageHeader
+        titulo="Fachadas Inteligentes"
+        subtitulo="Transforme placas com QR Code em novos contatos."
+        comUtilitarios
+        acoes={
+          <>
+            <Button
+              variant="outline"
+              className="h-control"
+              onClick={() => setAbaAtiva('templates')}
+            >
+              <LayoutTemplate className="mr-2 h-[18px] w-[18px]" />
+              Ver templates
+            </Button>
+            <LimitGuard featureKey="max_fachadas">
+              <Button
+                className="h-control"
+                onClick={() => { setEditingFachada(null); setDialogOpen(true); }}
+              >
+                <Plus className="mr-2 h-[18px] w-[18px]" />
+                Nova fachada
+              </Button>
+            </LimitGuard>
+          </>
+        }
+      />
 
       {/* Tabs */}
-      <Tabs defaultValue="fachadas" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
-          <TabsTrigger value="fachadas" className="gap-1.5">
-            <QrCode className="h-4 w-4" />
+      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="space-y-5">
+        <TabsList className={abasSublinhadas.lista}>
+          <TabsTrigger value="fachadas" className={abasSublinhadas.gatilho}>
+            <QrCode className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Fachadas</span>
           </TabsTrigger>
-          <TabsTrigger value="dashboard" className="gap-1.5">
-            <BarChart3 className="h-4 w-4" />
+          <TabsTrigger value="dashboard" className={abasSublinhadas.gatilho}>
+            <BarChart3 className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="leads" className="gap-1.5">
-            <Users className="h-4 w-4" />
+          <TabsTrigger value="leads" className={abasSublinhadas.gatilho}>
+            <Users className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Leads</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5">
-            <LayoutTemplate className="h-4 w-4" />
+          <TabsTrigger value="templates" className={abasSublinhadas.gatilho}>
+            <LayoutTemplate className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Templates</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Aba: Minhas Fachadas */}
-        <TabsContent value="fachadas">
+        <TabsContent value="fachadas" className="space-y-5">
+          {/* Indicadores. Vêm de `metricas`, que o hook já busca para o
+              Dashboard — nenhuma query nova foi adicionada. */}
+          <MetricStrip
+            carregando={loading}
+            itens={[
+              { id: 'fachadas', valor: fachadas.length, label: 'Fachadas',
+                icone: <Building2 className="h-5 w-5" />, tom: 'brand' },
+              { id: 'scans', valor: metricas?.totalEscaneamentos ?? 0, label: 'Leituras do QR Code',
+                icone: <QrCode className="h-5 w-5" />, tom: 'info' },
+              { id: 'leads', valor: metricas?.totalLeads ?? 0, label: 'Leads gerados',
+                icone: <Users className="h-5 w-5" />, tom: 'warning' },
+              { id: 'conv', valor: `${metricas?.taxaConversao ?? 0}%`, label: 'Conversão',
+                icone: <TrendingUp className="h-5 w-5" />, tom: 'success' },
+            ]}
+          />
+
           {loading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
@@ -343,7 +401,7 @@ export default function FachadasInteligentes() {
               </Button>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-4">
               {fachadas.map((f) => (
                 <FachadaCard
                   key={f.id}
@@ -355,6 +413,41 @@ export default function FachadasInteligentes() {
               ))}
             </div>
           )}
+
+          {/* Mesmo padrão de Midias.tsx e Juridico.tsx: explica o caminho que
+              vai da placa ao atendimento, que não era óbvio para quem abre a
+              tela pela primeira vez. */}
+          <SectionCard titulo="Da fachada ao atendimento">
+            <ol className="grid gap-5 sm:grid-cols-3">
+              {[
+                { n: 1, Icone: QrCode, titulo: 'Pessoa escaneia',
+                  texto: 'O visitante escaneia o QR Code na placa do imóvel.' },
+                { n: 2, Icone: Users, titulo: 'Informa o contato',
+                  texto: 'Ele preenche os dados e manifesta interesse pelo imóvel.' },
+                { n: 3, Icone: Building2, titulo: 'Lead entra na Lotti',
+                  texto: 'O lead é registrado no sistema e fica pronto para o atendimento.' },
+              ].map((passo, i, todos) => (
+                <li key={passo.n} className="relative flex min-w-0 items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {passo.n}
+                  </span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-brand text-primary">
+                    <passo.Icone className="h-[18px] w-[18px]" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{passo.titulo}</span>
+                    <span className="mt-0.5 block text-sm text-muted-foreground">{passo.texto}</span>
+                  </span>
+                  {i < todos.length - 1 && (
+                    <span
+                      className="absolute -right-3 top-3.5 hidden w-6 border-t border-dashed border-border sm:block"
+                      aria-hidden="true"
+                    />
+                  )}
+                </li>
+              ))}
+            </ol>
+          </SectionCard>
         </TabsContent>
 
         {/* Aba: Dashboard */}
@@ -387,7 +480,7 @@ export default function FachadasInteligentes() {
                   <ImagePlus className="h-4 w-4" />
                   Meus Templates Personalizados
                 </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-4">
                   {customTemplates.map((ct) => (
                     <div
                       key={ct.id}
@@ -450,10 +543,10 @@ export default function FachadasInteligentes() {
             {/* Templates Padrão */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-                <LayoutTemplate className="h-4 w-4" />
+                <LayoutTemplate className="mr-2 h-4 w-4" />
                 Templates Padrão
               </h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
                 {DEFAULT_TEMPLATES.map((t) => (
                   <div
                     key={t.nome}

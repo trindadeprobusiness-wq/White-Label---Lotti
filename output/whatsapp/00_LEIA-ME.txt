@@ -1,0 +1,38 @@
+PACOTE ESTRATÉGICO LOTTI — MERCADO E PRECIFICAÇÃO
+Data: 13/08/2026
+
+ORDEM RECOMENDADA DE LEITURA
+
+1. PDF Business Review
+   Síntese executiva para os fundadores. É o melhor arquivo para abrir no celular e
+   compartilhar diretamente no WhatsApp.
+
+2. PowerPoint Business Review
+   Versão editável da apresentação principal.
+
+3. PowerPoint Plano de 90 Dias
+   Responsáveis, prioridades, dependências, marcos e decisões pendentes.
+
+4. PowerPoint Pricing Lab
+   Perfis de consumo, pisos de preço, CAC, churn e stress tests.
+
+5. Workbook Unit Economics
+   Modelo financeiro editável, com premissas, projeções e sensibilidades.
+
+6. Estudo de Mercado e Precificação
+   Relatório completo com 22 seções, metodologia, evidências e fontes.
+
+7. CSV de cenários
+   Exportação dos cenários de escala para análise e versionamento.
+
+8. Simulador interativo
+   Abra o arquivo HTML em um navegador. Os controles permitem testar preços, mix,
+   clientes, CAC, churn, IA, suporte e break-even.
+
+LEITURA CORRETA DA RECOMENDAÇÃO
+
+A faixa R$129 / R$249 / R$499 é uma hipótese recomendada para experimento controlado,
+não um preço já validado pelo mercado. CAC, churn, mix, impostos e custos inexistentes
+no histórico da empresa permanecem premissas editáveis.
+
+Nenhum segredo, arquivo .env ou dado pessoal está incluído neste pacote.

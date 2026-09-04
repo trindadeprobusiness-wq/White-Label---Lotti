@@ -19,17 +19,43 @@ export default {
         serif: ['Lora', 'Georgia', 'serif'],
       },
       boxShadow: {
+        /* Card quase sem sombra: a separação vem da borda de 1px e do
+           contraste entre o branco do card e o cinza-esverdeado do fundo.
+           Sombra pesada é o que faz um painel parecer landing page. */
+        'card': '0 1px 3px rgba(15, 23, 20, 0.04)',
+        'card-hover': '0 2px 8px rgba(15, 23, 20, 0.06)',
+        /* Elevação real só onde há sobreposição de camada. */
+        'overlay': '0 8px 28px -6px rgba(15, 23, 20, 0.16), 0 2px 6px rgba(15, 23, 20, 0.06)',
+        'floating': '0 6px 20px -4px rgba(6, 67, 49, 0.28), 0 2px 6px rgba(15, 23, 20, 0.08)',
         'premium': '0 4px 24px -2px rgba(0, 0, 0, 0.04), 0 0 4px rgba(0,0,0,0.02)',
         'premium-hover': '0 8px 32px -4px rgba(0, 0, 0, 0.08), 0 0 4px rgba(0,0,0,0.02)',
         'premium-dark': '0 4px 24px -2px rgba(0, 0, 0, 0.2), 0 0 4px rgba(0,0,0,0.1)',
         'premium-dark-hover': '0 8px 32px -4px rgba(0, 0, 0, 0.3), 0 0 4px rgba(0,0,0,0.1)',
       },
       colors: {
-        border: "hsl(var(--border))",
+        border: {
+          DEFAULT: "hsl(var(--border))",
+          strong: "hsl(var(--border-strong))",
+        },
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        /* Escala da marca, para quando o papel semântico não basta. */
+        brand: {
+          50: "hsl(var(--brand-50))",
+          100: "hsl(var(--brand-100))",
+          600: "hsl(var(--brand-600))",
+          700: "hsl(var(--brand-700))",
+          800: "hsl(var(--brand-800))",
+          850: "hsl(var(--brand-850))",
+          900: "hsl(var(--brand-900))",
+          950: "hsl(var(--brand-950))",
+        },
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          brand: "hsl(var(--surface-brand))",
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -41,14 +67,27 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          surface: "hsl(var(--destructive-surface))",
         },
         success: {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
+          surface: "hsl(var(--success-surface))",
         },
         warning: {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
+          surface: "hsl(var(--warning-surface))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          surface: "hsl(var(--info-surface))",
+        },
+        doc: {
+          DEFAULT: "hsl(var(--doc))",
+          foreground: "hsl(var(--doc-foreground))",
+          surface: "hsl(var(--doc-surface))",
         },
         critical: {
           DEFAULT: "hsl(var(--critical))",
@@ -57,6 +96,7 @@ export default {
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
+          strong: "hsl(var(--muted-strong))",
         },
         accent: {
           DEFAULT: "hsl(var(--accent))",
@@ -92,6 +132,27 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        /* Card 12px contra 8px de input/botão: a diferença é sutil de
+           propósito. Card muito arredondado descaracteriza ferramenta de
+           trabalho e puxa para aparência de app de consumo. */
+        card: "0.75rem",
+      },
+      fontSize: {
+        /* Escala das referências. O segundo valor fixa o line-height junto,
+           para o tamanho não depender de quem escreve a classe. */
+        'title': ['1.75rem', { lineHeight: '1.15', fontWeight: '650' }],
+        'section': ['1.1875rem', { lineHeight: '1.3', fontWeight: '600' }],
+        'card-title': ['1rem', { lineHeight: '1.4', fontWeight: '600' }],
+        'kpi': ['1.625rem', { lineHeight: '1.15', fontWeight: '650' }],
+        'label': ['0.8125rem', { lineHeight: '1.4', fontWeight: '500' }],
+        'group': ['0.6875rem', { lineHeight: '1.2', fontWeight: '600', letterSpacing: '0.06em' }],
+      },
+      spacing: {
+        /* Medidas estruturais que se repetem e não podem divergir entre telas. */
+        'sidebar': '15rem',        /* 240px */
+        'sidebar-sm': '13.5rem',   /* 216px — notebook */
+        'control': '2.75rem',      /* 44px — altura de input, botão e busca */
+        'nav-item': '2.5rem',      /* 40px */
       },
       keyframes: {
         "accordion-down": {
@@ -118,12 +179,23 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.7" },
         },
+        // Balanço curto do sino quando chega notificação nova. Usado só
+        // sob motion-safe: para quem pediu menos movimento no SO, o número
+        // do badge já é o aviso.
+        "sino": {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "20%": { transform: "rotate(-12deg)" },
+          "40%": { transform: "rotate(10deg)" },
+          "60%": { transform: "rotate(-6deg)" },
+          "80%": { transform: "rotate(4deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out",
         "fade-in-up": "fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+        "sino": "sino 0.6s ease-in-out 2",
         "slide-in": "slide-in 0.3s ease-out",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },

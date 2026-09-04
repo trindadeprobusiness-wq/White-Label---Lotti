@@ -23,7 +23,7 @@ export function useDocumentos() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
-  const fetchDocumentos = useCallback(async () => {
+  const fetchDocumentos = useCallback(async (silent = false) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -35,14 +35,16 @@ export function useDocumentos() {
       setDocumentos(data || []);
     } catch (error: any) {
       console.error('Erro ao buscar documentos:', error);
-      toast.error('Erro ao carregar documentos');
+      if (!silent) {
+        toast.error('Erro ao carregar documentos');
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchDocumentos();
+    fetchDocumentos(true);
   }, [fetchDocumentos]);
 
   const uploadDocumento = async (

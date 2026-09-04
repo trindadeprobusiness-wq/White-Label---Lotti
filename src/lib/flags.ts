@@ -26,12 +26,6 @@ export const FLAGS = {
    */
   crm: ligado(import.meta.env.VITE_CRM_ENABLED),
 
-  /**
-   * Login social. DESLIGADO por padrao: o codigo esta pronto, mas o provedor
-   * precisa ser configurado no painel do Supabase antes. Ligar sem configurar
-   * mostraria um botao que so devolve 'Unsupported provider'.
-   * Ver infra/OAUTH.md.
-   */
-  oauthGoogle: String(import.meta.env.VITE_OAUTH_PROVIDERS ?? '').includes('google'),
+  /** Google é parte fixa da autenticação; Microsoft permanece opcional. */
   oauthMicrosoft: String(import.meta.env.VITE_OAUTH_PROVIDERS ?? '').includes('microsoft'),
 } as const;

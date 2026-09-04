@@ -15,6 +15,11 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
+// Algumas tabelas ainda estão com os tipos gerados do Supabase defasados em
+// relação às migrations. O cliente sem schema tipado fica concentrado aqui,
+// sem espalhar casts `any` pelas operações.
+const db = supabase as unknown as SupabaseClient;
+
 // Feedback padrão para falhas de escrita: sem isso o erro morre no console
 // e o usuário assume que os dados foram salvos.
 const toastErro = (titulo: string) =>
@@ -35,6 +40,10 @@ interface CRMStore {
   corretor: Corretor | null;
   preferencias: Preferencias;
   loading: boolean;
+
+  // Segurança entre sessões: nenhum dado em memória pode sobreviver quando
+  // outra pessoa entra no mesmo navegador.
+  limparDadosDaSessao: () => void;
 
   // Fetch actions
   fetchClientes: () => Promise<void>;
@@ -102,6 +111,18 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
   preferencias: defaultPreferencias,
   loading: false,
 
+  limparDadosDaSessao: () => set({
+    clientes: [],
+    imoveis: [],
+    alertas: [],
+    historico: [],
+    documentos: [],
+    contratos: [],
+    corretor: null,
+    preferencias: defaultPreferencias,
+    loading: false,
+  }),
+
   fetchClientes: async () => {
     try {
       const { data, error } = await supabase
@@ -111,11 +132,14 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
       if (error) throw error;
 
-      const clientesFormatted = (data || []).map(c => ({
-        ...c,
-        documentos: [],
-        imoveis_interesse: c.cliente_imovel?.map((ci: any) => ci.imovel_id) || [],
-      }));
+      const clientesFormatted = (data || []).map(c => {
+        const vinculos = (c as unknown as { cliente_imovel?: Array<{ imovel_id: string }> }).cliente_imovel;
+        return {
+          ...c,
+          documentos: [],
+          imoveis_interesse: vinculos?.map((vinculo) => vinculo.imovel_id) || [],
+        };
+      });
 
       set({ clientes: clientesFormatted as Cliente[] });
     } catch (error) {
@@ -165,7 +189,10 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) return;
+      if (!data) {
+        set({ corretor: null, preferencias: defaultPreferencias });
+        return;
+      }
 
       // Deep merge preferencias with defaults to ensure all properties exist
       const dbPrefs = data.preferencias as unknown as Partial<Preferencias> | null;
@@ -237,12 +264,12 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       const { data: corretorData } = await supabase.rpc('get_corretor_id');
       if (!corretorData) throw new Error('Corretor não encontrado');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('clientes')
         .insert({
-          ...(cliente as any),
+          ...cliente,
           corretor_id: corretorData,
-        } as any)
+        })
         .select()
         .single();
 
@@ -259,9 +286,9 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   updateCliente: async (id, data) => {
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('clientes')
-        .update(data as any)
+        .update(data)
         .eq('id', id);
 
       if (error) throw error;
@@ -392,10 +419,10 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       const { data: corretorData } = await supabase.rpc('get_corretor_id');
       if (!corretorData) throw new Error('Corretor não encontrado');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('contratos')
         .insert([{
-          tipo: contrato.tipo as any, // Type cast needed for new OUTRO enum value
+          tipo: contrato.tipo,
           cliente_id: contrato.cliente_id,
           imovel_id: contrato.imovel_id,
           valor: contrato.valor,

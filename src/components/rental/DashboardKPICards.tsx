@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, Users, Wallet } from "lucide-react";
+import { Dinheiro } from "@/components/ui/dinheiro";
 
 export function DashboardKPICards() {
     const { data: stats, isLoading } = useQuery({
@@ -40,7 +41,7 @@ export function DashboardKPICards() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                        R$ {stats?.totalReceivable.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <Dinheiro valor={stats?.totalReceivable} />
                     </div>
                     <p className="text-xs text-muted-foreground">Estimado (contratos ativos)</p>
                 </CardContent>
@@ -53,7 +54,7 @@ export function DashboardKPICards() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                        R$ {stats?.totalTransferred.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <Dinheiro valor={stats?.totalTransferred} />
                     </div>
                     <p className="text-xs text-muted-foreground">Valor líquido aos proprietários</p>
                 </CardContent>
@@ -77,7 +78,7 @@ export function DashboardKPICards() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                        R$ {stats?.estimatedCommission.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <Dinheiro valor={stats?.estimatedCommission} />
                     </div>
                     <p className="text-xs text-muted-foreground">Sua receita prevista</p>
                 </CardContent>

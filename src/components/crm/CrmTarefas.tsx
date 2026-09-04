@@ -65,6 +65,9 @@ export function CrmTarefas() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                {t.is_sample_data && (
+                  <Badge variant="secondary" className="bg-violet-100 text-violet-700 text-[10px]">Demo</Badge>
+                )}
                 {t.data_prevista && (
                   <span className={cn('text-xs', atrasada ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground')}>
                     {format(new Date(t.data_prevista), 'dd/MM/yyyy')}

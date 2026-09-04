@@ -6,14 +6,11 @@ import { FLAGS } from '@/lib/flags';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
- * Entrar com Google / Microsoft.
+ * Entrar com Google e, opcionalmente, Microsoft.
  *
- * Os botões só aparecem para os provedores listados em VITE_OAUTH_PROVIDERS.
- * O código está pronto para os dois, mas habilitar aqui sem ter configurado o
- * provedor no painel do Supabase produziria um botão que só devolve
- * "Unsupported provider" — botão falso é pior que botão ausente.
- *
- * Ver infra/OAUTH.md para o passo a passo de configuração.
+ * Google faz parte do fluxo principal e aparece sempre. Microsoft continua
+ * opcional via VITE_OAUTH_PROVIDERS. A configuração externa dos provedores está
+ * documentada em infra/OAUTH.md.
  */
 
 function IconeGoogle() {
@@ -43,7 +40,7 @@ export function BotoesSociais({ desabilitado }: { desabilitado?: boolean }) {
   const [indo, setIndo] = useState<string | null>(null);
 
   const provedores = [
-    FLAGS.oauthGoogle && { id: 'google' as const, rotulo: 'Google', Icone: IconeGoogle },
+    { id: 'google' as const, rotulo: 'Google', Icone: IconeGoogle },
     FLAGS.oauthMicrosoft && { id: 'azure' as const, rotulo: 'Microsoft', Icone: IconeMicrosoft },
   ].filter(Boolean) as { id: 'google' | 'azure'; rotulo: string; Icone: () => JSX.Element }[];
 

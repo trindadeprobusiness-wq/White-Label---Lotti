@@ -1,11 +1,12 @@
 # Login com Google e Microsoft
 
-O código está pronto e testado. Os botões **só aparecem** para os provedores
-listados em `VITE_OAUTH_PROVIDERS` — porque habilitar a interface antes de
-configurar o provedor produz um botão que só devolve `Unsupported provider`, e
-botão falso é pior que botão ausente.
+O botão Google faz parte fixa da tela de login. Microsoft é opcional e só
+aparece quando listado em `VITE_OAUTH_PROVIDERS`.
 
-Ordem: configure o provedor primeiro, ligue a variável depois.
+Para o Google aceitar contas novas, além de configurar o provedor, o projeto
+precisa permitir novos cadastros em **Authentication → Settings**. Com
+`disable_signup` ativo, nem o cadastro por e-mail nem o primeiro acesso Google
+conseguem criar uma conta.
 
 ## Onde o Supabase precisa receber a volta
 
@@ -53,23 +54,20 @@ listar como testadores conseguem entrar. Publique antes de abrir para clientes.
 O segredo do cliente **expira** (6, 12 ou 24 meses). Anote a data: quando vencer,
 o login para de funcionar sem aviso nenhum.
 
-## Ligar na aplicação
+## Ligar Microsoft na aplicação (opcional)
 
 Depois de configurado, na Vercel (e no `.env` local):
 
 ```
-VITE_OAUTH_PROVIDERS=google,microsoft
+VITE_OAUTH_PROVIDERS=microsoft
 ```
-
-Só um deles funciona igual: `VITE_OAUTH_PROVIDERS=google`.
 
 ## O que ainda precisa de atenção
 
-**Usuário social entra sem CRECI e sem telefone.** O trigger `handle_new_user`
+**Usuário social entra sem CNPJ e sem telefone.** O trigger `handle_new_user`
 cria o corretor para qualquer usuário novo do auth, mas o Google não envia esses
-campos — o cadastro nasce com CRECI `'PENDENTE'` e telefone vazio. É o
-onboarding que precisa pedir; sem isso o corretor fica com dado incompleto e
-nada avisa.
+campos. O cadastro manual grava o CNPJ; uma conta criada diretamente pelo Google
+continua com esses dados pendentes para um onboarding futuro.
 
 **Mesmo e-mail em métodos diferentes.** Por padrão o Supabase vincula contas com
 e-mail verificado igual, então quem criou conta com senha e depois entra pelo

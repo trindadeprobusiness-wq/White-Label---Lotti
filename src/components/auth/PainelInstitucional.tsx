@@ -21,16 +21,18 @@ export function PainelInstitucional() {
   return (
     <aside
       aria-label="Sobre o Lotti"
-      className="hidden lg:flex flex-col items-center justify-center gap-10 px-12 py-16 bg-primary/[0.03] border-l"
+      className="hidden min-h-0 flex-col items-center justify-center gap-9 border-l bg-primary/[0.03] px-10 py-8 lg:flex xl:px-12"
     >
-      <div className="text-center space-y-1 max-w-lg">
-        <h2 className="text-3xl font-semibold tracking-tight text-muted-foreground">
+      <div className="max-w-2xl space-y-1 text-center">
+        <h2 className="bg-gradient-to-r from-[#093323] to-[#000000] bg-clip-text text-2xl font-black leading-tight tracking-[-0.04em] text-transparent xl:text-3xl">
           Mais organização. Mais controle.
         </h2>
-        <p className="text-3xl font-semibold tracking-tight text-primary">Mais vendas.</p>
+        <p className="bg-gradient-to-r from-[#093323] to-[#000000] bg-clip-text text-2xl font-black leading-tight tracking-[-0.04em] text-transparent xl:text-3xl">
+          Mais vendas.
+        </p>
       </div>
 
-      <ul className="grid grid-cols-2 xl:grid-cols-4 gap-8 max-w-2xl">
+      <ul className="grid max-w-2xl grid-cols-2 gap-7 xl:grid-cols-4 xl:gap-8">
         {PILARES.map(({ icone: Icone, titulo, linha }) => (
           <li key={titulo} className="flex flex-col items-center text-center gap-2.5">
             <span className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -45,7 +47,7 @@ export function PainelInstitucional() {
       </ul>
 
       <p className="text-sm text-muted-foreground text-center max-w-md">
-        Do primeiro contato ao contrato assinado, num lugar só — com a IA cuidando
+        Do primeiro contato ao contrato assinado, num lugar só com a IA cuidando
         do trabalho repetitivo.
       </p>
     </aside>

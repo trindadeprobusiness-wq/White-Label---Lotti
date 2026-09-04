@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 interface KPICardProps {
   titulo: string;
@@ -57,7 +58,13 @@ export function KPICard({
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground font-medium">{titulo}</p>
-            <p className="text-2xl font-bold tracking-tight">{formatarValor()}</p>
+            <p className="text-2xl font-bold tracking-tight">
+              {/* Só dinheiro é mascarado. Percentual e contagem não expõem
+                  patrimônio e some-los deixaria o cartão sem sentido. */}
+              {formatoMoeda && !formatoPercentual
+                ? <DadoSensivel valor={formatarValor()} tipo="valor" />
+                : formatarValor()}
+            </p>
             {tendencia && variacao !== undefined && (
               <div className={cn("flex items-center gap-1 text-xs", tendenciaCor)}>
                 <TendenciaIcon className="h-3 w-3" />

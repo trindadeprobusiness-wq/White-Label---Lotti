@@ -201,17 +201,15 @@ function downscaleToBase64(file: File, maxDim = 1024): Promise<string> {
 
 // ───────────────────────────────────────────────
 // Step 1: Edge Function "analisar-foto" analisa a foto → devolve params JSON.
-// A chave do Gemini fica no servidor. `userApiKey` é um override opcional
-// (chave própria do usuário, digitada nas configurações).
+// A chave do provedor existe somente no backend.
 // ───────────────────────────────────────────────
-async function analyzePhotoViaEdge(file: File, userApiKey?: string): Promise<EnhancementParams> {
+async function analyzePhotoViaEdge(file: File): Promise<EnhancementParams> {
     try {
         const imageBase64 = await downscaleToBase64(file, 1024);
         const { data, error } = await supabase.functions.invoke('analisar-foto', {
             body: {
                 imageBase64,
                 mimeType: 'image/jpeg',
-                userApiKey: userApiKey?.trim() || undefined,
             },
         });
         if (error) {
@@ -320,8 +318,8 @@ async function applyEnhancement(file: File, params: EnhancementParams): Promise<
 // ───────────────────────────────────────────────
 // Main processor: Gemini → Canvas
 // ───────────────────────────────────────────────
-async function processImage(file: File, userApiKey?: string): Promise<string> {
-    const params = await analyzePhotoViaEdge(file, userApiKey);
+async function processImage(file: File): Promise<string> {
+    const params = await analyzePhotoViaEdge(file);
     return applyEnhancement(file, params);
 }
 
@@ -374,11 +372,15 @@ export function FotosIA() {
         }
     });
     const [showSettings, setShowSettings] = useState(false);
-    // Override opcional: chave própria do usuário (vazio = usa a IA padrão do servidor).
-    const [apiKey, setApiKey] = useState(() => localStorage.getItem('fotosIA_apiKey') || '');
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const logoInputRef = useRef<HTMLInputElement>(null);
+
+    // Versões anteriores aceitavam BYOK e guardavam o segredo no navegador.
+    // A integração agora é exclusivamente server-side; apaga o resíduo legado.
+    useEffect(() => {
+        localStorage.removeItem('fotosIA_apiKey');
+    }, []);
 
     // Persist watermark config
     useEffect(() => {
@@ -460,7 +462,6 @@ export function FotosIA() {
 
     // ── Process Images ──
     const handleProcess = async () => {
-        const key = apiKey.trim();
         const pending = images.filter(i => i.status === 'pending');
         if (!pending.length) {
             toast.info('Nenhuma imagem pendente para processar.');
@@ -474,7 +475,7 @@ export function FotosIA() {
             setImages(prev => prev.map(i => i.id === img.id ? { ...i, status: 'processing' } : i));
 
             try {
-                let processedUrl = await processImage(img.originalFile, key || undefined);
+                let processedUrl = await processImage(img.originalFile);
 
                 // Apply watermark if logo is set
                 if (watermark.logoUrl) {
@@ -495,10 +496,9 @@ export function FotosIA() {
 
     // ── Retry single ──
     const handleRetry = async (img: ProcessedImage) => {
-        const key = apiKey.trim();
         setImages(prev => prev.map(i => i.id === img.id ? { ...i, status: 'processing', error: undefined } : i));
         try {
-            let processedUrl = await processImage(img.originalFile, key || undefined);
+            let processedUrl = await processImage(img.originalFile);
             if (watermark.logoUrl) {
                 processedUrl = await applyWatermark(processedUrl, watermark.logoUrl, watermark.position, watermark.opacity);
             }
@@ -528,7 +528,7 @@ export function FotosIA() {
                                 <Settings2 className="h-4 w-4 text-primary" />
                                 Configurações
                             </CardTitle>
-                            <CardDescription>Chave da API e marca d'água</CardDescription>
+                            <CardDescription>Configuração da marca d'água</CardDescription>
                         </div>
                         <Button variant="ghost" size="sm" onClick={() => setShowSettings(s => !s)}>
                             {showSettings ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -539,27 +539,8 @@ export function FotosIA() {
 
                 {showSettings && (
                     <CardContent className="space-y-6">
-                        {/* API Key */}
-                        <div className="space-y-2">
-                            <Label>Chave da API Gemini (opcional)</Label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="password"
-                                    value={apiKey}
-                                    onChange={e => setApiKey(e.target.value)}
-                                    placeholder="AIzaSy..."
-                                    className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                />
-                                <Button size="sm" onClick={() => {
-                                    localStorage.setItem('fotosIA_apiKey', apiKey);
-                                    toast.success('Chave salva!');
-                                }}>Salvar</Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">Deixe em branco para usar a IA padrão do sistema. Se preencher, sua própria chave (salva localmente no navegador) será usada no lugar.</p>
-                        </div>
-
                         {/* Watermark */}
-                        <div className="space-y-4 border-t pt-4">
+                        <div className="space-y-4">
                             <Label className="text-sm font-semibold">Marca d'Água da Empresa</Label>
 
                             {/* Logo upload */}

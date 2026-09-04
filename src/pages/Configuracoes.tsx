@@ -14,7 +14,9 @@ import {
   Bell, 
   Palette, 
   Save,
-  Building2
+  Building2,
+  CalendarSync,
+  Landmark,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +28,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { FotoPerfilUpload } from '@/components/configuracoes/FotoPerfilUpload';
+import { AsaasConnectionPanel } from '@/components/configuracoes/AsaasConnectionPanel';
+import { GoogleCalendarPanel } from '@/components/routine/GoogleCalendarPanel';
+import { useRoutineContext } from '@/hooks/routine/useRoutine';
+import { useSearchParams } from 'react-router-dom';
 import type { TemaAparencia, FormatoMoeda, OrdenacaoClientes } from '@/types/crm';
 
 const Configuracoes = () => {
@@ -40,6 +46,12 @@ const Configuracoes = () => {
     updatePreferencias,
     updatePreferenciasNotificacoes 
   } = useCRMStore();
+  const { data: routineContext } = useRoutineContext();
+  const [searchParams] = useSearchParams();
+  const abaSolicitada = searchParams.get('tab');
+  const abaInicial = ['perfil', 'notificacoes', 'aparencia', 'agenda', 'asaas'].includes(abaSolicitada ?? '')
+    ? abaSolicitada as string
+    : 'perfil';
 
   // React Hook Form with Zod validation
   const {
@@ -143,12 +155,12 @@ const Configuracoes = () => {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
         <p className="text-muted-foreground mt-1">
-          Gerencie seu perfil, notificações e preferências do sistema
+          Gerencie seu perfil, preferências e integrações da sua operação
         </p>
       </div>
 
-      <Tabs defaultValue="perfil" className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+      <Tabs defaultValue={abaInicial} className="space-y-6">
+        <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-5">
           <TabsTrigger value="perfil" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Perfil
@@ -160,6 +172,14 @@ const Configuracoes = () => {
           <TabsTrigger value="aparencia" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
             Aparência
+          </TabsTrigger>
+          <TabsTrigger value="agenda" className="flex items-center gap-2">
+            <CalendarSync className="h-4 w-4" />
+            Agenda
+          </TabsTrigger>
+          <TabsTrigger value="asaas" className="flex items-center gap-2">
+            <Landmark className="h-4 w-4" />
+            Asaas
           </TabsTrigger>
         </TabsList>
 
@@ -556,6 +576,37 @@ const Configuracoes = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="agenda" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold">Calendários conectados</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Escolha quais agendas entram na Lotti e como as alterações são sincronizadas.
+            </p>
+          </div>
+          <GoogleCalendarPanel context={routineContext} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Privacidade da sincronização</CardTitle>
+              <CardDescription>
+                Por padrão, a Lotti envia somente o contexto necessário para reconhecer o compromisso.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm leading-6 text-muted-foreground">
+              Compromissos privados de outros membros nunca ficam visíveis. Dados de clientes, documentos e valores não são enviados ao Google automaticamente; visitas usam títulos parciais como “Visita imobiliária — Jardim Europa”.
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="asaas" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold">Conta de recebimento Asaas</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Saldo, clientes e cobranças ficam vinculados exclusivamente à conta conectada por esta operação.
+            </p>
+          </div>
+          <AsaasConnectionPanel />
         </TabsContent>
       </Tabs>
     </div>

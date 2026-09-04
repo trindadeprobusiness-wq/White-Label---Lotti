@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, RotateCcw, AlertCircle, Sparkles } from 'lucide-react';
+import {
+  Send, RotateCcw, AlertCircle, Sparkles, Trash2, ChevronRight, ShieldCheck,
+  ExternalLink, Users, Building2, TrendingUp, FileText,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,11 +15,26 @@ import type { AIFileUploadHandle } from '@/components/ai/AIFileUpload';
 import { AIConversationList } from '@/components/ai/AIConversationList';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { AI_ACCEPTED_TYPES } from '@/types/ai';
+import { EstadoInicialIA } from '@/components/ai/EstadoInicialIA';
+import { useCRMStore } from '@/stores/crmStore';
+
+/** Atalhos do painel direito — cada um preenche o campo com a pergunta pronta. */
+const CAPACIDADES = [
+  { Icone: Users, titulo: 'Consultar clientes e históricos',
+    prompt: 'Mostre um resumo dos meus clientes e do histórico de contato de cada um.' },
+  { Icone: Building2, titulo: 'Encontrar imóveis',
+    prompt: 'Quais imóveis eu tenho disponíveis no momento?' },
+  { Icone: TrendingUp, titulo: 'Analisar receitas e despesas',
+    prompt: 'Analise minhas receitas e despesas e aponte o que mais pesa no resultado.' },
+  { Icone: FileText, titulo: 'Organizar contratos e documentos',
+    prompt: 'Quais contratos e documentos precisam de atenção por prazo ou pendência?' },
+] as const;
 
 export default function Assistente() {
   const [inputText, setInputText] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { corretor } = useCRMStore();
 
   const {
     messages,
@@ -104,26 +122,44 @@ export default function Assistente() {
         )}
 
         {/* Header do chat — respiro maior, tipografia mais legível */}
-        <header className="border-b border-border px-6 py-4 flex items-center gap-3 bg-background">
-          <div className="bg-accent p-2 rounded-full">
+        <header className="flex items-center gap-3 border-b border-border bg-background px-6 py-4">
+          <div className="rounded-lg bg-surface-brand p-2">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
-          <div className="min-w-0">
-            <h1 className="text-base font-semibold text-foreground leading-tight">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-semibold leading-tight text-foreground">
               Assistente IA
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Integrado ao seu CRM · Gemini 2.5 Flash
-            </p>
+            {/* "Conectado aos dados da Lotti" e não o nome do modelo: o que
+                importa ao corretor é que a IA enxerga os dados dele, não qual
+                LLM está por trás. */}
+            <p className="text-xs text-muted-foreground">Conectado aos dados da Lotti</p>
           </div>
+
+          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+            <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
+            Disponível
+          </span>
+
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={startConversation}>
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Limpar conversa</span>
+            </Button>
+          )}
         </header>
 
         {/* Mensagens */}
         <ScrollArea className="flex-1">
           <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
-            {displayMessages.map((msg) => (
-              <AIMessageBubble key={msg.id} message={msg} />
-            ))}
+            {messages.length === 0 ? (
+              <EstadoInicialIA
+                nome={corretor?.nome}
+                onSugestao={(texto) => { setInputText(texto); }}
+              />
+            ) : (
+              messages.map((msg) => <AIMessageBubble key={msg.id} message={msg} />)
+            )}
             {pendingActions.map((action) => (
               <AIActionCard
                 key={action.id}
@@ -196,12 +232,66 @@ export default function Assistente() {
                 <Send className="h-4 w-4" />
               </Button>
             </form>
-            <p className="text-[10px] text-muted-foreground text-center">
-              Enter envia · Shift+Enter quebra linha · Arraste arquivos pra qualquer canto
+            <p className="text-center text-[11px] text-muted-foreground">
+              Enter envia · Shift+Enter quebra linha
             </p>
           </div>
         </div>
       </section>
+
+      {/* Painel de contexto. Só a partir de xl: abaixo disso ele roubaria
+          largura do chat, que é onde o trabalho acontece. */}
+      <aside className="hidden w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-border bg-background p-4 xl:flex">
+        <div>
+          <h2 className="mb-2 px-1 text-sm font-medium text-foreground">
+            A IA pode ajudar com
+          </h2>
+          <div className="space-y-0.5">
+            {CAPACIDADES.map((c) => (
+              <button
+                key={c.titulo}
+                type="button"
+                onClick={() => setInputText(c.prompt)}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-ring"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-brand text-primary">
+                  <c.Icone className="h-[18px] w-[18px]" />
+                </span>
+                <span className="min-w-0 flex-1 text-sm leading-snug text-foreground">
+                  {c.titulo}
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* O corretor precisa saber que a IA não age sozinha — é o que separa
+            "assistente" de "coisa que mexe nos meus dados". */}
+        <div className="rounded-card border border-border bg-card p-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-warning" />
+            <p className="text-sm font-medium text-foreground">Você está no controle</p>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Ações que alteram dados exigem sua confirmação.
+          </p>
+          <a
+            href="https://supabase.com/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline focus-ring rounded"
+          >
+            Como a IA usa seus dados
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
+
+        <p className="mt-auto text-xs leading-relaxed text-muted-foreground">
+          As respostas da IA não substituem orientação profissional. Confira as
+          informações antes de tomar decisões.
+        </p>
+      </aside>
     </div>
   );
 }

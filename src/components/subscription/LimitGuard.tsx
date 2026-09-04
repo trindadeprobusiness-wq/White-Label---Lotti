@@ -3,9 +3,19 @@ import { useCheckLimit, useCurrentSubscription, useAllPlans } from '@/hooks/useS
 import { UpgradePrompt } from './UpgradePrompt';
 import type { FeatureKey } from '@/types/subscription';
 
+/**
+ * O RESULTADO de checar o limite, não a função que checa.
+ *
+ * A tipagem anterior era `ReturnType<typeof useCheckLimit>`, que é a própria
+ * função `checkLimit`. O componente então chamava `children(status)` passando um
+ * objeto onde o tipo pedia uma função — dois erros de compilação que ficaram
+ * de pé enquanto o componente não era usado em tela nenhuma.
+ */
+type StatusLimite = ReturnType<ReturnType<typeof useCheckLimit>>;
+
 interface LimitGuardProps {
   featureKey: FeatureKey;
-  children: ReactNode | ((check: ReturnType<typeof useCheckLimit>) => ReactNode);
+  children: ReactNode | ((check: StatusLimite) => ReactNode);
   fallback?: ReactNode;
 }
 

@@ -26,7 +26,7 @@ export function useVideos() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const fetchVideos = useCallback(async () => {
+  const fetchVideos = useCallback(async (silent = false) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -38,14 +38,16 @@ export function useVideos() {
       setVideos((data as VideoRow[]) || []);
     } catch (error: any) {
       console.error('Erro ao buscar vídeos:', error);
-      toast.error('Erro ao carregar vídeos');
+      if (!silent) {
+        toast.error('Erro ao carregar vídeos');
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchVideos();
+    fetchVideos(true);
   }, [fetchVideos]);
 
   const uploadVideo = async (

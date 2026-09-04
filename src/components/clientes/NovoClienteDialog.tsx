@@ -13,6 +13,7 @@ import { getTrackingData } from '@/hooks/useUTMTracker';
 // dígitos antes: colar "5562999998888" virava "(55) 6299999-88". Esta corta em
 // 11 dígitos primeiro e é a mesma usada no resto do app.
 import { formatarTelefone } from '@/lib/validators';
+import { SeletorImovel } from './SeletorImovel';
 
 interface NovoClienteDialogProps {
   open: boolean;
@@ -141,20 +142,11 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
               </Select>
             </div>
 
-            <div><Label>Imóvel de Interesse</Label>
-              <Select value={selectedImovel} onValueChange={setSelectedImovel}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {imoveis.map(imovel => (
-                    <SelectItem key={imovel.id} value={imovel.id}>
-                      {imovel.titulo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div>
+              <Label>Imóvel de Interesse</Label>
+              {/* Permite cadastrar o imóvel sem sair do cadastro do cliente —
+                  antes era preciso cancelar tudo, ir em Imóveis e recomeçar. */}
+              <SeletorImovel value={selectedImovel} onChange={setSelectedImovel} />
             </div>
           </div>
 

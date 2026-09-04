@@ -33,6 +33,7 @@ export interface CrmOportunidade {
   created_at: string;
   /** Token de concorrência otimista ao mover o card. */
   updated_at: string;
+  is_sample_data?: boolean;
 }
 
 export interface CrmTarefa {
@@ -47,6 +48,7 @@ export interface CrmTarefa {
   concluida: boolean;
   concluida_em: string | null;
   created_at: string;
+  is_sample_data?: boolean;
 }
 
 /** Uma coluna do Kanban. */

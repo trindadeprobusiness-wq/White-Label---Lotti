@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { liberarQualificacao } from '../_shared/cotas.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -272,12 +273,53 @@ serve(async (req) => {
       console.error('Erro ao criar alerta:', alertError)
     }
 
+    // --- Cota de qualificação por IA ---
+    //
+    // Vem DEPOIS de o lead estar gravado, e nunca antes: cota não bloqueia
+    // captura. O contato é do corretor; barrar a gravação para forçar upgrade
+    // destruiria o ativo dele, e ele nem descobriria — o lead sumiria calado.
+    //
+    // O que a cota decide é se a IA conversa com este lead, que é onde está o
+    // custo de verdade.
+    const { qualificar, aviso } = await liberarQualificacao(supabaseClient, corretor_id)
+
+    if (aviso) {
+      // Um alerta por mês basta. Repetir a cada lead transformaria o aviso em
+      // ruído justamente quando ele precisa ser notado.
+      try {
+        const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+        const { data: jaAvisado } = await supabaseClient
+          .from('alertas')
+          .select('id')
+          .eq('corretor_id', corretor_id)
+          .eq('entidade_tipo', 'plano')
+          .gte('created_at', inicioMes)
+          .limit(1)
+
+        if (!jaAvisado?.length) {
+          await supabaseClient.from('alertas').insert({
+            corretor_id,
+            tipo: 'GERAL',
+            prioridade: 'ALTA',
+            mensagem: aviso,
+            lido: false,
+            origem: 'sistema',
+            entidade_tipo: 'plano',
+          })
+        }
+      } catch (e) {
+        console.error('aviso de cota falhou (lead segue gravado)', e)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         message: isNew ? 'Lead capturado com sucesso!' : 'Lead atualizado com sucesso!',
         cliente_id: clienteId,
         is_new: isNew,
+        // Consumido por quem dispara a conversa no WhatsApp.
+        qualificar_com_ia: qualificar,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )

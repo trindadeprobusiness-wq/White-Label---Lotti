@@ -5,17 +5,22 @@ import { RepassesList } from "@/components/rental/RepassesList";
 import { ContractsList } from "@/components/rental/ContractsList";
 import { DashboardKPICards } from "@/components/rental/DashboardKPICards";
 import { DashboardCharts } from "@/components/rental/DashboardCharts";
+import { BotaoPrivacidade } from "@/components/shell/BotaoPrivacidade";
 
 const RentalManagement = () => {
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Gestão de Aluguéis</h1>
                     <p className="text-muted-foreground">
                         Gerencie faturas e repasses de forma automatizada.
                     </p>
                 </div>
+                {/* À direita, alinhado com os cartões de valor logo abaixo. Colado
+                    no título ele parecia sobra de layout, e é justamente o
+                    controle que governa todos os números desta tela. */}
+                <BotaoPrivacidade />
             </div>
 
             <Tabs defaultValue="overview" className="space-y-4">
