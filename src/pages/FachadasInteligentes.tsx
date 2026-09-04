@@ -359,6 +359,7 @@ export default function FachadasInteligentes() {
                   onPreview={setPreviewFachada}
                   onEdit={(fac) => { setEditingFachada(fac); setDialogOpen(true); }}
                   onDeactivate={deleteFachada}
+                  onViewLeads={() => setAbaAtiva('leads')}
                 />
               ))}
             </div>

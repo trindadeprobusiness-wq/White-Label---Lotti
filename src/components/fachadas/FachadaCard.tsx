@@ -25,9 +25,10 @@ interface FachadaCardProps {
   onPreview: (f: FachadaComImovel) => void;
   onEdit: (f: FachadaComImovel) => void;
   onDeactivate: (id: string) => void;
+  onViewLeads?: () => void;
 }
 
-export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: FachadaCardProps) {
+export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate, onViewLeads }: FachadaCardProps) {
   const [fotoPrincipal, setFotoPrincipal] = useState<string | null>(fachada.foto_principal_url || null);
   const [mediaCounts, setMediaCounts] = useState({ fotos: 0, videos: 0 });
 
@@ -217,7 +218,7 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate }: Fachad
             <LinkIcon className="mr-2 h-4 w-4" />
             Copiar link
           </Button>
-          <Button variant="ghost" size="sm" className="w-full" onClick={() => onPreview(fachada)}>
+          <Button variant="ghost" size="sm" className="w-full" onClick={() => onViewLeads?.()}>
             Ver leads
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
