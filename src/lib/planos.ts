@@ -88,3 +88,25 @@ export function rotuloCota({ usado, limite }: Cota): string {
   if (limite === null) return `${usado} usados`;
   return `${usado} de ${limite}`;
 }
+
+import type { FeatureKey, PlanWithEntitlements } from '@/types/subscription';
+
+/** Primeiro plano acima do atual que realmente aumenta a capacidade da feature. */
+export function proximoPlanoParaCota(
+  planos: PlanWithEntitlements[],
+  planoAtualId: string,
+  featureKey: FeatureKey,
+): PlanWithEntitlements | null {
+  const ordenados = [...planos].sort((a, b) => a.display_order - b.display_order);
+  const indiceAtual = ordenados.findIndex((plano) => plano.id === planoAtualId);
+  if (indiceAtual < 0) return null;
+
+  const atual = ordenados[indiceAtual].entitlements.find((item) => item.feature_key === featureKey);
+  const limiteAtual = atual?.unlimited ? Number.POSITIVE_INFINITY : (atual?.limit_value ?? 0);
+
+  return ordenados.slice(indiceAtual + 1).find((plano) => {
+    const entitlement = plano.entitlements.find((item) => item.feature_key === featureKey);
+    if (!entitlement?.enabled) return false;
+    return entitlement.unlimited || (entitlement.limit_value ?? 0) > limiteAtual;
+  }) ?? null;
+}

@@ -15,7 +15,9 @@ import {
   podeCapturarLead,
   podeQualificarComIA,
   rotuloCota,
+  proximoPlanoParaCota,
 } from './planos';
+import type { PlanWithEntitlements } from '@/types/subscription';
 
 describe('statusCota', () => {
   it('avisa antes de acabar, não depois', () => {
@@ -110,5 +112,56 @@ describe('rotuloCota', () => {
 
   it('no ilimitado mostra só o consumo', () => {
     expect(rotuloCota({ usado: 42, limite: null })).toBe('42 usados');
+  });
+});
+
+describe('proximoPlanoParaCota', () => {
+  const plano = (
+    id: string,
+    code: 'essencial' | 'profissional' | 'imobiliaria',
+    name: string,
+    displayOrder: number,
+    limite: number,
+  ): PlanWithEntitlements => ({
+    id,
+    code,
+    name,
+    description: '',
+    monthly_price: 0,
+    annual_price: 0,
+    active: true,
+    highlighted: false,
+    display_order: displayOrder,
+    trial_days: 0,
+    created_at: '',
+    updated_at: '',
+    entitlements: [{
+      id: `${id}-max-imoveis`,
+      plan_id: id,
+      feature_key: 'max_imoveis',
+      feature_name: 'Imóveis ativos',
+      category: 'imoveis',
+      enabled: true,
+      limit_value: limite,
+      unlimited: false,
+      display_order: 1,
+      created_at: '',
+      updated_at: '',
+    }],
+  });
+
+  const planos = [
+    plano('ess', 'essencial', 'Essencial', 1, 5),
+    plano('pro', 'profissional', 'Profissional', 2, 20),
+    plano('imo', 'imobiliaria', 'Imobiliária', 3, 100),
+  ];
+
+  it('recomenda o primeiro plano posterior que aumenta a cota', () => {
+    expect(proximoPlanoParaCota(planos, 'ess', 'max_imoveis')?.code).toBe('profissional');
+    expect(proximoPlanoParaCota(planos, 'pro', 'max_imoveis')?.code).toBe('imobiliaria');
+  });
+
+  it('não promete upgrade quando não existe plano com cota maior', () => {
+    expect(proximoPlanoParaCota(planos, 'imo', 'max_imoveis')).toBeNull();
   });
 });
