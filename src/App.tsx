@@ -76,6 +76,12 @@ const AdminOnboarding = lazy(() => import("@/pages/admin/AdminOnboarding"));
 const AdminParceiros = lazy(() => import("@/pages/admin/AdminParceiros"));
 const AdminParceiroDetalhe = lazy(() => import("@/pages/admin/AdminParceiroDetalhe"));
 const AdminComissoes = lazy(() => import("@/pages/admin/AdminComissoes"));
+const AdminAssinaturas = lazy(() => import("@/pages/admin/AdminAssinaturas"));
+const AdminPagamentos = lazy(() => import("@/pages/admin/AdminPagamentos"));
+const AdminCancelamentos = lazy(() => import("@/pages/admin/AdminCancelamentos"));
+const AdminRepasses = lazy(() => import("@/pages/admin/AdminRepasses"));
+const AdminCampanha = lazy(() => import("@/pages/admin/AdminCampanha"));
+const AdminIntegracoes = lazy(() => import("@/pages/admin/AdminIntegracoes"));
 const AdminReceita = lazy(() => import("@/pages/admin/AdminReceita"));
 const AdminAuditoria = lazy(() => import("@/pages/admin/AdminAuditoria"));
 const AdminConfiguracoes = lazy(() => import("@/pages/admin/AdminConfiguracoes"));
@@ -188,7 +194,13 @@ const App = () => (
             <Route path="/admin/onboarding" element={<AdminOnboarding />} />
             <Route path="/admin/parceiros" element={<AdminParceiros />} />
             <Route path="/admin/parceiros/:id" element={<AdminParceiroDetalhe />} />
+            <Route path="/admin/assinaturas" element={<AdminAssinaturas />} />
+            <Route path="/admin/pagamentos" element={<AdminPagamentos />} />
+            <Route path="/admin/cancelamentos" element={<AdminCancelamentos />} />
             <Route path="/admin/comissoes" element={<AdminComissoes />} />
+            <Route path="/admin/repasses" element={<AdminRepasses />} />
+            <Route path="/admin/campanha" element={<AdminCampanha />} />
+            <Route path="/admin/integracoes" element={<AdminIntegracoes />} />
             <Route path="/admin/receita" element={<AdminReceita />} />
             <Route path="/admin/auditoria" element={<AdminAuditoria />} />
           </Route>

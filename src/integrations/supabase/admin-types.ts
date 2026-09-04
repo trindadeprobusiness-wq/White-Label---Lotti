@@ -279,3 +279,235 @@ export interface PaginaAuditoria {
   itens: RegistroAuditoria[];
   total: number;
 }
+
+// ── Operação do SaaS ──────────────────────────────────────────────────────
+// Acrescentado em 20260901160000/160100/160200. Assinatura e plano continuam
+// vindo das tabelas que já existiam; o back office só passou a lê-las.
+
+export interface MetricasSaas {
+  periodo: { inicio: string; fim: string };
+  contas: { total: number; novas: number; suspensas: number };
+  /** `disponivel: false` = as tabelas plans/subscriptions nao existem na base. */
+  assinaturas:
+    | { disponivel: false }
+    | {
+        disponivel: true;
+        total: number;
+        ativas: number;
+        trials: number;
+        vencidas: number;
+        canceladas: number;
+        expiradas: number;
+        somente_leitura: number;
+        novas: number;
+      };
+  /** `tem_dados` distingue "MRR zero" de "nenhuma assinatura registrada". */
+  mrr: { tem_dados: boolean; valor: number; em_risco: number };
+  inadimplencia: { assinaturas: number; valor_mensal: number };
+  /** `taxa` é null quando não havia base no início — não é 0%. */
+  churn: { ativos_inicio: number; cancelados: number; taxa: number | null };
+  /** `disponivel: false` = a base não tem a tabela do checkout do site. */
+  pagamentos:
+    | { disponivel: false }
+    | {
+        disponivel: true;
+        recebido: number;
+        pendente: number;
+        vencido: number;
+        estornado: number;
+        pedidos: number;
+      };
+  parceiros: {
+    ativos: number;
+    receita_atribuida: number;
+    comissao_gerada: number;
+    saldo_a_pagar: number;
+  };
+  cancelamentos: { registrados: number };
+}
+
+export interface Assinatura {
+  id: string;
+  corretor_id: string;
+  conta_nome: string;
+  conta_email: string;
+  plano_codigo: string;
+  plano_nome: string;
+  status: string;
+  ciclo: string;
+  valor_mensal: number;
+  trial_termina_em: string | null;
+  periodo_inicio: string | null;
+  proxima_cobranca: string | null;
+  cancelar_no_fim: boolean;
+  cancelada_em: string | null;
+  motivo_cancelamento: string | null;
+  id_externo: string | null;
+  criada_em: string;
+}
+
+export interface PaginaAssinaturas {
+  /** false = migration 20260807120000 (plans/subscriptions) nao aplicada. */
+  disponivel: boolean;
+  itens: Assinatura[];
+  total: number;
+}
+
+export interface PagamentoSaas {
+  id: string;
+  pagador: string;
+  email: string;
+  plano: string;
+  ciclo: string;
+  metodo: string;
+  valor: number;
+  status: string;
+  motivo_falha: string | null;
+  id_cobranca: string | null;
+  id_assinatura: string | null;
+  corretor_id: string | null;
+  conta_nome: string | null;
+  acesso_enviado_em: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface PaginaPagamentos {
+  disponivel: boolean;
+  itens: PagamentoSaas[];
+  total: number;
+  totais: {
+    recebido: number;
+    pendente: number;
+    vencido: number;
+    estornado: number;
+  } | null;
+}
+
+export interface Cancelamento {
+  id: string;
+  corretor_id: string | null;
+  nome: string | null;
+  email: string | null;
+  telefone: string | null;
+  identificado: boolean;
+  plano_anterior: string | null;
+  motivo: string;
+  comentario: string | null;
+  origem: string;
+  data_cancelamento: string;
+  criado_em: string;
+}
+
+export interface PaginaCancelamentos {
+  itens: Cancelamento[];
+  total: number;
+}
+
+export interface MetricasCancelamento {
+  total_geral: number;
+  no_periodo: number;
+  ultimos_30: number;
+  motivo_principal: string | null;
+  por_motivo: { motivo: string; total: number }[];
+  por_origem: { origem: string; total: number }[];
+}
+
+export interface LoteRepasse {
+  id: string;
+  referencia: string;
+  status: string;
+  valor_total: number;
+  total_parceiros: number;
+  total_comissoes: number;
+  saldo_minimo: number | null;
+  exportado_em: string | null;
+  pago_em: string | null;
+  referencia_pagamento: string | null;
+  comprovante_url?: string | null;
+  observacoes: string | null;
+  motivo_cancelamento: string | null;
+  criado_em: string;
+}
+
+export interface PaginaLotes {
+  itens: LoteRepasse[];
+  total: number;
+}
+
+export interface ItemLote {
+  parceiro_id: string;
+  nome: string;
+  documento: string | null;
+  chave_pix: string;
+  tipo_chave_pix: string;
+  comissoes: number;
+  valor: number;
+}
+
+export interface DetalheLote {
+  lote: LoteRepasse;
+  itens: ItemLote[];
+}
+
+export interface ElegiveisRepasse {
+  saldo_minimo: number;
+  hold_dias: number;
+  itens: {
+    parceiro_id: string;
+    nome: string;
+    email: string;
+    documento: string | null;
+    chave_pix: string | null;
+    tipo_chave_pix: string | null;
+    comissoes: number;
+    valor: number;
+    elegivel: boolean;
+  }[];
+}
+
+export interface StatusIntegracoes {
+  checkout:
+    | { instalado: false }
+    | {
+        instalado: true;
+        pedidos: number;
+        pagos: number;
+        aguardando: number;
+        falhados: number;
+        pagos_sem_acesso: number;
+      };
+  webhook:
+    | { instalado: false }
+    | {
+        instalado: true;
+        eventos: number;
+        processados: number;
+        falhados: number;
+        ultimo_processado_em: string | null;
+        ultimo_erro: string | null;
+      };
+  tracking: {
+    cliques_total: number;
+    cliques_30d: number;
+    links_ativos: number;
+    atribuicoes: number;
+    ultimo_clique_em: string | null;
+  };
+  repasse: {
+    parceiros_ativos: number;
+    parceiros_com_pix: number;
+    comissoes_aprovadas: number;
+    lotes_abertos: number;
+    portal_publicado: boolean;
+  };
+  rls: { tabela: string; rls: boolean; policies: number }[];
+  verificado_em: string;
+}
+
+export interface ConfigAdmin {
+  chave: string;
+  valor: unknown;
+  descricao: string | null;
+  atualizado_em: string;
+}

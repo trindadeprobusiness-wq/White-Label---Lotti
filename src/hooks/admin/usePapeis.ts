@@ -24,6 +24,19 @@ export const adminKeys = {
   comissoes: (filtros: unknown) => [...adminKeys.todos, 'comissoes', filtros] as const,
   receita: (filtros: unknown) => [...adminKeys.todos, 'receita', filtros] as const,
   auditoria: (filtros: unknown) => [...adminKeys.todos, 'auditoria', filtros] as const,
+  metricasSaas: (inicio: string, fim: string) =>
+    [...adminKeys.todos, 'metricas-saas', inicio, fim] as const,
+  assinaturas: (filtros: unknown) => [...adminKeys.todos, 'assinaturas', filtros] as const,
+  pagamentos: (filtros: unknown) => [...adminKeys.todos, 'pagamentos', filtros] as const,
+  cancelamentos: (filtros: unknown) => [...adminKeys.todos, 'cancelamentos', filtros] as const,
+  metricasCancelamento: (inicio: string, fim: string) =>
+    [...adminKeys.todos, 'metricas-cancelamento', inicio, fim] as const,
+  elegiveisRepasse: (saldo: number | null) =>
+    [...adminKeys.todos, 'elegiveis-repasse', saldo] as const,
+  lotes: (filtros: unknown) => [...adminKeys.todos, 'lotes', filtros] as const,
+  lote: (id: string) => [...adminKeys.todos, 'lote', id] as const,
+  integracoes: () => [...adminKeys.todos, 'integracoes'] as const,
+  config: () => [...adminKeys.todos, 'config'] as const,
 };
 
 export function usePapeis() {
