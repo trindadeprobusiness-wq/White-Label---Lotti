@@ -374,6 +374,8 @@ serve(async (req) => {
             const { error: cancelError } = await admin.from("faturas_aluguel").update({
                 status: "CANCELADO",
                 asaas_status: "DELETED",
+                external_id: null,
+                boleto_url: null,
                 boleto_url_asaas: null,
                 pix_qrcode_text: null,
             }).eq("id", fatura.id);

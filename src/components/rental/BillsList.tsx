@@ -614,7 +614,16 @@ export function BillsList() {
         try {
             const { error } = await (supabase as any)
                 .from('faturas_aluguel')
-                .update({ status: 'PENDENTE' })
+                .update({
+                    status: 'PENDENTE',
+                    // Limpa referências da cobrança cancelada no Asaas para que o
+                    // botão "Emitir cobrança" volte a aparecer e os links mortos do
+                    // boleto/PIX antigo não fiquem visíveis.
+                    external_id: null,
+                    boleto_url: null,
+                    boleto_url_asaas: null,
+                    pix_qrcode_text: null,
+                })
                 .eq('id', bill.id);
             if (error) throw error;
 
