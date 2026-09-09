@@ -1271,3 +1271,11 @@ credencial); nao foi contornada.
   na Vercel com os aliases oficiais; `/`, `/sobre` e
   `/configuracoes?tab=asaas` responderam 200, e o chunk público do novo painel Asaas
   respondeu 200 contendo a ação de conexão e a chave mascarada.
+
+
+### 2026-09-09 — Codex (catálogo com agente IA)
+
+- Catálogo de produção atualizado pela Management API: Inteligente R$279, Profissional R$399, Eficazes R$799; franquias 100/250/600 na chave existente leads_qualificados_monthly. IDs e códigos preservados.
+- Anual corresponde a 10 mensalidades por 12 meses de acesso. Migration idempotente 20260909180000_planos_agente_ia.sql adicionada. Cobranças Asaas existentes não foram alteradas.
+- Textos e limites estáticos dos planos alinhados ao catálogo consultado. Site/checkout atualizados em worktree separada de Lotti-Site.
+- Testes do site: checkout 7/7, visual 22/22, lint e build passaram. Publicação e validação do agente operacional ainda pendentes nesta entrada.
