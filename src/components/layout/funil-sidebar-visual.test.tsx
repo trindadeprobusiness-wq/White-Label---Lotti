@@ -75,14 +75,18 @@ describe('acabamento visual do funil e da sidebar', () => {
     expect(html).not.toContain('class="hidden"');
   });
 
-  it('oferece o WhatsApp antes de Clientes sem esconder o menu atual', () => {
+  it('agrupa Inbox e Funil de Vendas dentro de WhatsApp', () => {
     const html = renderToStaticMarkup(
       <StaticRouter location="/whatsapp">
         <AppSidebar />
       </StaticRouter>,
     );
 
-    expect(html).toContain('href="/whatsapp"');
-    expect(html.indexOf('>WhatsApp<')).toBeLessThan(html.indexOf('>Clientes<'));
+    expect(html).toContain('aria-label="Seção WhatsApp"');
+    expect(html).toContain('>Inbox<');
+    expect(html).toContain('>Funil de Vendas<');
+    expect(html.indexOf('>WhatsApp<')).toBeLessThan(html.indexOf('>Inbox<'));
+    expect(html.indexOf('>Inbox<')).toBeLessThan(html.indexOf('>Funil de Vendas<'));
+    expect(html.indexOf('>Funil de Vendas<')).toBeLessThan(html.indexOf('>Clientes<'));
   });
 });

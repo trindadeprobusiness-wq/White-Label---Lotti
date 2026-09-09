@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
+  Home, Users, Building2, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, Menu, X, KanbanSquare, CalendarCheck2, MessageCircle,
+  LogOut, Sun, Moon, Menu, X, CalendarCheck2, MessageCircle,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,7 @@ interface ItemNav {
   label: string;
   href: string;
   icone: React.ReactNode;
+  subitens?: Array<{ label: string; href: string }>;
 }
 
 interface GrupoNav {
@@ -61,13 +62,17 @@ function montarGrupos(): GrupoNav[] {
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
         { label: 'Rotina', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
-        { label: 'WhatsApp', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
+        {
+          label: 'WhatsApp',
+          href: '/whatsapp',
+          icone: <MessageCircle className={ic} />,
+          subitens: [
+            { label: 'Inbox', href: '/whatsapp' },
+            { label: 'Funil de Vendas', href: FLAGS.crm ? '/crm' : '/funil' },
+          ],
+        },
         { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
         { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
-        // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
-        FLAGS.crm
-          ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
-          : { label: 'Funil de Vendas', href: '/funil', icone: <Filter className={ic} /> },
         { label: 'Aluguéis', href: '/alugueis', icone: <KeyRound className={ic} /> },
       ],
     },
@@ -102,6 +107,59 @@ function ItemMenu({
 }: {
   item: ItemNav; ativo: boolean; recolhida: boolean; aoNavegar?: () => void;
 }) {
+  const { pathname } = useLocation();
+  const [aberto, setAberto] = useState(ativo);
+
+  useEffect(() => {
+    if (ativo) setAberto(true);
+  }, [ativo]);
+
+  if (item.subitens?.length && !recolhida) {
+    return (
+      <div aria-label={`Seção ${item.label}`}>
+        <button
+          type="button"
+          aria-expanded={aberto}
+          onClick={() => setAberto((valor) => !valor)}
+          className={cn(
+            'flex h-nav-item w-full items-center gap-3 rounded-lg px-3 text-sm font-medium',
+            'transition-colors duration-150 focus-ring',
+            ativo ? 'text-primary' : 'text-sidebar-foreground hover:bg-sidebar-accent',
+          )}
+        >
+          {item.icone}
+          <span className="flex-1 truncate text-left">{item.label}</span>
+          <ChevronRight className={cn('h-4 w-4 transition-transform', aberto && 'rotate-90')} />
+        </button>
+        {aberto && (
+          <div className="ml-[21px] border-l border-sidebar-border pb-1 pl-3">
+            {item.subitens.map((subitem) => {
+              const subitemAtivo = subitem.href === '/whatsapp'
+                ? pathname === '/whatsapp'
+                : pathname.startsWith(subitem.href);
+              return (
+                <Link
+                  key={subitem.href}
+                  to={subitem.href}
+                  onClick={aoNavegar}
+                  aria-current={subitemAtivo ? 'page' : undefined}
+                  className={cn(
+                    'my-0.5 flex min-h-9 items-center rounded-md px-3 text-sm transition-colors focus-ring',
+                    subitemAtivo
+                      ? 'bg-primary/10 font-semibold text-primary'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent',
+                  )}
+                >
+                  {subitem.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const link = (
     <Link
       to={item.href}
@@ -145,8 +203,10 @@ function Conteudo({
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
-  const ativo = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const ativo = (item: ItemNav) => {
+    if (item.subitens?.some(({ href }) => pathname === href || pathname.startsWith(`${href}/`))) return true;
+    return item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+  };
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -187,7 +247,7 @@ function Conteudo({
                 <ItemMenu
                   key={item.href}
                   item={item}
-                  ativo={ativo(item.href)}
+                  ativo={ativo(item)}
                   recolhida={recolhida}
                   aoNavegar={aoNavegar}
                 />

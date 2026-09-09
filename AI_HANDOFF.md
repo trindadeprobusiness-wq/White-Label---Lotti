@@ -98,6 +98,15 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (Inbox em tela cheia e submenu WhatsApp)
+
+- O cabeçalho externo da página `/whatsapp` foi removido para o Inbox ocupar toda a
+  área útil, aproximando a composição da referência enviada.
+- Na sidebar, WhatsApp passou a ser uma seção expansível com `Inbox` e
+  `Funil de Vendas`; o antigo link solto do Funil foi removido da lista principal.
+- Testes específicos de sidebar e Inbox: 7/7 passaram. `npm run build` e
+  `git diff --check` passaram. Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (primeira versão do WhatsApp Inbox)
 
 - Na branch `codex/mini-crm`, foi adicionada a rota protegida `/whatsapp` e o item

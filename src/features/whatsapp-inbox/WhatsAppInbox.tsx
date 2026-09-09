@@ -161,9 +161,9 @@ export function WhatsAppInbox() {
   );
 
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
-      <div className="hidden h-[calc(100vh-10.5rem)] min-h-[570px] grid-cols-[auto_minmax(0,1fr)_auto] lg:grid">{listPanel}{chatPanel}{profilePanel}</div>
-      <div className="h-[calc(100dvh-7rem)] min-h-[520px] lg:hidden">
+    <div className="overflow-hidden border-y border-border bg-card shadow-card md:border-x">
+      <div className="hidden h-screen min-h-[570px] grid-cols-[auto_minmax(0,1fr)_auto] lg:grid">{listPanel}{chatPanel}{profilePanel}</div>
+      <div className="h-[calc(100dvh-3.5rem)] min-h-[520px] pt-14 lg:hidden">
         <div className={cn('h-full', mobilePanel !== 'list' && 'hidden')}>{listPanel}</div>
         <div className={cn('h-full', mobilePanel !== 'chat' && 'hidden')}>{chatPanel}</div>
         <div className={cn('h-full', mobilePanel !== 'profile' && 'hidden')}>{profilePanel}</div>

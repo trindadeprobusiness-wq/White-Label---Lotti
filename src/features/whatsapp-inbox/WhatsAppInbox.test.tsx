@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { WhatsAppInbox, filterConversations } from './WhatsAppInbox';
 import { demoConversations } from './demoData';
+import WhatsAppInboxPage from '@/pages/WhatsAppInbox';
 
 describe('WhatsAppInbox', () => {
   it('renderiza o fluxo completo de atendimento e identifica a demonstração', () => {
@@ -19,5 +20,12 @@ describe('WhatsAppInbox', () => {
     expect(filterConversations(demoConversations, '98765')).toHaveLength(1);
     expect(filterConversations(demoConversations, 'financiamento')).toHaveLength(1);
     expect(filterConversations(demoConversations, 'inexistente')).toHaveLength(0);
+  });
+
+  it('usa toda a área do app sem cabeçalho externo acima do inbox', () => {
+    const html = renderToStaticMarkup(<WhatsAppInboxPage />);
+
+    expect(html).not.toContain('Atenda seus contatos e acompanhe cada conversa');
+    expect(html).toContain('data-layout="full-inbox"');
   });
 });
