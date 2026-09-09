@@ -16,8 +16,14 @@ export type Papel = 'admin' | 'super_admin';
 export type Recurso =
   | 'visao_geral'
   | 'usuarios'
+  | 'assinaturas'
+  | 'pagamentos'
+  | 'cancelamentos'
   | 'onboarding'
   | 'parceiros'
+  | 'repasses'
+  | 'campanha'
+  | 'integracoes'
   | 'comissoes'
   | 'receita'
   | 'auditoria'
@@ -39,15 +45,26 @@ export type Acao =
   | 'estornar_receita'
   | 'conceder_papel'
   | 'revogar_papel'
-  | 'exportar_dados';
+  | 'exportar_dados'
+  | 'registrar_cancelamento'
+  | 'gerar_lote'
+  | 'marcar_lote_pago'
+  | 'cancelar_lote'
+  | 'alterar_config_programa';
 
 const RECURSOS_ADMIN: readonly Recurso[] = [
   'visao_geral',
   'usuarios',
+  'assinaturas',
+  'pagamentos',
+  'cancelamentos',
   'onboarding',
   'parceiros',
   'comissoes',
+  'repasses',
   'receita',
+  'campanha',
+  'integracoes',
   'auditoria',
 ];
 
@@ -64,6 +81,10 @@ const ACOES_ADMIN: readonly Acao[] = [
   'revogar_link',
   'aprovar_comissao',
   'exportar_dados',
+  'registrar_cancelamento',
+  // Gerar lote é preparação: monta a lista e o CSV, não move dinheiro. Quem
+  // confirma que o PIX saiu é o super_admin, em `marcar_lote_pago`.
+  'gerar_lote',
 ];
 
 /**
@@ -80,6 +101,9 @@ const ACOES_SUPER_ADMIN: readonly Acao[] = [
   'estornar_receita',
   'conceder_papel',
   'revogar_papel',
+  'marcar_lote_pago',
+  'cancelar_lote',
+  'alterar_config_programa',
 ];
 
 function normalizar(papeis: readonly string[] | null | undefined): Papel[] {

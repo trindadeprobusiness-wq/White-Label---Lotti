@@ -27,6 +27,14 @@ interface DialogoConfirmacaoProps {
    */
   exigirMotivo?: boolean;
   minimoMotivo?: number;
+  /**
+   * Campos que a acao precisa coletar junto da confirmacao — data e referencia
+   * do pagamento, por exemplo. Ficam acima da justificativa porque sao dados da
+   * operacao, nao a explicacao dela.
+   */
+  conteudoExtra?: React.ReactNode;
+  /** Trava adicional do botao, para validacao que mora em `conteudoExtra`. */
+  confirmarDesabilitado?: boolean;
   aoConfirmar: (motivo: string) => void | Promise<void>;
 }
 
@@ -39,6 +47,8 @@ export function DialogoConfirmacao({
   destrutivo = false,
   exigirMotivo = false,
   minimoMotivo = 10,
+  conteudoExtra,
+  confirmarDesabilitado = false,
   aoConfirmar,
 }: DialogoConfirmacaoProps) {
   const [motivo, setMotivo] = useState('');
@@ -57,7 +67,7 @@ export function DialogoConfirmacao({
   const faltam = minimoMotivo - motivo.trim().length;
 
   const confirmar = async () => {
-    if (!motivoOk || enviando) return;
+    if (!motivoOk || confirmarDesabilitado || enviando) return;
     setEnviando(true);
     try {
       await aoConfirmar(motivo.trim());
@@ -74,6 +84,8 @@ export function DialogoConfirmacao({
           <AlertDialogTitle>{titulo}</AlertDialogTitle>
           <AlertDialogDescription>{descricao}</AlertDialogDescription>
         </AlertDialogHeader>
+
+        {conteudoExtra}
 
         {exigirMotivo && (
           <div className="space-y-2">
@@ -110,7 +122,7 @@ export function DialogoConfirmacao({
               e.preventDefault();
               void confirmar();
             }}
-            disabled={!motivoOk || enviando}
+            disabled={!motivoOk || confirmarDesabilitado || enviando}
             className={cn(destrutivo && 'bg-destructive hover:bg-destructive/90')}
           >
             {enviando ? 'Processando...' : rotuloConfirmar}

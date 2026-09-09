@@ -442,6 +442,8 @@ export function BillsList() {
     const [savingDate, setSavingDate] = useState(false);
     // Excluir boleto (cancela cobrança no Asaas + marca CANCELADO no banco).
     const [billToDelete, setBillToDelete] = useState<any>(null);
+    // Reativar fatura cancelada (volta para PENDENTE).
+    const [billToReactivate, setBillToReactivate] = useState<any>(null);
 
     // Garante que a fatura exista no banco (persiste virtuais como PENDENTE) e
     // devolve o id real. A transição para PAGO é feita à parte para o trigger
@@ -602,6 +604,39 @@ export function BillsList() {
         } finally {
             setProcessingId(null);
             setBillToDelete(null);
+        }
+    };
+
+    // Reativa uma fatura cancelada: volta o status para PENDENTE.
+    const handleReactivateBill = async (bill: any) => {
+        setProcessingId(bill.id);
+        const loadingToast = toast.loading("Reativando fatura...");
+        try {
+            const { error } = await (supabase as any)
+                .from('faturas_aluguel')
+                .update({
+                    status: 'PENDENTE',
+                    // Limpa referências da cobrança cancelada no Asaas para que o
+                    // botão "Emitir cobrança" volte a aparecer e os links mortos do
+                    // boleto/PIX antigo não fiquem visíveis.
+                    external_id: null,
+                    boleto_url: null,
+                    boleto_url_asaas: null,
+                    pix_qrcode_text: null,
+                })
+                .eq('id', bill.id);
+            if (error) throw error;
+
+            toast.dismiss(loadingToast);
+            toast.success("Fatura reativada com sucesso — agora está pendente novamente.");
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao reativar fatura:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Não foi possível reativar: " + (error?.message ?? "erro desconhecido"));
+        } finally {
+            setProcessingId(null);
+            setBillToReactivate(null);
         }
     };
 
@@ -1063,6 +1098,19 @@ export function BillsList() {
                                                                         </DropdownMenuItem>
                                                                     </>
                                                                 )}
+
+                                                                {/* Reativar: só para faturas canceladas */}
+                                                                {bill.status === 'CANCELADO' && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => setBillToReactivate(bill)}
+                                                                            className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                        >
+                                                                            <RefreshCw className="h-4 w-4 mr-2" /> Reativar fatura
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
                                                     </div>
@@ -1148,6 +1196,33 @@ export function BillsList() {
                         onClick={() => billToDelete && handleDeleteBill(billToDelete)}
                     >
                         Excluir boleto
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reativar fatura cancelada (confirmação) */}
+        <AlertDialog open={!!billToReactivate} onOpenChange={(o) => { if (!o) setBillToReactivate(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Reativar esta fatura?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {billToReactivate && (
+                            <>
+                                A fatura de <strong>{billToReactivate.contract?.imoveis?.titulo || billToReactivate.contract?.titulo || 'imóvel'}</strong>
+                                {' '}({billToReactivate.mesReferencia}) será reativada e voltará ao status <strong>Pendente</strong>.
+                                {' '}Se houver cobrança no Asaas, será necessário emiti-la novamente.
+                            </>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => billToReactivate && handleReactivateBill(billToReactivate)}
+                    >
+                        Reativar fatura
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

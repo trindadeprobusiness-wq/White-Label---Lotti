@@ -8,19 +8,19 @@ describe('cards comerciais dos planos', () => {
     expect(imobiliaria).not.toHaveProperty('secondaryCta');
   });
 
-  it('mantém os quatro limites iguais aos cards publicados', () => {
+  it('preserva o catálogo mais recente publicado na main', () => {
     const limites = Object.fromEntries(planLimits.map((item) => [item.label, [item.essencial, item.profissional, item.imobiliaria]]));
     expect(limites).toMatchObject({
-      'Imóveis ativos': ['5', '20', '100'],
-      'Contratos de aluguel ativos': ['5', '15', '100'],
-      'Fachadas Inteligentes': ['5', '20', '100'],
-      'Operações com IA / mês': ['10', '20', '60'],
+      'Imóveis ativos': ['250', '1.500', 'Ilimitado'],
+      'Leads atendidos pela IA / mês': ['100', '250', '600'],
+      'Fachadas Inteligentes': ['15', '60', 'Ilimitado'],
+      'Contratos com IA / mês': ['10', '25', '40'],
     });
   });
 
   it('não contradiz a integração Asaas do plano Essencial', () => {
     const essencial = plansDisplay.find((plan) => plan.code === 'essencial')!;
-    expect(essencial.features).toContain('Integração com Asaas');
+    expect(essencial.features).toContain('100 leads atendidos pela IA / mês');
     expect(essencial.excluded).not.toContain('Integração Asaas');
   });
 });

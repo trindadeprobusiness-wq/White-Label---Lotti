@@ -1,19 +1,18 @@
-import { useEffect, useState, useRef } from 'react';
-import { QrCodePositioner } from '@/components/fachadas/QrCodePositioner';
+import { useEffect, useState } from 'react';
 import {
-  Plus, QrCode, BarChart3, Users, LayoutTemplate, Upload, ImagePlus,
-  Trash2, Eye, Loader2, Building2, TrendingUp,
+  Plus, QrCode, BarChart3, Users, LayoutTemplate, ImagePlus,
+  Trash2, Eye, Loader2, Building2, TrendingUp, Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useFachadas } from '@/hooks/useFachadas';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { FachadaCard } from '@/components/fachadas/FachadaCard';
 import { FachadaPreview } from '@/components/fachadas/FachadaPreview';
 import { CriarFachadaDialog } from '@/components/fachadas/CriarFachadaDialog';
+import { AssistenteTemplateDialog } from '@/components/fachadas/AssistenteTemplateDialog';
+import type { DadosNovoTemplate } from '@/components/fachadas/AssistenteTemplateDialog';
 import { FachadaDashboard } from '@/components/fachadas/FachadaDashboard';
 import { LeadsTable } from '@/components/fachadas/LeadsTable';
 import { DEFAULT_TEMPLATES } from '@/types/fachada';
@@ -116,15 +115,8 @@ export default function FachadasInteligentes() {
   // Custom template states
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [templateNome, setTemplateNome] = useState('');
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
-  const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewCustomTemplate, setPreviewCustomTemplate] = useState<CustomTemplate | null>(null);
-  const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
-  const [qrSizePercent, setQrSizePercent] = useState(45);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const { upload, uploading } = useFileUpload('imoveis-fotos');
 
   useEffect(() => {
@@ -176,41 +168,9 @@ export default function FachadasInteligentes() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setTemplateFile(file);
-    const url = URL.createObjectURL(file);
-    setTemplatePreviewUrl(url);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      if (file.type.startsWith('image/')) {
-        setTemplateFile(file);
-        const url = URL.createObjectURL(file);
-        setTemplatePreviewUrl(url);
-      } else {
-        toast({ variant: 'destructive', title: 'Formato inválido', description: 'Por favor, envie uma imagem.' });
-      }
-    }
-  };
-
-  const handleSaveCustomTemplate = async () => {
-    if (!templateFile || !templateNome.trim()) return;
+  const handleSaveCustomTemplate = async ({
+    nome, arquivo, qrPosition, qrSize,
+  }: DadosNovoTemplate) => {
     setSavingTemplate(true);
 
     try {
@@ -223,9 +183,9 @@ export default function FachadasInteligentes() {
         throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
       }
 
-      const ext = templateFile.name.split('.').pop();
+      const ext = arquivo.name.split('.').pop();
       const fileName = `fachada-template-custom-${Date.now()}.${ext}`;
-      const result = await upload(templateFile, `fachadas/${corretorId}/${fileName}`);
+      const result = await upload(arquivo, `fachadas/${corretorId}/${fileName}`);
       if (!result?.url) throw new Error('Falha no upload');
 
       // O erro desta gravação NÃO é mais engolido. Antes era, e a tela dizia
@@ -236,7 +196,7 @@ export default function FachadasInteligentes() {
         .from('fachada_templates')
         .insert({
           corretor_id: corretorId,
-          nome: templateNome.trim(),
+          nome,
           categoria: 'VENDA',
           padrao: false,
           config: {
@@ -248,7 +208,7 @@ export default function FachadasInteligentes() {
             estilo: 'profissional',
             layout: 'vertical',
             qrPosition: { x: qrPosition.x, y: qrPosition.y },
-            qrSize: qrSizePercent,
+            qrSize,
           },
         } as any)
         // O genérico tipa a linha devolvida sem `as any`: `db()` perde o
@@ -263,17 +223,16 @@ export default function FachadasInteligentes() {
       setCustomTemplates((prev) => [
         {
           id: salvo.id,
-          nome: templateNome.trim(),
+          nome,
           imagem_url: result.url,
           qrPosition: { x: qrPosition.x, y: qrPosition.y },
-          qrSize: qrSizePercent,
+          qrSize,
           created_at: salvo.created_at ?? new Date().toISOString(),
         },
         ...prev,
       ]);
 
       toast({ title: 'Template salvo com sucesso!' });
-      resetUploadForm();
       setUploadDialogOpen(false);
     } catch (err: any) {
       toast({
@@ -284,15 +243,6 @@ export default function FachadasInteligentes() {
     } finally {
       setSavingTemplate(false);
     }
-  };
-
-  const resetUploadForm = () => {
-    setTemplateNome('');
-    setTemplateFile(null);
-    if (templatePreviewUrl) URL.revokeObjectURL(templatePreviewUrl);
-    setTemplatePreviewUrl(null);
-    setQrPosition({ x: 50, y: 50 });
-    setQrSizePercent(20);
   };
 
   const handleDeleteCustomTemplate = async (template: CustomTemplate) => {
@@ -411,6 +361,7 @@ export default function FachadasInteligentes() {
                   onPreview={setPreviewFachada}
                   onEdit={(fac) => { setEditingFachada(fac); setDialogOpen(true); }}
                   onDeactivate={deleteFachada}
+                  onViewLeads={() => setAbaAtiva('leads')}
                 />
               ))}
             </div>
@@ -465,13 +416,14 @@ export default function FachadasInteligentes() {
         {/* Aba: Templates */}
         <TabsContent value="templates">
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Templates disponíveis para suas fachadas. Crie templates personalizados com suas próprias artes.
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="max-w-xl text-sm text-muted-foreground">
+                Não tem arte pronta? O assistente monta o pedido a partir da sua marca e
+                abre um gerador de imagem com ele já escrito.
               </p>
-              <Button onClick={() => setUploadDialogOpen(true)} className="gap-2" variant="outline">
-                <Upload className="h-4 w-4" />
-                Enviar Meu Template
+              <Button onClick={() => setUploadDialogOpen(true)} className="h-control gap-2">
+                <Sparkles className="h-[18px] w-[18px]" />
+                Criar meu template
               </Button>
             </div>
 
@@ -619,136 +571,13 @@ export default function FachadasInteligentes() {
         }}
       />
 
-      {/* Dialog de Upload de Template Personalizado */}
-      <Dialog
+      {/* Assistente de criacao de template (briefing -> prompt -> arte) */}
+      <AssistenteTemplateDialog
         open={uploadDialogOpen}
-        onOpenChange={(o) => {
-          if (!o) resetUploadForm();
-          setUploadDialogOpen(o);
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ImagePlus className="h-5 w-5 text-primary" />
-              Personalizar Template
-            </DialogTitle>
-            <DialogDescription>
-              Faça upload da sua arte personalizada. Ao criar uma fachada com este template, o QR Code do imóvel será sobreposto automaticamente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Nome */}
-            <div>
-              <Label htmlFor="template-nome">Nome do Template *</Label>
-              <Input
-                id="template-nome"
-                value={templateNome}
-                onChange={(e) => setTemplateNome(e.target.value)}
-                placeholder="Ex: Placa Dourada, Banner Moderno..."
-                className="mt-1.5"
-              />
-            </div>
-
-            {/* Upload area */}
-            <div>
-              <Label>Arte / Imagem *</Label>
-              <div className="mt-1.5">
-                {templatePreviewUrl ? (
-                  <QrCodePositioner
-                    imageSrc={templatePreviewUrl}
-                    position={qrPosition}
-                    onPositionChange={setQrPosition}
-                    qrSizePercent={qrSizePercent}
-                    onSizeChange={setQrSizePercent}
-                    removeButton={
-                      <button
-                        onClick={() => {
-                          setTemplateFile(null);
-                          URL.revokeObjectURL(templatePreviewUrl);
-                          setTemplatePreviewUrl(null);
-                        }}
-                        className="absolute top-2 right-2 p-1.5 bg-red-500/80 rounded-lg hover:bg-red-600 transition z-50"
-                      >
-                        <Trash2 className="h-4 w-4 text-white" />
-                      </button>
-                    }
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={`w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group ${
-                      isDragging 
-                        ? 'border-primary bg-primary/10' 
-                        : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5'
-                    }`}
-                  >
-                    <div className="p-4 rounded-full bg-primary/10 group-hover:bg-primary/20 transition">
-                      <Upload className="h-8 w-8 text-primary" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-medium">Clique para enviar sua arte</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        PNG, JPG ou WebP • Recomendado: 1080×1920px (vertical)
-                      </p>
-                    </div>
-                  </button>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-              </div>
-            </div>
-
-            {/* Info tip */}
-            <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3">
-              <p className="text-xs text-amber-800 dark:text-amber-200">
-                <strong>💡 Dica:</strong> Crie sua arte no Canva ou editor de sua preferência. Pode incluir ou não um QR Code genérico na imagem — quando você criar a fachada vinculada a um imóvel, o sistema substituirá pelo QR Code real do imóvel automaticamente.
-              </p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  resetUploadForm();
-                  setUploadDialogOpen(false);
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1 gap-2"
-                disabled={!templateFile || !templateNome.trim() || savingTemplate || uploading}
-                onClick={handleSaveCustomTemplate}
-              >
-                {savingTemplate || uploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <ImagePlus className="h-4 w-4" />
-                    Salvar Template
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setUploadDialogOpen}
+        salvando={savingTemplate || uploading}
+        onSalvar={handleSaveCustomTemplate}
+      />
 
       {/* Dialog de preview de template customizado (imagem ampliada) */}
       <Dialog open={!!previewCustomTemplate} onOpenChange={(o) => { if (!o) setPreviewCustomTemplate(null); }}>

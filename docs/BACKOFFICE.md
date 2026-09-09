@@ -286,3 +286,131 @@ Achados da auditoria que **não** foram alterados, por estarem fora do escopo:
 - `src/lib/supabase.ts` é um segundo cliente Supabase sem nenhum importador.
 - `scripts/verify_prod_schema.js` aponta para um projeto Supabase **diferente**
   do resto do repositório.
+
+---
+
+## 12. Operação do SaaS (migrations 20260901160*)
+
+O back office descrito acima administra **parceiros e receita**. Esta camada
+acrescenta a administração da **empresa Lotti**: assinaturas, cobranças,
+cancelamentos e repasse em lote.
+
+### Onde cada dado mora
+
+| Assunto | Tabela | Quem escreve |
+|---|---|---|
+| Conta Lotti | `corretores` | cadastro / convite do checkout |
+| Assinatura | `subscriptions` | provisionamento do **repositório do site** |
+| Plano e preço | `plans` | seed / painel |
+| Pedido e cobrança | `checkout_orders` | **repositório do site** (Lotti-Site) |
+| Idempotência do webhook | `asaas_checkout_events` | **repositório do site** |
+| Cancelamento | `cancelamento_feedback` | back office |
+| Lote de repasse | `parceiro_lotes` + `parceiro_lote_itens` | back office |
+| Campanha e portal | `admin_config` | back office |
+
+**Nada disso é fonte nova.** O checkout do site já criava `checkout_orders` e já
+ativava `subscriptions`; o back office apenas passou a ler. As RPCs são
+`SECURITY DEFINER`, então enxergam `checkout_orders` mesmo com o
+`REVOKE ALL ... FROM authenticated` que a tabela tem por padrão — nenhuma policy
+precisou ser afrouxada.
+
+### `checkout_orders` é opcional
+
+Ela nasce numa migration de **outro repositório**. Toda RPC que a consulta
+começa com `to_regclass('public.checkout_orders') IS NULL` e devolve
+`disponivel: false`, e a tela de Pagamentos explica que falta aplicar aquela
+migration. O motivo é concreto: em 2026-09-01 um arquivo de deploy abortou
+inteiro com `42P01` por referenciar, em SQL de nível superior, uma tabela de
+módulo não aplicado. Dentro de PL/pgSQL o comando só é planejado quando
+executado, então o guard resolve.
+
+### MRR, churn e inadimplência
+
+- **MRR** soma só assinatura `active`. Plano anual entra dividido por 12, via
+  `mrr_da_assinatura()` — função única, para as três consultas não divergirem
+  numa mudança de preço.
+- **`past_due` não entra no MRR.** Aparece separado como *MRR em risco* e como
+  inadimplência. Somá-lo transformaria falha de cobrança em receita no gráfico.
+- **Churn** é reconstrução aproximada: `subscriptions` é atualizada no lugar
+  pelo provisionamento e não guarda histórico de status. Uma conta que cancelou
+  e voltou aparece só no estado mais recente. A taxa é `null` — não `0%` —
+  quando não havia base no início do período.
+
+### Repasse em lote
+
+Regra central, e ela vive numa constraint: `UNIQUE (comissao_id)` em
+`parceiro_lote_itens`. A mesma comissão não entra em dois lotes, e nenhuma
+branch futura consegue esquecer disso. Cancelar um lote **apaga os itens** —
+é o que devolve as comissões ao conjunto elegível; mantê-los as travaria num
+lote morto para sempre.
+
+Não existe status `batched` em `parceiro_comissoes`. "Está em lote" é derivado
+da existência do item, para o ciclo de vida da comissão continuar tendo um dono
+só: a máquina de estados de `admin_transicionar_comissao`.
+
+Só entra no lote comissão `aprovada`, de parceiro `ativo`, **com chave PIX**, e
+já fora do *hold* (`programa_hold_dias`) — a janela em que um estorno ainda
+pode desfazer a receita que originou a comissão.
+
+**Dados do beneficiário são congelados no item.** O CSV que foi para o banco
+precisa continuar reproduzível meses depois, mesmo que o parceiro troque a
+chave PIX amanhã.
+
+Ao marcar como pago, a RPC **recusa** se qualquer comissão do lote deixou de
+estar `aprovada`. Sem essa checagem, o `parceiro_pagamentos` registraria um
+total incluindo comissão cancelada, e o UPDATE filtrado por `status =
+'aprovada'` silenciosamente não a marcaria — divergência de dinheiro sem
+rastro.
+
+O total da tela e o total do CSV vêm da **mesma** função (`somarValores`, em
+`src/lib/admin/saas.ts`), que soma em centavos inteiros. Duas contas
+independentes para o mesmo número é como nasce a diferença de centavo que
+ninguém explica depois.
+
+### Cancelamento e LGPD
+
+Quando há `corretor_id`, nome/e-mail/telefone **não** são gravados: o servidor
+os descarta e a listagem os traz do join. Isso é constraint
+(`cancelamento_feedback_sem_pii_duplicado`), não disciplina de quem escrever o
+próximo INSERT. Só cancelamento sem conta identificável guarda um nome.
+
+`plano_anterior` é a exceção: fica congelado de propósito, porque a assinatura
+pode mudar de plano depois e o feedback perderia o contexto.
+
+### Comissão padrão não é fallback
+
+`programa_comissao_padrao` só **pré-preenche o formulário** ao cadastrar a
+primeira vigência de um parceiro. `gerar_comissao_de_receita`
+(`20260814130000:210`) decide de propósito não gerar comissão quando não há
+percentual vigente — *"sem regra vigente, não se inventa percentual"*. Tornar a
+chave um fallback silencioso passaria a criar dinheiro a pagar a partir de uma
+configuração global.
+
+A janela de atribuição **não** ganhou chave nova: continua em
+`atribuicao_janela_dias`, de `20260814110000`.
+
+### Permissões acrescentadas
+
+| Ação | `admin` | `super_admin` |
+|---|---|---|
+| Ver assinaturas, pagamentos, cancelamentos, repasses, integrações | ✅ | ✅ |
+| Registrar cancelamento | ✅ | ✅ |
+| **Gerar** lote e exportar CSV | ✅ | ✅ |
+| **Marcar lote como pago** | ❌ | ✅ |
+| **Cancelar lote** | ❌ | ✅ |
+| **Alterar campanha e portal** | ❌ | ✅ |
+
+Gerar lote é preparação — monta a lista e o arquivo, nenhum PIX sai. Quem
+confirma que o dinheiro saiu é `super_admin`, o mesmo nível que já era exigido
+para `admin_transicionar_comissao` → `paga`.
+
+### Como aplicar
+
+```
+deploy-manual/backoffice-saas-TUDO.sql        # colar no SQL Editor
+deploy-manual/backoffice-saas-VERIFICAR.sql   # 14 linhas, todas devem sair OK
+```
+
+Pré-requisito: as migrations `20260814*` já aplicadas. A linha 12 da
+conferência sai `OPCIONAL` quando `checkout_orders` não existe — isso não é
+falha.

@@ -13,7 +13,10 @@
 //  3. Caso contrário, usa a própria origem (funciona em produção e em qualquer
 //     domínio próprio futuro automaticamente).
 
-const PROD_FALLBACK = 'https://casa-mente-contrato-1.vercel.app';
+// Domínio próprio do aplicativo. Os endereços .vercel.app continuam
+// respondendo, mas não servem como fallback: este valor vai impresso em QR
+// Code e em link de parceiro, que duram muito mais que um endereço técnico.
+const PROD_FALLBACK = 'https://app.plataformalotti.com.br';
 
 function isDevHost(host: string): boolean {
   return (

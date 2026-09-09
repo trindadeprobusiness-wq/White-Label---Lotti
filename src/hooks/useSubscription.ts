@@ -198,13 +198,21 @@ export function useCheckLimit() {
       currentPlan: null, recommendedPlan: null, ready,
     } as const;
 
-    if (!ready || !subscription || !plans) return BLOQUEADO;
+    if (!ready) return BLOQUEADO;
+
+    // Preserva contas legadas ainda sem assinatura cadastrada, como na main.
+    // A autorização de operações de IA continua sendo verificada no servidor.
+    const LEGADO = {
+      ...BLOQUEADO, allowed: true, limit: null, unlimited: true,
+      ratio: null, status: 'ok',
+    } as const;
+    if (!subscription || !plans) return LEGADO;
 
     const plan = plans.find((p) => p.id === subscription.plan_id);
-    if (!plan) return BLOQUEADO;
+    if (!plan) return LEGADO;
 
     const entitlement = plan.entitlements.find((e) => e.feature_key === featureKey);
-    if (!entitlement) return BLOQUEADO;
+    if (!entitlement) return LEGADO;
     const common = {
       featureName: entitlement.feature_name,
       currentPlan: plan,
