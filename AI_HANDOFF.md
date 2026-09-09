@@ -98,6 +98,15 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (design do WhatsApp Inbox)
+
+- Na branch `codex/mini-crm`, foi especificada a primeira entrega do WhatsApp Inbox
+  em `docs/superpowers/specs/2026-09-09-whatsapp-inbox-design.md`.
+- O escopo aprovado usa uma rota própria no app, layout responsivo de conversas,
+  atendimento e perfil, dados demonstrativos isolados e contratos preparados para
+  futura Evolution API; VPS, QR Code e envio real ficaram fora desta primeira etapa.
+- Nenhum código funcional, migration ou ambiente remoto foi alterado nesta etapa.
+
 ### 2026-09-02 — Codex (prévia de reconciliação do quadro CRM)
 
 - Criada a branch isolada `codex/reconcile-crm`, baseada em `origin/main`, para
