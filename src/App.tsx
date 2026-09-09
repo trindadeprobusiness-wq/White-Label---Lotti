@@ -31,12 +31,14 @@ import {
   juridicoLoader,
   midiasLoader,
   rotinaLoader,
+  whatsappLoader,
 } from "@/lib/routePreloaders";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
 const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
+const WhatsAppInbox = lazy(whatsappLoader);
 const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
 const Imoveis = lazy(imoveisLoader);
@@ -149,6 +151,7 @@ const App = () => (
           }>
             <Route path="/" element={<Dashboard />} />
             <Route path="/rotina" element={<Rotina />} />
+            <Route path="/whatsapp" element={<WhatsAppInbox />} />
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />
             <Route path="/imoveis" element={<Imoveis />} />

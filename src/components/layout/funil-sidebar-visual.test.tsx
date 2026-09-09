@@ -74,4 +74,15 @@ describe('acabamento visual do funil e da sidebar', () => {
     expect(html).not.toContain('aria-controls="grupo-sistema"');
     expect(html).not.toContain('class="hidden"');
   });
+
+  it('oferece o WhatsApp antes de Clientes sem esconder o menu atual', () => {
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/whatsapp">
+        <AppSidebar />
+      </StaticRouter>,
+    );
+
+    expect(html).toContain('href="/whatsapp"');
+    expect(html.indexOf('>WhatsApp<')).toBeLessThan(html.indexOf('>Clientes<'));
+  });
 });

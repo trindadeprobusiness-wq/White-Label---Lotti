@@ -98,6 +98,18 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (primeira versão do WhatsApp Inbox)
+
+- Na branch `codex/mini-crm`, foi adicionada a rota protegida `/whatsapp` e o item
+  WhatsApp em Operação, antes de Clientes.
+- A primeira versão usa dados demonstrativos isolados e entrega lista pesquisável,
+  filtro de não lidas, conversa, envio local, perfil, responsável, tags, notas,
+  timeline e alternância entre IA e atendimento humano.
+- O desktop usa três painéis com rolagem própria; no celular, lista, conversa e perfil
+  são painéis navegáveis. Não há envio real, Evolution API, VPS ou migration nesta etapa.
+- Testes específicos: 11/11 passaram. `npm run build` e `git diff --check` passaram.
+- Prévia validada no navegador em `http://127.0.0.1:8086/whatsapp`.
+
 ### 2026-09-09 — Codex (design do WhatsApp Inbox)
 
 - Na branch `codex/mini-crm`, foi especificada a primeira entrega do WhatsApp Inbox
