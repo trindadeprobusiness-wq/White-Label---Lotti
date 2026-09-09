@@ -28,7 +28,6 @@ export interface PlanDisplayInfo {
   icon: LucideIcon;
   audience: string;
   cta: string;
-  secondaryCta?: string;
   features: string[];
   /** Features que NÃO estão incluídas (exibidas riscadas ou omitidas) */
   excluded?: string[];
@@ -38,7 +37,7 @@ export const plansDisplay: PlanDisplayInfo[] = [
   {
     code: 'essencial',
     icon: Rocket,
-    audience: 'Corretor autônomo',
+    audience: 'Corretor autônomo ou operação pequena',
     cta: 'Começar teste gratuito',
     features: [
       '100 leads atendidos pela IA / mês',
@@ -56,8 +55,6 @@ export const plansDisplay: PlanDisplayInfo[] = [
       'Suporte padrão',
     ],
     excluded: [
-      'Gestão de aluguéis',
-      'Integração Asaas',
       'Relatórios avançados',
       'Gestão de equipe',
     ],
@@ -65,7 +62,7 @@ export const plansDisplay: PlanDisplayInfo[] = [
   {
     code: 'profissional',
     icon: Crown,
-    audience: 'Corretores e pequenas equipes',
+    audience: 'Equipes menores em crescimento',
     cta: 'Começar teste gratuito',
     features: [
       '250 leads atendidos pela IA / mês',
@@ -90,9 +87,8 @@ export const plansDisplay: PlanDisplayInfo[] = [
   {
     code: 'imobiliaria',
     icon: Building2,
-    audience: 'Imobiliárias com equipe',
+    audience: 'Imobiliárias com operação maior',
     cta: 'Começar teste gratuito',
-    secondaryCta: 'Falar com especialista',
     features: [
       '600 leads atendidos pela IA / mês',
       'Qualificação e resumo do lead para o corretor',
@@ -109,6 +105,7 @@ export const plansDisplay: PlanDisplayInfo[] = [
       'Histórico de auditoria',
       'Atendimento prioritário',
       'Onboarding orientado',
+      'Suporte prioritário',
     ],
   },
 ];

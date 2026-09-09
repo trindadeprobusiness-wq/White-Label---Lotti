@@ -33,6 +33,8 @@ import {
   DEFAULT_TEMPLATES,
 } from '@/types/fachada';
 import type { TipoNegocio, CTAPrincipal, FachadaComImovel } from '@/types/fachada';
+import { useCheckLimit } from '@/hooks/useSubscription';
+import { podeCriarRecurso } from '@/lib/planos';
 
 interface CustomTemplateOption {
   id: string;
@@ -66,6 +68,7 @@ export function CriarFachadaDialog({
   fachadaToEdit = null,
 }: CriarFachadaDialogProps) {
   const isEditing = !!fachadaToEdit;
+  const checkLimit = useCheckLimit();
   const { imoveis, fetchImoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
   const [step, setStep] = useState(1);
@@ -138,6 +141,10 @@ export function CriarFachadaDialog({
 
   const handleSubmit = async () => {
     if (!imovelId) return;
+    if (!podeCriarRecurso(checkLimit('max_fachadas'), isEditing)) {
+      toast.error('Limite de Fachadas Inteligentes atingido. Veja as opções de plano.');
+      return;
+    }
     setLoading(true);
     try {
       let finalTemplateId = templateId;

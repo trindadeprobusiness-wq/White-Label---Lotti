@@ -16,6 +16,7 @@ import { useCRMStore } from '@/stores/crmStore';
 import { TipoImovel, Imovel } from '@/types/crm';
 import { NovoImovelDialog } from '@/components/imoveis/NovoImovelDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { LimitGuard } from '@/components/subscription/LimitGuard';
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -94,10 +95,12 @@ export default function Imoveis() {
             {imoveis.length} imóveis cadastrados
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Imóvel
-        </Button>
+        <LimitGuard featureKey="max_imoveis">
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Imóvel
+          </Button>
+        </LimitGuard>
       </div>
 
       {/* Filters */}
@@ -152,9 +155,11 @@ export default function Imoveis() {
               )}
               {!search && tipoFilter === 'TODOS' && statusAnuncioFilter === 'TODOS' && (
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
-                  <Button onClick={() => setDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />Cadastrar imóvel
-                  </Button>
+                  <LimitGuard featureKey="max_imoveis">
+                    <Button onClick={() => setDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />Cadastrar imóvel
+                    </Button>
+                  </LimitGuard>
                   <Button variant="outline" asChild><Link to="/onboarding?etapa=entrada_dados"><FileSpreadsheet className="mr-2 h-4 w-4" />Importar</Link></Button>
                   <Button variant="ghost" asChild><Link to="/onboarding?etapa=entrada_dados"><Sparkles className="mr-2 h-4 w-4" />Usar demonstração</Link></Button>
                 </div>

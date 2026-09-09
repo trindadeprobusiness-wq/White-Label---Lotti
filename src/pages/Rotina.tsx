@@ -1,22 +1,20 @@
 import { useMemo, useState } from 'react';
 import { addDays, endOfDay, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarPlus, Clock3, History, Loader2, ShieldCheck } from 'lucide-react';
+import { CalendarPlus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { GoogleCalendarPanel } from '@/components/routine/GoogleCalendarPanel';
+import { GoogleCalendarHeaderAction } from '@/components/routine/GoogleCalendarHeaderAction';
 import { RoutineBriefing } from '@/components/routine/RoutineBriefing';
 import { RoutineCalendar } from '@/components/routine/RoutineCalendar';
 import { RoutineCommandBar } from '@/components/routine/RoutineCommandBar';
 import { RoutineComposerSheet } from '@/components/routine/RoutineComposerSheet';
 import {
-  useRoutineActions, useRoutineActivity, useRoutineContext, useRoutineEvents,
-  useRoutineInbox, useRoutineMembers, useRoutineTasks,
+  useRoutineActions, useRoutineContext, useRoutineEvents,
+  useGoogleCalendarConnection, useRoutineInbox, useRoutineMembers, useRoutineTasks,
 } from '@/hooks/routine/useRoutine';
 import { rangeForView } from '@/lib/routine/calendar';
 import { useCRMStore } from '@/stores/crmStore';
@@ -68,9 +66,9 @@ export default function Rotina() {
   const calendarEvents = useRoutineEvents(context, range, scope, memberId);
   const briefingEvents = useRoutineEvents(context, briefingRange, 'team');
   const tasks = useRoutineTasks(context, scope, memberId);
-  const activity = useRoutineActivity(context);
   const inbox = useRoutineInbox(context);
   const actions = useRoutineActions(context);
+  const googleCalendar = useGoogleCalendarConnection(context);
 
   const openCreate = (draft?: Partial<RoutineDraft>) => {
     setSelectedItem(null);
@@ -122,9 +120,16 @@ export default function Rotina() {
         subtitulo={format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
         comUtilitarios
         acoes={(
-          <Button onClick={() => openCreate()}>
-            <CalendarPlus className="mr-2 h-4 w-4" />Nova atividade
-          </Button>
+          <>
+            <GoogleCalendarHeaderAction
+              connected={Boolean(googleCalendar.status.data?.connected)}
+              pending={googleCalendar.status.isLoading || googleCalendar.connect.isPending}
+              onConnect={() => googleCalendar.connect.mutate()}
+            />
+            <Button className="min-h-11" onClick={() => openCreate()}>
+              <CalendarPlus className="mr-2 h-4 w-4" />Nova atividade
+            </Button>
+          </>
         )}
       />
 
@@ -201,31 +206,6 @@ export default function Rotina() {
           }}
         />
       )}
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div id="google-agenda" className="scroll-mt-24 lg:col-span-3"><GoogleCalendarPanel context={context} /></div>
-        <Card className="shadow-sm lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2"><History className="h-4 w-4" />Histórico recente</span>
-              <Badge variant="outline">Auditável</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {activity.isLoading && <Loader2 className="mx-auto my-5 h-5 w-5 animate-spin text-muted-foreground" />}
-            {activity.data?.slice(0, 6).map((entry) => (
-              <div key={entry.id} className="flex items-start gap-2 text-xs">
-                <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <p className="min-w-0 flex-1">
-                  <span className="font-medium">{entry.action === 'complete' ? 'Atividade concluída' : entry.action === 'reschedule' ? 'Compromisso reagendado' : entry.action === 'insert' ? 'Atividade criada' : 'Atividade atualizada'}</span>
-                  <span className="ml-1 text-muted-foreground">· {format(new Date(entry.created_at), "dd/MM 'às' HH:mm")}</span>
-                </p>
-              </div>
-            ))}
-            {!activity.isLoading && !activity.data?.length && <p className="py-5 text-center text-xs text-muted-foreground">As ações da Rotina aparecerão aqui.</p>}
-          </CardContent>
-        </Card>
-      </div>
 
       <RoutineComposerSheet
         open={sheetOpen}

@@ -59,3 +59,7 @@ vite.config.ts.timestamp-*.mjs
 # A fonte está em supabase/functions/. O README explica como regenerar.
 deploy-manual/*
 !deploy-manual/README.md
+
+.env.strix-test
+.env.local
+strix-report/

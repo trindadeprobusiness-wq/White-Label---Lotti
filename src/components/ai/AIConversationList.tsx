@@ -220,7 +220,7 @@ function ConversationRow({
         'group relative flex items-center rounded-lg transition-colors min-w-0 w-full',
         active
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-          : 'hover:bg-[#F3F4F3] text-foreground',
+          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
     >
       <button

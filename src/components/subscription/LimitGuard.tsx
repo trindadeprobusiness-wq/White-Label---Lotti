@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useCheckLimit, useCurrentSubscription, useAllPlans } from '@/hooks/useSubscription';
+import { useCheckLimit } from '@/hooks/useSubscription';
 import { UpgradePrompt } from './UpgradePrompt';
 import type { FeatureKey } from '@/types/subscription';
 
@@ -17,28 +17,19 @@ interface LimitGuardProps {
   featureKey: FeatureKey;
   children: ReactNode | ((check: StatusLimite) => ReactNode);
   fallback?: ReactNode;
+  onBlocked?: () => void;
 }
 
-export function LimitGuard({ featureKey, children, fallback }: LimitGuardProps) {
+export function LimitGuard({ featureKey, children, fallback, onBlocked }: LimitGuardProps) {
   const [promptOpen, setPromptOpen] = useState(false);
   const checkLimit = useCheckLimit();
-  const { data: subscription } = useCurrentSubscription();
-  const { data: plans } = useAllPlans();
-
   const status = checkLimit(featureKey);
-
-  const planName = subscription && plans
-    ? plans.find((p) => p.id === subscription.plan_id)?.name || 'Sem plano'
-    : 'Sem plano';
-
-  const featureName = subscription && plans
-    ? plans.find((p) => p.id === subscription.plan_id)?.entitlements.find(e => e.feature_key === featureKey)?.feature_name || featureKey
-    : featureKey;
 
   // Interceptar cliques se não for permitido
   const handleInterceptClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    onBlocked?.();
     setPromptOpen(true);
   };
 
@@ -58,8 +49,11 @@ export function LimitGuard({ featureKey, children, fallback }: LimitGuardProps) 
           open={promptOpen}
           onOpenChange={setPromptOpen}
           featureKey={featureKey}
-          featureName={featureName}
-          currentPlanCode={planName}
+          featureName={status.featureName}
+          currentPlanName={status.currentPlan?.name ?? 'Sem assinatura ativa'}
+          used={status.used}
+          limit={status.limit}
+          recommendedPlanName={status.recommendedPlan?.name ?? null}
         />
       </>
     );

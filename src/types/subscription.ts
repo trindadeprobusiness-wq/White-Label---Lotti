@@ -174,6 +174,19 @@ export interface UsageSummary {
   status: 'ok' | 'warning' | 'exceeded';
 }
 
+export interface LimitCheck {
+  allowed: boolean;
+  used: number;
+  limit: number | null;
+  unlimited: boolean;
+  ratio: number | null;
+  status: 'ok' | 'warning' | 'exceeded';
+  featureName: string;
+  currentPlan: PlanWithEntitlements | null;
+  recommendedPlan: PlanWithEntitlements | null;
+  ready: boolean;
+}
+
 export interface SubscriptionSummary {
   subscription: Subscription;
   plan: PlanWithEntitlements;

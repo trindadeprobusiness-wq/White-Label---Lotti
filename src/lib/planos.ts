@@ -88,3 +88,55 @@ export function rotuloCota({ usado, limite }: Cota): string {
   if (limite === null) return `${usado} usados`;
   return `${usado} de ${limite}`;
 }
+
+import type { FeatureKey, PlanWithEntitlements, UsageSummary } from '@/types/subscription';
+
+/** Primeiro plano acima do atual que realmente aumenta a capacidade da feature. */
+export function proximoPlanoParaCota(
+  planos: PlanWithEntitlements[],
+  planoAtualId: string,
+  featureKey: FeatureKey,
+): PlanWithEntitlements | null {
+  const ordenados = [...planos].sort((a, b) => a.display_order - b.display_order);
+  const indiceAtual = ordenados.findIndex((plano) => plano.id === planoAtualId);
+  if (indiceAtual < 0) return null;
+
+  const atual = ordenados[indiceAtual].entitlements.find((item) => item.feature_key === featureKey);
+  const limiteAtual = atual?.unlimited ? Number.POSITIVE_INFINITY : (atual?.limit_value ?? 0);
+
+  return ordenados.slice(indiceAtual + 1).find((plano) => {
+    const entitlement = plano.entitlements.find((item) => item.feature_key === featureKey);
+    if (!entitlement?.enabled) return false;
+    return entitlement.unlimited || (entitlement.limit_value ?? 0) > limiteAtual;
+  }) ?? null;
+}
+
+export type AcaoPlano = 'current' | 'upgrade' | 'downgrade';
+
+export function acaoEntrePlanos(
+  atual: PlanWithEntitlements,
+  destino: PlanWithEntitlements,
+): AcaoPlano {
+  if (atual.id === destino.id || atual.display_order === destino.display_order) return 'current';
+  return destino.display_order > atual.display_order ? 'upgrade' : 'downgrade';
+}
+
+export function cotasIncompativeis(
+  destino: PlanWithEntitlements,
+  uso: UsageSummary[],
+): string[] {
+  return uso.flatMap((item) => {
+    const entitlement = destino.entitlements.find((ent) => ent.feature_key === item.feature_key);
+    if (!entitlement?.enabled || entitlement.unlimited) return [];
+    const limite = entitlement.limit_value ?? 0;
+    return item.used > limite ? [item.feature_name] : [];
+  });
+}
+
+/** Edição não consome uma nova vaga; criação exige consulta pronta e permissão. */
+export function podeCriarRecurso(
+  limite: Pick<import('@/types/subscription').LimitCheck, 'allowed' | 'ready'>,
+  editando: boolean,
+): boolean {
+  return editando || (limite.ready && limite.allowed);
+}

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dinheiro } from "@/components/ui/dinheiro";
+import { LimitGuard } from "@/components/subscription/LimitGuard";
 
 export function ContractsList() {
     const queryClient = useQueryClient(); // Ensure this hook is used or imported if checking logic
@@ -164,6 +165,7 @@ export function ContractsList() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+                            <LimitGuard featureKey="max_contratos_locacao">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button size="sm" className="h-9 shadow-sm">
@@ -187,6 +189,7 @@ export function ContractsList() {
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+                            </LimitGuard>
                         </div>
                     </div>
                 </CardHeader>

@@ -1272,6 +1272,151 @@ credencial); nao foi contornada.
   `/configuracoes?tab=asaas` responderam 200, e o chunk público do novo painel Asaas
   respondeu 200 contendo a ação de conexão e a chave mascarada.
 
+### 2026-09-04 — Codex — branch de cabeçalhos sincronizada com a `main`
+
+- `origin/main` (`dd50461`) foi integrada em `codex/redesign-page-headers`; a branch foi
+  mantida e o merge local resultante é `72a1a4e`. Nada foi enviado ao remoto.
+- Alterações locais sem conflito foram reaplicadas. Os cabeçalhos antigos que conflitavam
+  com o novo `PageHeader` da `main` ficaram preservados no stash
+  `codex-temp-before-sync-main-2026-09-04`, sem substituir as novas ações das páginas.
+- Validações após a integração: **43 arquivos / 414 testes** passaram, `npm run build`
+  concluiu com sucesso e `/crm` respondeu HTTP 200 no preview da própria branch em
+  `http://127.0.0.1:8085/`.
+
+### 2026-09-04 — Codex — planos comerciais e bloqueios de cota
+
+- Os cards e entitlements foram alinhados à matriz aprovada: Essencial `5/5/5/10`,
+  Profissional `20/15/20/20` e Imobiliária `100/100/100/60` para imóveis ativos,
+  contratos de aluguel ativos, fachadas e operações de contrato com IA por mês.
+- A área `Configurações > Assinatura` mostra plano/uso e ações contextuais de upgrade,
+  downgrade e cancelamento. Downgrade incompatível com o uso atual é impedido.
+- A criação/reativação de imóveis, contratos e fachadas é protegida no front e por
+  gatilhos autoritativos no banco. Geração e análise de contrato validam e registram
+  a cota nas Edge Functions; adicionais ativos continuam compondo o limite.
+- Validação local: **47 arquivos / 426 testes** passaram, `npm run build` concluiu com
+  sucesso, `git diff --check` não apontou erros e
+  `/configuracoes?tab=assinatura` respondeu HTTP 200 em `http://127.0.0.1:8085/`.
+- Pendente: aplicar a migration `20260904100000_alinhar_cotas_planos_comerciais.sql`
+  e publicar as duas Edge Functions para ativar a proteção em produção. O provedor de
+  pagamento permanece `MOCK`; nenhuma migration, função ou alteração foi publicada.
+
+### 2026-09-08 — Codex — Agenda em Rotina e assinatura reorganizada
+
+- A aba duplicada `Agenda` foi removida de Configurações. O painel de conexão existente
+  permanece em `Rotina#google-agenda`; links antigos com `?tab=agenda` redirecionam para ele.
+- A política pública passou a orientar o usuário por `Rotina → Google Agenda`.
+- Assinatura foi reorganizada na ordem `Sua assinatura`, `Uso do plano`, `Comparar e trocar
+  de plano` e `Gerenciar assinatura`. Upgrade, downgrade protegido por cotas e cancelamento
+  foram preservados.
+- O modo local aceita `demo=profissional` para comprovar visualmente o downgrade ao Essencial.
+- Validação: **49 arquivos / 430 testes** passaram e `npm run build` concluiu com sucesso.
+  A inspeção no Chrome confirmou o redirecionamento, o painel do Google na Rotina e o botão
+  `Fazer downgrade para Lotti Essencial` na simulação Profissional.
+- `npm run typecheck` continua falhando em erros preexistentes e espalhados pelo projeto
+  (tipos Supabase desatualizados, testes e variantes do Framer Motion); nenhum erro da saída
+  apontou para os arquivos desta alteração. Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-08 — Codex — acesso rápido ao Google Agenda na Rotina
+
+- A ação `Conectar Google Agenda` foi posicionada no cabeçalho da Rotina, imediatamente
+  antes de `Nova atividade`. Quando já conectado, o botão mostra `Agenda conectada` e leva
+  ao painel completo de configuração no fim da página.
+- No celular, a ação usa o rótulo compacto `Google Agenda`/`Configurar agenda`, preserva
+  ícone e altura mínima de 44 px para toque; no desktop mantém o texto completo.
+- A inspeção no Chrome confirmou os dois botões lado a lado no topo e o painel completo
+  preservado abaixo. Validação final: **50 arquivos / 432 testes** passaram,
+  `npm run build` concluiu com sucesso e `git diff --check` não apontou erros (somente
+  avisos de normalização LF/CRLF). Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-08 — Codex — aparência simplificada e contraste do Assistente
+
+- O seletor em `Configurações > Aparência` passou a oferecer somente `Claro` e
+  `Escuro`, em duas colunas no desktop e uma no celular; a opção `Sistema` foi removida.
+- A lista de conversas do Assistente deixou de usar fundo claro fixo no hover. Os estados
+  normal, hover e ativo agora usam os tokens da sidebar, preservando o contraste no tema escuro.
+- A página completa do Assistente foi inspecionada no Chrome em modo escuro; cabeçalho,
+  busca, lista, estado inicial, cards, composer e painel contextual permaneceram legíveis.
+- Validação final: **52 arquivos / 434 testes** passaram e `npm run build` concluiu com
+  sucesso. Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-08 — Codex — grupos recolhíveis na sidebar e Rotina simplificada
+
+- A sidebar passou a ter cabeçalhos acessíveis e recolhíveis para `Operação`, `Gestão`
+  e `Sistema`, com o mesmo componente no desktop e no drawer mobile. O grupo da rota
+  acessada é reaberto automaticamente.
+- `Assistente IA` foi movido para `Operação`; `Recursos` foi renomeado para `Sistema`,
+  que contém `Configurações`.
+- O painel duplicado do Google Agenda e o card `Histórico recente` foram removidos do
+  rodapé da Rotina. A conexão com o Google permanece exclusivamente no botão do cabeçalho;
+  conectado, ele funciona como indicador de estado.
+- Inspeção no Chrome confirmou a hierarquia visual e o recolhimento real de `Operação`.
+  Validação: **52 arquivos / 435 testes**, build de produção, ESLint dos arquivos tocados
+  e `git diff --check` passaram. Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-08 — Codex — acabamento editorial do menu lateral
+
+- O menu expansível foi redesenhado conforme a referência visual aprovada: cabeçalhos
+  com ícone/nome/seta, submenus recuados com linha vertical e itens internos sem ícones
+  repetidos. A rota ativa usa fundo suave e uma barra vertical na cor primária.
+- O modo recolhido continua exibindo os ícones individuais para preservar a navegação.
+  O mesmo componente é usado no drawer mobile e respeita os temas claro/escuro.
+- Inspeção visual no Chrome confirmou o acabamento na rota `/rotina`. Validação final:
+  **52 arquivos / 435 testes** e `npm run build` passaram. Nada foi enviado ao remoto
+  ou à produção.
+
+### 2026-09-08 — Codex — rollback do menu expansível
+
+- A pedido do usuário, o comportamento de acordeão e o acabamento de submenu foram
+  removidos integralmente. Todos os itens voltaram a ficar sempre visíveis, com seus
+  próprios ícones, sem setas, linhas verticais ou grupos que escondem opções.
+- Foram preservadas somente as decisões de conteúdo aprovadas: `Assistente IA` permanece
+  em `Operação` e `Sistema` substitui `Recursos` como grupo de `Configurações`.
+- Teste direcionado da sidebar, ESLint dos arquivos envolvidos e `git diff --check`
+  passaram. Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-08 — Codex — remoção do CTA de especialista
+
+- Removido o botão secundário `Falar com especialista` do cartão do plano Imobiliária,
+  incluindo o dado de exibição e a renderização genérica dessa ação no `PlanCard`.
+- Adicionado teste de regressão garantindo que o plano Imobiliária não volte a expor
+  essa ação secundária. Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-09 — Codex — Assistente IA no grupo Sistema
+
+- `Assistente IA` foi movido de `Operação` para `Sistema`, imediatamente antes de
+  `Configurações`, mantendo todos os itens da sidebar sempre visíveis.
+- O teste direcionado da sidebar foi atualizado para proteger a nova organização.
+  Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-09 — Codex — destaque do cancelamento da assinatura
+
+- O botão `Cancelar assinatura` passou de contorno discreto para ação destrutiva
+  preenchida, com maior contraste, peso de texto e área de toque mínima de 44 px.
+- A seção foi movida do fim da página para logo abaixo do resumo da assinatura atual,
+  antes do consumo e da comparação de planos, corrigindo a baixa visibilidade por rolagem.
+- No celular, o botão ocupa a largura disponível; a confirmação existente foi preservada.
+  Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-09 — Codex — cartões de planos compactos
+
+- Os cartões de comparação mostram inicialmente os quatro limites comerciais principais;
+  os demais benefícios permanecem acessíveis em `Ver todos os recursos`.
+- O detalhamento usa expansão nativa acessível e começa recolhido, reduzindo a altura e a
+  rolagem da página em desktop e celular. Nada foi enviado ao remoto ou à produção.
+
+### 2026-09-09 — Codex — correção do espaço final da assinatura
+
+- A compactação dos cartões foi desfeita a pedido do usuário; todos os recursos voltaram
+  a aparecer diretamente nos três planos, sem `Ver todos os recursos`.
+- Removido somente o padding inferior adicional da página de assinatura, reduzindo o
+  espaço vazio entre os cartões e o final da área de conteúdo.
+
+### 2026-09-09 — Codex — validação final da branch
+
+- Validação completa antes do envio: **52 arquivos / 438 testes** passaram,
+  `npm run build` concluiu com sucesso e `git diff --check` não apontou erros.
+- `graphify-out/` e os relatórios em `output/` ficaram fora do conjunto preparado para
+  o commit. A migration de alertas foi apenas renomeada; os dois blobs são idênticos.
 
 ### 2026-09-09 — Codex (catálogo com agente IA)
 
@@ -1290,3 +1435,12 @@ credencial); nao foi contornada.
 - Validações: checkout 7/7; verificações de páginas 22/22 antes do ajuste final dos textos anuais; CRM 18/18; lint e builds dos dois projetos passaram.
 - Limitações verificadas: Vercel do site tem somente RESEND_API_KEY; POST /api/checkout retorna 503 CHECKOUT_NOT_CONFIGURED. Pagamentos reais exigem configuração Asaas/Supabase e homologação. Agente de atendimento, deduplicação e contabilização mensal ainda não validados operacionalmente.
 - Alterações preexistentes do worktree principal preservadas. Trabalho publicado a partir de worktrees isoladas.
+
+### 2026-09-09 — Codex (revisão e conciliação do PR #5)
+
+- PR #5 já existia, com origem codex/redesign-page-headers no commit 7468840.
+- Main integrada em worktree isolada; conflitos de AI_HANDOFF.md e plansData.ts conciliados preservando ambas as entradas e o catálogo mais recente da main.
+- Preservada compatibilidade de criação para contas legadas sem assinatura cadastrada; cotas de assinaturas existentes continuam verificadas. Adicionados três testes do hook.
+- Validações: 55 arquivos / 482 testes passaram (variáveis Supabase fictícias para testes); build passou; git diff --check passou.
+- Preview original bloqueado na Vercel porque o autor do commit não possui acesso de contribuição no projeto Hobby privado. Merge e deploy de produção ainda pendentes nesta entrada.
+- Migration 20260904100000 contém cotas comerciais antigas e gatilhos de bloqueio; não foi aplicada ao banco nesta tarefa. Revisar sua compatibilidade com o catálogo atual antes de executar migrations. Edge Functions não foram publicadas nesta tarefa.
