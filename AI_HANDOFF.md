@@ -1279,3 +1279,14 @@ credencial); nao foi contornada.
 - Anual corresponde a 10 mensalidades por 12 meses de acesso. Migration idempotente 20260909180000_planos_agente_ia.sql adicionada. Cobranças Asaas existentes não foram alteradas.
 - Textos e limites estáticos dos planos alinhados ao catálogo consultado. Site/checkout atualizados em worktree separada de Lotti-Site.
 - Testes do site: checkout 7/7, visual 22/22, lint e build passaram. Publicação e validação do agente operacional ainda pendentes nesta entrada.
+
+
+### 2026-09-09 — Codex (publicação da nova precificação)
+
+- LP e checkout publicados com Inteligente R$279/100 leads, Profissional R$399/250 leads e Eficazes R$799/600 leads por mês. Anual de R$2790/R$3990/R$7990. Preços derivados do catálogo no backend.
+- Site recomposto sobre origin/main com o checkout existente; enviados os commits 22b31a9 e dba112d. vercel.json fixa framework Next.js e saída .next para corrigir configuração antiga dist na Vercel.
+- CRM publicado no deployment dpl_3YnX3py6NFxmCeNCG7F9egBtVoCp. Conferido módulo publicado com as três franquias. Catálogo e cotas conferidos no banco após migration.
+- Campanha antiga de fundador 20% encerrada; consulta confirmou zero campanhas ativas. Não foram alteradas subscriptions nem cobranças existentes no Asaas. Migration adicional 20260909183000_encerrar_campanha_fundador.sql.
+- Validações: checkout 7/7; verificações de páginas 22/22 antes do ajuste final dos textos anuais; CRM 18/18; lint e builds dos dois projetos passaram.
+- Limitações verificadas: Vercel do site tem somente RESEND_API_KEY; POST /api/checkout retorna 503 CHECKOUT_NOT_CONFIGURED. Pagamentos reais exigem configuração Asaas/Supabase e homologação. Agente de atendimento, deduplicação e contabilização mensal ainda não validados operacionalmente.
+- Alterações preexistentes do worktree principal preservadas. Trabalho publicado a partir de worktrees isoladas.
