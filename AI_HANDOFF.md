@@ -98,6 +98,18 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (escala compacta do WhatsApp Inbox)
+
+- A comparação direta com a referência mostrou que as duas colunas laterais estavam
+  cerca de 100 px maiores na captura do usuário e comprimiam o chat.
+- No desktop largo, Conversas passou para 310 px e Perfil para 330 px; o chat recebe
+  toda a largura restante. Cards de conversa usam altura-base de 64 px.
+- Avatares, cabeçalhos, botões, filtros, mensagens, composer, tipografia e espaçamentos
+  internos foram reduzidos proporcionalmente; o comportamento móvel foi preservado.
+- Teste específico: 7/7 passaram. `npm run build`, smoke HTTP 200 em
+  `http://127.0.0.1:8086/whatsapp` e `git diff --check` passaram.
+- Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (proporções do WhatsApp Inbox)
 
 - Os três painéis do Inbox passaram a ser cartões independentes, com 12 px de espaço,

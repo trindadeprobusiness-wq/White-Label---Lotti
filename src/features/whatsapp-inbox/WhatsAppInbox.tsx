@@ -30,9 +30,9 @@ export function toggleProfileVisibility(visible: boolean): boolean {
 
 function Avatar({ initials, active = false }: { initials: string; active?: boolean }) {
   return (
-    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+    <span data-avatar-size="compact" className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
       {initials}
-      {active && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card bg-success" />}
+      {active && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-card bg-success" />}
     </span>
   );
 }
@@ -79,36 +79,36 @@ export function WhatsAppInbox() {
   };
 
   const listPanel = (
-    <section data-panel="conversations" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card" aria-label="Lista de conversas">
+    <section data-panel="conversations" data-density="compact" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card" aria-label="Lista de conversas">
       <div className="border-b border-border p-3">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-section">Conversas <span className="font-normal text-muted-foreground">· {conversations.length}</span></h2>
-          <div className="flex gap-2"><Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" /> Nova</Button><Button size="icon" variant="outline" className="h-9 w-9 text-destructive" aria-label="Excluir conversa"><Trash2 className="h-4 w-4" /></Button></div>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-base font-semibold">Conversas <span className="font-normal text-muted-foreground">· {conversations.length}</span></h2>
+          <div className="flex gap-1.5"><Button size="sm" className="h-8 gap-1 px-2.5 text-xs"><Plus className="h-3.5 w-3.5" /> Nova</Button><Button size="icon" variant="outline" className="h-8 w-8 text-destructive" aria-label="Excluir conversa"><Trash2 className="h-3.5 w-3.5" /></Button></div>
         </div>
         <label className="relative block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nome, telefone ou mensagem" className="pl-9" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nome, telefone ou mensagem" className="h-9 pl-8 text-xs" />
         </label>
         <div className="mt-2 flex items-center gap-2 text-xs">
-          <Button size="sm" variant="outline" className="h-9 gap-1.5"><Filter className="h-4 w-4" />Filtros <Badge className="ml-1 h-5 min-w-5 px-1">1</Badge></Button>
+          <Button size="sm" variant="outline" className="h-8 gap-1 px-2 text-xs"><Filter className="h-3.5 w-3.5" />Filtros <Badge className="ml-0.5 h-4 min-w-4 px-1 text-[9px]">1</Badge></Button>
           <span className="flex-1 text-muted-foreground">{filtered.length} de {conversations.length}</span>
           <button type="button" onClick={() => { setQuery(''); setOnlyUnread(false); }} className="text-destructive hover:underline">Limpar</button>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <Button size="sm" variant={!onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(false)}>Todas</Button>
-          <Button size="sm" variant={onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(true)} aria-label="Aguardando resposta"><Timer className="h-4 w-4" /><span className="sr-only">Aguardando resposta</span></Button>
-          <Button size="sm" variant="outline" aria-label="Conversas prioritárias" className="text-destructive"><AlertTriangle className="h-4 w-4" /><span>{conversations.filter(({ unreadCount }) => unreadCount > 0).reduce((total, item) => total + item.unreadCount, 0)}</span><span className="sr-only">Conversas prioritárias</span></Button>
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <Button size="sm" className="h-8 text-xs" variant={!onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(false)}>Todas</Button>
+          <Button size="sm" className="h-8" variant={onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(true)} aria-label="Aguardando resposta"><Timer className="h-3.5 w-3.5" /><span className="sr-only">Aguardando resposta</span></Button>
+          <Button size="sm" variant="outline" aria-label="Conversas prioritárias" className="h-8 gap-1 text-xs text-destructive"><AlertTriangle className="h-3.5 w-3.5" /><span>{conversations.filter(({ unreadCount }) => unreadCount > 0).reduce((total, item) => total + item.unreadCount, 0)}</span><span className="sr-only">Conversas prioritárias</span></Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {filtered.map((conversation) => (
           <button key={conversation.id} type="button" onClick={() => selectConversation(conversation.id)}
-            className={cn('mb-1 flex min-h-[82px] w-full gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors', selected.id === conversation.id ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted/70')}>
+            className={cn('mb-1 flex min-h-[64px] w-full gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors', selected.id === conversation.id ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted/70')}>
             <Avatar initials={conversation.avatar} active={conversation.status === 'open'} />
             <span className="min-w-0 flex-1">
-              <span className="flex justify-between gap-2"><strong className="truncate text-sm">{conversation.contactName}</strong><span className="shrink-0 text-[11px] text-muted-foreground">{conversation.lastMessageAt}</span></span>
+              <span className="flex justify-between gap-2"><strong className="truncate text-[13px]">{conversation.contactName}</strong><span className="shrink-0 text-[10px] text-muted-foreground">{conversation.lastMessageAt}</span></span>
               <span className="mt-1 flex items-center gap-2"><span className="line-clamp-1 flex-1 text-xs text-muted-foreground">{conversation.lastMessage}</span>{conversation.unreadCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{conversation.unreadCount}</span>}</span>
-              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">{conversation.serviceMode === 'ai' ? <Bot className="h-3 w-3" /> : <UserRound className="h-3 w-3" />}{conversation.serviceMode === 'ai' ? 'Lotti IA' : conversation.serviceMode === 'human' ? 'Humano' : 'Pausada'}</span>
+              <span className="mt-0.5 inline-flex items-center gap-1 text-[9px] font-medium text-muted-foreground">{conversation.serviceMode === 'ai' ? <Bot className="h-2.5 w-2.5" /> : <UserRound className="h-2.5 w-2.5" />}{conversation.serviceMode === 'ai' ? 'Lotti IA' : conversation.serviceMode === 'human' ? 'Humano' : 'Pausada'}</span>
             </span>
           </button>
         ))}
@@ -119,19 +119,19 @@ export function WhatsAppInbox() {
 
   const chatPanel = (
     <section data-panel="chat" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-card" aria-label="Atendimento">
-      <header className="flex min-h-[72px] items-center gap-3 border-b border-border bg-card px-4">
+      <header className="flex min-h-[64px] items-center gap-2 border-b border-border bg-card px-3">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('list')} aria-label="Voltar para conversas"><ArrowLeft className="h-5 w-5" /></Button>
         <Avatar initials={selected.avatar} active />
-        <div className="min-w-0 flex-1"><h2 className="truncate font-semibold">{selected.contactName}</h2><p className="truncate text-xs text-muted-foreground">{selected.phone} · {selected.assignee}</p></div>
+        <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-semibold">{selected.contactName}</h2><p className="truncate text-[11px] text-muted-foreground">{selected.phone} · {selected.assignee}</p></div>
         <div className="hidden items-center gap-2 sm:flex">
           <span className="text-xs font-medium">IA</span>
           <Switch checked={selected.serviceMode === 'ai'} onCheckedChange={(checked) => setServiceMode(checked ? 'ai' : 'human')} aria-label="Ativar IA" />
         </div>
-        <Button variant="outline" size="sm" className="hidden md:flex" onClick={() => setServiceMode('human')}><UserRound className="mr-1.5 h-4 w-4" />Atendimento humano</Button>
+        <Button variant="outline" size="sm" className="hidden h-8 px-2.5 text-xs md:flex" onClick={() => setServiceMode('human')}><UserRound className="mr-1 h-3.5 w-3.5" />Atendimento humano</Button>
         <Button
           variant="outline"
           size="sm"
-          className="hidden lg:flex"
+          className="hidden h-8 px-2.5 text-xs lg:flex"
           onClick={() => setProfileVisible(toggleProfileVisibility)}
           aria-expanded={profileVisible}
           aria-controls="whatsapp-contact-profile"
@@ -141,26 +141,26 @@ export function WhatsAppInbox() {
         </Button>
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('profile')} aria-label="Abrir perfil"><Info className="h-5 w-5" /></Button>
       </header>
-      <div className="flex items-center justify-between border-b border-border bg-card/70 px-4 py-2 text-xs">
+      <div className="flex items-center justify-between border-b border-border bg-card/70 px-3 py-1.5 text-[11px]">
         <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-success" />Aberta · {profile.stage}</span>
         <Badge variant="outline" className="font-normal"><Sparkles className="mr-1 h-3 w-3" />Conexão demonstrativa</Badge>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-secondary/60 p-4 sm:p-6">
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-secondary/60 p-3 sm:p-4">
         <div className="mx-auto w-fit rounded-full bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-card">Hoje</div>
         {selectedMessages.map((message) => (
           <div key={message.id} className={cn('flex', message.direction === 'outgoing' ? 'justify-end' : 'justify-start')}>
-            <div className={cn('max-w-[82%] rounded-2xl px-4 py-2.5 text-sm shadow-card sm:max-w-[68%]', message.direction === 'outgoing' ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm border border-border bg-card')}>
+            <div className={cn('max-w-[82%] rounded-xl px-3 py-2 text-[13px] shadow-card sm:max-w-[72%]', message.direction === 'outgoing' ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm border border-border bg-card')}>
               <p>{message.content}</p>
               <span className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', message.direction === 'outgoing' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{message.sender} · {message.sentAt}{message.direction === 'outgoing' && <CheckCheck className="h-3 w-3" />}</span>
             </div>
           </div>
         ))}
       </div>
-      <form onSubmit={sendMessage} className="border-t border-border bg-card p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-input bg-background p-2 focus-within:ring-2 focus-within:ring-ring/30">
-          <Button type="button" variant="ghost" size="icon" aria-label="Anexar"><Paperclip className="h-5 w-5" /></Button>
-          <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Digite uma mensagem" rows={1} className="min-h-10 flex-1 resize-none border-0 bg-transparent px-1 shadow-none focus-visible:ring-0" />
-          <Button type="submit" size="icon" disabled={!draft.trim()} aria-label="Enviar mensagem"><Send className="h-4 w-4" /></Button>
+      <form onSubmit={sendMessage} className="border-t border-border bg-card p-2.5">
+        <div className="flex items-end gap-1.5 rounded-xl border border-input bg-background p-1.5 focus-within:ring-2 focus-within:ring-ring/30">
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Anexar"><Paperclip className="h-4 w-4" /></Button>
+          <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Digite uma mensagem" rows={1} className="min-h-8 flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-[13px] shadow-none focus-visible:ring-0" />
+          <Button type="submit" size="icon" className="h-8 w-8" disabled={!draft.trim()} aria-label="Enviar mensagem"><Send className="h-3.5 w-3.5" /></Button>
         </div>
         <p className="mt-1.5 text-center text-[10px] text-muted-foreground">Modo demonstração: nenhuma mensagem será enviada ao WhatsApp.</p>
       </form>
@@ -169,14 +169,14 @@ export function WhatsAppInbox() {
 
   const profilePanel = (
     <aside id="whatsapp-contact-profile" data-panel="contact-profile" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card" aria-label="Perfil do contato">
-      <header className="flex min-h-[72px] items-center justify-between border-b border-border px-4"><h2 className="font-semibold uppercase tracking-wide">Perfil do contato</h2><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('chat')} aria-label="Fechar perfil"><X className="h-5 w-5" /></Button><MoreHorizontal className="hidden h-5 w-5 text-muted-foreground lg:block" /></header>
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        <div className="flex items-center gap-3"><Avatar initials={selected.avatar} /><div><h3 className="font-semibold">{profile.name}</h3><p className="text-xs text-muted-foreground">{profile.phone}</p><p className="text-xs text-muted-foreground">{profile.email}</p></div></div>
+      <header className="flex min-h-10 items-center justify-between border-b border-border px-3"><h2 className="text-xs font-bold uppercase tracking-wide">Perfil do contato</h2><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('chat')} aria-label="Fechar perfil"><X className="h-5 w-5" /></Button><MoreHorizontal className="hidden h-4 w-4 text-muted-foreground lg:block" /></header>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+        <div className="flex items-center gap-2.5"><Avatar initials={selected.avatar} /><div><h3 className="text-sm font-semibold">{profile.name}</h3><p className="text-[11px] text-muted-foreground">{profile.phone}</p><p className="text-[11px] text-muted-foreground">{profile.email}</p></div></div>
         <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3 text-xs"><div><span className="text-muted-foreground">Etapa</span><strong className="mt-1 block">{profile.stage}</strong></div><div><span className="text-muted-foreground">Orçamento</span><strong className="mt-1 block">{profile.budget}</strong></div><div className="col-span-2 border-t border-border pt-2"><span className="text-muted-foreground">Interesse</span><strong className="mt-1 block">{profile.interest}</strong></div></div>
-        <div><label className="text-group uppercase text-muted-strong">Linha do tempo</label><div className="mt-3 space-y-3">{profile.timeline.map((event) => <div key={event.id} className="flex gap-3 text-xs"><span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">{event.title.includes('WhatsApp') ? <MessageCircle className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}</span><div><strong className="block">{event.title}</strong><p className="text-muted-foreground">{event.detail} · {event.occurredAt}</p></div></div>)}</div></div>
-        <div><label className="text-group uppercase text-muted-strong">Responsável</label><button className="mt-2 flex w-full items-center justify-between rounded-lg border border-input px-3 py-2 text-sm"><span>{profile.assignee}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></button></div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-wide text-muted-strong">Linha do tempo</label><div className="mt-2 space-y-2.5">{profile.timeline.map((event) => <div key={event.id} className="flex gap-2 text-[11px]"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">{event.title.includes('WhatsApp') ? <MessageCircle className="h-2.5 w-2.5" /> : <Clock3 className="h-2.5 w-2.5" />}</span><div><strong className="block">{event.title}</strong><p className="text-muted-foreground">{event.detail} · {event.occurredAt}</p></div></div>)}</div></div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-wide text-muted-strong">Responsável</label><button className="mt-1.5 flex h-8 w-full items-center justify-between rounded-lg border border-input px-3 text-xs"><span>{profile.assignee}</span><ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /></button></div>
         <div><label className="text-group uppercase text-muted-strong">Tags</label><div className="mt-2 flex flex-wrap gap-2">{profile.tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}<Button variant="outline" size="sm" className="h-6 px-2"><Plus className="h-3 w-3" /></Button></div></div>
-        <div><label className="text-group uppercase text-muted-strong">Notas internas</label><Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Anote algo para a equipe..." className="mt-2" /><Button size="sm" className="mt-2 w-full" disabled={!note.trim()}>Adicionar nota</Button>{profile.notes.map((item) => <div key={item} className="mt-2 rounded-lg bg-warning-surface p-3 text-xs text-warning-foreground">{item}</div>)}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-wide text-muted-strong">Notas internas</label><Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Anote algo para a equipe..." className="mt-1.5 min-h-[72px] text-xs" /><Button size="sm" className="mt-1.5 h-8 w-full text-xs" disabled={!note.trim()}>Adicionar nota</Button>{profile.notes.map((item) => <div key={item} className="mt-2 rounded-lg bg-warning-surface p-2.5 text-[11px] text-warning-foreground">{item}</div>)}</div>
       </div>
     </aside>
   );
@@ -184,10 +184,10 @@ export function WhatsAppInbox() {
   return (
     <div className="bg-secondary">
       <div className={cn(
-        'hidden h-screen min-h-[570px] gap-3 p-3 lg:grid',
+        'hidden h-screen min-h-[570px] gap-2 p-2 lg:grid',
         profileVisible
-          ? 'grid-cols-[300px_minmax(0,1fr)_280px] xl:grid-cols-[340px_minmax(0,1fr)_330px] 2xl:grid-cols-[390px_minmax(0,1fr)_410px]'
-          : 'grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[390px_minmax(0,1fr)]',
+          ? 'grid-cols-[260px_minmax(0,1fr)_260px] xl:grid-cols-[290px_minmax(0,1fr)_300px] 2xl:grid-cols-[310px_minmax(0,1fr)_330px]'
+          : 'grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[290px_minmax(0,1fr)] 2xl:grid-cols-[310px_minmax(0,1fr)]',
       )}>{listPanel}{chatPanel}{profileVisible && profilePanel}</div>
       <div className="h-[calc(100dvh-3.5rem)] min-h-[520px] bg-card pt-14 lg:hidden">
         <div className={cn('h-full', mobilePanel !== 'list' && 'hidden')}>{listPanel}</div>
