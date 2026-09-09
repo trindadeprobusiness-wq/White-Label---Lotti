@@ -4,12 +4,12 @@ import { Loader2 } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { AIChatWidget } from '../ai/AIChatWidget';
 import { OnboardingTour } from '../onboarding/OnboardingTour';
+import { shouldShowAIChatWidget } from './appLayoutRules';
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  // A página /assistente já é o chat em tela cheia — o widget flutuante em cima
-  // dela vira ruído visual redundante.
-  const showChatWidget = !pathname.startsWith('/assistente');
+  // Páginas que já são experiências de conversa não recebem outro chat por cima.
+  const showChatWidget = shouldShowAIChatWidget(pathname);
 
   return (
     // `min-h-screen` com rolagem no documento, não `h-screen` com rolagem

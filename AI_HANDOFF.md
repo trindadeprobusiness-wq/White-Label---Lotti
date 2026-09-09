@@ -98,6 +98,15 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (limpeza visual do WhatsApp Inbox)
+
+- O widget flutuante `IA Lotti` não aparece mais em `/whatsapp`, evitando dois chats
+  concorrentes na mesma tela; continua disponível nas demais páginas elegíveis.
+- A Linha do tempo do perfil foi movida para imediatamente após o resumo do contato,
+  antes de responsável, tags e notas, seguindo a hierarquia da referência do Clix.
+- Testes específicos: 5/5 passaram. `npm run build` e `git diff --check` passaram.
+- Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (Inbox em tela cheia e submenu WhatsApp)
 
 - O cabeçalho externo da página `/whatsapp` foi removido para o Inbox ocupar toda a

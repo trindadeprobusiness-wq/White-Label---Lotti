@@ -28,4 +28,11 @@ describe('WhatsAppInbox', () => {
     expect(html).not.toContain('Atenda seus contatos e acompanhe cada conversa');
     expect(html).toContain('data-layout="full-inbox"');
   });
+
+  it('mostra a linha do tempo antes dos controles internos do contato', () => {
+    const html = renderToStaticMarkup(<WhatsAppInbox />);
+
+    expect(html.indexOf('Linha do tempo')).toBeLessThan(html.indexOf('Responsável'));
+    expect(html.indexOf('Linha do tempo')).toBeLessThan(html.indexOf('Notas internas'));
+  });
 });
