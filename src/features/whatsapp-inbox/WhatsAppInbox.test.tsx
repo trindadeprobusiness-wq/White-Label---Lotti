@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { WhatsAppInbox, filterConversations } from './WhatsAppInbox';
+import { WhatsAppInbox, filterConversations, toggleProfileVisibility } from './WhatsAppInbox';
 import { demoConversations } from './demoData';
 import WhatsAppInboxPage from '@/pages/WhatsAppInbox';
 
@@ -34,5 +34,13 @@ describe('WhatsAppInbox', () => {
 
     expect(html.indexOf('Linha do tempo')).toBeLessThan(html.indexOf('Responsável'));
     expect(html.indexOf('Linha do tempo')).toBeLessThan(html.indexOf('Notas internas'));
+  });
+
+  it('permite ocultar o perfil para ampliar o chat e reabrir depois', () => {
+    const html = renderToStaticMarkup(<WhatsAppInbox />);
+
+    expect(html).toContain('Ocultar info');
+    expect(toggleProfileVisibility(true)).toBe(false);
+    expect(toggleProfileVisibility(false)).toBe(true);
   });
 });

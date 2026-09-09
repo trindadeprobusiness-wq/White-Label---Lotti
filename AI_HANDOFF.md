@@ -98,6 +98,14 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (painel de informações recolhível)
+
+- O cabeçalho do atendimento no WhatsApp Inbox ganhou `Ocultar info` / `Mostrar info`.
+- Ao ocultar, o perfil deixa a grade desktop e o chat ocupa automaticamente a largura
+  liberada; no celular, o perfil continua sendo um painel separado.
+- Teste específico: 5/5 passaram. `npm run build` e `git diff --check` passaram.
+- Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (limpeza visual do WhatsApp Inbox)
 
 - O widget flutuante `IA Lotti` não aparece mais em `/whatsapp`, evitando dois chats

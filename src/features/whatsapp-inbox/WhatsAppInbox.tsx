@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react';
 import {
-  ArrowLeft, Bot, CheckCheck, ChevronRight, Clock3, Info, MessageCircle,
+  ArrowLeft, Bot, CheckCheck, ChevronRight, Clock3, Eye, EyeOff, Info, MessageCircle,
   MoreHorizontal, Paperclip, Plus, Search, Send, Sparkles, UserRound, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,10 @@ export function filterConversations(conversations: WhatsAppConversation[], query
   );
 }
 
+export function toggleProfileVisibility(visible: boolean): boolean {
+  return !visible;
+}
+
 function Avatar({ initials, active = false }: { initials: string; active?: boolean }) {
   return (
     <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
@@ -41,6 +45,7 @@ export function WhatsAppInbox() {
   const [draft, setDraft] = useState('');
   const [note, setNote] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('list');
+  const [profileVisible, setProfileVisible] = useState(true);
 
   const filtered = useMemo(() => {
     const result = filterConversations(conversations, query);
@@ -118,6 +123,17 @@ export function WhatsAppInbox() {
           <Switch checked={selected.serviceMode === 'ai'} onCheckedChange={(checked) => setServiceMode(checked ? 'ai' : 'human')} aria-label="Ativar IA" />
         </div>
         <Button variant="outline" size="sm" className="hidden md:flex" onClick={() => setServiceMode('human')}><UserRound className="mr-1.5 h-4 w-4" />Atendimento humano</Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden lg:flex"
+          onClick={() => setProfileVisible(toggleProfileVisibility)}
+          aria-expanded={profileVisible}
+          aria-controls="whatsapp-contact-profile"
+        >
+          {profileVisible ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
+          {profileVisible ? 'Ocultar info' : 'Mostrar info'}
+        </Button>
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('profile')} aria-label="Abrir perfil"><Info className="h-5 w-5" /></Button>
       </header>
       <div className="flex items-center justify-between border-b border-border bg-card/70 px-4 py-2 text-xs">
@@ -147,7 +163,7 @@ export function WhatsAppInbox() {
   );
 
   const profilePanel = (
-    <aside className="flex min-h-0 flex-col border-l border-border bg-card lg:w-[300px] xl:w-[330px]" aria-label="Perfil do contato">
+    <aside id="whatsapp-contact-profile" className="flex min-h-0 flex-col border-l border-border bg-card lg:w-[300px] xl:w-[330px]" aria-label="Perfil do contato">
       <header className="flex min-h-[72px] items-center justify-between border-b border-border px-4"><h2 className="font-semibold uppercase tracking-wide">Perfil do contato</h2><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('chat')} aria-label="Fechar perfil"><X className="h-5 w-5" /></Button><MoreHorizontal className="hidden h-5 w-5 text-muted-foreground lg:block" /></header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         <div className="flex items-center gap-3"><Avatar initials={selected.avatar} /><div><h3 className="font-semibold">{profile.name}</h3><p className="text-xs text-muted-foreground">{profile.phone}</p><p className="text-xs text-muted-foreground">{profile.email}</p></div></div>
@@ -162,7 +178,7 @@ export function WhatsAppInbox() {
 
   return (
     <div className="overflow-hidden border-y border-border bg-card shadow-card md:border-x">
-      <div className="hidden h-screen min-h-[570px] grid-cols-[auto_minmax(0,1fr)_auto] lg:grid">{listPanel}{chatPanel}{profilePanel}</div>
+      <div className="hidden h-screen min-h-[570px] grid-cols-[auto_minmax(0,1fr)_auto] lg:grid">{listPanel}{chatPanel}{profileVisible && profilePanel}</div>
       <div className="h-[calc(100dvh-3.5rem)] min-h-[520px] pt-14 lg:hidden">
         <div className={cn('h-full', mobilePanel !== 'list' && 'hidden')}>{listPanel}</div>
         <div className={cn('h-full', mobilePanel !== 'chat' && 'hidden')}>{chatPanel}</div>
