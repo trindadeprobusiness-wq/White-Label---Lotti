@@ -1,7 +1,8 @@
 import { FormEvent, useMemo, useState } from 'react';
 import {
-  ArrowLeft, Bot, CheckCheck, ChevronRight, Clock3, Eye, EyeOff, Info, MessageCircle,
-  MoreHorizontal, Paperclip, Plus, Search, Send, Sparkles, UserRound, X,
+  AlertTriangle, ArrowLeft, Bot, CheckCheck, ChevronRight, Clock3, Eye, EyeOff,
+  Filter, Info, MessageCircle, MoreHorizontal, Paperclip, Plus, Search, Send,
+  Sparkles, Timer, Trash2, UserRound, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,32 +79,36 @@ export function WhatsAppInbox() {
   };
 
   const listPanel = (
-    <section className="flex min-h-0 flex-col border-r border-border bg-card lg:w-[310px] xl:w-[340px]" aria-label="Lista de conversas">
-      <div className="border-b border-border p-4">
+    <section data-panel="conversations" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card" aria-label="Lista de conversas">
+      <div className="border-b border-border p-3">
         <div className="mb-3 flex items-center justify-between">
-          <div><h2 className="text-section">Conversas</h2><p className="text-xs text-muted-foreground">{conversations.length} atendimentos</p></div>
-          <Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" /> Nova</Button>
+          <h2 className="text-section">Conversas <span className="font-normal text-muted-foreground">· {conversations.length}</span></h2>
+          <div className="flex gap-2"><Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" /> Nova</Button><Button size="icon" variant="outline" className="h-9 w-9 text-destructive" aria-label="Excluir conversa"><Trash2 className="h-4 w-4" /></Button></div>
         </div>
         <label className="relative block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nome, telefone ou mensagem" className="pl-9" />
         </label>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-2 flex items-center gap-2 text-xs">
+          <Button size="sm" variant="outline" className="h-9 gap-1.5"><Filter className="h-4 w-4" />Filtros <Badge className="ml-1 h-5 min-w-5 px-1">1</Badge></Button>
+          <span className="flex-1 text-muted-foreground">{filtered.length} de {conversations.length}</span>
+          <button type="button" onClick={() => { setQuery(''); setOnlyUnread(false); }} className="text-destructive hover:underline">Limpar</button>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-2">
           <Button size="sm" variant={!onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(false)}>Todas</Button>
-          <Button size="sm" variant={onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(true)}>
-            Não lidas <Badge variant="secondary" className="ml-1">{conversations.filter(({ unreadCount }) => unreadCount > 0).length}</Badge>
-          </Button>
+          <Button size="sm" variant={onlyUnread ? 'default' : 'outline'} onClick={() => setOnlyUnread(true)} aria-label="Aguardando resposta"><Timer className="h-4 w-4" /><span className="sr-only">Aguardando resposta</span></Button>
+          <Button size="sm" variant="outline" aria-label="Conversas prioritárias" className="text-destructive"><AlertTriangle className="h-4 w-4" /><span>{conversations.filter(({ unreadCount }) => unreadCount > 0).reduce((total, item) => total + item.unreadCount, 0)}</span><span className="sr-only">Conversas prioritárias</span></Button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {filtered.map((conversation) => (
           <button key={conversation.id} type="button" onClick={() => selectConversation(conversation.id)}
-            className={cn('mb-1 flex w-full gap-3 rounded-lg border p-3 text-left transition-colors', selected.id === conversation.id ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted/70')}>
+            className={cn('mb-1 flex min-h-[82px] w-full gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors', selected.id === conversation.id ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted/70')}>
             <Avatar initials={conversation.avatar} active={conversation.status === 'open'} />
             <span className="min-w-0 flex-1">
               <span className="flex justify-between gap-2"><strong className="truncate text-sm">{conversation.contactName}</strong><span className="shrink-0 text-[11px] text-muted-foreground">{conversation.lastMessageAt}</span></span>
               <span className="mt-1 flex items-center gap-2"><span className="line-clamp-1 flex-1 text-xs text-muted-foreground">{conversation.lastMessage}</span>{conversation.unreadCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{conversation.unreadCount}</span>}</span>
-              <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">{conversation.serviceMode === 'ai' ? <Bot className="h-3 w-3" /> : <UserRound className="h-3 w-3" />}{conversation.serviceMode === 'ai' ? 'Lotti IA' : conversation.serviceMode === 'human' ? 'Humano' : 'Pausada'}</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">{conversation.serviceMode === 'ai' ? <Bot className="h-3 w-3" /> : <UserRound className="h-3 w-3" />}{conversation.serviceMode === 'ai' ? 'Lotti IA' : conversation.serviceMode === 'human' ? 'Humano' : 'Pausada'}</span>
             </span>
           </button>
         ))}
@@ -113,7 +118,7 @@ export function WhatsAppInbox() {
   );
 
   const chatPanel = (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background" aria-label="Atendimento">
+    <section data-panel="chat" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-card" aria-label="Atendimento">
       <header className="flex min-h-[72px] items-center gap-3 border-b border-border bg-card px-4">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('list')} aria-label="Voltar para conversas"><ArrowLeft className="h-5 w-5" /></Button>
         <Avatar initials={selected.avatar} active />
@@ -163,7 +168,7 @@ export function WhatsAppInbox() {
   );
 
   const profilePanel = (
-    <aside id="whatsapp-contact-profile" className="flex min-h-0 flex-col border-l border-border bg-card lg:w-[300px] xl:w-[330px]" aria-label="Perfil do contato">
+    <aside id="whatsapp-contact-profile" data-panel="contact-profile" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card" aria-label="Perfil do contato">
       <header className="flex min-h-[72px] items-center justify-between border-b border-border px-4"><h2 className="font-semibold uppercase tracking-wide">Perfil do contato</h2><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('chat')} aria-label="Fechar perfil"><X className="h-5 w-5" /></Button><MoreHorizontal className="hidden h-5 w-5 text-muted-foreground lg:block" /></header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         <div className="flex items-center gap-3"><Avatar initials={selected.avatar} /><div><h3 className="font-semibold">{profile.name}</h3><p className="text-xs text-muted-foreground">{profile.phone}</p><p className="text-xs text-muted-foreground">{profile.email}</p></div></div>
@@ -177,9 +182,14 @@ export function WhatsAppInbox() {
   );
 
   return (
-    <div className="overflow-hidden border-y border-border bg-card shadow-card md:border-x">
-      <div className="hidden h-screen min-h-[570px] grid-cols-[auto_minmax(0,1fr)_auto] lg:grid">{listPanel}{chatPanel}{profileVisible && profilePanel}</div>
-      <div className="h-[calc(100dvh-3.5rem)] min-h-[520px] pt-14 lg:hidden">
+    <div className="bg-secondary">
+      <div className={cn(
+        'hidden h-screen min-h-[570px] gap-3 p-3 lg:grid',
+        profileVisible
+          ? 'grid-cols-[300px_minmax(0,1fr)_280px] xl:grid-cols-[340px_minmax(0,1fr)_330px] 2xl:grid-cols-[390px_minmax(0,1fr)_410px]'
+          : 'grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[390px_minmax(0,1fr)]',
+      )}>{listPanel}{chatPanel}{profileVisible && profilePanel}</div>
+      <div className="h-[calc(100dvh-3.5rem)] min-h-[520px] bg-card pt-14 lg:hidden">
         <div className={cn('h-full', mobilePanel !== 'list' && 'hidden')}>{listPanel}</div>
         <div className={cn('h-full', mobilePanel !== 'chat' && 'hidden')}>{chatPanel}</div>
         <div className={cn('h-full', mobilePanel !== 'profile' && 'hidden')}>{profilePanel}</div>

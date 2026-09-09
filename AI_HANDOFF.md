@@ -98,6 +98,16 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (proporções do WhatsApp Inbox)
+
+- Os três painéis do Inbox passaram a ser cartões independentes, com 12 px de espaço,
+  bordas arredondadas e larguras responsivas alinhadas à referência: conversas compactas,
+  chat dominante e perfil com largura fixa.
+- A coluna de conversas ganhou cabeçalho e filtros compactos, e os itens foram reduzidos
+  para manter a mesma densidade visual do exemplo enviado.
+- Teste específico: 6/6 passaram. `npm run build` e `git diff --check` passaram.
+- Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (painel de informações recolhível)
 
 - O cabeçalho do atendimento no WhatsApp Inbox ganhou `Ocultar info` / `Mostrar info`.

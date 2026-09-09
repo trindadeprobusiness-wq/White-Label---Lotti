@@ -43,4 +43,15 @@ describe('WhatsAppInbox', () => {
     expect(toggleProfileVisibility(true)).toBe(false);
     expect(toggleProfileVisibility(false)).toBe(true);
   });
+
+  it('mantém a estrutura compacta de filtros e três caixas independentes', () => {
+    const html = renderToStaticMarkup(<WhatsAppInbox />);
+
+    expect(html).toContain('Filtros');
+    expect(html).toContain('Aguardando resposta');
+    expect(html).toContain('Conversas prioritárias');
+    expect(html).toContain('data-panel="conversations"');
+    expect(html).toContain('data-panel="chat"');
+    expect(html).toContain('data-panel="contact-profile"');
+  });
 });
