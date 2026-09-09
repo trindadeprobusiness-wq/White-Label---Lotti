@@ -58,8 +58,8 @@ describe('WhatsAppInbox', () => {
   it('usa a escala compacta da referência no desktop', () => {
     const html = renderToStaticMarkup(<WhatsAppInbox />);
 
-    expect(html).toContain('2xl:grid-cols-[310px_minmax(0,1fr)_330px]');
-    expect(html).toContain('min-h-[64px]');
+    expect(html).toContain('2xl:grid-cols-[290px_minmax(0,1fr)_310px]');
+    expect(html).toContain('min-h-[60px]');
     expect(html).toContain('data-avatar-size="compact"');
     expect(html).toContain('data-density="compact"');
   });

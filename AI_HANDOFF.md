@@ -98,6 +98,17 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (segunda redução do WhatsApp Inbox)
+
+- A pedido do usuário, a densidade foi reduzida novamente em aproximadamente 8%.
+- No desktop largo, Conversas passou de 310 para 290 px e Perfil de 330 para 310 px;
+  os cards de conversa passaram de 64 para 60 px e o chat ganhou o espaço liberado.
+- Avatares, títulos, botões, busca, filtros, mensagens e espaçamentos internos também
+  foram reduzidos. O fluxo e os breakpoints móveis foram preservados.
+- Teste específico: 7/7 passaram. `npm run build`, smoke HTTP 200 em
+  `http://127.0.0.1:8086/whatsapp` e `git diff --check` passaram.
+- Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (escala compacta do WhatsApp Inbox)
 
 - A comparação direta com a referência mostrou que as duas colunas laterais estavam
