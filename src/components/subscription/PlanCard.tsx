@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Check, MoveRight, PhoneCall } from 'lucide-react';
+import { Check, MoveRight } from 'lucide-react';
 import type { PlanWithEntitlements, BillingCycle, PricingCampaign } from '@/types/subscription';
 import { plansDisplay } from '@/data/plansData';
 import { planEvents } from '@/lib/analytics';
@@ -14,6 +14,7 @@ interface PlanCardProps {
   currentPlanId?: string;
   onSelect?: (planId: string) => void;
   className?: string;
+  actionLabel?: string;
 }
 
 export function PlanCard({
@@ -23,6 +24,7 @@ export function PlanCard({
   currentPlanId,
   onSelect,
   className,
+  actionLabel,
 }: PlanCardProps) {
   const display = plansDisplay.find((d) => d.code === plan.code);
   const isHighlighted = plan.highlighted;
@@ -126,10 +128,10 @@ export function PlanCard({
         </div>
 
         {/* Features */}
-        <ul className="space-y-2.5 flex-1 mb-6">
-          {display?.features.map((feature, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm">
-              <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+        <ul className="mb-6 flex-1 space-y-2.5">
+          {display?.features.map((feature) => (
+            <li key={feature} className="flex items-start gap-2 text-sm">
+              <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
               <span>{feature}</span>
             </li>
           ))}
@@ -143,16 +145,9 @@ export function PlanCard({
             className="w-full gap-2"
             disabled={isCurrent}
           >
-            {isCurrent ? 'Plano atual' : (display?.cta || 'Começar teste gratuito')}
+            {isCurrent ? 'Plano atual' : (actionLabel || display?.cta || 'Começar teste gratuito')}
             {!isCurrent && <MoveRight className="h-4 w-4" />}
           </Button>
-
-          {display?.secondaryCta && (
-            <Button variant="ghost" className="w-full gap-2 text-muted-foreground">
-              {display.secondaryCta}
-              <PhoneCall className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       </CardContent>
     </Card>

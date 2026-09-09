@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { LOTTI_PROMPT_VERSIONS } from "../_shared/ai/prompt-registry.ts";
+import { checarCota, registrarUso } from "../_shared/cotas.ts";
 import { requestGeminiContent } from "../_shared/ai/provider.ts";
 
 const corsHeaders = {
@@ -322,6 +323,17 @@ serve(async (req) => {
       return jsonResponse({ error: "Sua sessão expirou. Entre novamente para continuar." }, 401);
     }
 
+    const { data: corretorId, error: corretorError } = await supabaseClient.rpc('get_corretor_id');
+    if (corretorError || !corretorId) return jsonResponse({ error: 'Perfil de corretor não encontrado' }, 403);
+    const cota = await checarCota(supabaseClient, corretorId, 'ai_contracts_monthly');
+    if (!cota.permitido) {
+      return jsonResponse({
+        error: 'Limite mensal de operações com IA atingido.',
+        code: 'PLAN_LIMIT_REACHED', featureKey: 'ai_contracts_monthly',
+        used: cota.usado, limit: cota.limite,
+      }, 402);
+    }
+
     const { fileBase64, mimeType, modo } = await req.json();
     const isCentral = modo === "central";
     const prompt = `${isCentral ? CENTRAL_PROMPT : EXTRACTION_PROMPT}
@@ -376,6 +388,7 @@ Versão do prompt: ${LOTTI_PROMPT_VERSIONS.contractExtraction}`;
       return jsonResponse({ error: "A IA não conseguiu estruturar os dados do contrato" }, 502);
     }
 
+    await registrarUso(supabaseClient, corretorId, 'ai_contracts_monthly');
     return jsonResponse({ dados: isCentral ? sanitizeCentral(parsed) : sanitizeExtraction(parsed) });
   } catch (error) {
     console.error("analisar-contrato error:", error);

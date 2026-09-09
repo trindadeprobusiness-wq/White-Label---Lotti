@@ -303,7 +303,7 @@ export function PoliticaPrivacidade() {
 
       <section>
         <h2>6. Retenção, desconexão e exclusão</h2>
-        <p className="mt-3">Em <strong>Configurações → Agenda</strong>, o usuário pode selecionar <strong>Desconectar Google Agenda</strong>. Essa ação revoga a autorização no Google e exclui da Lotti os tokens e metadados técnicos da conexão. Eventos já importados podem permanecer como registros operacionais até que sejam excluídos pelo usuário ou junto com sua conta.</p>
+        <p className="mt-3">Em <strong>Rotina → Google Agenda</strong>, o usuário pode selecionar <strong>Desconectar Google Agenda</strong>. Essa ação revoga a autorização no Google e exclui da Lotti os tokens e metadados técnicos da conexão. Eventos já importados podem permanecer como registros operacionais até que sejam excluídos pelo usuário ou junto com sua conta.</p>
         <p className="mt-3">Também é possível revogar o acesso diretamente nas configurações de segurança da Conta do Google. Solicitações de acesso, correção ou exclusão podem ser feitas pelo canal de suporte disponível dentro da Lotti.</p>
       </section>
 

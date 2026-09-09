@@ -396,9 +396,11 @@ export default function FachadasInteligentes() {
                 Crie sua primeira fachada inteligente e comece a capturar leads
                 diretamente das placas dos seus imóveis.
               </p>
-              <Button onClick={() => setDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Criar Primeira Fachada
-              </Button>
+              <LimitGuard featureKey="max_fachadas">
+                <Button onClick={() => setDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> Criar Primeira Fachada
+                </Button>
+              </LimitGuard>
             </div>
           ) : (
             <div className="space-y-4">

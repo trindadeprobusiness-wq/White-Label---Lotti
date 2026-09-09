@@ -14,6 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { ContractUpload } from "./ContractUpload";
 import { extractContractData, ExtractedContractData } from "@/services/contractExtractionService";
 import { Database } from "@/integrations/supabase/types";
+import { useCheckLimit } from "@/hooks/useSubscription";
+import { podeCriarRecurso } from "@/lib/planos";
 
 type TipoContrato = Database["public"]["Enums"]["tipo_contrato"];
 
@@ -44,6 +46,7 @@ const makeDueDate = (year: number, month: number, day: number) => {
 
 export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogProps) {
     const queryClient = useQueryClient();
+    const checkLimit = useCheckLimit();
 
     const [step, setStep] = useState<Step>("upload");
     const [contractFile, setContractFile] = useState<File | null>(null);
@@ -138,6 +141,12 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
 
     const createContractMutation = useMutation({
         mutationFn: async () => {
+            if (!podeCriarRecurso(checkLimit('max_contratos_locacao'), false)) {
+                throw new Error('Limite de contratos de aluguel atingido. Veja as opções de plano.');
+            }
+            if (!matchedProperty && !podeCriarRecurso(checkLimit('max_imoveis'), false)) {
+                throw new Error('Limite de imóveis atingido. Cadastre este contrato em um imóvel existente ou faça upgrade.');
+            }
             const { data: corretorId, error: corretorError } = await supabase.rpc("get_corretor_id");
             if (corretorError || !corretorId) throw new Error("Perfil de corretor não encontrado");
 

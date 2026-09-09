@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { externalDataBlock } from "../_shared/ai/contracts.ts";
 import { LOTTI_PROMPT_VERSIONS } from "../_shared/ai/prompt-registry.ts";
 import { fastAIModel, requestGeminiChat } from "../_shared/ai/provider.ts";
+import { checarCota, registrarUso } from "../_shared/cotas.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,6 +90,20 @@ serve(async (req) => {
         JSON.stringify({ error: "Invalid session" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const { data: corretorId, error: corretorError } = await supabaseClient.rpc('get_corretor_id');
+    if (corretorError || !corretorId) {
+      return new Response(JSON.stringify({ error: 'Perfil de corretor não encontrado' }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const cota = await checarCota(supabaseClient, corretorId, 'ai_contracts_monthly');
+    if (!cota.permitido) {
+      return new Response(JSON.stringify({
+        error: 'Limite mensal de operações com IA atingido.',
+        code: 'PLAN_LIMIT_REACHED', featureKey: 'ai_contracts_monthly',
+        used: cota.usado, limit: cota.limite,
+      }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const body: ContratoRequest = await req.json();
@@ -276,6 +291,7 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
 
     console.log("Contract generated successfully, length:", contratoGerado.length);
 
+    await registrarUso(supabaseClient, corretorId, 'ai_contracts_monthly');
     return new Response(
       JSON.stringify({
         contrato: contratoGerado,

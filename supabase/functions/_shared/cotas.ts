@@ -91,6 +91,21 @@ export async function registrarUso(
   }
 }
 
+/** Executa uma operação paga somente com cota e contabiliza após o sucesso. */
+export async function consumirCota<T>(
+  supabase: Parameters<typeof checarCota>[0] & Parameters<typeof registrarUso>[0],
+  corretorId: string,
+  featureKey: string,
+  operacao?: () => Promise<T>,
+): Promise<ResultadoCota & { resultado?: T }> {
+  const cota = await checarCota(supabase, corretorId, featureKey);
+  if (!cota.permitido || !operacao) return cota;
+
+  const resultado = await operacao();
+  await registrarUso(supabase, corretorId, featureKey);
+  return { ...cota, resultado };
+}
+
 /** Chave da cota que dirige o custo do produto. */
 export const COTA_LEADS = 'leads_qualificados_monthly';
 

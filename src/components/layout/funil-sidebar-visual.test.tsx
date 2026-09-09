@@ -58,4 +58,20 @@ describe('acabamento visual do funil e da sidebar', () => {
     expect(html).not.toContain('scrollbar-width');
     expect(html).not.toContain('webkit-scrollbar');
   });
+
+  it('mantém todos os itens visíveis e a IA dentro de Sistema', () => {
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/assistente">
+        <AppSidebar />
+      </StaticRouter>,
+    );
+
+    expect(html.indexOf('>Sistema<')).toBeLessThan(html.indexOf('Assistente IA'));
+    expect(html.indexOf('Assistente IA')).toBeLessThan(html.indexOf('Configurações'));
+    expect(html).not.toContain('>Recursos<');
+    expect(html).not.toContain('aria-controls="grupo-operacao"');
+    expect(html).not.toContain('aria-controls="grupo-gestao"');
+    expect(html).not.toContain('aria-controls="grupo-sistema"');
+    expect(html).not.toContain('class="hidden"');
+  });
 });

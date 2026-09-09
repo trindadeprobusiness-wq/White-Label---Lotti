@@ -16,6 +16,7 @@ import {
   podeQualificarComIA,
   rotuloCota,
   proximoPlanoParaCota,
+  podeCriarRecurso,
 } from './planos';
 import type { PlanWithEntitlements } from '@/types/subscription';
 
@@ -163,5 +164,16 @@ describe('proximoPlanoParaCota', () => {
 
   it('não promete upgrade quando não existe plano com cota maior', () => {
     expect(proximoPlanoParaCota(planos, 'imo', 'max_imoveis')).toBeNull();
+  });
+});
+
+describe('podeCriarRecurso', () => {
+  it('bloqueia somente criação nova quando a cota acabou', () => {
+    expect(podeCriarRecurso({ allowed: false, ready: true }, false)).toBe(false);
+    expect(podeCriarRecurso({ allowed: false, ready: true }, true)).toBe(true);
+  });
+
+  it('não libera enquanto a assinatura ainda está sendo verificada', () => {
+    expect(podeCriarRecurso({ allowed: true, ready: false }, false)).toBe(false);
   });
 });

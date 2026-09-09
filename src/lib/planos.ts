@@ -89,7 +89,7 @@ export function rotuloCota({ usado, limite }: Cota): string {
   return `${usado} de ${limite}`;
 }
 
-import type { FeatureKey, PlanWithEntitlements } from '@/types/subscription';
+import type { FeatureKey, PlanWithEntitlements, UsageSummary } from '@/types/subscription';
 
 /** Primeiro plano acima do atual que realmente aumenta a capacidade da feature. */
 export function proximoPlanoParaCota(
@@ -109,4 +109,34 @@ export function proximoPlanoParaCota(
     if (!entitlement?.enabled) return false;
     return entitlement.unlimited || (entitlement.limit_value ?? 0) > limiteAtual;
   }) ?? null;
+}
+
+export type AcaoPlano = 'current' | 'upgrade' | 'downgrade';
+
+export function acaoEntrePlanos(
+  atual: PlanWithEntitlements,
+  destino: PlanWithEntitlements,
+): AcaoPlano {
+  if (atual.id === destino.id || atual.display_order === destino.display_order) return 'current';
+  return destino.display_order > atual.display_order ? 'upgrade' : 'downgrade';
+}
+
+export function cotasIncompativeis(
+  destino: PlanWithEntitlements,
+  uso: UsageSummary[],
+): string[] {
+  return uso.flatMap((item) => {
+    const entitlement = destino.entitlements.find((ent) => ent.feature_key === item.feature_key);
+    if (!entitlement?.enabled || entitlement.unlimited) return [];
+    const limite = entitlement.limit_value ?? 0;
+    return item.used > limite ? [item.feature_name] : [];
+  });
+}
+
+/** Edição não consome uma nova vaga; criação exige consulta pronta e permissão. */
+export function podeCriarRecurso(
+  limite: Pick<import('@/types/subscription').LimitCheck, 'allowed' | 'ready'>,
+  editando: boolean,
+): boolean {
+  return editando || (limite.ready && limite.allowed);
 }

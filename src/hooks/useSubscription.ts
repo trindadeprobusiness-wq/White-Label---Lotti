@@ -16,7 +16,9 @@ import type {
   PricingCampaign,
   FeatureKey,
   SubscriptionSummary,
+  LimitCheck,
 } from '@/types/subscription';
+import { proximoPlanoParaCota } from '@/lib/planos';
 
 // ── Buscar todos os planos (com entitlements) ──
 export function useAllPlans() {
@@ -86,14 +88,46 @@ export function useUsage() {
         .toISOString()
         .split('T')[0];
 
-      const { data, error } = await supabase
-        .from('usage_counters')
-        .select('*')
-        .eq('corretor_id', corretorId)
-        .eq('period_start', periodStart);
+      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        .toISOString()
+        .split('T')[0];
+      const [monthly, imoveis, contratos, fachadas] = await Promise.all([
+        supabase.from('usage_counters').select('*')
+          .eq('corretor_id', corretorId).eq('period_start', periodStart),
+        supabase.from('imoveis').select('id', { count: 'exact', head: true })
+          .eq('corretor_id', corretorId).eq('ativo', true),
+        supabase.from('contratos').select('id', { count: 'exact', head: true })
+          .eq('corretor_id', corretorId).eq('tipo', 'LOCACAO_RESIDENCIAL').eq('status', 'ATIVO'),
+        (supabase as any).from('fachadas').select('id', { count: 'exact', head: true })
+          .eq('corretor_id', corretorId).eq('ativo', true),
+      ]);
 
-      if (error) throw error;
-      return (data as UsageCounter[]) || [];
+      if (monthly.error) throw monthly.error;
+      if (imoveis.error) throw imoveis.error;
+      if (contratos.error) throw contratos.error;
+      if (fachadas.error) throw fachadas.error;
+
+      const counters = [...((monthly.data as UsageCounter[]) || [])];
+      const ativos: Array<[FeatureKey, number]> = [
+        ['max_imoveis', imoveis.count ?? 0],
+        ['max_contratos_locacao', contratos.count ?? 0],
+        ['max_fachadas', fachadas.count ?? 0],
+      ];
+      for (const [featureKey, used] of ativos) {
+        const existing = counters.find((counter) => counter.feature_key === featureKey);
+        if (existing) existing.used_quantity = used;
+        else counters.push({
+          id: `active:${featureKey}`,
+          corretor_id: corretorId,
+          feature_key: featureKey,
+          used_quantity: used,
+          period_start: periodStart,
+          period_end: periodEnd,
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        });
+      }
+      return counters;
     },
     enabled: !!corretorId,
   });
@@ -141,48 +175,42 @@ export function useActiveCampaign() {
 
 // ── Verificar limite de uma feature ──
 export function useCheckLimit() {
-  const { data: subscription } = useCurrentSubscription();
-  const { data: plans } = useAllPlans();
-  const { data: usage } = useUsage();
-  const { data: addons } = useAddons();
+  const subscriptionQuery = useCurrentSubscription();
+  const plansQuery = useAllPlans();
+  const usageQuery = useUsage();
+  const addonsQuery = useAddons();
+  const subscription = subscriptionQuery.data;
+  const plans = plansQuery.data;
+  const usage = usageQuery.data;
+  const addons = addonsQuery.data;
 
   /**
    * Verifica se o corretor pode executar a ação limitada.
    * Retorna { allowed, used, limit, unlimited }
    */
-  const checkLimit = (featureKey: FeatureKey): {
-    allowed: boolean;
-    used: number;
-    limit: number | null;
-    unlimited: boolean;
-    ratio: number | null;
-    status: 'ok' | 'warning' | 'exceeded';
-  } => {
-    // Sem assinatura, sem plano ou sem entitlement → LIBERA.
-    //
-    // Antes bloqueava, e isso teria travado a base inteira no dia em que os
-    // limites fossem ligados: hoje nenhum corretor tem linha em `subscriptions`,
-    // e nada cria uma. Todo botão protegido apareceria desabilitado para todo
-    // mundo, sem ninguém entender por quê.
-    //
-    // A assimetria é deliberada. Aqui, no front, o risco é impedir o corretor de
-    // usar o CRM DELE por causa de uma consulta de cobrança que falhou — e isso
-    // é muito pior que alguém passar um pouco da cota. No servidor
-    // (`_shared/cotas.ts`) o padrão é o oposto: sem assinatura, a IA não roda,
-    // porque ali o risco é gastar inferência por quem não paga. Dado do cliente
-    // falha aberto; nosso dinheiro falha fechado.
-    const LIBERADO = {
-      allowed: true, used: 0, limit: null, unlimited: true,
-      ratio: null, status: 'ok',
+  const checkLimit = (featureKey: FeatureKey): LimitCheck => {
+    const ready = !subscriptionQuery.isLoading && !plansQuery.isLoading
+      && !usageQuery.isLoading && !addonsQuery.isLoading
+      && !subscriptionQuery.error && !plansQuery.error && !usageQuery.error && !addonsQuery.error;
+    const BLOQUEADO = {
+      allowed: false, used: 0, limit: 0, unlimited: false,
+      ratio: 1, status: 'exceeded', featureName: featureKey,
+      currentPlan: null, recommendedPlan: null, ready,
     } as const;
 
-    if (!subscription || !plans) return LIBERADO;
+    if (!ready || !subscription || !plans) return BLOQUEADO;
 
     const plan = plans.find((p) => p.id === subscription.plan_id);
-    if (!plan) return LIBERADO;
+    if (!plan) return BLOQUEADO;
 
     const entitlement = plan.entitlements.find((e) => e.feature_key === featureKey);
-    if (!entitlement) return LIBERADO;
+    if (!entitlement) return BLOQUEADO;
+    const common = {
+      featureName: entitlement.feature_name,
+      currentPlan: plan,
+      recommendedPlan: proximoPlanoParaCota(plans, plan.id, featureKey),
+      ready: true,
+    };
 
     // Feature boolean (tem ou não tem)
     if (entitlement.limit_value === null && !entitlement.unlimited) {
@@ -193,12 +221,13 @@ export function useCheckLimit() {
         unlimited: false,
         ratio: null,
         status: entitlement.enabled ? 'ok' : 'exceeded',
+        ...common,
       };
     }
 
     // Feature ilimitada
     if (entitlement.unlimited) {
-      return { allowed: true, used: 0, limit: null, unlimited: true, ratio: null, status: 'ok' };
+      return { allowed: true, used: 0, limit: null, unlimited: true, ratio: null, status: 'ok', ...common };
     }
 
     // Feature com limite numérico
@@ -239,6 +268,7 @@ export function useCheckLimit() {
       unlimited: false,
       ratio,
       status,
+      ...common,
     };
   };
 

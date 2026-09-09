@@ -80,7 +80,7 @@ function montarGrupos(): GrupoNav[] {
       ],
     },
     {
-      titulo: 'Recursos',
+      titulo: 'Sistema',
       itens: [
         { label: 'Assistente IA', href: '/assistente', icone: <Sparkles className={ic} /> },
         { label: 'Configurações', href: '/configuracoes', icone: <Settings className={ic} /> },
@@ -111,7 +111,6 @@ function ItemMenu({
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
         ativo
-          // Verde sólido, sem sombra: o contraste já separa o item do resto.
           ? 'bg-primary text-primary-foreground'
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
