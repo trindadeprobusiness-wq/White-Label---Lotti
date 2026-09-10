@@ -36,6 +36,7 @@ export interface WhatsAppContactProfile {
   name: string;
   phone: string;
   email: string;
+  stageId: string;
   stage: string;
   interest: string;
   budget: string;

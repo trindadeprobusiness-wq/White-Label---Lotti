@@ -98,6 +98,23 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-09 — Codex (Inbox conectado às etapas do Funil)
+
+- A etapa exibida no cabeçalho e no perfil do WhatsApp Inbox passou a usar as mesmas
+  etapas e oportunidades da camada `useCrm`, com suporte aos modos completo e legado.
+- A conversa procura a oportunidade primeiro por `cliente_id` e usa telefone normalizado
+  apenas como compatibilidade. A troca no seletor chama a mesma mutação usada pelo Funil;
+  a invalidação compartilhada faz a alteração aparecer nos dois módulos.
+- Dados demonstrativos sem cliente real vinculado mantêm troca local para permitir a
+  visualização antes da futura ingestão de conversas pela Evolution API.
+- Testes direcionados: 11/11 passaram. ESLint dos arquivos tocados passou sem erros,
+  `npm run build` e `git diff --check` passaram. O typecheck manteve somente a baseline
+  conhecida, sem erro nos arquivos desta mudança.
+- Servidor local religado em `http://127.0.0.1:8086/whatsapp`, confirmado com HTTP 200.
+- O Graphify foi consultado primeiro por existir `graphify-out/`, mas o executável não
+  estava disponível; o mapeamento foi concluído por busca direta no repositório.
+- Nenhum navegador foi aberto nesta correção.
+
 ### 2026-09-09 — Codex (segunda redução do WhatsApp Inbox)
 
 - A pedido do usuário, a densidade foi reduzida novamente em aproximadamente 8%.

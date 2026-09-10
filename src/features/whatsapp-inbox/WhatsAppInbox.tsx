@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { ETAPAS_LEGADO, useEtapas, useMoverOportunidade, useOportunidades } from '@/hooks/crm/useCrm';
 import { cn } from '@/lib/utils';
 import { demoConversations, demoMessagesByConversation, demoProfilesByContact } from './demoData';
 import type { WhatsAppConversation, WhatsAppMessage, WhatsAppServiceMode } from './types';
@@ -26,6 +27,30 @@ export function filterConversations(conversations: WhatsAppConversation[], query
 
 export function toggleProfileVisibility(visible: boolean): boolean {
   return !visible;
+}
+
+type FunnelOpportunityLink = {
+  id: string;
+  cliente_id: string | null;
+  etapa_id: string;
+  ordem?: number;
+  updated_at?: string;
+  clientes?: { telefone?: string | null } | null;
+};
+
+const phoneDigits = (value?: string | null) => value?.replace(/\D/g, '') ?? '';
+
+export function findFunnelOpportunityForConversation(
+  conversation: WhatsAppConversation,
+  opportunities: FunnelOpportunityLink[],
+) {
+  const byClient = opportunities.find(({ cliente_id }) => cliente_id === conversation.contactId);
+  if (byClient) return byClient;
+
+  const phone = phoneDigits(conversation.phone);
+  return phone
+    ? opportunities.find(({ clientes }) => phoneDigits(clientes?.telefone) === phone)
+    : undefined;
 }
 
 function Avatar({ initials, active = false }: { initials: string; active?: boolean }) {
@@ -47,6 +72,10 @@ export function WhatsAppInbox() {
   const [note, setNote] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('list');
   const [profileVisible, setProfileVisible] = useState(true);
+  const [demoStageByContact, setDemoStageByContact] = useState<Record<string, string>>({});
+  const { data: funnelStages } = useEtapas();
+  const { data: funnelOpportunities } = useOportunidades();
+  const moveOpportunity = useMoverOportunidade();
 
   const filtered = useMemo(() => {
     const result = filterConversations(conversations, query);
@@ -55,6 +84,20 @@ export function WhatsAppInbox() {
   const selected = conversations.find(({ id }) => id === selectedId) ?? conversations[0];
   const profile = demoProfilesByContact[selected.contactId];
   const selectedMessages = messages[selected.id] ?? [];
+  const availableStages = funnelStages?.length ? funnelStages : ETAPAS_LEGADO;
+  const linkedOpportunity = findFunnelOpportunityForConversation(
+    selected,
+    (funnelOpportunities ?? []) as FunnelOpportunityLink[],
+  );
+  const activeStageId = linkedOpportunity?.etapa_id
+    ?? demoStageByContact[selected.contactId]
+    ?? profile.stageId;
+  const activeStage = availableStages.find(({ id }) => id === activeStageId)
+    ?? ETAPAS_LEGADO.find(({ id }) => id === activeStageId)
+    ?? ETAPAS_LEGADO[0];
+  const stageStatus = activeStage.tipo === 'GANHO'
+    ? 'Ganha'
+    : activeStage.tipo === 'PERDIDO' ? 'Perdida' : 'Aberta';
 
   const selectConversation = (id: string) => {
     setSelectedId(id);
@@ -76,6 +119,22 @@ export function WhatsAppInbox() {
     setMessages((current) => ({ ...current, [selected.id]: [...(current[selected.id] ?? []), outgoing] }));
     setConversations((current) => current.map((item) => item.id === selected.id ? { ...item, lastMessage: content, lastMessageAt: 'Agora' } : item));
     setDraft('');
+  };
+
+  const changeFunnelStage = (stageId: string) => {
+    if (!linkedOpportunity) {
+      setDemoStageByContact((current) => ({ ...current, [selected.contactId]: stageId }));
+      return;
+    }
+
+    const destinationOrder = (funnelOpportunities ?? [])
+      .filter(({ etapa_id }) => etapa_id === stageId).length;
+    moveOpportunity.mutate({
+      id: linkedOpportunity.id,
+      etapaId: stageId,
+      ordem: destinationOrder,
+      updatedAt: linkedOpportunity.updated_at ?? '',
+    });
   };
 
   const listPanel = (
@@ -141,8 +200,20 @@ export function WhatsAppInbox() {
         </Button>
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('profile')} aria-label="Abrir perfil"><Info className="h-5 w-5" /></Button>
       </header>
-      <div className="flex items-center justify-between border-b border-border bg-card/70 px-3 py-1.5 text-[11px]">
-        <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-success" />Aberta · {profile.stage}</span>
+      <div className="flex items-center justify-between border-b border-border bg-card/70 px-3 py-1 text-[11px]">
+        <label className="flex min-w-0 items-center gap-2">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
+          <span className="shrink-0">{stageStatus} ·</span>
+          <select
+            aria-label="Alterar etapa do funil"
+            value={activeStage.id}
+            disabled={moveOpportunity.isPending}
+            onChange={(event) => changeFunnelStage(event.target.value)}
+            className="min-w-0 max-w-[13rem] cursor-pointer bg-transparent font-semibold outline-none disabled:cursor-wait disabled:opacity-60"
+          >
+            {availableStages.map((stage) => <option key={stage.id} value={stage.id}>{stage.nome}</option>)}
+          </select>
+        </label>
         <Badge variant="outline" className="font-normal"><Sparkles className="mr-1 h-3 w-3" />Conexão demonstrativa</Badge>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-secondary/60 p-3">
@@ -172,7 +243,7 @@ export function WhatsAppInbox() {
       <header className="flex min-h-9 items-center justify-between border-b border-border px-2.5"><h2 className="text-[11px] font-bold uppercase tracking-wide">Perfil do contato</h2><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobilePanel('chat')} aria-label="Fechar perfil"><X className="h-5 w-5" /></Button><MoreHorizontal className="hidden h-3.5 w-3.5 text-muted-foreground lg:block" /></header>
       <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto p-2.5">
         <div className="flex items-center gap-2.5"><Avatar initials={selected.avatar} /><div><h3 className="text-sm font-semibold">{profile.name}</h3><p className="text-[11px] text-muted-foreground">{profile.phone}</p><p className="text-[11px] text-muted-foreground">{profile.email}</p></div></div>
-        <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3 text-xs"><div><span className="text-muted-foreground">Etapa</span><strong className="mt-1 block">{profile.stage}</strong></div><div><span className="text-muted-foreground">Orçamento</span><strong className="mt-1 block">{profile.budget}</strong></div><div className="col-span-2 border-t border-border pt-2"><span className="text-muted-foreground">Interesse</span><strong className="mt-1 block">{profile.interest}</strong></div></div>
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3 text-xs"><div><span className="text-muted-foreground">Etapa</span><strong className="mt-1 block">{activeStage.nome}</strong></div><div><span className="text-muted-foreground">Orçamento</span><strong className="mt-1 block">{profile.budget}</strong></div><div className="col-span-2 border-t border-border pt-2"><span className="text-muted-foreground">Interesse</span><strong className="mt-1 block">{profile.interest}</strong></div></div>
         <div><label className="text-[10px] font-semibold uppercase tracking-wide text-muted-strong">Linha do tempo</label><div className="mt-2 space-y-2.5">{profile.timeline.map((event) => <div key={event.id} className="flex gap-2 text-[11px]"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">{event.title.includes('WhatsApp') ? <MessageCircle className="h-2.5 w-2.5" /> : <Clock3 className="h-2.5 w-2.5" />}</span><div><strong className="block">{event.title}</strong><p className="text-muted-foreground">{event.detail} · {event.occurredAt}</p></div></div>)}</div></div>
         <div><label className="text-[10px] font-semibold uppercase tracking-wide text-muted-strong">Responsável</label><button className="mt-1.5 flex h-8 w-full items-center justify-between rounded-lg border border-input px-3 text-xs"><span>{profile.assignee}</span><ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /></button></div>
         <div><label className="text-group uppercase text-muted-strong">Tags</label><div className="mt-2 flex flex-wrap gap-2">{profile.tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}<Button variant="outline" size="sm" className="h-6 px-2"><Plus className="h-3 w-3" /></Button></div></div>

@@ -76,7 +76,7 @@ type AlertaBruto = {
 export type ModoCrm = 'completo' | 'legado';
 
 /** Etapas sintéticas equivalentes ao enum status_funil, para o modo legado. */
-const ETAPAS_LEGADO: CrmEtapa[] = [
+export const ETAPAS_LEGADO: CrmEtapa[] = [
   { id: 'QUALIFICACAO', corretor_id: '', nome: 'Qualificação', ordem: 1, cor: 'blue', tipo: 'ABERTA', ativo: true },
   { id: 'VISITA_PROPOSTA', corretor_id: '', nome: 'Visita / Proposta', ordem: 2, cor: 'amber', tipo: 'ABERTA', ativo: true },
   { id: 'DOCUMENTACAO', corretor_id: '', nome: 'Documentação', ordem: 3, cor: 'orange', tipo: 'ABERTA', ativo: true },

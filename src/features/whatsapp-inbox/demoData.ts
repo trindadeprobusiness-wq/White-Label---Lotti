@@ -45,7 +45,7 @@ export const demoMessagesByConversation: Record<string, WhatsAppMessage[]> = {
 const profile = (
   id: string, name: string, phone: string, interest: string, budget: string, assignee: string,
 ): WhatsAppContactProfile => ({
-  id, name, phone, email: `${id}@email.com`, stage: 'Qualificação', interest, budget, assignee,
+  id, name, phone, email: `${id}@email.com`, stageId: 'QUALIFICACAO', stage: 'Qualificação', interest, budget, assignee,
   tags: ['Lead WhatsApp', 'Compra'],
   notes: ['Busca imóvel com boa localização e possibilidade de financiamento.'],
   timeline: [

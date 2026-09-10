@@ -1,8 +1,26 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import { WhatsAppInbox, filterConversations, toggleProfileVisibility } from './WhatsAppInbox';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  WhatsAppInbox,
+  filterConversations,
+  findFunnelOpportunityForConversation,
+  toggleProfileVisibility,
+} from './WhatsAppInbox';
 import { demoConversations } from './demoData';
 import WhatsAppInboxPage from '@/pages/WhatsAppInbox';
+
+vi.mock('@/hooks/crm/useCrm', () => ({
+  ETAPAS_LEGADO: [
+    { id: 'QUALIFICACAO', nome: 'Qualificação', tipo: 'ABERTA', ordem: 1, cor: 'blue', ativo: true, corretor_id: '' },
+    { id: 'VISITA_PROPOSTA', nome: 'Visita / Proposta', tipo: 'ABERTA', ordem: 2, cor: 'amber', ativo: true, corretor_id: '' },
+  ],
+  useEtapas: () => ({ data: [
+    { id: 'QUALIFICACAO', nome: 'Qualificação', tipo: 'ABERTA', ordem: 1, cor: 'blue', ativo: true, corretor_id: '' },
+    { id: 'VISITA_PROPOSTA', nome: 'Visita / Proposta', tipo: 'ABERTA', ordem: 2, cor: 'amber', ativo: true, corretor_id: '' },
+  ] }),
+  useOportunidades: () => ({ data: [] }),
+  useMoverOportunidade: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 
 describe('WhatsAppInbox', () => {
   it('renderiza o fluxo completo de atendimento e identifica a demonstração', () => {
@@ -42,6 +60,27 @@ describe('WhatsAppInbox', () => {
     expect(html).toContain('Ocultar info');
     expect(toggleProfileVisibility(true)).toBe(false);
     expect(toggleProfileVisibility(false)).toBe(true);
+  });
+
+  it('liga a etapa exibida à oportunidade do mesmo cliente ou telefone', () => {
+    const conversation = demoConversations[0];
+    const byClient = findFunnelOpportunityForConversation(conversation, [
+      { id: 'op-1', cliente_id: conversation.contactId, etapa_id: 'QUALIFICACAO' },
+    ]);
+    const byPhone = findFunnelOpportunityForConversation(conversation, [
+      { id: 'op-2', cliente_id: 'outro', etapa_id: 'VISITA_PROPOSTA', clientes: { telefone: conversation.phone } },
+    ]);
+
+    expect(byClient?.id).toBe('op-1');
+    expect(byPhone?.id).toBe('op-2');
+  });
+
+  it('permite trocar a etapa do Funil diretamente no Inbox', () => {
+    const html = renderToStaticMarkup(<WhatsAppInbox />);
+
+    expect(html).toContain('aria-label="Alterar etapa do funil"');
+    expect(html).toContain('Qualificação');
+    expect(html).toContain('Visita / Proposta');
   });
 
   it('mantém a estrutura compacta de filtros e três caixas independentes', () => {
