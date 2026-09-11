@@ -19,6 +19,14 @@ import {
  * de navegação. As 5 rotas principais ficam na Bottom Nav; o restante aqui.
  */
 
+interface ItemSheet {
+  label: string;
+  href: string;
+  icone: React.ReactNode;
+}
+
+const ic = 'h-6 w-6';
+
 function itensMenu(): ItemSheet[] {
   return [
     { label: 'Financeiro',   href: '/financeiro',  icone: <Wallet className={ic} /> },
