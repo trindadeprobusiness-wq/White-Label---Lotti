@@ -1,5 +1,62 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — cores dos atalhos e avatar (2026-09-10)
+- Inbox: Atrasando selecionado usa fundo/borda amarelos; Urgente selecionado usa fundo/borda vermelhos. Estados não selecionados continuam neutros.
+- Removido indicador pequeno de presença dos avatares da lista e do cabeçalho, preservando o indicador de status textual da conversa.
+- 20 testes do Inbox e build passaram; diff check passou; localhost /whatsapp respondeu HTTP 200.
+
+## Codex — remoção de Configurar e sino global (2026-09-10)
+- Removido botão/painel Configurar do Assistente e o envio/tratamento de instruções personalizadas acrescentado localmente. Arquivo AISettings removido.
+- PainelNotificacoes removido do PageHeader, eliminando o sino utilitário das páginas. Ícones de sino dentro da aba Configurações > Notificações foram mantidos por serem rótulos dessa seção, não botão global.
+- Build e diff check passaram; localhost /assistente respondeu HTTP 200. Componente PainelNotificacoes permanece no repositório sem renderização pelo cabeçalho, para não apagar infraestrutura/dados sem solicitação explícita.
+
+## Codex — renomear e backlog (2026-09-10)
+- Histórico do Assistente: Renomear abre modal, valida título não vazio de até 120 caracteres e atualiza ai_conversations pelo cliente autenticado; apresenta falha e recarrega lista após sucesso. Build passou; gravação real não testada nesta etapa.
+- Documento docs/PLANO_AUTOMACAO_LOTTI.md criado para revisão, com fluxo, arquitetura, 22 itens priorizados, dependências, critérios de aceite, riscos e decisões pendentes. Não autoriza publicação.
+
+## Codex — histórico, configuração e botões (2026-09-10)
+- Menu de opções do histórico em espaço próprio, sem sobrepor a data no hover. Ícone inicial com contornos sobrepostos discretos em verde.
+- Configurar abre painel de instruções, restauração e salvamento local por usuário. Hook envia preferências limitadas a 3000 caracteres; função ai-assistant preparada para tratá-las como mensagem de usuário, sem substituir regras do sistema. Atualização do servidor NÃO publicada; interface avisa essa dependência.
+- LimitGuard mantém interceptação por cota/plano sem opacity-50, com título explicativo. Botões nativamente desabilitados recebem fundo neutro e texto legível, sem serem habilitados.
+- Build, diff check e 4 testes existentes de contratos IA passaram. Sem teste E2E da configuração nem revisão visual no navegador.
+
+## Codex — abertura compacta do Assistente (2026-09-10)
+- Reduzidos padding superior, ícone, título, categorias e cartões de perguntas (mínimo 54px). Composer com uma linha e padding menor, preservando Shift+Enter. Objetivo: quatro sugestões visíveis na altura desktop enviada, sem esconder conteúdo por overflow.
+- Build e diff check passaram. Sem validação visual no navegador; rolagem de segurança mantida para mensagens e telas pequenas.
+
+## Codex — Assistente inspirado na referência (2026-09-10)
+- Painel com margem uniforme, bordas arredondadas, histórico mais estreito e botão Nova análise. Abertura central com título, categorias e sugestões em duas colunas; identidade verde Lotti preservada.
+- Composer usa Textarea e trata Enter/Shift+Enter com proteção para composição IME. Sem painel lateral direito. Backend não alterado.
+- Build e diff check passaram; localhost /assistente HTTP 200. Sem validação visual ou teste automatizado de teclado nesta etapa.
+
+## Codex — layout do Assistente (2026-09-10)
+- Removida a coluna direita de capacidades/contexto. Rota /assistente sem padding externo/max-width; altura dinâmica integral no desktop, descontando somente barra mobile. Removidas margens negativas e desconto antigo de 4rem que deixavam faixa inferior vazia.
+- Build passou; git diff --check passou; localhost /assistente respondeu 200. Comando direcionado a appLayoutRules.test.ts não encontrou arquivo de teste (não conta como teste aprovado). Sem verificação visual no navegador.
+
+## Codex — ações locais do Inbox (2026-09-10)
+- Nova conversa com nome/telefone, detecção de número existente; exclusão confirmada somente na demonstração e estado vazio no desktop. Responsável selecionável entre opções demonstrativas; tags adicionáveis/removíveis e refletidas nos filtros.
+- Rascunhos e anexos separados por conversa. Anexo local até 20 MB com download via URL temporária, sem upload/envio; URLs revogadas ao desmontar. Perfil mais compacto, reinicia rolagem ao trocar contato; ferramentas de simulação recolhidas.
+- Testes: 20 testes do Inbox passaram; build passou antes da extração simples de updateDraft, depois coberta nos testes. Diff check passou, localhost 8086 respondeu 200. Sem diagnósticos filtrados do Inbox no typecheck global; baseline externa permanece.
+- Limitações: alterações ainda em memória, sem persistência nem integração WhatsApp; responsável é lista demonstrativa, não diretório real. Sem teste visual/browser ou teste ponta a ponta dos novos modais. Não implica paridade completa com Clix.
+
+## Codex — edição e perfil do Inbox (2026-09-10)
+- Lápis no cabeçalho abre Editar cliente sem Contato interno. Nome validado atualiza lista, cabeçalho, perfil e iniciais; telefone somente leitura para preservar identidade do canal. Alterações locais à sessão, aviso explícito no modal.
+- Perfil reorganizado em card suave de identificação e dados imobiliários, divisórias leves, timeline conectada com contagem e datas separadas. Preservadas dimensões e ordem dos campos.
+- Verificação: 19 testes do Inbox passaram, build passou, git diff --check sem erros e localhost 8086/whatsapp respondeu HTTP 200. Sem inspeção visual via navegador.
+
+## Codex — menu e sugestão de resposta (2026-09-10)
+- Menu: item ativo com fundo discreto e barrinha lateral; hover verde acinzentado nos temas claro/escuro, sem alterar dimensões.
+- Inbox: opção Sugerir resposta, seleção de imóvel autorizado, revisão editável e aplicação somente ao rascunho. Sem envio automático; componente reinicia ao trocar conversa/pergunta.
+- Nova função local inbox-suggest: autentica sessão, resolve corretor no servidor, consulta com RLS e filtro explícito de titularidade; envia somente campos permitidos do imóvel ao provedor existente. Não inclui proprietário, endereço exato, documentos ou descrição livre. Valida entrada, rate limit e cota antes da inferência.
+- Validação: 19 testes passaram (Inbox e limites de contexto da sugestão); bundle da função passou; build passou. Typecheck global segue com baseline de erros, sem diagnósticos nos arquivos desta etapa filtrados pelo comando.
+- Pendente: publicar/configurar inbox-suggest, testar autenticação/isolamento ponta a ponta e qualidade das sugestões com provedor real. Nenhuma publicação ou chamada de inferência executada. Associação automática anúncio/imóvel e busca por critérios ficam para próxima etapa. Sem validação visual no navegador, por pedido do usuário.
+
+## Codex — filtros do Inbox (2026-09-09)
+- Implementados atalhos Todas/Atrasando/Urgente com contagens por conversa e painel lateral rolável de filtros combináveis: funil, interação, status, responsável, motivo de fechamento, tags, não lidas e datas.
+- Prazos ajustáveis (15/60 minutos inicialmente), grupos de atraso exclusivos; registros sem waitingSince confirmado não geram urgência fictícia. Datas desconhecidas não entram em recortes temporais. Dados continuam demonstrativos e filtros locais, sem integração WhatsApp real.
+- Fechamento local registra Corretor; resposta humana limpa espera e registra última interação. Preservadas alterações anteriores e dimensões do Inbox.
+- Verificação: 17 testes do Inbox passaram; build de produção passou. Sem navegação/validação visual no navegador, conforme pedido.
+
 Este arquivo sincroniza o **estado do trabalho**, não o histórico integral dos chats.
 Antes de começar uma tarefa, confira também `git status` e o diff: o repositório é a
 fonte da verdade quando este resumo estiver desatualizado.
@@ -97,6 +154,27 @@ estejam concluídas ou corretas.
 7. Testar manualmente: abrir cliente, carregar timeline e registrar contato/WhatsApp.
 
 ## Diário de handoff
+
+### 2026-09-09 — Codex (status e legibilidade do Inbox)
+
+- Status da conversa separado da etapa: clicar abre confirmação Fechar conversa,
+  Cancelar preserva estado e Fechar marca somente a conversa; Fechada permite reabrir.
+- Removidas reticências decorativas do perfil. Notas usam contraste âmbar explícito
+  claro/escuro e quebra de texto; adicionar nota funciona no estado local por contato.
+- Melhorados foco do seletor e contenção da altura dos painéis móveis.
+- 14 testes do Inbox passaram; localhost 8086 respondeu HTTP 200. Revisão pelo código,
+  sem inspeção visual no navegador. Persistência das notas/status continua pendente.
+
+### 2026-09-09 — Codex (avisos no histórico do Inbox)
+
+- Mudanças realizadas pelo seletor do Inbox acrescentam aviso com etapas, autor
+  e horário somente após sucesso; no demo o aviso acompanha a alteração local.
+- Mensagem humana enviada pelo composer pausa a IA e adiciona aviso no chat.
+  Normalizador testado distingue cliente/IA/humano e ignora mensagens repetidas.
+- Botão exclusivo de desenvolvimento simula resposta humana pelo WhatsApp.
+- Eventos e estado continuam locais: persistência, movimentos externos do Funil
+  e recebimento automático via Evolution ainda precisam de integração backend.
+- Validação: 14 testes do Inbox, build e diff check passaram; localhost 8086 HTTP 200.
 
 ### 2026-09-09 — Codex (Inbox conectado às etapas do Funil)
 

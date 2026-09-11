@@ -28,7 +28,7 @@ describe('WhatsAppInbox', () => {
 
     expect(html).toContain('Conversas');
     expect(html).toContain('Perfil do contato');
-    expect(html).toContain('Conexão demonstrativa');
+    expect(html).toContain('Modo demonstração');
     expect(html).toContain('Atendimento humano');
     expect(html).toContain('Notas internas');
   });
@@ -87,8 +87,8 @@ describe('WhatsAppInbox', () => {
     const html = renderToStaticMarkup(<WhatsAppInbox />);
 
     expect(html).toContain('Filtros');
-    expect(html).toContain('Aguardando resposta');
-    expect(html).toContain('Conversas prioritárias');
+    expect(html).toContain('Atrasando: 0 conversas');
+    expect(html).toContain('Urgente: 0 conversas');
     expect(html).toContain('data-panel="conversations"');
     expect(html).toContain('data-panel="chat"');
     expect(html).toContain('data-panel="contact-profile"');

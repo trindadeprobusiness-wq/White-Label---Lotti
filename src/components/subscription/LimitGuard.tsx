@@ -41,7 +41,7 @@ export function LimitGuard({ featureKey, children, fallback, onBlocked }: LimitG
             {fallback}
           </div>
         ) : (
-          <div onClickCapture={handleInterceptClick} className="opacity-50 cursor-not-allowed">
+          <div onClickCapture={handleInterceptClick} title="Recurso indisponível no limite atual. Clique para ver as opções do plano.">
             {typeof children === 'function' ? children(status) : children}
           </div>
         )}

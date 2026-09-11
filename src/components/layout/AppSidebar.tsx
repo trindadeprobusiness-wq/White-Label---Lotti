@@ -144,9 +144,9 @@ function ItemMenu({
                   onClick={aoNavegar}
                   aria-current={subitemAtivo ? 'page' : undefined}
                   className={cn(
-                    'my-0.5 flex min-h-9 items-center rounded-md px-3 text-sm transition-colors focus-ring',
+                    'relative my-0.5 flex min-h-9 items-center rounded-md px-4 text-sm transition-colors focus-ring',
                     subitemAtivo
-                      ? 'bg-primary/10 font-semibold text-primary'
+                      ? 'bg-sidebar-accent font-semibold text-primary before:absolute before:left-1 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent',
                   )}
                 >
@@ -166,11 +166,11 @@ function ItemMenu({
       onClick={aoNavegar}
       aria-current={ativo ? 'page' : undefined}
       className={cn(
-        'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
+        'relative group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
         ativo
-          ? 'bg-primary text-primary-foreground'
+          ? 'bg-sidebar-accent text-primary before:absolute before:left-1 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary'
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
     >

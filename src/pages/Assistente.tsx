@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Send, RotateCcw, AlertCircle, Sparkles, Trash2, ChevronRight, ShieldCheck,
-  ExternalLink, Users, Building2, TrendingUp, FileText,
+  Send, RotateCcw, AlertCircle, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIChat } from '@/hooks/useAIChat';
 import { AIMessageBubble } from '@/components/ai/AIMessageBubble';
@@ -18,17 +17,6 @@ import { AI_ACCEPTED_TYPES } from '@/types/ai';
 import { EstadoInicialIA } from '@/components/ai/EstadoInicialIA';
 import { useCRMStore } from '@/stores/crmStore';
 
-/** Atalhos do painel direito — cada um preenche o campo com a pergunta pronta. */
-const CAPACIDADES = [
-  { Icone: Users, titulo: 'Consultar clientes e históricos',
-    prompt: 'Mostre um resumo dos meus clientes e do histórico de contato de cada um.' },
-  { Icone: Building2, titulo: 'Encontrar imóveis',
-    prompt: 'Quais imóveis eu tenho disponíveis no momento?' },
-  { Icone: TrendingUp, titulo: 'Analisar receitas e despesas',
-    prompt: 'Analise minhas receitas e despesas e aponte o que mais pesa no resultado.' },
-  { Icone: FileText, titulo: 'Organizar contratos e documentos',
-    prompt: 'Quais contratos e documentos precisam de atenção por prazo ou pendência?' },
-] as const;
 
 export default function Assistente() {
   const [inputText, setInputText] = useState('');
@@ -92,11 +80,10 @@ export default function Assistente() {
   );
 
   return (
-    // Full-bleed dentro do AppLayout: os negative margins anulam o padding
-    // do <main> para o assistente ocupar toda a área do canvas.
-    <div className="flex h-[calc(100vh-4rem)] -my-8 -mx-4 md:-mx-8 rounded-none overflow-hidden bg-background">
+    // O AppLayout não aplica padding nesta rota; o chat ocupa a altura disponível.
+    <div className="flex h-[calc(100dvh-4.5rem)] m-2 md:m-5 md:h-[calc(100dvh-2.5rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
       {/* Coluna de conversas */}
-      <aside className="w-[300px] shrink-0 border-r border-border hidden md:flex flex-col overflow-hidden">
+      <aside className="w-[260px] xl:w-[280px] shrink-0 border-r border-border/70 hidden md:flex flex-col overflow-hidden bg-muted/20">
         <AIConversationList
           conversations={conversations}
           activeId={activeConversation}
@@ -110,7 +97,7 @@ export default function Assistente() {
 
       {/* Área principal do chat */}
       <section
-        className="flex-1 flex flex-col min-w-0 relative bg-background"
+        className="flex-1 flex flex-col min-h-0 min-w-0 relative bg-background"
         {...chatDropProps}
       >
         {chatDragActive && (
@@ -128,12 +115,12 @@ export default function Assistente() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-base font-semibold leading-tight text-foreground">
-              Assistente IA
+              {messages.length ? 'Análise em andamento' : 'Nova análise'}
             </h1>
             {/* "Conectado aos dados da Lotti" e não o nome do modelo: o que
                 importa ao corretor é que a IA enxerga os dados dele, não qual
                 LLM está por trás. */}
-            <p className="text-xs text-muted-foreground">Conectado aos dados da Lotti</p>
+            <p className="mt-1 text-xs text-muted-foreground">Explore os dados da sua operação imobiliária</p>
           </div>
 
           <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
@@ -150,8 +137,8 @@ export default function Assistente() {
         </header>
 
         {/* Mensagens */}
-        <ScrollArea className="flex-1">
-          <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="max-w-4xl mx-auto px-5 py-3 space-y-4">
             {messages.length === 0 ? (
               <EstadoInicialIA
                 nome={corretor?.nome}
@@ -183,8 +170,8 @@ export default function Assistente() {
         </ScrollArea>
 
         {/* Composer */}
-        <div className="border-t border-border px-6 py-4 bg-background">
-          <div className="max-w-3xl mx-auto space-y-2">
+        <div className="shrink-0 border-t border-border px-5 py-2.5 bg-background">
+          <div className="max-w-4xl mx-auto space-y-2">
             {fileContext && (
               <div className="text-xs bg-accent border border-primary/20 p-2 rounded-lg flex items-center justify-between">
                 <span className="truncate text-accent-foreground">
@@ -202,7 +189,7 @@ export default function Assistente() {
               </div>
             )}
             <form
-              className="flex items-center gap-2 rounded-xl border border-border bg-background focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20 transition px-2"
+              className="flex items-center gap-2 rounded-xl border border-border bg-background focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition p-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSend();
@@ -214,11 +201,13 @@ export default function Assistente() {
                 uploadFile={uploadFile}
                 disabled={isStreaming}
               />
-              <Input
-                placeholder="Pergunte algo ou envie um arquivo…"
+              <Textarea
+                placeholder="Pergunte sobre imóveis, clientes, contratos ou financeiro…"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 h-11 bg-transparent"
+                className="min-h-9 max-h-32 flex-1 resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm"
+                rows={1}
+                onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!isStreaming) void handleSend(); } }}
                 disabled={isStreaming}
                 autoFocus
               />
@@ -239,59 +228,6 @@ export default function Assistente() {
         </div>
       </section>
 
-      {/* Painel de contexto. Só a partir de xl: abaixo disso ele roubaria
-          largura do chat, que é onde o trabalho acontece. */}
-      <aside className="hidden w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-border bg-background p-4 xl:flex">
-        <div>
-          <h2 className="mb-2 px-1 text-sm font-medium text-foreground">
-            A IA pode ajudar com
-          </h2>
-          <div className="space-y-0.5">
-            {CAPACIDADES.map((c) => (
-              <button
-                key={c.titulo}
-                type="button"
-                onClick={() => setInputText(c.prompt)}
-                className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-ring"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-brand text-primary">
-                  <c.Icone className="h-[18px] w-[18px]" />
-                </span>
-                <span className="min-w-0 flex-1 text-sm leading-snug text-foreground">
-                  {c.titulo}
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* O corretor precisa saber que a IA não age sozinha — é o que separa
-            "assistente" de "coisa que mexe nos meus dados". */}
-        <div className="rounded-card border border-border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-warning" />
-            <p className="text-sm font-medium text-foreground">Você está no controle</p>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Ações que alteram dados exigem sua confirmação.
-          </p>
-          <a
-            href="https://supabase.com/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline focus-ring rounded"
-          >
-            Como a IA usa seus dados
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        </div>
-
-        <p className="mt-auto text-xs leading-relaxed text-muted-foreground">
-          As respostas da IA não substituem orientação profissional. Confira as
-          informações antes de tomar decisões.
-        </p>
-      </aside>
     </div>
   );
 }

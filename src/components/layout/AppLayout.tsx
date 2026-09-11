@@ -24,7 +24,7 @@ export function AppLayout() {
         {/* pt-20 no mobile compensa a barra fixa da sidebar. `min-h-screen` no
             pai com rolagem no documento: `h-screen` com overflow interno
             quebrava o scroll do iOS. */}
-        <div className="mx-auto w-full max-w-[1600px] px-5 pb-16 pt-20 md:px-8 md:pt-8">
+        <div className={pathname === '/assistente' ? 'w-full pt-14 md:pt-0' : 'mx-auto w-full max-w-[1600px] px-5 pb-16 pt-20 md:px-8 md:pt-8'}>
           {/* Suspense aqui: a sidebar fica fixa enquanto a página (lazy) carrega */}
           <Suspense
             fallback={

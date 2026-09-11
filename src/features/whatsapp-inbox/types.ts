@@ -2,6 +2,10 @@ export type WhatsAppServiceMode = 'ai' | 'human' | 'paused';
 export type WhatsAppMessageDirection = 'incoming' | 'outgoing';
 
 export interface WhatsAppConversation {
+  firstInteractionAt?: string;
+  lastInteractionAt?: string;
+  waitingSince?: string;
+  closedBy?: string;
   id: string;
   contactId: string;
   contactName: string;
@@ -11,11 +15,13 @@ export interface WhatsAppConversation {
   lastMessageAt: string;
   unreadCount: number;
   serviceMode: WhatsAppServiceMode;
-  status: 'open' | 'waiting';
+  status: 'open' | 'waiting' | 'closed';
   assignee: string;
 }
 
 export interface WhatsAppMessage {
+  attachment?: { name: string; url: string; type: string; size: number };
+  systemEvent?: { type: 'stage'; from: string; to: string } | { type: 'ai-paused'; source: 'whatsapp' | 'inbox' };
   id: string;
   direction: WhatsAppMessageDirection;
   content: string;

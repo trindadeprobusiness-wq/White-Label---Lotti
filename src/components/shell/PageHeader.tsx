@@ -1,6 +1,5 @@
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
-import { PainelNotificacoes } from './PainelNotificacoes';
 import { BotaoPrivacidade } from './BotaoPrivacidade';
 import { PainelAjuda } from './PainelAjuda';
 
@@ -17,9 +16,9 @@ interface PageHeaderProps {
   subtitulo?: string;
   /** Mostra a busca global. Ligada nas telas com volume de registros. */
   comBusca?: boolean;
-  /** Sino, ajuda e o interruptor de esconder valores. */
+  /** Ajuda e o interruptor de esconder valores. */
   comUtilitarios?: boolean;
-  /** Permite manter sino e ajuda sem o interruptor global de privacidade. */
+  /** Permite manter ajuda sem o interruptor global de privacidade. */
   mostrarPrivacidade?: boolean;
   /**
    * Mostra o olhinho de ocultar valores financeiros. Ligado só nas telas com
@@ -69,7 +68,6 @@ export function PageHeader({
             {/* Padrão global; Mídias é a exceção explícita solicitada para não
                 exibir esse controle nesta tela. */}
             {mostrarPrivacidade && <BotaoPrivacidade />}
-            <PainelNotificacoes />
             <PainelAjuda />
           </div>
         )}
