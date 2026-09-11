@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home, Users, Building2, KeyRound, Wallet, Scale, Video, QrCode,
+  Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, Menu, X, CalendarCheck2, MessageCircle,
+  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -31,7 +31,6 @@ interface ItemNav {
   label: string;
   href: string;
   icone: React.ReactNode;
-  subitens?: Array<{ label: string; href: string }>;
 }
 
 interface GrupoNav {
@@ -62,17 +61,12 @@ function montarGrupos(): GrupoNav[] {
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
         { label: 'Rotina', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
-        {
-          label: 'WhatsApp',
-          href: '/whatsapp',
-          icone: <MessageCircle className={ic} />,
-          subitens: [
-            { label: 'Inbox', href: '/whatsapp' },
-            { label: 'Funil de Vendas', href: FLAGS.crm ? '/crm' : '/funil' },
-          ],
-        },
         { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
         { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
+        // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
+        FLAGS.crm
+          ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
+          : { label: 'Funil de Vendas', href: '/funil', icone: <Filter className={ic} /> },
         { label: 'Aluguéis', href: '/alugueis', icone: <KeyRound className={ic} /> },
       ],
     },
@@ -107,70 +101,17 @@ function ItemMenu({
 }: {
   item: ItemNav; ativo: boolean; recolhida: boolean; aoNavegar?: () => void;
 }) {
-  const { pathname } = useLocation();
-  const [aberto, setAberto] = useState(ativo);
-
-  useEffect(() => {
-    if (ativo) setAberto(true);
-  }, [ativo]);
-
-  if (item.subitens?.length && !recolhida) {
-    return (
-      <div aria-label={`Seção ${item.label}`}>
-        <button
-          type="button"
-          aria-expanded={aberto}
-          onClick={() => setAberto((valor) => !valor)}
-          className={cn(
-            'flex h-nav-item w-full items-center gap-3 rounded-lg px-3 text-sm font-medium',
-            'transition-colors duration-150 focus-ring',
-            ativo ? 'text-primary' : 'text-sidebar-foreground hover:bg-sidebar-accent',
-          )}
-        >
-          {item.icone}
-          <span className="flex-1 truncate text-left">{item.label}</span>
-          <ChevronRight className={cn('h-4 w-4 transition-transform', aberto && 'rotate-90')} />
-        </button>
-        {aberto && (
-          <div className="ml-[21px] border-l border-sidebar-border pb-1 pl-3">
-            {item.subitens.map((subitem) => {
-              const subitemAtivo = subitem.href === '/whatsapp'
-                ? pathname === '/whatsapp'
-                : pathname.startsWith(subitem.href);
-              return (
-                <Link
-                  key={subitem.href}
-                  to={subitem.href}
-                  onClick={aoNavegar}
-                  aria-current={subitemAtivo ? 'page' : undefined}
-                  className={cn(
-                    'relative my-0.5 flex min-h-9 items-center rounded-md px-4 text-sm transition-colors focus-ring',
-                    subitemAtivo
-                      ? 'bg-sidebar-accent font-semibold text-primary before:absolute before:left-1 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent',
-                  )}
-                >
-                  {subitem.label}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   const link = (
     <Link
       to={item.href}
       onClick={aoNavegar}
       aria-current={ativo ? 'page' : undefined}
       className={cn(
-        'relative group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
+        'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
         ativo
-          ? 'bg-sidebar-accent text-primary before:absolute before:left-1 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary'
+          ? 'bg-primary text-primary-foreground'
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
     >
@@ -203,10 +144,8 @@ function Conteudo({
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
-  const ativo = (item: ItemNav) => {
-    if (item.subitens?.some(({ href }) => pathname === href || pathname.startsWith(`${href}/`))) return true;
-    return item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-  };
+  const ativo = (href: string) =>
+    href === '/' ? pathname === '/' : pathname.startsWith(href);
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -247,7 +186,7 @@ function Conteudo({
                 <ItemMenu
                   key={item.href}
                   item={item}
-                  ativo={ativo(item)}
+                  ativo={ativo(item.href)}
                   recolhida={recolhida}
                   aoNavegar={aoNavegar}
                 />
@@ -341,7 +280,6 @@ function Conteudo({
 
 export function AppSidebar() {
   const [recolhida, setRecolhida] = useState(false);
-  const [drawerAberto, setDrawerAberto] = useState(false);
   const { pathname } = useLocation();
 
   // Preferência do usuário sobrevive ao reload — recolher o menu a cada visita
@@ -360,58 +298,19 @@ export function AppSidebar() {
     });
   };
 
-  // Navegar fecha o drawer. Sem isto, no mobile o menu fica aberto sobre a
-  // página recém-aberta e o usuário precisa fechá-lo à mão.
-  useEffect(() => { setDrawerAberto(false); }, [pathname]);
-
   return (
-    <>
-      <aside
-        className={cn(
-          'hidden shrink-0 border-r border-sidebar-border md:block',
-          'transition-[width] duration-200',
-          recolhida ? 'w-[4.5rem]' : 'w-sidebar-sm xl:w-sidebar',
-        )}
-      >
-        <div className="sticky top-0 h-screen">
-          <Conteudo recolhida={recolhida} alternarRecolhida={alternar} />
-        </div>
-      </aside>
-
-      {/* Mobile: barra superior + gaveta */}
-      <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 md:hidden">
-        <button
-          type="button"
-          onClick={() => setDrawerAberto(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-sidebar-accent focus-ring"
-          aria-label="Abrir menu"
-          aria-expanded={drawerAberto}
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-        <LottiLogo variant="full" className="text-xl text-primary" />
-      </div>
-
-      {drawerAberto && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-foreground/40"
-            onClick={() => setDrawerAberto(false)}
-            aria-hidden="true"
-          />
-          <div className="absolute inset-y-0 left-0 w-[17rem] shadow-overlay">
-            <button
-              type="button"
-              onClick={() => setDrawerAberto(false)}
-              className="absolute right-2 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent focus-ring"
-              aria-label="Fechar menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <Conteudo recolhida={false} aoNavegar={() => setDrawerAberto(false)} emDrawer />
-          </div>
-        </div>
+    /* Desktop: sidebar fixa em coluna lateral. Mobile: hidden — navegação
+       fica com MobileTopBar (topo) + MobileBottomNav (rodapé). */
+    <aside
+      className={cn(
+        'hidden shrink-0 border-r border-sidebar-border md:block',
+        'transition-[width] duration-200',
+        recolhida ? 'w-[4.5rem]' : 'w-sidebar-sm xl:w-sidebar',
       )}
-    </>
+    >
+      <div className="sticky top-0 h-screen">
+        <Conteudo recolhida={recolhida} alternarRecolhida={alternar} />
+      </div>
+    </aside>
   );
 }
