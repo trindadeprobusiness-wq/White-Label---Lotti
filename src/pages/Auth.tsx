@@ -5,26 +5,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Loader2, Building2, Mail, Lock, User, Phone, CreditCard, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { z } from 'zod';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PainelInstitucional } from '@/components/auth/PainelInstitucional';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { nomeParceiroIndicador } from '@/lib/admin/atribuicao';
-import { formatarCNPJ } from '@/lib/validators';
-import { cadastroSchema, loginSchema } from '@/lib/auth/validacao';
+import { loginSchema } from '@/lib/auth/validacao';
 import { extrairErroDeRetornoAuth } from '@/lib/auth/retorno';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
 
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signUp, isAuthenticated, loading: authLoading } = useAuth();
+  const { signIn, isAuthenticated, loading: authLoading } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('login');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   // 'Lembrar de mim' guarda so o e-mail para pre-preencher: a sessao ja persiste
   // pelo cliente Supabase. Prometer mais que isso seria enganoso.
@@ -33,13 +30,6 @@ export default function Auth() {
   // Login form
   const [loginEmail, setLoginEmail] = useState(() => localStorage.getItem('lotti:ultimo-email') ?? '');
   const [loginPassword, setLoginPassword] = useState('');
-  
-  // Signup form
-  const [signupNome, setSignupNome] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupCnpj, setSignupCnpj] = useState('');
-  const [signupTelefone, setSignupTelefone] = useState('');
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
@@ -101,54 +91,6 @@ export default function Auth() {
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const validated = cadastroSchema.parse({
-        nome: signupNome,
-        email: signupEmail,
-        password: signupPassword,
-        cnpj: signupCnpj,
-        telefone: signupTelefone,
-      });
-      
-      setIsLoading(true);
-      
-      const r = await signUp(validated.email, validated.password, {
-        nome: validated.nome,
-        cnpj: validated.cnpj,
-        telefone: validated.telefone,
-      });
-
-      if (!r.ok) {
-        toast.error(r.erro);
-        return;
-      }
-
-      // Antes dizia sempre "já pode acessar o sistema". Com confirmação de
-      // e-mail ligada, o signUp devolve sucesso SEM sessão e o login seguinte
-      // falha com "Email not confirmed" — a mensagem era simplesmente falsa.
-      if (r.precisaConfirmarEmail) {
-        toast.success('Conta criada! Confirme seu e-mail para entrar — veja também o spam.', {
-          duration: 8000,
-        });
-      } else {
-        toast.success('Conta criada! Bem-vindo ao Lotti.');
-      }
-      setActiveTab('login');
-      setLoginEmail(validated.email);
-    } catch (error: unknown) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
-      } else {
-        toast.error('Erro ao cadastrar');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -196,209 +138,87 @@ export default function Auth() {
         )}
 
         <Card className="border-border/50 shadow-xl">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <CardHeader className="p-4 pb-3 lg:px-5 lg:pt-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Entrar</TabsTrigger>
-                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
-              </TabsList>
-            </CardHeader>
+          <CardHeader className="p-4 pb-3 lg:px-5 lg:pt-5">
+            <CardTitle className="text-xl">Bem-vindo de volta!</CardTitle>
+            <CardDescription>
+              Entre com suas credenciais para acessar o sistema
+            </CardDescription>
+          </CardHeader>
 
-            <CardContent className="p-4 pt-0 lg:px-5 lg:pb-5">
-              <TabsContent value="login" className="mt-0">
-                <CardTitle className="text-xl mb-2">Bem-vindo de volta!</CardTitle>
-                <CardDescription className="mb-4">
-                  Entre com suas credenciais para acessar o sistema
-                </CardDescription>
+          <CardContent className="p-4 pt-0 lg:px-5 lg:pb-5">
+            <form onSubmit={handleLogin} className="space-y-3.5">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="pl-10"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+              </div>
 
-                <form onSubmit={handleLogin} className="space-y-3.5">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="login-password">Senha</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="login-password"
+                    type={mostrarSenha ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    disabled={isLoading}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha((v) => !v)}
+                    aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+                  >
+                    {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Senha</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="login-password"
-                        type={mostrarSenha ? 'text' : 'password'}
-                        placeholder="••••••••"
-                        autoComplete="current-password"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className="pl-10 pr-10"
-                        disabled={isLoading}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setMostrarSenha((v) => !v)}
-                        aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
-                      >
-                        {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <Checkbox
+                    checked={lembrar}
+                    onCheckedChange={(v) => setLembrar(v === true)}
+                    disabled={isLoading}
+                  />
+                  Lembrar de mim
+                </label>
+                <Link
+                  to="/recuperar-senha"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Esqueci minha senha
+                </Link>
+              </div>
 
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                      <Checkbox
-                        checked={lembrar}
-                        onCheckedChange={(v) => setLembrar(v === true)}
-                        disabled={isLoading}
-                      />
-                      Lembrar de mim
-                    </label>
-                    <Link
-                      to="/recuperar-senha"
-                      className="text-sm text-primary hover:underline"
-                    >
-                      Esqueci minha senha
-                    </Link>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Entrando...
-                      </>
-                    ) : (
-                      'Entrar'
-                    )}
-                  </Button>
-                </form>
-
-              </TabsContent>
-
-              <TabsContent value="signup" className="mt-0">
-                <CardTitle className="text-xl mb-2">Crie sua conta</CardTitle>
-                <CardDescription className="mb-4">
-                  Preencha os dados abaixo para começar a usar a Lotti
-                </CardDescription>
-
-                <form onSubmit={handleSignup} className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-nome">Nome Completo</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-nome"
-                        type="text"
-                        placeholder="Seu nome completo"
-                        value={signupNome}
-                        onChange={(e) => setSignupNome(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        value={signupEmail}
-                        onChange={(e) => setSignupEmail(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-cnpj">CNPJ</Label>
-                      <div className="relative">
-                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="signup-cnpj"
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="organization"
-                          placeholder="00.000.000/0000-00"
-                          value={signupCnpj}
-                          onChange={(e) => setSignupCnpj(formatarCNPJ(e.target.value))}
-                          className="pl-10"
-                          disabled={isLoading}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-telefone">Telefone</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="signup-telefone"
-                          type="tel"
-                          placeholder="(11) 99999-9999"
-                          value={signupTelefone}
-                          onChange={(e) => setSignupTelefone(e.target.value)}
-                          className="pl-10"
-                          disabled={isLoading}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Senha</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="Mínimo 6 caracteres"
-                        value={signupPassword}
-                        onChange={(e) => setSignupPassword(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Cadastrando...
-                      </>
-                    ) : (
-                      <>
-                        <Building2 className="mr-2 h-4 w-4" />
-                        Criar Conta
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  'Entrar'
+                )}
+              </Button>
+            </form>
+          </CardContent>
         </Card>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">

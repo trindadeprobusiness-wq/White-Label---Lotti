@@ -39,7 +39,10 @@ describe('páginas públicas exigidas para o OAuth', () => {
 
     expect(html).toContain('CRM imobiliário');
     expect(html).toContain('Google Agenda');
-    expect(html).toContain('href="/auth"');
+    // Os botões "Entrar" e "Entrar na Lotti" apontam para o subdomínio
+    // app.plataformalotti.com.br, garantindo que visitantes do site
+    // institucional (plataformalotti.com.br) cheguem ao app correto.
+    expect(html).toContain('href="https://app.plataformalotti.com.br"');
   });
 
   it('declara como os dados do Google são acessados, usados, armazenados e excluídos', async () => {

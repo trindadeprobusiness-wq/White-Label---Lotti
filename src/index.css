@@ -253,4 +253,11 @@
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
+
+  /* Espaço de segurança abaixo do conteúdo para a bottom navigation mobile.
+     Combina a altura da barra (64px) com o home indicator do iPhone
+     (env(safe-area-inset-bottom)). Evita que conteúdo fique coberto. */
+  .pb-mobile-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
 }

@@ -48,12 +48,12 @@ function PublicHeader() {
         <nav aria-label="Navegação pública" className="flex items-center gap-4 text-sm font-medium text-[#42574c] sm:gap-6">
           <Link className="hidden transition-colors hover:text-[#093323] sm:inline" to="/politica-de-privacidade">Privacidade</Link>
           <Link className="hidden transition-colors hover:text-[#093323] sm:inline" to="/termos-de-uso">Termos</Link>
-          <Link
-            to="/auth"
+          <a
+            href="https://app.plataformalotti.com.br"
             className="inline-flex h-10 items-center rounded-full bg-[#093323] px-5 text-white shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#093323] focus-visible:ring-offset-2"
           >
             Entrar
-          </Link>
+          </a>
         </nav>
       </div>
     </header>
@@ -150,12 +150,12 @@ export function PaginaInicialPublica() {
                 A Lotti reúne clientes, imóveis, funil, contratos, financeiro e Google Agenda para que cada próximo passo fique claro — do primeiro contato à assinatura.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/auth"
+                <a
+                  href="https://app.plataformalotti.com.br"
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#093323] px-6 font-semibold text-white shadow-lg shadow-[#093323]/15 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#093323] focus-visible:ring-offset-2"
                 >
                   Entrar na Lotti <ArrowRight className="h-4 w-4" />
-                </Link>
+                </a>
                 <a
                   href="#como-funciona"
                   className="inline-flex h-12 items-center justify-center rounded-full border border-[#b9cbbf] bg-white px-6 font-semibold text-[#173b2c] hover:bg-[#f3f7f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#093323] focus-visible:ring-offset-2"

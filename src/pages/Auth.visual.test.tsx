@@ -72,4 +72,24 @@ describe('tela de autenticação', () => {
     expect(html).toContain('href="/termos-de-uso"');
     expect(html).toContain('href="/politica-de-privacidade"');
   });
+
+  it('não oferece cadastro gratuito — o registro acontece via checkout', () => {
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/auth">
+        <Auth />
+      </StaticRouter>,
+    );
+
+    // Sem aba de cadastro
+    expect(html).not.toContain('>Cadastrar<');
+    expect(html).not.toContain('Crie sua conta');
+    expect(html).not.toContain('Criar Conta');
+    expect(html).not.toContain('signup-nome');
+    expect(html).not.toContain('signup-cnpj');
+
+    // Login e recuperação de senha continuam presentes
+    expect(html).toContain('Bem-vindo de volta!');
+    expect(html).toContain('Esqueci minha senha');
+    expect(html).toContain('href="/recuperar-senha"');
+  });
 });

@@ -153,6 +153,7 @@ export default {
         'sidebar-sm': '13.5rem',   /* 216px — notebook */
         'control': '2.75rem',      /* 44px — altura de input, botão e busca */
         'nav-item': '2.5rem',      /* 40px */
+        'mobile-nav': '4rem',      /* 64px — altura da bottom navigation mobile */
       },
       keyframes: {
         "accordion-down": {
@@ -170,6 +171,10 @@ export default {
         "fade-in-up": {
           "0%": { opacity: "0", transform: "translateY(15px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-up": {
+          "0%": { transform: "translateY(100%)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
         },
         "slide-in": {
           "0%": { transform: "translateX(-100%)" },
@@ -196,6 +201,7 @@ export default {
         "fade-in": "fade-in 0.4s ease-out",
         "fade-in-up": "fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
         "sino": "sino 0.6s ease-in-out 2",
+        "slide-up": "slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
         "slide-in": "slide-in 0.3s ease-out",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },

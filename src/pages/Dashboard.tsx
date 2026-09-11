@@ -3,19 +3,23 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  Users, Building2, UserPlus, TrendingUp, AlertTriangle, X, Eye,
+  Users, Building2, UserPlus, AlertTriangle, X, Eye,
   FileText, QrCode, Sparkles, ArrowRight, ExternalLink, MapPin, Scale,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/shell/PageHeader';
+import { DashboardHero } from '@/components/dashboard/DashboardHero';
+import { GlobalSearch } from '@/components/shell/GlobalSearch';
+import { BotaoPrivacidade } from '@/components/shell/BotaoPrivacidade';
+import { PainelNotificacoes } from '@/components/shell/PainelNotificacoes';
+import { PainelAjuda } from '@/components/shell/PainelAjuda';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import { mascararValoresNoTexto } from '@/lib/privacidade';
 import { usePrivacidade } from '@/stores/privacidadeStore';
 import {
-  SectionCard, MetricStrip, QuickActionRow, StatusBadge, Avatar, EmptyState,
+  SectionCard, QuickActionRow, StatusBadge, Avatar, EmptyState,
 } from '@/components/shell/primitivos';
 import { useCRMStore } from '@/stores/crmStore';
 import { FLAGS } from '@/lib/flags';
@@ -119,62 +123,23 @@ export default function Dashboard() {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        titulo={`${saudacao()}, ${primeiroNome(corretor?.nome)}`}
-        subtitulo={hoje.charAt(0).toUpperCase() + hoje.slice(1)}
-        comBusca
-        comUtilitarios
-        acoes={
-          <>
-            <Button variant="outline" className="h-control" asChild>
-              <Link to="/imoveis">
-                <Building2 className="mr-2 h-[18px] w-[18px]" />
-                Novo imóvel
-              </Link>
-            </Button>
-            <Button className="h-control" asChild>
-              <Link to="/clientes">
-                <UserPlus className="mr-2 h-[18px] w-[18px]" />
-                Novo cliente
-              </Link>
-            </Button>
-          </>
+      <DashboardHero
+        saudacao={`${saudacao()}, ${primeiroNome(corretor?.nome)}`}
+        data={hoje.charAt(0).toUpperCase() + hoje.slice(1)}
+        clientes={loading ? '—' : numero(clientesReais.length)}
+        imoveis={loading ? '—' : numero(imoveisReais.length)}
+        leads={loading ? '—' : numero(contagemEtapas.QUALIFICACAO ?? 0)}
+        vendas={loading ? '—' : numero(contagemEtapas.FECHADO_GANHO ?? 0)}
+        ferramentas={
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-end">
+            <GlobalSearch className="w-full sm:max-w-md sm:flex-1" />
+            <div className="ml-auto flex w-fit shrink-0 items-center rounded-lg border border-white/10 bg-card p-0.5 shadow-sm">
+              <BotaoPrivacidade />
+              <PainelNotificacoes />
+              <PainelAjuda />
+            </div>
+          </div>
         }
-      />
-
-      <MetricStrip
-        carregando={loading}
-        className="mb-5"
-        itens={[
-          {
-            id: 'clientes',
-            valor: numero(clientesReais.length),
-            label: 'Clientes',
-            icone: <Users className="h-5 w-5" />,
-            tom: 'brand',
-          },
-          {
-            id: 'imoveis',
-            valor: numero(imoveisReais.length),
-            label: 'Imóveis',
-            icone: <Building2 className="h-5 w-5" />,
-            tom: 'brand',
-          },
-          {
-            id: 'leads',
-            valor: numero(contagemEtapas.QUALIFICACAO ?? 0),
-            label: 'Leads ativos',
-            icone: <UserPlus className="h-5 w-5" />,
-            tom: 'warning',
-          },
-          {
-            id: 'vendas',
-            valor: numero(contagemEtapas.FECHADO_GANHO ?? 0),
-            label: 'Venda fechada',
-            icone: <TrendingUp className="h-5 w-5" />,
-            tom: 'success',
-          },
-        ]}
       />
 
       <OnboardingChecklist />
@@ -227,7 +192,7 @@ export default function Dashboard() {
         </SectionCard>
       )}
 
-      <div className="mb-5 grid gap-5 lg:grid-cols-[1.35fr_1fr]">
+      <div id="prioridades-do-dia" className="mb-5 grid scroll-mt-5 gap-5 lg:grid-cols-[1.35fr_1fr]">
         <SectionCard titulo="Prioridades de hoje" semPadding>
           <div className="px-2 pb-3">
             <QuickActionRow
