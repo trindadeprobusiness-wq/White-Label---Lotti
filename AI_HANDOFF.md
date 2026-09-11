@@ -1,5 +1,28 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## 2026-09-11 — Claude (Bottom Navigation nativa para mobile)
+
+- Commit `6a54808` em `main`, publicado na Vercel.
+- **3 novos componentes criados:**
+  - `src/components/layout/MobileBottomNav.tsx`: barra fixa no rodapé com 5 tabs
+    (Início, Clientes, Pipeline, Aluguéis, Mais), pill indicadora de rota ativa,
+    badge de notificações não lidas e safe-area do iPhone.
+  - `src/components/layout/MobileTopBar.tsx`: barra superior com logo + sino +
+    ajuda, backdrop-blur para efeito de vidro nativo. Substitui o hambúrguer.
+  - `src/components/layout/MobileMoreSheet.tsx`: sheet que sobe de baixo com
+    rotas secundárias em grade 3×2, perfil do corretor, toggle de tema e logout.
+- **Modificados:**
+  - `AppSidebar.tsx`: removido bloco mobile (drawer + hambúrguer + barra superior).
+    Sidebar desktop `hidden md:block` permanece intacta.
+  - `AppLayout.tsx`: integra `MobileTopBar` e `MobileBottomNav`; `pb-24 md:pb-16`
+    garante que o conteúdo não fique coberto pela bottom nav no mobile.
+  - `tailwind.config.ts`: token `mobile-nav: '4rem'` e keyframe `slide-up`.
+  - `src/index.css`: utility `.pb-mobile-nav` com `env(safe-area-inset-bottom)`.
+- **Validação:** 831/832 testes (1 falha pré-existente de `DashboardHero`,
+  documentada desde 2026-09-04). Build de produção OK (55s).
+- **Dev server:** `http://localhost:5173` — redimensionar para ≤767px para ver a
+  Bottom Nav. Acima de 767px a sidebar desktop continua igual.
+
 ## Codex — cores dos atalhos e avatar (2026-09-10)
 - Inbox: Atrasando selecionado usa fundo/borda amarelos; Urgente selecionado usa fundo/borda vermelhos. Estados não selecionados continuam neutros.
 - Removido indicador pequeno de presença dos avatares da lista e do cabeçalho, preservando o indicador de status textual da conversa.
