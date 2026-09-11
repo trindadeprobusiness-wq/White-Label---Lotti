@@ -1642,3 +1642,13 @@ credencial); nao foi contornada.
 - Validações: 55 arquivos / 482 testes passaram (variáveis Supabase fictícias para testes); build passou; git diff --check passou.
 - Preview original bloqueado na Vercel porque o autor do commit não possui acesso de contribuição no projeto Hobby privado. Merge e deploy de produção ainda pendentes nesta entrada.
 - Migration 20260904100000 contém cotas comerciais antigas e gatilhos de bloqueio; não foi aplicada ao banco nesta tarefa. Revisar sua compatibilidade com o catálogo atual antes de executar migrations. Edge Functions não foram publicadas nesta tarefa.
+
+### 2026-09-11 - Codex (deploy Inbox/mobile e revisao do agente)
+
+- Proposta do agente atualizada para v1.2: atendimento comercial por duvida inicial, descoberta estrategica, qualificacao para visita/busca, aviso interno sem pausa automatica e linguagem adaptada por sinais observaveis sem rotulos de personalidade. PDF de 11 paginas reaberto e inspecionado visualmente. Documentos publicados em n8n-agent-lotti, commit 85e8b91.
+- Diagnostico Vercel: deploy 6a54808 falhou porque DashboardHero era importado e nao estava no Git. Reutilizado componente local de toolbar; preservado seu comportamento.
+- Conciliados main mobile 6a54808 e Inbox ce92878 em C:/Users/Gabri/lotti-deploy-20260911. Resolvidos conflitos AppLayout/AppSidebar; menu mobile Mais inclui Inbox. Testes 507/507 e build passaram. Espaco final excedente em documento corrigido; diff --check passou.
+- Main remota em 4e35acb; deployment dpl_9UdCFrFXX1HrXceWNGEhrB3xYfKf READY com alias app.plataformalotti.com.br. HTTP 200 em /, /whatsapp e /assistente. Bundle servido confirma rota Inbox e acesso mobile; chunk WhatsAppInbox disponivel.
+- Worktree de publicacao limpa. Checkout original preservado com alteracoes staged e nao rastreadas de terceiros; nenhum reset ou descarte. Nenhuma migration ou Edge Function publicada. Inbox continua demonstrativo; Evolution e agente real nao foram ativados. Nao houve teste autenticado ponta a ponta de atendimento real.
+-   C o r r e c a o :   o   v i s u a l   d a   t e l a   ' M a i s '   n o   m o b i l e   f o i   r e d e s e n h a d o   p a r a   u m a   g r a d e   3 x N   l i m p a   s e m   f u n d o s   c o l o r i d o s   n o s   i c o n e s ,   e   v a r i a v e i s   a u s e n t e s   q u e   c a u s a v a m   c r a s h   f o r a m   r e s t a u r a d a s .   O   M e n u   l a t e r a l   m o b i l e   f o i   d e s a t i v a d o   e   a g o r a   a   B o t t o m   N a v   +   T o p   B a r   o p e r a m   c o r r e t a m e n t e .  
+ 
