@@ -39,6 +39,7 @@ import {
 const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
+const LiveAgentInbox = lazy(() => import('@/features/whatsapp-inbox/LiveAgentInbox'));
 const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
 const Imoveis = lazy(imoveisLoader);
@@ -152,6 +153,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/rotina" element={<Rotina />} />
             <Route path="/whatsapp" element={<WhatsAppInbox />} />
+            <Route path="/whatsapp/agente" element={<LiveAgentInbox />} />
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />
             <Route path="/imoveis" element={<Imoveis />} />

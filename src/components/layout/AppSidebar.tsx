@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2,
+  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -61,12 +61,23 @@ function montarGrupos(): GrupoNav[] {
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
         { label: 'Rotina', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
-        { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
-        { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
+      ],
+    },
+    {
+      titulo: 'WhatsApp',
+      itens: [
+        { label: 'Inbox', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
         // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
         FLAGS.crm
           ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
           : { label: 'Funil de Vendas', href: '/funil', icone: <Filter className={ic} /> },
+      ],
+    },
+    {
+      titulo: 'Cadastros',
+      itens: [
+        { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
+        { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
         { label: 'Aluguéis', href: '/alugueis', icone: <KeyRound className={ic} /> },
       ],
     },
@@ -171,7 +182,7 @@ function Conteudo({
         aria-label="Navegação principal"
       >
         {grupos.map((grupo) => (
-          <div key={grupo.titulo}>
+          <div key={grupo.titulo} role="group" aria-label={`Seção ${grupo.titulo}`}>
             {/* No modo recolhido o rótulo do grupo vira um divisor: o texto
                 não caberia e cortá-lo em "OPE..." não comunica nada. */}
             {recolhida ? (
