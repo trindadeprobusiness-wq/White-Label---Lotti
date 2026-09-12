@@ -1662,3 +1662,4 @@ credencial); nao foi contornada.
 - Main recebida novamente sem DashboardHero e sem acesso desktop ao Inbox; restaurado componente local existente e grupo WhatsApp, preservando Bottom Nav/Top Bar do trabalho mobile.
 - Plataforma: 507/507 testes passaram e build passou. Typecheck tem 69 erros preexistentes; comparacao com checkout base mostrou mesmas 69 linhas de erro, sem diferencas.
 - Pendencias: parear numero por QR; confirmar vinculo da conta/canal; teste real de mensagens e passagem ao corretor antes de liberar envios. Distribuicao atual por conta legada, sem rodizio de equipe; texto automatico, midia para humano. Deploy da nova tela pendente nesta entrada.
+- Publicacao concluida: main da plataforma 5c36707 com status GitHub/Vercel success. /whatsapp/agente respondeu HTTP 200 e o bundle publicado referencia LiveAgentInbox e a rota. Repositorio n8n-agent-lotti atualizado em 786dec7. Instancia Evolution lotti-agent criada, aguardando pareamento do WhatsApp.
