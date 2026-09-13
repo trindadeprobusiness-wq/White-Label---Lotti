@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Bot, MessageCircle, Pause, UserRound } from 'lucide-react';
+import { WhatsAppConnection } from './WhatsAppConnection';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -49,12 +50,13 @@ export default function LiveAgentInbox() {
   const q = selected?.qualification;
   return <div className="space-y-4 pb-16">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><Link to="/whatsapp" className="inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Inbox</Link>
+      <div><Link to="/whatsapp/demo" className="inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Ver demonstração</Link>
         <h1 className="mt-2 text-xl font-semibold">Atendimento conectado</h1>
         <p className="text-sm text-muted-foreground">Conversas do WhatsApp, qualificação e intervenção do corretor.</p></div>
       <Badge variant="outline">Atualiza a cada 5 segundos</Badge>
     </div>
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
+    <WhatsAppConnection />
     {list.isPending && <p role="status">Carregando conversas…</p>}
     {list.isSuccess && !list.data.length && <div className="rounded-xl border bg-card p-8 text-center">
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>

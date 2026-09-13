@@ -1,5 +1,9 @@
 project_id = "dqlolypbmsjgqrvdesev"
 
+# Auth.getUser validates the bearer JWT before every channel operation.
+[functions.lotti-whatsapp]
+verify_jwt = false
+
 [functions.generate-whatsapp-message]
 verify_jwt = false
 

@@ -152,7 +152,8 @@ const App = () => (
           }>
             <Route path="/" element={<Dashboard />} />
             <Route path="/rotina" element={<Rotina />} />
-            <Route path="/whatsapp" element={<WhatsAppInbox />} />
+            <Route path="/whatsapp" element={<LiveAgentInbox />} />
+            <Route path="/whatsapp/demo" element={<WhatsAppInbox />} />
             <Route path="/whatsapp/agente" element={<LiveAgentInbox />} />
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />

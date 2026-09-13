@@ -1663,3 +1663,9 @@ credencial); nao foi contornada.
 - Plataforma: 507/507 testes passaram e build passou. Typecheck tem 69 erros preexistentes; comparacao com checkout base mostrou mesmas 69 linhas de erro, sem diferencas.
 - Pendencias: parear numero por QR; confirmar vinculo da conta/canal; teste real de mensagens e passagem ao corretor antes de liberar envios. Distribuicao atual por conta legada, sem rodizio de equipe; texto automatico, midia para humano. Deploy da nova tela pendente nesta entrada.
 - Publicacao concluida: main da plataforma 5c36707 com status GitHub/Vercel success. /whatsapp/agente respondeu HTTP 200 e o bundle publicado referencia LiveAgentInbox e a rota. Repositorio n8n-agent-lotti atualizado em 786dec7. Instancia Evolution lotti-agent criada, aguardando pareamento do WhatsApp.
+
+### 2026-09-13 - Codex (conexao WhatsApp no Inbox)
+- Inbox principal usa conversas persistidas e conexao por QR. Edge Function lotti-whatsapp valida Auth.getUser e resolve a conta no servidor; ponte n8n autenticada consulta a instancia registrada.
+- Funcao e dois secrets de ponte publicados. Conta piloto vinculada uma unica vez; estado desconectado, envios reais desativados.
+- Validacoes: 507 testes do frontend passaram com variaveis ficticias; build passou. Runtime 12/12; ponte status respondeu; funcao sem autenticacao retornou 401.
+- Pendente: verificar deploy/UI autenticada, pareamento no celular e atendimento real. QR nao implica liberacao automatica do agente.
