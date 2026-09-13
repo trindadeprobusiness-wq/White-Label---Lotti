@@ -1669,3 +1669,4 @@ credencial); nao foi contornada.
 - Funcao e dois secrets de ponte publicados. Conta piloto vinculada uma unica vez; estado desconectado, envios reais desativados.
 - Validacoes: 507 testes do frontend passaram com variaveis ficticias; build passou. Runtime 12/12; ponte status respondeu; funcao sem autenticacao retornou 401.
 - Pendente: verificar deploy/UI autenticada, pareamento no celular e atendimento real. QR nao implica liberacao automatica do agente.
+- Deploy 52b698a READY; UI autenticada confirmou Conecte ao WhatsApp e exibiu QR ao clicar. Evolution passou de close para connecting. Pareamento e conversa real ainda dependem do celular.
