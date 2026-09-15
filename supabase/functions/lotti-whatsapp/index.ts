@@ -22,6 +22,6 @@ Deno.serve(async req=>{
    if(!response.ok)return json({error:'connection_service_unavailable'},503);
    const result=await response.json();
    if(!['connected','connecting','disconnected'].includes(result.state))return json({error:'connection_service_unavailable'},503);
-   return json({state:result.state,agentEnabled:result.agentEnabled===true,...(typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?{qr:result.qr}:{})});
+   return json({state:result.state,agentEnabled:result.agentEnabled===true,...(typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?{qr:result.qr,qrExpiresAt:result.qrExpiresAt,qrGeneration:result.qrGeneration}:{})});
  }catch{return json({error:'connection_service_unavailable'},503);}
 });
