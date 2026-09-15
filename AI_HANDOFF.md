@@ -1677,3 +1677,7 @@ credencial); nao foi contornada.
 - Validacoes: 507 testes do frontend passaram com variaveis ficticias; build passou. Runtime 12/12; ponte status respondeu; funcao sem autenticacao retornou 401.
 - Pendente: verificar deploy/UI autenticada, pareamento no celular e atendimento real. QR nao implica liberacao automatica do agente.
 - Deploy 52b698a READY; UI autenticada confirmou Conecte ao WhatsApp e exibiu QR ao clicar. Evolution passou de close para connecting. Pareamento e conversa real ainda dependem do celular.
+
+### 2026-09-15 - Codex (consulta de conexao)
+- Inbox inicia conexao somente no clique; polling usa status. QR possui validade do provedor e deixa de aparecer apos expirar. Erro de consulta nao vira desconexao no runtime.
+- Main 68766b3 conciliada preservando Google Agenda. Testes: 510/510 frontend, build passou; runtime 16/16. Edge Function publicada. Pareamento fisico e diagnostico de protocolo ainda pendentes; nenhuma sessao apagada.
