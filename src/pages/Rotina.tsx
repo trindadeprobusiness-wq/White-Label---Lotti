@@ -124,7 +124,13 @@ export default function Rotina() {
             <GoogleCalendarHeaderAction
               connected={Boolean(googleCalendar.status.data?.connected)}
               pending={googleCalendar.status.isLoading || googleCalendar.connect.isPending}
+              providerEmail={googleCalendar.status.data?.provider_email}
+              lastSyncAt={googleCalendar.status.data?.last_sync_at}
+              syncing={googleCalendar.sync.isPending}
+              disconnecting={googleCalendar.disconnect.isPending}
               onConnect={() => googleCalendar.connect.mutate()}
+              onSync={() => googleCalendar.sync.mutate()}
+              onDisconnect={() => googleCalendar.disconnect.mutate()}
             />
             <Button className="min-h-11" onClick={() => openCreate()}>
               <CalendarPlus className="mr-2 h-4 w-4" />Nova atividade
