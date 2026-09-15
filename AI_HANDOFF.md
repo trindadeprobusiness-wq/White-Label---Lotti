@@ -1,5 +1,12 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — modal da conta Google Agenda na Rotina (2026-09-15)
+
+- O indicador `Agenda conectada` virou um botão compacto verde `Conectado`; ao clicar, abre o modal `Agenda` com conta, última sincronização, sincronização manual e desconexão confirmada.
+- As ações reutilizam as mutations existentes de sincronização e desconexão; nenhum backend ou segredo foi alterado.
+- Teste de interação cobre conexão, abertura do modal/sincronização e confirmação antes da desconexão: 3/3 passaram. A suíte completa da `main` passou com 63 arquivos e 508 testes usando variáveis fictícias do Supabase.
+- Build de produção, ESLint direcionado e `git diff --check` passaram. A inspeção visual local autenticada não foi concluída porque a rota local redirecionou para login.
+
 ## 2026-09-11 — Claude (Bottom Navigation nativa para mobile)
 
 - Commit `6a54808` em `main`, publicado na Vercel.
