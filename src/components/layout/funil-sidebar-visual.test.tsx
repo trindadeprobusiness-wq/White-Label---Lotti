@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom/server';
+import { StaticRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AppSidebar } from './AppSidebar';
 import { DroppableColumn } from '@/pages/FunilVendas';

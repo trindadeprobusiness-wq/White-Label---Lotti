@@ -1,6 +1,6 @@
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom/server';
+import { StaticRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 
 type PublicPages = {

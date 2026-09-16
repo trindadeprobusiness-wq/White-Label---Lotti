@@ -1,5 +1,31 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — branch de segurança reorganizada (2026-09-16)
+- O trabalho acima estava sem commit na árvore principal, sobre um commit do modal da
+  Agenda que não está na main, e misturado com a correção do OAuth da Agenda. Foi
+  transplantado para `codex/security-hardening` sobre `origin/main`, sem a parte da
+  Agenda, que ficou em `fix/google-agenda-oauth`. Estado anterior completo preservado na
+  branch local `backup/arvore-principal-2026-09-16`.
+- Verificado na branch reorganizada: `npm ci`; `npm run audit:security` sem
+  vulnerabilidades; 67 arquivos e 543 testes passaram com as variáveis fictícias do CI;
+  build de produção passou; ESLint dos módulos novos e dos testes ajustados passou.
+  `FachadaPreview.tsx` mantém 2 erros e 1 aviso de ESLint que já existem na main.
+- Não executado: `npm run test:security-browser` (exige Chromium do Playwright).
+  Nenhuma migration ou função publicada.
+
+## Codex — correções de segurança em branch (2026-09-15)
+- Branch `codex/security-hardening`: captura pública com validação limitada por bytes/campos, rate limit persistente, respostas genéricas e detalhes somente para integração com segredo. Captura não debita cota de IA; executor real deve contabilizar após qualificar.
+- Migration `20260916010000_public_security.sql` protege INSERT direto de leads/escaneamentos QR e limita tipos/tamanho no bucket privado de anexos IA. Testes executam o SQL com papéis anon/authenticated/service_role em PostgreSQL PGlite com schema mínimo.
+- CSP adicionada, Clarity extraído para arquivo local, título de impressão sem interpolação HTML, Vite em loopback, dependências atualizadas e instalação npm ci. Workflow de testes/auditoria e roteiro `docs/SEGURANCA_PUBLICACAO.md` adicionados.
+- Verificado durante implementação: 33 testes direcionados passaram, suíte então com 548 testes passou antes dos três testes adicionais; build e bundle das quatro funções passaram, ESLint dos módulos novos passou, npm audit sem vulnerabilidades. Smoke Chromium passou para login/rota protegida/bloqueio de script inline com rede externa simulada. Typecheck global ainda reporta erros de schema/tipos existentes.
+- Pendente: validação final do snapshot do commit, aplicar migration antes de publicar funções, revisar integração autenticada/contabilização da qualificação, revogar credenciais antigas e testar isolamento completo no Supabase real. Nenhuma migration remota ou função foi publicada nesta etapa.
+
+## Codex — análise do checklist de segurança (2026-09-15)
+- Revisão estática de autenticação, endpoints públicos, migrations de RLS/Storage, criptografia e headers; consulta ao grafo existente usada como índice, com confirmação no código.
+- `npm audit --omit=dev --json`: 3 pacotes sinalizados (1 baixo, 2 moderados; nenhum alto/crítico). Não cobre imports Deno nem imagens Docker.
+- `lead-capture` não contém rate limit/CAPTCHA, aceita metadados extras e retorna `cliente_id`/`is_new`; endpoints públicos inspecionados também propagam mensagens de erro. `vercel.json` possui headers de segurança, sem CSP.
+- Pendente: confirmar configuração publicada, testar isolamento entre contas, revisar proteção contra abuso e respostas públicas, confirmar revogação de credenciais antigas e avaliar alertas de dependências. Nenhuma alteração funcional ou publicação realizada nesta análise.
+
 ## Codex — modal da conta Google Agenda na Rotina (2026-09-15)
 
 - O indicador `Agenda conectada` virou um botão compacto verde `Conectado`; ao clicar, abre o modal `Agenda` com conta, última sincronização, sincronização manual e desconexão confirmada.

@@ -1,8 +1,10 @@
+import { PublicRequestError, publicInteger } from '../_shared/public-request.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'X-Content-Type-Options': 'nosniff',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
 }
@@ -63,6 +65,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  if (!['GET'].includes(req.method)) return new Response(JSON.stringify({ error: 'Método não permitido.' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -71,13 +75,20 @@ serve(async (req) => {
 
     const url = new URL(req.url)
     const tipo = url.searchParams.get('tipo')?.toLowerCase() // "venda" | "aluguel"
-    const limit = Math.min(Number(url.searchParams.get('limit') || '12'), 20)
-    const offset = Number(url.searchParams.get('offset') || '0')
+    const limit = publicInteger(url.searchParams.get('limit'), 12, 1, 20)
+    const offset = publicInteger(url.searchParams.get('offset'), 0, 0, 10000)
     const bairro = url.searchParams.get('bairro')
     const precoMin = url.searchParams.get('preco_min')
     const precoMax = url.searchParams.get('preco_max')
     const quartosMin = url.searchParams.get('quartos_min')
     const tipoImovel = url.searchParams.get('tipo_imovel')
+
+    if (bairro && bairro.length > 120) throw new PublicRequestError(400, 'Bairro inválido.')
+    for (const value of [precoMin, precoMax, quartosMin]) {
+      if (value !== null && (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e12)) throw new PublicRequestError(400, 'Filtro inválido.')
+    }
+    if (quartosMin !== null && !Number.isInteger(Number(quartosMin))) throw new PublicRequestError(400, 'Filtro inválido.')
+    if (precoMin !== null && precoMax !== null && Number(precoMin) > Number(precoMax)) throw new PublicRequestError(400, 'Faixa de preço inválida.')
 
     const vazio = (extra: Record<string, unknown> = {}) =>
       new Response(JSON.stringify({ data: [], total: 0, limit, offset, ...extra }), {
@@ -92,7 +103,7 @@ serve(async (req) => {
       .eq('ativo', true)
 
     if (erroFachadas) {
-      return new Response(JSON.stringify({ error: erroFachadas.message }), {
+      return new Response(JSON.stringify({ error: 'Não foi possível carregar os dados.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -140,7 +151,7 @@ serve(async (req) => {
     const { data, error, count } = await query
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      return new Response(JSON.stringify({ error: 'Não foi possível carregar os dados.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -199,9 +210,10 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const status = error instanceof PublicRequestError ? error.status : 500
+    const errorMessage = error instanceof PublicRequestError ? error.message : 'Não foi possível carregar os dados. Tente novamente.'
     return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
+      status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
