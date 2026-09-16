@@ -6,8 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Bot, MessageCircle, Pause, UserRound } from 'lucide-react';
+import { Bot, MessageCircle, Pause, UserRound } from 'lucide-react';
 import { WhatsAppConnection } from './WhatsAppConnection';
+import { useWhatsAppConnectionQuery } from './useWhatsAppConnection';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -21,8 +22,10 @@ export default function LiveAgentInbox() {
   const { user } = useAuth();
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
+  const connection = useWhatsAppConnectionQuery(user?.id);
+  const connected = connection.data?.state === 'connected' && !connection.isError;
   const list = useQuery({
-    queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user, refetchInterval: 5000,
+    queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user && connected, refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_conversations')
         .select('id,phone,cliente_id,mode,updated_at,qualification,last_error').order('updated_at', { ascending: false }).limit(100);
@@ -32,7 +35,7 @@ export default function LiveAgentInbox() {
   });
   const selected = list.data?.find(c => c.id === selectedId) ?? list.data?.[0];
   const messages = useQuery({
-    queryKey: ['lotti-agent-messages', user?.id, selected?.id], enabled: !!user && !!selected, refetchInterval: 5000,
+    queryKey: ['lotti-agent-messages', user?.id, selected?.id], enabled: !!user && connected && !!selected, refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_messages').select('id,direction,sender,content,created_at')
         .eq('conversation_id', selected!.id).order('created_at', { ascending: false }).limit(200);
@@ -48,15 +51,21 @@ export default function LiveAgentInbox() {
     onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
   });
   const q = selected?.qualification;
+  if (!connected) return <div className="mx-auto max-w-4xl space-y-6 pb-16">
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">WhatsApp</p>
+      <h1 className="mt-2 text-2xl font-semibold">Conecte seu WhatsApp</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Leia o QR Code para liberar o Inbox e receber as conversas nesta conta.</p>
+    </div>
+    <WhatsAppConnection />
+  </div>;
   return <div className="space-y-4 pb-16">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><Link to="/whatsapp/demo" className="inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Ver demonstração</Link>
-        <h1 className="mt-2 text-xl font-semibold">Atendimento conectado</h1>
+      <div><h1 className="text-xl font-semibold">Atendimento conectado</h1>
         <p className="text-sm text-muted-foreground">Conversas do WhatsApp, qualificação e intervenção do corretor.</p></div>
       <Badge variant="outline">Atualiza a cada 5 segundos</Badge>
     </div>
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
-    <WhatsAppConnection />
     {list.isPending && <p role="status">Carregando conversas…</p>}
     {list.isSuccess && !list.data.length && <div className="rounded-xl border bg-card p-8 text-center">
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>

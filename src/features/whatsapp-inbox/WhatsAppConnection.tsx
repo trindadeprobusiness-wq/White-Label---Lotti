@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { QrCode, CheckCircle2 } from 'lucide-react';
-type Connection = {state:'connected'|'connecting'|'disconnected';agentEnabled:boolean;qr?:string;qrExpiresAt?:number;qrGeneration?:string};
+import { useWhatsAppConnectionQuery } from './useWhatsAppConnection';
 export function WhatsAppConnection(){
  const {user}=useAuth();const [pairing,setPairing]=useState(false);
  const [expired,setExpired]=useState(false);
@@ -12,9 +11,7 @@ export function WhatsAppConnection(){
  const attempt=useRef(0);const [now,setNow]=useState(Date.now());
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[]);
  useEffect(()=>()=>{attempt.current++},[user?.id]);
- const connection=useQuery({queryKey:['whatsapp-connection',user?.id],enabled:!!user,
-   queryFn:async()=>{const {data,error}=await supabase.functions.invoke<Connection>('lotti-whatsapp',{body:{action:'status'}});if(error||!data)throw error??new Error('connection_unavailable');return data;},
-   refetchInterval:q=>q.state.data?.state==='connected'?15000:pairing?5000:15000,retry:1});
+ const connection=useWhatsAppConnectionQuery(user?.id);
  const connected=connection.data?.state==='connected';
  const begin=async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {error}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error)throw error;await connection.refetch();if(id===attempt.current)setPairing(true);}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}};
  useEffect(()=>{
