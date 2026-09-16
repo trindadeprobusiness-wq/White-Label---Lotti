@@ -32,6 +32,7 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByTestId('connection-panels').className).toContain('space-y-4');
   expect(screen.getByTestId('status-details').className).toContain('space-y-4');
   expect(screen.getByTestId('status-details').className).not.toContain('sm:grid-cols');
+  expect(screen.getByTestId('connection-page').className).toContain('-mb-16');
 });
 
 it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página', async () => {

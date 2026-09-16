@@ -7,6 +7,7 @@
 - Na prévia de conexão, `Empresa` é editável e WABA/Phone ID foram removidos. O atalho redundante `Abrir atendimento conectado` também foi retirado do topo da lista do Inbox.
 - A tela de conexão mantém Status e Teste de envio empilhados; os dados do Status voltaram à distribuição vertical, com tamanho intermediário e sem os vazios horizontais introduzidos pela grade compacta.
 - O telefone do teste usa linguagem comum (`Número que receberá o teste`) e exemplo formatado `(62) 99999-9999`; a indicação técnica `E.164 sem +` foi removida.
+- A página de conexão compensa o padding inferior do shell com `-mb-16`, eliminando a rolagem vertical excedente quando o conteúdo já cabe no viewport.
 - Quando conectado, `/whatsapp` renderiza a implementação completa já existente em `WhatsAppInbox` (três painéis, atalhos, filtros, tags, responsável, fechamento, operações locais, IA, rascunhos, anexos e cores de prazo). Em desenvolvimento essa prévia conectada abre por padrão; `?preview=disconnected` permite revisar o gate de QR.
 - O hook de status é compartilhado pelo gate e pelo card via cache do React Query. Conversas/mensagens não consultam o banco antes da confirmação `connected`; durante `connecting`, o status atualiza a cada 5 segundos.
 - Testes novos cobrem bloqueio das consultas antes da conexão, liberação do atendimento conectado, desaparecimento do card, página dedicada e item ativo único no menu. Nenhum backend, migration ou segredo foi alterado; desconexão não foi exposta porque `lotti-whatsapp` ainda aceita somente `status` e `connect`.

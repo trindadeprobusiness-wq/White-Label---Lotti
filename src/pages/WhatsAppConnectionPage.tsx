@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 export default function WhatsAppConnectionPage() {
   const [company, setCompany] = useState('Lotti Imóveis');
   return (
-    <div className="mx-auto max-w-4xl space-y-4 pb-6">
+    <div data-testid="connection-page" className="mx-auto -mb-16 max-w-4xl space-y-4 pb-0">
       <div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">WhatsApp</p>
