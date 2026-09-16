@@ -6,12 +6,18 @@ import { MobileTopBar } from './MobileTopBar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { AIChatWidget } from '../ai/AIChatWidget';
 import { OnboardingTour } from '../onboarding/OnboardingTour';
+import { useGoogleCalendarReturn } from '@/hooks/routine/useGoogleCalendarReturn';
 
 export function AppLayout() {
   const { pathname } = useLocation();
   // A página /assistente já é o chat em tela cheia — o widget flutuante em cima
   // dela vira ruído visual redundante.
   const showChatWidget = !pathname.startsWith('/assistente');
+
+  // A volta do consentimento do Google pode cair em qualquer rota protegida:
+  // o destino vem de um secret do servidor, não do cliente. Tratar aqui evita
+  // que o aviso dependa de a pessoa parar na página certa.
+  useGoogleCalendarReturn();
 
   return (
     // `min-h-screen` com rolagem no documento, não `h-screen` com rolagem

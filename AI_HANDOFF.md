@@ -51,6 +51,45 @@
 - Teste de interação cobre conexão, abertura do modal/sincronização e confirmação antes da desconexão: 3/3 passaram. A suíte completa da `main` passou com 63 arquivos e 508 testes usando variáveis fictícias do Supabase.
 - Build de produção, ESLint direcionado e `git diff --check` passaram. A inspeção visual local autenticada não foi concluída porque a rota local redirecionou para login.
 
+## Claude — callback do Google Agenda no domínio da Lotti (2026-09-15)
+- Sonda na função publicada revelou o defeito principal: o callback redireciona para
+  `https://olivercrm.vercel.app/configuracoes?tab=agenda&google_calendar=error`. O
+  secret `GOOGLE_CALENDAR_APP_REDIRECT_URL` em produção ainda aponta para o domínio
+  antigo e para uma página que não hospeda mais a agenda — quem autorizava voltava
+  sem sessão e sem aviso nenhum.
+- `?google_calendar=connected|error` só era lido por `GoogleCalendarPanel`, que não é
+  renderizado em lugar nenhum. Regra extraída para `useGoogleCalendarReturn` e montada
+  uma única vez no `AppLayout`, não na Rotina: o destino da volta vem de um secret do
+  servidor, então o aviso funciona em qualquer rota — inclusive em
+  `/configuracoes?tab=agenda`, para onde o valor publicado aponta hoje, e nos dois
+  domínios, já que o mesmo build serve `olivercrm.vercel.app` e
+  `app.plataformalotti.com.br`. Isso faz a conexão parar de voltar em silêncio sem
+  depender de trocar secret nenhum.
+- Callback OAuth movido para `https://app.plataformalotti.com.br/google-agenda/callback`:
+  reescrita em `vercel.json` antes do curinga do SPA, com `no-store` e
+  `x-vercel-enable-rewrite-caching: 0`, mais proxy equivalente no `vite.config.ts` para
+  desenvolvimento. É pré-requisito da verificação do Google, que exige domínio de
+  redirect comprovável no Search Console — `supabase.co` não é.
+- `docs/ROTINA_GOOGLE_CALENDAR.md` ganhou a seção 2.1 explicando por que a tela de
+  consentimento mostra o identificador do projeto e a interstitial de app não
+  verificado, com a ordem branding → domínios → publicar → verificação.
+- Branch `fix/google-agenda-oauth` refeita sobre `origin/main` com um único commit, sem
+  tocar nas linhas que `codex/security-hardening` altera: os dois PRs entram em qualquer
+  ordem sem conflito. A
+  primeira versão levou por engano `npm ci`, CSP e Vite em loopback — edições simultâneas
+  do Codex nos mesmos arquivos — e repetia o commit do modal que já está na main.
+- Verificações na branch limpa: 66 arquivos e 518 testes passaram (8 novos) com as
+  variáveis fictícias do CI; build de produção, ESLint nos arquivos alterados e
+  `git diff --check` passaram.
+- Merge simulado nas duas ordens com `codex/security-hardening`: sem conflito. O resultado
+  combinado passou em `npm ci`, auditoria sem vulnerabilidades, 69 arquivos e 551 testes e
+  build de produção.
+- Pendente do usuário, fora do repositório: trocar os dois secrets no Supabase,
+  cadastrar a nova URI no Google Cloud e fazer branding/verificação. Até lá o
+  consentimento segue exibindo o aviso. A reescrita da Vercel não pôde ser exercitada
+  daqui: precisa de deploy real. Banco não inspecionado — o projeto não está
+  vinculado pelo CLI e não há credencial de serviço local.
+
 ## 2026-09-11 — Claude (Bottom Navigation nativa para mobile)
 
 - Commit `6a54808` em `main`, publicado na Vercel.

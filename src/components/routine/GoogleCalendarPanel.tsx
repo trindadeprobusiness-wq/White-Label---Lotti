@@ -1,6 +1,4 @@
-import { useEffect } from 'react';
 import { CalendarSync, Check, CloudOff, Loader2, RefreshCw, Unplug } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +7,6 @@ import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useGoogleCalendarConnection, type RoutineContext } from '@/hooks/routine/useRoutine';
-import { toast } from 'sonner';
 
 function relativeDate(value?: string | null) {
   if (!value) return 'Ainda não sincronizado';
@@ -25,23 +22,9 @@ export function GoogleCalendarPanel({
   context?: RoutineContext | null;
   compact?: boolean;
 }) {
+  // A volta do OAuth é tratada uma vez só, no AppLayout: vale para qualquer
+  // rota e não depende de este painel estar na tela.
   const google = useGoogleCalendarConnection(context);
-  const [params, setParams] = useSearchParams();
-
-  useEffect(() => {
-    const result = params.get('google_calendar');
-    if (!result) return;
-    if (result === 'connected') {
-      toast.success('Google Agenda conectado. A primeira sincronização começou.');
-      void google.status.refetch();
-      void google.sync.mutateAsync().catch(() => undefined);
-    } else {
-      toast.error('A conexão com o Google não foi concluída. Tente novamente.');
-    }
-    const next = new URLSearchParams(params);
-    next.delete('google_calendar');
-    setParams(next, { replace: true });
-  }, [params, setParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (google.status.isLoading) {
     return <Skeleton className={cn('h-44 rounded-xl', compact && 'h-28')} />;
