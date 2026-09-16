@@ -17,8 +17,15 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   render(<MemoryRouter><QueryClientProvider client={client}><WhatsAppConnectionPage /></QueryClientProvider></MemoryRouter>);
 
   expect(screen.getByRole('heading', { name: 'Conexão' })).not.toBeNull();
-  expect(await screen.findByText('WhatsApp conectado')).not.toBeNull();
-  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp');
+  expect(await screen.findByText('Conectado')).not.toBeNull();
+  expect(screen.getByText('Número:')).not.toBeNull();
+  expect(screen.getByText('Empresa:')).not.toBeNull();
+  expect(screen.getByText(/WABA ID:/)).not.toBeNull();
+  expect(screen.getByText(/Phone ID:/)).not.toBeNull();
+  expect(screen.getByRole('heading', { name: 'Teste de envio' })).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Desconectar' })).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Enviar hello_world' })).not.toBeNull();
+  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp?preview=connected');
 });
 
 it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página', async () => {
@@ -26,8 +33,8 @@ it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página',
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><WhatsAppConnectionPage /></QueryClientProvider></MemoryRouter>);
 
-  expect(await screen.findByText('WhatsApp conectado')).not.toBeNull();
+  expect(await screen.findByText('Conectado')).not.toBeNull();
   expect(screen.queryByRole('button', { name: 'Conectar WhatsApp' })).toBeNull();
   expect(screen.queryByText('Conecte ao WhatsApp')).toBeNull();
-  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp');
+  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp?preview=connected');
 });

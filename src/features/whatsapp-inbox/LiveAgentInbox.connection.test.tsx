@@ -11,10 +11,10 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: { functions: { invoke }, from, rpc: vi.fn() },
 }));
 
-function mount() {
+function mount(initialEntry = '/whatsapp') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <QueryClientProvider client={client}><LiveAgentInbox /></QueryClientProvider>
     </MemoryRouter>,
   );
@@ -67,5 +67,15 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
 
     expect(await screen.findByRole('heading', { name: 'Conecte seu WhatsApp' })).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'Atendimento conectado' })).toBeNull();
+  });
+
+  it('mostra conversas de demonstração na prévia conectada sem consultar o banco', async () => {
+    invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
+    mount('/whatsapp?preview=connected');
+
+    expect(await screen.findByRole('heading', { name: 'Atendimento conectado' })).not.toBeNull();
+    expect(screen.getByText('Mariana Souza')).not.toBeNull();
+    expect(screen.getByText('Olá! Procuro uma casa com 3 quartos na região sul.')).not.toBeNull();
+    expect(from).not.toHaveBeenCalled();
   });
 });

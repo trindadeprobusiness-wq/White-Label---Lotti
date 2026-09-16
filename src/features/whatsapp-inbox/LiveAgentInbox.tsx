@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,15 +17,27 @@ type Conversation = { id: string; phone: string; cliente_id: string | null; mode
 type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; created_at: string };
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
+const previewConversations: Conversation[] = [
+  { id: 'preview-1', phone: '5562984400709', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), last_error: null, qualification: { stage: 'qualificando', temperature: 'Quente', priority: 'alta', reason: 'Busca imóvel residencial para mudança nos próximos meses.', profile: { name: 'Mariana Souza', intent: 'Comprar uma casa', region: 'Região sul', budget: 'Até R$ 850 mil', needs: '3 quartos e quintal', nextStep: 'Selecionar imóveis', timeframe: 'Até 3 meses', payment: 'Financiamento', communication: 'WhatsApp' } } },
+  { id: 'preview-2', phone: '5562998765432', cliente_id: null, mode: 'human', updated_at: new Date().toISOString(), last_error: null, qualification: { stage: 'qualificado_visita', profile: { name: 'Carlos Oliveira', intent: 'Alugar apartamento', region: 'Centro', budget: 'Até R$ 3.500/mês' } } },
+];
+const previewMessages: Message[] = [
+  { id: 'preview-message-1', direction: 'in', sender: 'lead', content: 'Olá! Procuro uma casa com 3 quartos na região sul.', created_at: new Date(Date.now() - 120000).toISOString() },
+  { id: 'preview-message-2', direction: 'out', sender: 'ai', content: 'Olá, Mariana! Posso ajudar. Você já definiu a faixa de orçamento e quando pretende se mudar?', created_at: new Date(Date.now() - 60000).toISOString() },
+  { id: 'preview-message-3', direction: 'in', sender: 'lead', content: 'Até R$ 850 mil, e gostaria de me mudar nos próximos 3 meses.', created_at: new Date().toISOString() },
+];
 
 export default function LiveAgentInbox() {
   const { user } = useAuth();
+  const { search } = useLocation();
+  const preview = import.meta.env.DEV && new URLSearchParams(search).get('preview') === 'connected';
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
   const connection = useWhatsAppConnectionQuery(user?.id);
-  const connected = connection.data?.state === 'connected' && !connection.isError;
+  const connected = preview || (connection.data?.state === 'connected' && !connection.isError);
   const list = useQuery({
-    queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user && connected, refetchInterval: 5000,
+    queryKey: ['lotti-agent-conversations', user?.id, preview], enabled: !!user && connected && !preview, refetchInterval: preview ? false : 5000,
+    initialData: preview ? previewConversations : undefined,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_conversations')
         .select('id,phone,cliente_id,mode,updated_at,qualification,last_error').order('updated_at', { ascending: false }).limit(100);
@@ -35,7 +47,8 @@ export default function LiveAgentInbox() {
   });
   const selected = list.data?.find(c => c.id === selectedId) ?? list.data?.[0];
   const messages = useQuery({
-    queryKey: ['lotti-agent-messages', user?.id, selected?.id], enabled: !!user && connected && !!selected, refetchInterval: 5000,
+    queryKey: ['lotti-agent-messages', user?.id, selected?.id, preview], enabled: !!user && connected && !!selected && !preview, refetchInterval: preview ? false : 5000,
+    initialData: preview ? previewMessages : undefined,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_messages').select('id,direction,sender,content,created_at')
         .eq('conversation_id', selected!.id).order('created_at', { ascending: false }).limit(200);
@@ -74,16 +87,16 @@ export default function LiveAgentInbox() {
     {!!list.data?.length && <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_280px]">
       <nav aria-label="Conversas conectadas" className="max-h-[65vh] space-y-1 overflow-y-auto rounded-xl border bg-card p-2">
         {list.data.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); }} className={`w-full rounded-lg p-3 text-left text-sm ${selected?.id === c.id ? 'bg-primary/10' : 'hover:bg-muted'}`}>
-          <span className="block font-medium">+{c.phone}</span><span className="block text-xs text-muted-foreground">{stages[c.qualification.stage ?? ''] ?? 'Novo contato'} · {c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Humano' : 'Pausado'}</span>
+          <span className="block font-medium">{c.qualification.profile?.name || `+${c.phone}`}</span><span className="block text-xs text-muted-foreground">{stages[c.qualification.stage ?? ''] ?? 'Novo contato'} · {c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Humano' : 'Pausado'}</span>
         </button>)}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
       </nav>
       <section aria-label="Histórico conectado" className="min-w-0 rounded-xl border bg-card">
         <header className="flex flex-wrap items-center gap-2 border-b p-3">
           <span className="mr-auto font-medium">+{selected?.phone}</span>
-          <Button size="sm" disabled={mode.isPending || selected?.mode === 'human'} onClick={() => mode.mutate('human')}><UserRound className="mr-1 h-4 w-4" /> Assumir</Button>
-          <Button size="sm" variant="outline" disabled={mode.isPending || selected?.mode === 'paused'} onClick={() => mode.mutate('paused')}><Pause className="mr-1 h-4 w-4" /> Pausar</Button>
-          <Button size="sm" variant="outline" disabled={mode.isPending || selected?.mode === 'ai'} onClick={() => mode.mutate('ai')}><Bot className="mr-1 h-4 w-4" /> Retomar IA</Button>
+          <Button size="sm" disabled={preview || mode.isPending || selected?.mode === 'human'} onClick={() => mode.mutate('human')}><UserRound className="mr-1 h-4 w-4" /> Assumir</Button>
+          <Button size="sm" variant="outline" disabled={preview || mode.isPending || selected?.mode === 'paused'} onClick={() => mode.mutate('paused')}><Pause className="mr-1 h-4 w-4" /> Pausar</Button>
+          <Button size="sm" variant="outline" disabled={preview || mode.isPending || selected?.mode === 'ai'} onClick={() => mode.mutate('ai')}><Bot className="mr-1 h-4 w-4" /> Retomar IA</Button>
         </header>
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
