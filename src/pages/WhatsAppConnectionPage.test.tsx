@@ -20,3 +20,14 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(await screen.findByText('WhatsApp conectado')).not.toBeNull();
   expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp');
 });
+
+it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página', async () => {
+  invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><WhatsAppConnectionPage /></QueryClientProvider></MemoryRouter>);
+
+  expect(await screen.findByText('WhatsApp conectado')).not.toBeNull();
+  expect(screen.queryByRole('button', { name: 'Conectar WhatsApp' })).toBeNull();
+  expect(screen.queryByText('Conecte ao WhatsApp')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp');
+});

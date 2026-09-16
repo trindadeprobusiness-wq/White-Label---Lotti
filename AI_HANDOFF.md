@@ -3,9 +3,10 @@
 ## Codex — porta de conexão do WhatsApp no Inbox (2026-09-16)
 - Branch `codex/whatsapp-connection`, em worktree isolada: `/whatsapp` consulta a conexão antes das conversas; desconectado/indisponível mostra somente o fluxo de QR e conectado remove o card e carrega o atendimento real.
 - Nova rota `/whatsapp/conexao`, item `Conexão` abaixo de `Funil de Vendas` na seção WhatsApp e atalho equivalente no menu mobile. A página permanece acessível quando conectado e oferece retorno ao Inbox.
+- A rota `/whatsapp/conexao` é uma prévia visual do estado conectado (canal, Inbox, mensagens e agente ativos) e não oferece botão/QR de conexão; o fluxo real de conectar permanece somente no Inbox.
 - O hook de status é compartilhado pelo gate e pelo card via cache do React Query. Conversas/mensagens não consultam o banco antes da confirmação `connected`; durante `connecting`, o status atualiza a cada 5 segundos.
 - Testes novos cobrem bloqueio das consultas antes da conexão, liberação do atendimento conectado, desaparecimento do card, página dedicada e item ativo único no menu. Nenhum backend, migration ou segredo foi alterado; desconexão não foi exposta porque `lotti-whatsapp` ainda aceita somente `status` e `connect`.
-- Verificação: suíte completa com 69 arquivos e 548 testes aprovados; build de produção aprovado; ESLint dos arquivos alterados e `git diff --check` aprovados.
+- Verificação: suíte completa com 69 arquivos e 549 testes aprovados; build de produção aprovado; ESLint dos arquivos alterados e `git diff --check` aprovados.
 
 ## Claude — branch de segurança reorganizada (2026-09-16)
 - O trabalho acima estava sem commit na árvore principal, sobre um commit do modal da
