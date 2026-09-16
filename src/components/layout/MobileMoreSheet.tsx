@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   Wallet, Scale, Video, QrCode, Sparkles, Settings,
-  CalendarCheck2, Building2, CreditCard, LogOut, Sun, Moon,
+  CalendarCheck2, Building2, CreditCard, LogOut, Sun, Moon, Cable,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,7 @@ function itensMenu(): ItemSheet[] {
     { label: 'Fachadas',     href: '/fachadas',    icone: <QrCode className={ic} /> },
     { label: 'Imóveis',      href: '/imoveis',     icone: <Building2 className={ic} /> },
     { label: 'Rotina',       href: '/rotina',      icone: <CalendarCheck2 className={ic} /> },
+    { label: 'Conexão WhatsApp', href: '/whatsapp/conexao', icone: <Cable className={ic} /> },
     { label: 'Assistente IA', href: '/assistente', icone: <Sparkles className={ic} /> },
     { label: 'Configurações', href: '/configuracoes', icone: <Settings className={ic} /> },
     { label: 'Meu Plano',     href: '/plano',      icone: <CreditCard className={ic} /> },

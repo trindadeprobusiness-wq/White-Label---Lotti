@@ -1,8 +1,10 @@
+import { PublicRequestError, UUID_PATTERN } from '../_shared/public-request.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'X-Content-Type-Options': 'nosniff',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
 }
@@ -21,6 +23,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  if (!['GET'].includes(req.method)) return new Response(JSON.stringify({ error: 'Método não permitido.' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -30,7 +34,7 @@ serve(async (req) => {
     const url = new URL(req.url)
     const id = url.searchParams.get('id')
 
-    if (!id) {
+    if (!id || !UUID_PATTERN.test(id)) {
       return new Response(
         JSON.stringify({ error: 'Parâmetro "id" é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -135,9 +139,10 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const status = error instanceof PublicRequestError ? error.status : 500
+    const errorMessage = error instanceof PublicRequestError ? error.message : 'Não foi possível carregar os dados. Tente novamente.'
     return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
+      status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

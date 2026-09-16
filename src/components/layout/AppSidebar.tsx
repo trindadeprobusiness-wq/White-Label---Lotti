@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle,
+  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -71,6 +71,7 @@ function montarGrupos(): GrupoNav[] {
         FLAGS.crm
           ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
           : { label: 'Funil de Vendas', href: '/funil', icone: <Filter className={ic} /> },
+        { label: 'Conexão', href: '/whatsapp/conexao', icone: <Cable className={ic} /> },
       ],
     },
     {
@@ -155,8 +156,10 @@ function Conteudo({
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
-  const ativo = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const itemAtivo = grupos
+    .flatMap(grupo => grupo.itens)
+    .filter(item => item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -197,7 +200,7 @@ function Conteudo({
                 <ItemMenu
                   key={item.href}
                   item={item}
-                  ativo={ativo(item.href)}
+                  ativo={item.href === itemAtivo}
                   recolhida={recolhida}
                   aoNavegar={aoNavegar}
                 />

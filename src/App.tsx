@@ -32,6 +32,7 @@ import {
   midiasLoader,
   rotinaLoader,
   whatsappLoader,
+  whatsappConnectionLoader,
 } from "@/lib/routePreloaders";
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
@@ -40,6 +41,7 @@ const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
 const LiveAgentInbox = lazy(() => import('@/features/whatsapp-inbox/LiveAgentInbox'));
+const WhatsAppConnectionPage = lazy(whatsappConnectionLoader);
 const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
 const Imoveis = lazy(imoveisLoader);
@@ -153,6 +155,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/rotina" element={<Rotina />} />
             <Route path="/whatsapp" element={<LiveAgentInbox />} />
+            <Route path="/whatsapp/conexao" element={<WhatsAppConnectionPage />} />
             <Route path="/whatsapp/demo" element={<WhatsAppInbox />} />
             <Route path="/whatsapp/agente" element={<LiveAgentInbox />} />
             <Route path="/clientes" element={<Clientes />} />

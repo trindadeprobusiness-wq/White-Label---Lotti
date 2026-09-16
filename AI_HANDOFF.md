@@ -1,5 +1,49 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — porta de conexão do WhatsApp no Inbox (2026-09-16)
+- Branch `codex/whatsapp-connection`, em worktree isolada: `/whatsapp` consulta a conexão antes das conversas; desconectado/indisponível mostra somente o fluxo de QR e conectado remove o card e carrega o atendimento real.
+- Nova rota `/whatsapp/conexao`, item `Conexão` abaixo de `Funil de Vendas` na seção WhatsApp e atalho equivalente no menu mobile. A página permanece acessível quando conectado e oferece retorno ao Inbox.
+- A rota `/whatsapp/conexao` replica a referência visual do estado conectado com número, empresa, IDs, data, desconexão e teste com a mensagem “Olá, tudo bem?”, sem botão `Abrir Inbox`.
+- Na prévia de conexão, `Empresa` é editável e WABA/Phone ID foram removidos. O atalho redundante `Abrir atendimento conectado` também foi retirado do topo da lista do Inbox.
+- A tela de conexão mantém Status e Teste de envio empilhados; os dados do Status voltaram à distribuição vertical, com tamanho intermediário e sem os vazios horizontais introduzidos pela grade compacta.
+- O telefone do teste usa linguagem comum (`Número que receberá o teste`) e exemplo formatado `(62) 99999-9999`; a indicação técnica `E.164 sem +` foi removida.
+- A página de conexão compensa o padding inferior do shell com `-mb-16`, eliminando a rolagem vertical excedente quando o conteúdo já cabe no viewport.
+- Quando conectado, `/whatsapp` renderiza a implementação completa já existente em `WhatsAppInbox` (três painéis, atalhos, filtros, tags, responsável, fechamento, operações locais, IA, rascunhos, anexos e cores de prazo). Em desenvolvimento essa prévia conectada abre por padrão; `?preview=disconnected` permite revisar o gate de QR.
+- O hook de status é compartilhado pelo gate e pelo card via cache do React Query. Conversas/mensagens não consultam o banco antes da confirmação `connected`; durante `connecting`, o status atualiza a cada 5 segundos.
+- Testes novos cobrem bloqueio das consultas antes da conexão, liberação do atendimento conectado, desaparecimento do card, página dedicada e item ativo único no menu. Nenhum backend, migration ou segredo foi alterado; desconexão não foi exposta porque `lotti-whatsapp` ainda aceita somente `status` e `connect`.
+- Verificação: suíte completa com 69 arquivos e 549 testes aprovados; build de produção aprovado; ESLint dos arquivos alterados e `git diff --check` aprovados.
+
+## Claude — branch de segurança reorganizada (2026-09-16)
+- O trabalho acima estava sem commit na árvore principal, sobre um commit do modal da
+  Agenda que não está na main, e misturado com a correção do OAuth da Agenda. Foi
+  transplantado para `codex/security-hardening` sobre `origin/main`, sem a parte da
+  Agenda, que ficou em `fix/google-agenda-oauth`. Estado anterior completo preservado na
+  branch local `backup/arvore-principal-2026-09-16`.
+- Verificado na branch reorganizada: `npm ci`; `npm run audit:security` sem
+  vulnerabilidades; 67 arquivos e 543 testes passaram com as variáveis fictícias do CI;
+  build de produção passou; ESLint dos módulos novos e dos testes ajustados passou.
+  `FachadaPreview.tsx` mantém 2 erros e 1 aviso de ESLint que já existem na main.
+- GitHub Actions `Security and tests` passou inteiro na branch publicada, incluindo
+  `npm run test:security-browser` com Chromium. Nenhuma migration ou função publicada.
+- Vercel: os previews desta branch e de `fix/google-agenda-oauth` aparecem como
+  `Deployment was blocked`. Não é falha de build: a Vercel bloqueia todo commit com autor
+  `rafaelporto2217@gmail.com`, inclusive `68766b3`, que já está na main. Commits do
+  `trindadeprobusiness` publicam normalmente. Resolver na conta da Vercel ou fazer o merge
+  pela conta dona do projeto, para que o commit publicado tenha esse autor.
+
+## Codex — correções de segurança em branch (2026-09-15)
+- Branch `codex/security-hardening`: captura pública com validação limitada por bytes/campos, rate limit persistente, respostas genéricas e detalhes somente para integração com segredo. Captura não debita cota de IA; executor real deve contabilizar após qualificar.
+- Migration `20260916010000_public_security.sql` protege INSERT direto de leads/escaneamentos QR e limita tipos/tamanho no bucket privado de anexos IA. Testes executam o SQL com papéis anon/authenticated/service_role em PostgreSQL PGlite com schema mínimo.
+- CSP adicionada, Clarity extraído para arquivo local, título de impressão sem interpolação HTML, Vite em loopback, dependências atualizadas e instalação npm ci. Workflow de testes/auditoria e roteiro `docs/SEGURANCA_PUBLICACAO.md` adicionados.
+- Verificado durante implementação: 33 testes direcionados passaram, suíte então com 548 testes passou antes dos três testes adicionais; build e bundle das quatro funções passaram, ESLint dos módulos novos passou, npm audit sem vulnerabilidades. Smoke Chromium passou para login/rota protegida/bloqueio de script inline com rede externa simulada. Typecheck global ainda reporta erros de schema/tipos existentes.
+- Pendente: validação final do snapshot do commit, aplicar migration antes de publicar funções, revisar integração autenticada/contabilização da qualificação, revogar credenciais antigas e testar isolamento completo no Supabase real. Nenhuma migration remota ou função foi publicada nesta etapa.
+
+## Codex — análise do checklist de segurança (2026-09-15)
+- Revisão estática de autenticação, endpoints públicos, migrations de RLS/Storage, criptografia e headers; consulta ao grafo existente usada como índice, com confirmação no código.
+- `npm audit --omit=dev --json`: 3 pacotes sinalizados (1 baixo, 2 moderados; nenhum alto/crítico). Não cobre imports Deno nem imagens Docker.
+- `lead-capture` não contém rate limit/CAPTCHA, aceita metadados extras e retorna `cliente_id`/`is_new`; endpoints públicos inspecionados também propagam mensagens de erro. `vercel.json` possui headers de segurança, sem CSP.
+- Pendente: confirmar configuração publicada, testar isolamento entre contas, revisar proteção contra abuso e respostas públicas, confirmar revogação de credenciais antigas e avaliar alertas de dependências. Nenhuma alteração funcional ou publicação realizada nesta análise.
+
 ## Codex — modal da conta Google Agenda na Rotina (2026-09-15)
 
 - O indicador `Agenda conectada` virou um botão compacto verde `Conectado`; ao clicar, abre o modal `Agenda` com conta, última sincronização, sincronização manual e desconexão confirmada.
