@@ -42,15 +42,22 @@ usa transação e encerra com `ROLLBACK`.
 
 1. Crie ou selecione um projeto no Google Cloud Console.
 2. Ative a **Google Calendar API**.
-3. Configure a tela de consentimento OAuth. Durante o modo de teste, cadastre os
-   e-mails autorizados. Para uso público, finalize a publicação/verificação que o
-   Google solicitar para os escopos escolhidos.
+3. Configure a tela de consentimento OAuth (ver seção 2.1 — é o que decide se a
+   pessoa lê "Lotti" ou o identificador do projeto Supabase).
 4. Crie credenciais **OAuth client ID → Web application**.
-5. Cadastre exatamente esta URI de redirecionamento:
+5. Cadastre exatamente esta URI de redirecionamento — **no domínio da Lotti**,
+   nunca em `*.supabase.co`:
 
    ```text
-   https://SEU-PROJETO.supabase.co/functions/v1/google-calendar-auth/callback
+   https://app.plataformalotti.com.br/google-agenda/callback
    ```
+
+   Esse caminho não é uma página do app: `vercel.json` o reescreve para
+   `https://SEU-PROJETO.supabase.co/functions/v1/google-calendar-auth/callback`,
+   e `vite.config.ts` faz o mesmo em desenvolvimento. Os três valores
+   (Google Cloud, `vercel.json` e `GOOGLE_CALENDAR_REDIRECT_URI`) precisam ser
+   idênticos; `src/lib/routine/googleCalendarCallback.test.ts` trava as duas
+   pontas que vivem no repo.
 
 O fluxo solicita `calendar.events`, `calendar.calendarlist.readonly`,
 `userinfo.email` e `openid`, com acesso offline e consentimento incremental.
@@ -58,6 +65,37 @@ O fluxo solicita `calendar.events`, `calendar.calendarlist.readonly`,
 Referências oficiais: [OAuth 2.0 para aplicações web](https://developers.google.com/identity/protocols/oauth2/web-server),
 [sincronização incremental](https://developers.google.com/workspace/calendar/api/guides/sync) e
 [push notifications](https://developers.google.com/workspace/calendar/api/guides/push).
+
+### 2.1 Por que aparece "o Google não verificou este app"
+
+São dois sintomas da mesma causa — a marca não está verificada:
+
+- **A tela mostra o domínio no lugar do nome.** Até a verificação de marca, o
+  Google ignora o nome configurado e exibe o domínio do `redirect_uri`. Com o
+  callback em `*.supabase.co`, a pessoa lê o identificador do banco de dados.
+- **A interstitial "O Google não verificou este app".** Aparece enquanto o
+  projeto está em **Testing** pedindo escopos sensíveis (`calendar.events` é um
+  deles). Testadores cadastrados passam por *Avançado → Continuar*; qualquer
+  outra pessoa é barrada, e o limite é de 100 usuários.
+
+Para resolver, na ordem:
+
+1. **Branding:** nome do app `Lotti`, logo, e-mail de suporte, página inicial
+   `https://app.plataformalotti.com.br`, política de privacidade
+   `https://app.plataformalotti.com.br/politica-de-privacidade` e termos
+   `https://app.plataformalotti.com.br/termos-de-uso` (as duas rotas já existem
+   e precisam responder sem login).
+2. **Domínios autorizados:** `plataformalotti.com.br`, comprovado no Google
+   Search Console com a mesma conta dona do projeto. É por isso que o callback
+   precisa sair do `supabase.co`: o Google exige que **todo** domínio de
+   redirect seja comprovadamente seu, e não há como comprovar `supabase.co`.
+3. **Publicar** a tela de consentimento (Testing → In production).
+4. **Enviar para verificação** justificando o uso de `calendar.events`, com
+   vídeo demonstrando o fluxo. A análise leva de dias a semanas; até sair, o
+   aviso continua e o caminho segue sendo *Avançado → Continuar*.
+
+Referências: [verificação de marca](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
+e [escopos sensíveis](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification).
 
 ## 3. Cadastrar secrets no Supabase
 
@@ -75,9 +113,9 @@ npx supabase secrets set \
   GOOGLE_CALENDAR_CLIENT_ID="...apps.googleusercontent.com" \
   GOOGLE_CALENDAR_CLIENT_SECRET="..." \
   GOOGLE_TOKEN_ENCRYPTION_KEY="BASE64_DE_32_BYTES" \
-  GOOGLE_CALENDAR_REDIRECT_URI="https://SEU-PROJETO.supabase.co/functions/v1/google-calendar-auth/callback" \
+  GOOGLE_CALENDAR_REDIRECT_URI="https://app.plataformalotti.com.br/google-agenda/callback" \
   GOOGLE_CALENDAR_WEBHOOK_URL="https://SEU-PROJETO.supabase.co/functions/v1/google-calendar-webhook" \
-  GOOGLE_CALENDAR_APP_REDIRECT_URL="https://SEU-DOMINIO/configuracoes?tab=agenda" \
+  GOOGLE_CALENDAR_APP_REDIRECT_URL="https://app.plataformalotti.com.br/rotina" \
   ROUTINE_INTERNAL_SECRET="HEX_ALEATORIO_INDEPENDENTE"
 ```
 
@@ -117,7 +155,7 @@ pela documentação do Supabase: [Cron](https://supabase.com/docs/guides/cron) e
 
 ## 6. Checklist de homologação real
 
-1. Entrar na Lotti e abrir **Configurações → Agenda**.
+1. Entrar na Lotti e abrir **Rotina**; o botão fica no cabeçalho da página.
 2. Conectar uma conta Google de teste e selecionar calendários/direções.
 3. Criar, mover, redimensionar, concluir e excluir um compromisso Lotti; confirmar
    o mesmo resultado no Google sem duplicata.
