@@ -19,9 +19,9 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByRole('heading', { name: 'Conexão' })).not.toBeNull();
   expect(await screen.findByText('Conectado')).not.toBeNull();
   expect(screen.getByText('Número:')).not.toBeNull();
-  expect(screen.getByText('Empresa:')).not.toBeNull();
-  expect(screen.getByText(/WABA ID:/)).not.toBeNull();
-  expect(screen.getByText(/Phone ID:/)).not.toBeNull();
+  expect(screen.getByRole('textbox', { name: 'Empresa' }).getAttribute('value')).toBe('Lotti Imóveis');
+  expect(screen.queryByText(/WABA ID:/)).toBeNull();
+  expect(screen.queryByText(/Phone ID:/)).toBeNull();
   expect(screen.getByRole('heading', { name: 'Teste de envio' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Desconectar' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Enviar “Olá, tudo bem?”' })).not.toBeNull();

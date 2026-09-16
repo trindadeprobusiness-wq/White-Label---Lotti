@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
 export default function WhatsAppConnectionPage() {
+  const [company, setCompany] = useState('Lotti Imóveis');
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-16">
       <div>
@@ -20,8 +22,9 @@ export default function WhatsAppConnectionPage() {
         </div>
         <div className="mt-7 space-y-5 text-base">
           <p><strong>Número:</strong> +55 62 98440-0709</p>
-          <p><strong>Empresa:</strong> Lotti Imóveis</p>
-          <p className="text-sm text-muted-foreground"><strong>WABA ID:</strong> 000000000000000 · <strong>Phone ID:</strong> 000000000000000</p>
+          <label htmlFor="company" className="block max-w-md font-semibold">Empresa
+            <Input id="company" value={company} onChange={event => setCompany(event.target.value)} className="mt-2 font-normal" placeholder="Nome da empresa onde você trabalha" />
+          </label>
           <p className="text-sm text-muted-foreground">Conectado hoje, às 10:00</p>
         </div>
         <Button type="button" variant="outline" className="mt-5 border-destructive text-destructive hover:bg-destructive/5 hover:text-destructive">Desconectar</Button>
