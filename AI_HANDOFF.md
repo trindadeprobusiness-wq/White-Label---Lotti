@@ -1686,3 +1686,5 @@ credencial); nao foi contornada.
 - Composer real para texto, gravacao de ate 90s, anexo de audio ate 4MB, previa e descarte. Audio enviado usa armazenamento privado com acesso por conta.
 - Endpoint autenticado deriva conta do JWT; destino vem da conversa autorizada. Reserva persistente evita reenvio da mesma solicitacao e assume modo humano, com bloqueio de IA durante entrega pendente.
 - Migration 20260916000100 aplicada e registrada; Edge Function e runtime Docker atualizados. Testes: 512 frontend, 22 runtime, build e transacao SQL com rollback passaram. Nenhuma mensagem enviada a contato real para teste; validacao de texto/audio no aparelho destinatario permanece pendente.
+
+- Codex: conferencia em producao encontrou footer antigo ainda renderizado; ligado MessageComposer ao historico real. Novo teste da tela passou, dois testes do composer passaram e build passou. Validacao visual da nova publicacao pendente.

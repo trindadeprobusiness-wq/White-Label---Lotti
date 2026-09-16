@@ -86,7 +86,7 @@ export default function LiveAgentInbox() {
           </article>)}
           {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>
-        <footer className="border-t p-3 text-xs text-muted-foreground">Para responder, assuma a conversa e use o WhatsApp conectado. O envio manual por esta tela ainda não está disponível.</footer>
+        {selected&&<MessageComposer key={selected.id} conversationId={selected.id} onSent={()=>{void cache.invalidateQueries({queryKey:['lotti-agent-messages']});void cache.invalidateQueries({queryKey:['lotti-agent-conversations']});}}/>}
       </section>
       <aside className="space-y-4 rounded-xl border bg-card p-4">
         <h2 className="font-semibold">Qualificação comercial</h2>
