@@ -1681,3 +1681,8 @@ credencial); nao foi contornada.
 ### 2026-09-15 - Codex (consulta de conexao)
 - Inbox inicia conexao somente no clique; polling usa status. QR possui validade do provedor e deixa de aparecer apos expirar. Erro de consulta nao vira desconexao no runtime.
 - Main 68766b3 conciliada preservando Google Agenda. Testes: 510/510 frontend, build passou; runtime 16/16. Edge Function publicada. Pareamento fisico e diagnostico de protocolo ainda pendentes; nenhuma sessao apagada.
+
+### 2026-09-16 - Codex (resposta manual no Inbox)
+- Composer real para texto, gravacao de ate 90s, anexo de audio ate 4MB, previa e descarte. Audio enviado usa armazenamento privado com acesso por conta.
+- Endpoint autenticado deriva conta do JWT; destino vem da conversa autorizada. Reserva persistente evita reenvio da mesma solicitacao e assume modo humano, com bloqueio de IA durante entrega pendente.
+- Migration 20260916000100 aplicada e registrada; Edge Function e runtime Docker atualizados. Testes: 512 frontend, 22 runtime, build e transacao SQL com rollback passaram. Nenhuma mensagem enviada a contato real para teste; validacao de texto/audio no aparelho destinatario permanece pendente.

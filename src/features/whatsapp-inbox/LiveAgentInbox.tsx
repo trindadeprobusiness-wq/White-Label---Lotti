@@ -1,3 +1,4 @@
+import {MessageComposer,AudioMessage} from './MessageComposer';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +14,7 @@ import { WhatsAppConnection } from './WhatsAppConnection';
 const db = supabase as unknown as SupabaseClient;
 type Qualification = { stage?: string; temperature?: string; priority?: string; reason?: string; profile?: Record<string, string | null> };
 type Conversation = { id: string; phone: string; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; updated_at: string; qualification: Qualification; last_error: string | null };
-type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; created_at: string };
+type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; media_path:string|null; created_at: string };
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
 
@@ -34,7 +35,7 @@ export default function LiveAgentInbox() {
   const messages = useQuery({
     queryKey: ['lotti-agent-messages', user?.id, selected?.id], enabled: !!user && !!selected, refetchInterval: 5000,
     queryFn: async () => {
-      const { data, error } = await db.from('lotti_agent_messages').select('id,direction,sender,content,created_at')
+      const { data, error } = await db.from('lotti_agent_messages').select('id,direction,sender,content,media_path,created_at')
         .eq('conversation_id', selected!.id).order('created_at', { ascending: false }).limit(200);
       if (error) throw error;
       return (data as Message[]).reverse();
@@ -81,7 +82,7 @@ export default function LiveAgentInbox() {
         <div className="max-h-[60vh] space-y-3 overflow-y-auto p-4">
           {messages.data?.map(m => <article key={m.id} className={`max-w-[90%] rounded-lg p-3 ${m.direction === 'out' ? 'ml-auto bg-primary/10' : 'bg-muted'}`}>
             <p className="mb-1 text-xs font-medium text-muted-foreground">{m.sender === 'ai' ? 'Lotti IA' : m.sender === 'human' ? 'Corretor' : 'Cliente'}</p>
-            <p className="whitespace-pre-wrap break-words text-sm">{m.content}</p><time className="mt-2 block text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString('pt-BR')}</time>
+            <p className="whitespace-pre-wrap break-words text-sm">{m.content}</p>{m.media_path&&<AudioMessage path={m.media_path}/>}<time className="mt-2 block text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString('pt-BR')}</time>
           </article>)}
           {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>

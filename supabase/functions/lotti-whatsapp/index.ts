@@ -10,17 +10,19 @@ Deno.serve(async req=>{
  const {data:auth,error:authError}=await db.auth.getUser(token);
  if(authError||!auth.user)return json({error:'unauthorized'},401);
  try {
+   if(Number(req.headers.get('Content-Length')||0)>6000000)return json({error:'payload_too_large'},413);
    const body=await req.json();
-   if(!['status','connect'].includes(body.action))return json({error:'invalid_action'},400);
+   if(!['status','connect','send'].includes(body.action))return json({error:'invalid_action'},400);
    // Identity comes from verified Auth, never a caller-supplied account/instance.
    const {data:owner,error}=await db.from('corretores').select('id,status').eq('user_id',auth.user.id).single();
    if(error||!owner)return json({error:'account_not_found'},403);
    if(owner.status==='suspenso')return json({error:'account_suspended'},403);
    const url=Deno.env.get('LOTTI_CHANNEL_BRIDGE_URL'),secret=Deno.env.get('LOTTI_CHANNEL_BRIDGE_TOKEN');
    if(!url||!secret)return json({error:'connection_service_unavailable'},503);
-   const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-lotti-connect':secret,'ngrok-skip-browser-warning':'1'},body:JSON.stringify({action:body.action,corretor_id:owner.id}),signal:AbortSignal.timeout(25000)});
+   const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-lotti-connect':secret,'ngrok-skip-browser-warning':'1'},body:JSON.stringify({action:body.action,corretor_id:owner.id,...(body.action==='send'?{conversation_id:body.conversation_id,request_id:body.request_id,kind:body.kind,text:body.text,audio:body.audio,mime:body.mime}:{})}),signal:AbortSignal.timeout(25000)});
    if(!response.ok)return json({error:'connection_service_unavailable'},503);
    const result=await response.json();
+   if(body.action==='send')return ['sent','sending','uncertain','failed','busy'].includes(result.sendStatus)?json({sendStatus:result.sendStatus}):json({error:'send_unavailable'},503);
    if(!['connected','connecting','disconnected'].includes(result.state))return json({error:'connection_service_unavailable'},503);
    return json({state:result.state,agentEnabled:result.agentEnabled===true,...(typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?{qr:result.qr,qrExpiresAt:result.qrExpiresAt,qrGeneration:result.qrGeneration}:{})});
  }catch{return json({error:'connection_service_unavailable'},503);}
