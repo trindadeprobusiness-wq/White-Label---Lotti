@@ -1742,6 +1742,7 @@ credencial); nao foi contornada.
 - Worktree de publicacao limpa. Checkout original preservado com alteracoes staged e nao rastreadas de terceiros; nenhum reset ou descarte. Nenhuma migration ou Edge Function publicada. Inbox continua demonstrativo; Evolution e agente real nao foram ativados. Nao houve teste autenticado ponta a ponta de atendimento real.
 -   C o r r e c a o :   o   v i s u a l   d a   t e l a   ' M a i s '   n o   m o b i l e   f o i   r e d e s e n h a d o   p a r a   u m a   g r a d e   3 x N   l i m p a   s e m   f u n d o s   c o l o r i d o s   n o s   i c o n e s ,   e   v a r i a v e i s   a u s e n t e s   q u e   c a u s a v a m   c r a s h   f o r a m   r e s t a u r a d a s .   O   M e n u   l a t e r a l   m o b i l e   f o i   d e s a t i v a d o   e   a g o r a   a   B o t t o m   N a v   +   T o p   B a r   o p e r a m   c o r r e t a m e n t e .  
  
+<<<<<<< HEAD
 ### 2026-09-12 - Codex (piloto n8n, Evolution e Supabase)
 
 - Implementado runtime versionavel em C:/Users/Gabri/n8n-agent-lotti: Evolution 2.3.7, PostgreSQL de sessoes, Redis e Node 22 em Docker. Evolution local porta 18085; runtime 8095. Credenciais apenas em configuracao local ignorada pelo Git.
@@ -1771,3 +1772,66 @@ credencial); nao foi contornada.
 - Migration 20260916000100 aplicada e registrada; Edge Function e runtime Docker atualizados. Testes: 512 frontend, 22 runtime, build e transacao SQL com rollback passaram. Nenhuma mensagem enviada a contato real para teste; validacao de texto/audio no aparelho destinatario permanece pendente.
 
 - Codex: conferencia em producao encontrou footer antigo ainda renderizado; ligado MessageComposer ao historico real. Novo teste da tela passou, dois testes do composer passaram e build passou. Validacao visual da nova publicacao pendente.
+=======
+### 2026-09-12 - Codex (piloto do agente aplicado)
+- Implementacao, migrations, testes e pendencias registrados no handoff da main publicada em 5c36707. Workflow n8n pYLgIQVxv614rNuY ativo; round trip com dados ficticios passou. Evolution instalada; envios reais bloqueados aguardando numero/conta e teste real. Repositorio de automacao publicado em 786dec7. Checkout local e alteracoes nao rastreadas preservados.
+
+### 2026-09-13 - Codex (Inbox conectado publicado)
+- Plataforma 52b698a READY: Inbox principal real, Edge Function autenticada e QR por conta. Runtime f8d38df publicado. UI autenticada gerou QR; estado connecting, envios reais desativados.
+- Testes: frontend 507/507, build, runtime 12/12; sem autenticacao HTTP 401. Pendente pareamento pelo celular e conversa real. Alteracoes locais de terceiros preservadas.
+
+### 2026-09-14 - Codex (diagnostico de pareamento)
+- Evolution 2.3.7/Baileys rc.9 gerava QR no formato antigo. Aplicado backport restrito do PR oficial Baileys 2460 em imagem local com base fixada por digest; automacao commit 003646d.
+- Teste contra QR real falhou antes e passou depois; runtime 12/12, build Docker e diff check passaram. Backup do banco Evolution preservado localmente. Logs adicionados somente com estado, horario, QR atualizado booleano e codigo de desconexao.
+- UI autenticada exibe QR novo; estado connecting. Causa integral da rejeicao no celular ainda nao confirmada; aguardando tentativa com formato corrigido. Envios reais continuam desativados, nenhum atendimento real validado.
+
+### 2026-09-14 - Codex (ciclo de pareamento)
+- Logs registraram close 428 seguido de reconnect; nenhum open. Backport anterior tinha virgula incorreta entre prefixo e referencia do QR; teste de seis campos estava incorreto e foi substituido pelo contrato de cinco campos da biblioteca oficial.
+- Transporte oficial Baileys rc14 instalado com lockfile e Evolution base preservada; runtime b1846a3 publicado. QR real e importacao/socket da biblioteca passaram; 12 testes runtime passaram. Nenhum volume/credencial apagado.
+- Frontend ac17a66 limita tentativa a dois minutos, encerra modo de pareamento quando conectado e orienta leitura unica. 507 testes e build passaram. Confirmacao no celular e atendimento real continuam pendentes.
+
+- Codex: validacao autenticada posterior confirmou QR atual e encerramento automatico da tentativa apos dois minutos, com aviso e botao para reiniciar. Durante a observacao o servidor permaneceu connecting; pareamento no celular nao confirmado.
+
+- Codex: apos novo relato de erro de conexao no celular, DNS de web.whatsapp.com/g.whatsapp.net e HTTPS do WhatsApp responderam dentro do container; runtime health ok, liveSendEnabled false. Pareamento permaneceu connecting. Nenhuma nova alteracao de configuracao; teste comparativo no WhatsApp Web oficial preparado para separar falha da integracao de falha no celular/rede/conta.
+
+- Codex: usuario confirmou autenticacao no WhatsApp Web oficial. Investigacao concentrada na Evolution. Override qrTimeout de 45s removido; log real confirmou intervalos 60/20/20s. Build Docker, QR real e 12 testes passaram; commit automacao 7b606f7. Estado observado connecting, sem confirmacao de pareamento; a mudanca de validade ainda nao comprova resolucao do erro no celular.
+
+### 2026-09-15 - Codex (servidor local online)
+- Verificado n8n /healthz HTTP 200 pela URL publica ngrok e POST autenticado da ponte retornando estado connecting da Evolution. Enderecos de webhook/editor corretos; ngrok extension em execucao.
+- Docker AutoStart habilitado e StartupApproved do Windows alterado de desabilitado para habilitado; registro de inicializacao conferido. Suspensao AC alterada de 600s para 0; bateria preservada. Configuracoes anteriores copiadas para backup local ignorado.
+- n8n e servicos Lotti usam unless-stopped. Nenhum reboot/logout executado. Acesso externo operacional nao comprova pareamento: WhatsApp continua pendente e envios reais desativados. Documento operacional em n8n-agent-lotti/docs/SERVIDOR_LOCAL.md.
+
+### 2026-09-15 - Codex (deploy main e ciclo QR)
+- Main remota ff60830 inclui 68766b3 do colega. Vercel dpl_A6rL1pp82yAZTV4RYrvdMvEx5xSZ READY e alias app.plataformalotti.com.br confirmado. 510 testes frontend e build passaram.
+- Runtime c5f1728 publicado e Docker reconstruido: status somente leitura com validade real do QR, sem tratar indisponibilidade como desconexao. 16 testes runtime passaram; Edge Function publicada.
+- Adicionado diagnostico sem dados pessoais para companion_reg_refresh/pair_success_received. Nenhum desses eventos observado; estado final close. Pareamento fisico permanece pendente, envios desativados, nenhuma sessao/volume apagado. Checkout original preservado.
+
+- Codex: diagnostico posterior registrou companion_reg_refresh em 2026-09-15T21:53:00.690Z, seguido de rotacao de QR e close 408 em 21:54:20.260Z, sem pair_success_received. Evidencia concreta do pedido de renovacao de registro descrito no PR Baileys 2765, ainda nao aplicado. Pareamento continua pendente.
+
+### 2026-09-15 - Codex (renovacao do pareamento)
+- Video fornecido inspecionado: celular exibe Verifique sua conexao e tente novamente apos leitura do QR. Implementado backport restrito para companion_reg_refresh e ACK antes de existir identidade, automacao d26e1d8 publicada.
+- Quatro testes contra trechos reais do rc14 falharam antes e passaram com patch; Docker build executa esses testes. Runtime 16/16 passou. Imagem Evolution aplicada preservando volumes, QR com validade disponivel por status. Estado connecting; pareamento real ainda pendente.
+
+- Codex: usuario confirmou pareamento; consulta direta da Evolution retornou state open. Inbox autenticado na imagem mostra WhatsApp conectado e lista vazia. Pareamento fisico confirmado; atendimento e conversa ponta a ponta ainda pendentes.
+
+### 2026-09-16 - Codex (Inbox manual publicado)
+- Plataforma main 03be212 e automacao ee09f04 publicadas. Vercel dpl_7A99M2jDqsvK8BaQGSTs2dojBVPx READY com alias de producao confirmado.
+- Composer de texto/audio, armazenamento privado e reserva idempotente aplicados. Migration 20260916000100 e Edge Function publicadas; runtime Docker atualizado. Testes 512 frontend, 22 runtime, build e SQL com rollback passaram.
+- Runtime health ok e WhatsApp open. Entrega real de texto/audio e gravacao fisica ainda nao testadas; nenhuma mensagem enviada para terceiros. IA automatica continua desativada.
+
+- Codex: publicacao final 3cb4cf2 READY em dpl_GC3pnvL7kupjs2UMvZT7eDNoowGc com alias de producao. Teste integrado do Inbox passou e build passou. Verificado anon/authenticated sem permissao direta para RPC de envio; bucket de audio privado. Entrega real ainda requer teste com destinatario autorizado.
+
+- Codex: codificacao UTF-8 corrigida nos rotulos do composer e audio. Main final b50685f, runtime 4fc49df; Vercel dpl_4DakWcJ5RuheMkQEbHAN7zcrnjHR READY com alias confirmado. Tres testes focados de interface e seis de envio passaram apos ajuste.
+
+### 2026-09-16 - Codex (PR #6 e publicacao da seguranca)
+- PR #6 aceito com merge commit e32cca54; main inclui PR #7, que ja havia sido mesclado antes por outra pessoa. Vercel dpl_HbCJfrpWzjQ45brqFt4PwXWtwHVr READY com alias de producao app.plataformalotti.com.br.
+- Migration 20260916010000_public_security.sql aplicada ao projeto dqlolypbmsjgqrvdesev e registrada no historico. Confirmados tabela de limites com RLS, duas policies, dois gatilhos e bucket de anexos privado com teto de 50 MiB.
+- Edge Functions lead-capture v19, public-imoveis v17, imovel-detalhe v17 e fachada-publica v16 publicadas e ACTIVE; chamadas publicas com payload vazio retornaram erros esperados 400/405, sem 5xx.
+- Build atual passou; smoke de login, rota protegida e CSP passou. Landing QR abriu, aceitou lead sintetico e exibiu detalhes; registro de teste removido e ausencia confirmada. Preview da fachada exibiu arte e QR. Script local e scripts externos do Clarity carregaram na pagina; recebimento de sessoes no painel e impressao fisica nao foram confirmados.
+- Google Agenda: cliente OAuth nao encontrado nos projetos acessiveis da conta Google conectada no Chrome. Redirect do Google Cloud e secrets do Supabase nao foram alterados; precisa de acesso ao projeto/conta dona do cliente OAuth antes de trocar a URI e testar a conexao. Checkout original e arquivos de terceiros preservados.
+### 2026-09-16 - Codex (sincronizacao das branches remotas)
+- Git fetch origin --prune no worktree limpo confirmou origin/main e32cca5. Branches remotas codex/whatsapp-connection, fix/google-agenda-oauth e codex/security-hardening foram descobertas neste checkout; todas possuem 0 commits a frente da main (7, 18 e 17 atras, respectivamente).
+- API GitHub confirmou PR #6 e #7 merged, PR #5 merged e PR #3 ainda open. Nenhum PR foi alterado nesta etapa.
+- Worktree C:\Users\Gabri\lotti-agent-platform esta limpo e no SHA e32cca5. Checkout original main cb255f2 divergiu (1 a frente, 29 atras) e contem alteracoes locais preexistentes, preservadas. Nenhum merge, push ou deploy executado.-   C o r r e c a o   ( A l u g u e i s ) :   A d i c i o n a d o   f i l t r o   d e   m e s   n a   a b a   d e   R e p a s s e s   a o s   P r o p r i e t a r i o s   p a r a   o t i m i z a r   v i s u a l i z a c a o   e   s o m a r   o s   K P I s   ( ' A g e n d a d o '   e   ' C o n f i r m a d o ' )   a p e n a s   r e f e r e n t e s   a o   m e s   a t i v o .  
+ 
+>>>>>>> 512faa2 (docs: registrar adicao de filtro de mes em Repasses)
