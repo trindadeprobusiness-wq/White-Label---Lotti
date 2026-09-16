@@ -34,9 +34,10 @@ export default function WhatsAppConnectionPage() {
       <section className="rounded-xl border bg-card p-5 shadow-sm">
         <h2 className="text-xl font-semibold">Teste de envio</h2>
         <p className="mt-3 text-sm leading-5 text-muted-foreground">Envia uma mensagem simples para confirmar que a integração está ativa. O telefone de destino precisa estar autorizado no painel da Meta.</p>
-        <label htmlFor="test-phone" className="mt-4 block text-sm font-medium">Telefone (E.164 sem +)</label>
+        <label htmlFor="test-phone" className="mt-4 block text-sm font-medium">Número que receberá o teste</label>
+        <p className="mt-1 text-xs text-muted-foreground">Digite o WhatsApp com DDD. Exemplo: (62) 99999-9999.</p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <Input id="test-phone" defaultValue="5562999999999" inputMode="numeric" />
+          <Input id="test-phone" placeholder="(62) 99999-9999" inputMode="tel" />
           <Button type="button" className="sm:min-w-52">Enviar “Olá, tudo bem?”</Button>
         </div>
       </section>

@@ -25,6 +25,8 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByRole('heading', { name: 'Teste de envio' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Desconectar' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Enviar “Olá, tudo bem?”' })).not.toBeNull();
+  expect(screen.getByRole('textbox', { name: 'Número que receberá o teste' }).getAttribute('placeholder')).toBe('(62) 99999-9999');
+  expect(screen.queryByText(/E\.164/)).toBeNull();
   expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
   expect(screen.getByTestId('connection-panels').className).not.toContain('lg:grid-cols-2');
   expect(screen.getByTestId('connection-panels').className).toContain('space-y-4');
