@@ -7,7 +7,7 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{functions:{invoke}}}));
 afterEach(()=>{cleanup();vi.resetAllMocks()});
 it('sends text from the selected conversation and clears only after confirmation',async()=>{
  invoke.mockResolvedValue({data:{sendStatus:'sent'}});const sent=vi.fn();render(<MessageComposer conversationId="conversation-a" onSent={sent}/>);
- fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Olá, podemos agendar?'}});fireEvent.click(screen.getByText('Enviar'));
+ fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'OlÃ¡, podemos agendar?'}});fireEvent.click(screen.getByText('Enviar'));
  await waitFor(()=>expect(sent).toHaveBeenCalledOnce());expect(invoke.mock.calls[0][1].body.conversation_id).toBe('conversation-a');expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).value).toBe('');
 });
 it('reuses the same request after timeout rather than sending a duplicate',async()=>{
