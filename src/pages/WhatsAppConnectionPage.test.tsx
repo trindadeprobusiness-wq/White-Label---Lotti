@@ -24,8 +24,8 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByText(/Phone ID:/)).not.toBeNull();
   expect(screen.getByRole('heading', { name: 'Teste de envio' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Desconectar' })).not.toBeNull();
-  expect(screen.getByRole('button', { name: 'Enviar hello_world' })).not.toBeNull();
-  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp?preview=connected');
+  expect(screen.getByRole('button', { name: 'Enviar “Olá, tudo bem?”' })).not.toBeNull();
+  expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
 });
 
 it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página', async () => {
@@ -36,5 +36,5 @@ it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página',
   expect(await screen.findByText('Conectado')).not.toBeNull();
   expect(screen.queryByRole('button', { name: 'Conectar WhatsApp' })).toBeNull();
   expect(screen.queryByText('Conecte ao WhatsApp')).toBeNull();
-  expect(screen.getByRole('link', { name: 'Abrir Inbox' }).getAttribute('href')).toBe('/whatsapp?preview=connected');
+  expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
 });
