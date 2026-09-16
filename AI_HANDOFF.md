@@ -10,8 +10,13 @@
   vulnerabilidades; 67 arquivos e 543 testes passaram com as variáveis fictícias do CI;
   build de produção passou; ESLint dos módulos novos e dos testes ajustados passou.
   `FachadaPreview.tsx` mantém 2 erros e 1 aviso de ESLint que já existem na main.
-- Não executado: `npm run test:security-browser` (exige Chromium do Playwright).
-  Nenhuma migration ou função publicada.
+- GitHub Actions `Security and tests` passou inteiro na branch publicada, incluindo
+  `npm run test:security-browser` com Chromium. Nenhuma migration ou função publicada.
+- Vercel: os previews desta branch e de `fix/google-agenda-oauth` aparecem como
+  `Deployment was blocked`. Não é falha de build: a Vercel bloqueia todo commit com autor
+  `rafaelporto2217@gmail.com`, inclusive `68766b3`, que já está na main. Commits do
+  `trindadeprobusiness` publicam normalmente. Resolver na conta da Vercel ou fazer o merge
+  pela conta dona do projeto, para que o commit publicado tenha esse autor.
 
 ## Codex — correções de segurança em branch (2026-09-15)
 - Branch `codex/security-hardening`: captura pública com validação limitada por bytes/campos, rate limit persistente, respostas genéricas e detalhes somente para integração com segredo. Captura não debita cota de IA; executor real deve contabilizar após qualificar.
