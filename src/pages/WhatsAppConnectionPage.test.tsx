@@ -26,7 +26,8 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByRole('button', { name: 'Desconectar' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Enviar “Olá, tudo bem?”' })).not.toBeNull();
   expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
-  expect(screen.getByTestId('connection-panels').className).toContain('lg:grid-cols-2');
+  expect(screen.getByTestId('connection-panels').className).not.toContain('lg:grid-cols-2');
+  expect(screen.getByTestId('connection-panels').className).toContain('space-y-3');
 });
 
 it('mostra a prévia conectada sem oferecer conexão do WhatsApp nesta página', async () => {
