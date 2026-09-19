@@ -12,7 +12,7 @@ Deno.serve(async req=>{
  try {
    if(Number(req.headers.get('Content-Length')||0)>6000000)return json({error:'payload_too_large'},413);
    const body=await req.json();
-   if(!['status','connect','send'].includes(body.action))return json({error:'invalid_action'},400);
+   if(!['status','connect','disconnect','send'].includes(body.action))return json({error:'invalid_action'},400);
    // Identity comes from verified Auth, never a caller-supplied account/instance.
    const {data:owner,error}=await db.from('corretores').select('id,status').eq('user_id',auth.user.id).single();
    if(error||!owner)return json({error:'account_not_found'},403);

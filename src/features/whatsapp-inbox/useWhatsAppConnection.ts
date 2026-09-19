@@ -18,7 +18,7 @@ export function useWhatsAppConnectionQuery(userId?: string) {
       if (error || !data) throw error ?? new Error('connection_unavailable');
       return data;
     },
-    refetchInterval: query => query.state.data?.state === 'connecting' ? 5000 : 15000,
+    refetchInterval: query => query.state.data?.state === 'connecting' ? 2000 : query.state.data?.state === 'connected' ? 8000 : 10000,
     retry: 1,
   });
 }
