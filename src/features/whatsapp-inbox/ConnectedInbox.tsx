@@ -16,7 +16,7 @@ type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' |
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
 
-export default function ConnectedInbox() {
+export default function ConnectedInbox({ connected = true }: { connected?: boolean }) {
   const { user } = useAuth();
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
@@ -50,14 +50,15 @@ export default function ConnectedInbox() {
   return <div className="space-y-4 pb-16" data-testid="connected-inbox">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="text-sm text-muted-foreground">Conversas recebidas pelo número conectado. <Link className="underline" to="/whatsapp/conexao">Ver conexão</Link></p></div>
+        <p className="text-sm text-muted-foreground">Conversas recebidas pelo número da empresa. <Link className="underline" to="/whatsapp/conexao">Ver conexão</Link></p></div>
       <Badge variant="outline">Atualiza a cada 5 segundos</Badge>
     </div>
+    {!connected && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">WhatsApp desconectado. As conversas já recebidas continuam visíveis; novas mensagens só chegam após reconectar.</p>}
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
     {list.isPending && <p role="status">Carregando conversas…</p>}
     {list.isSuccess && !list.data.length && <div className="rounded-xl border bg-card p-8 text-center">
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>
-      <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste ao número conectado. Conversas antigas não são importadas automaticamente.</p>
+      <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste depois de conectar. Conversas antigas do celular não são importadas automaticamente.</p>
     </div>}
     {!!list.data?.length && <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_280px]">
       <nav aria-label="Conversas conectadas" className="max-h-[65vh] space-y-1 overflow-y-auto rounded-xl border bg-card p-2">
