@@ -20,10 +20,11 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
   beforeEach(() => invoke.mockReset());
   afterEach(cleanup);
 
-  it('desconectado mostra somente a etapa de conexão', async () => {
+  it('desconectado mantém o histórico visível junto da reconexão', async () => {
     invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
     mount('/whatsapp?preview=disconnected');
-    expect(await screen.findByRole('heading', { name: 'Conecte seu WhatsApp' })).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Inbox real' })).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Conecte ao WhatsApp' })).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'Inbox completo' })).toBeNull();
   });
 

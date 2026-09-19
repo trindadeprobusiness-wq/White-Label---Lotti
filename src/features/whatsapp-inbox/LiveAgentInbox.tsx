@@ -13,14 +13,10 @@ export default function LiveAgentInbox() {
   const connection = useWhatsAppConnectionQuery(user?.id);
   const connected = preview || (connection.data?.state === 'connected' && !connection.isError);
 
-  if (connected) return preview ? <WhatsAppInboxPage /> : <ConnectedInbox />;
+  if (preview) return <WhatsAppInboxPage />;
 
-  return <div className="mx-auto max-w-4xl space-y-6 pb-16">
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">WhatsApp</p>
-      <h1 className="mt-2 text-2xl font-semibold">Conecte seu WhatsApp</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Leia o QR Code para liberar o Inbox e receber as conversas nesta conta.</p>
-    </div>
-    <WhatsAppConnection />
+  return <div className="space-y-4">
+    {!connected && <div className="mx-auto max-w-4xl"><WhatsAppConnection /></div>}
+    <ConnectedInbox connected={connected} />
   </div>;
 }
