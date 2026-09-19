@@ -9,6 +9,7 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } }) }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 vi.mock('@/pages/WhatsAppInbox', () => ({ default: () => <div><h1>Inbox completo</h1><p>Todas Atrasando Urgente</p></div> }));
+vi.mock('./ConnectedInbox', () => ({ default: () => <div><h1>Inbox real</h1><p>Conversas persistidas</p></div> }));
 
 function mount(initialEntry = '/whatsapp') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -26,11 +27,11 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
     expect(screen.queryByRole('heading', { name: 'Inbox completo' })).toBeNull();
   });
 
-  it('conectado abre o Inbox completo criado para o WhatsApp', async () => {
+  it('conectado abre as conversas persistidas, não a demonstração', async () => {
     invoke.mockResolvedValue({ data: { state: 'connected', agentEnabled: true }, error: null });
     mount();
-    expect(await screen.findByRole('heading', { name: 'Inbox completo' })).not.toBeNull();
-    expect(screen.getByText('Todas Atrasando Urgente')).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Inbox real' })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Inbox completo' })).toBeNull();
   });
 
   it('a prévia local abre o Inbox completo mesmo sem conexão real', async () => {
