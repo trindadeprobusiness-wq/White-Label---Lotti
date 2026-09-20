@@ -29,3 +29,13 @@ it('shows connected only on provider confirmation and offers no new pairing',asy
  expect(screen.queryByText('Conectar WhatsApp')).toBeNull();
  expect(invoke.mock.calls.every(c=>c[1].body.action==='status')).toBe(true);
 });
+it('exibe o QR devolvido pela conexão sem esperar outra consulta de status',async()=>{
+ invoke.mockImplementation((_name,options)=>Promise.resolve({data:options.body.action==='connect'
+   ?{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,test',qrExpiresAt:Date.now()+10000}
+   :{state:'disconnected',agentEnabled:false},error:null}));
+ mount();await advance();
+ const prior=invoke.mock.calls.filter(call=>call[1].body.action==='status').length;
+ fireEvent.click(screen.getByText('Conectar WhatsApp'));await advance();
+ expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).not.toBeNull();
+ expect(invoke.mock.calls.filter(call=>call[1].body.action==='status')).toHaveLength(prior);
+});
