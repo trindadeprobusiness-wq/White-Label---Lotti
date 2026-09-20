@@ -61,6 +61,15 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
       return (data as Message[]).reverse();
     },
   });
+  const client = useQuery({
+    queryKey: ['lotti-inbox-client', user?.id, selected?.cliente_id], enabled: !!user && !!selected?.cliente_id,
+    queryFn: async () => {
+      const { data, error } = await db.from('clientes').select('nome,email,telefone,created_at,status_funil,tipo_interesse')
+        .eq('id', selected!.cliente_id!).single();
+      if (error) throw error;
+      return data as { nome: string; email: string | null; telefone: string; created_at: string | null; status_funil: string; tipo_interesse: string };
+    },
+  });
   const mode = useMutation({
     mutationFn: async (nextMode: Conversation['mode']) => {
       const { data, error } = await db.rpc('lotti_agent_set_mode', { p_id: selected!.id, p_mode: nextMode });
@@ -91,7 +100,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
         </div>
         <div className="max-h-[65vh] min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5">
         {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); }} className={`flex min-h-[60px] w-full items-center gap-2 rounded-lg border p-2 text-left text-xs ${selected?.id === c.id ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted'}`}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{c.phone.slice(-2)}</span><span className="min-w-0 flex-1"><span className="block truncate font-semibold">+{c.phone}</span><span className="block truncate text-[11px] text-muted-foreground">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="block text-[10px] text-muted-foreground">{c.mode === 'ai' ? 'Lotti IA' : c.mode === 'human' ? 'Humano' : 'Pausado'}</span></span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{c.phone.slice(-2)}</span><span className="min-w-0 flex-1"><span className="block truncate font-semibold">+{c.phone}</span><span className="block truncate text-[11px] text-muted-foreground">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="block text-[10px] text-muted-foreground">{c.mode === 'ai' ? 'Lotti IA' : c.mode === 'human' ? 'Humano' : 'Pausado'} · {new Date(c.updated_at).toLocaleDateString('pt-BR')}</span></span>
         </button>)}
         {!filtered.length && <p className="p-4 text-center text-xs text-muted-foreground">Nenhuma conversa encontrada.</p>}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
@@ -116,7 +125,9 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
         <footer className="border-t p-3 text-xs text-muted-foreground">Para responder, assuma a conversa e use o WhatsApp conectado. O envio manual por esta tela ainda não está disponível.</footer>
       </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
       {selected && <aside className="max-h-[75vh] space-y-4 overflow-y-auto rounded-xl border bg-card p-3">
-        <h2 className="border-b pb-2 text-xs font-semibold uppercase">Perfil do contato</h2><p className="text-sm font-semibold">+{selected?.phone}</p>
+        <h2 className="border-b pb-2 text-xs font-semibold uppercase">Perfil do contato</h2>
+        <div className="rounded-xl border p-3"><p className="text-sm font-semibold">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</p><p className="text-xs text-muted-foreground">+{selected.phone}</p>{client.data?.email && <p className="break-words text-xs text-muted-foreground">{client.data.email}</p>}</div>
+        <div className="space-y-2 border-t pt-3"><h3 className="text-xs font-semibold uppercase">Linha do tempo</h3><p className="text-xs">Conversa no WhatsApp <span className="block text-muted-foreground">Última atividade: {new Date(selected.updated_at).toLocaleString('pt-BR')}</span></p>{client.data?.created_at && <p className="text-xs">Lead criado <span className="block text-muted-foreground">{new Date(client.data.created_at).toLocaleString('pt-BR')}</span></p>}</div>
         <h3 className="text-xs font-semibold uppercase">Qualificação comercial</h3>
         <div className="flex flex-wrap gap-2"><Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>{q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}{q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}</div>
         {q?.reason && <p className="text-sm">{q.reason}</p>}
