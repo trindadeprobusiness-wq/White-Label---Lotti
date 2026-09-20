@@ -10,6 +10,7 @@ import { AlertTriangle, Bot, Filter, MessageCircle, Pause, Search, Timer, UserRo
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
+import { MessageComposer } from './MessageComposer';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -122,7 +123,9 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
           </article>)}
           {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>
-        <footer className="border-t p-3 text-xs text-muted-foreground">Para responder, assuma a conversa e use o WhatsApp conectado. O envio manual por esta tela ainda não está disponível.</footer>
+        {connected
+          ? <MessageComposer conversationId={selected.id} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />
+          : <footer className="border-t p-3 text-xs text-muted-foreground">Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
       {selected && <aside className="max-h-[75vh] space-y-4 overflow-y-auto rounded-xl border bg-card p-3">
         <h2 className="border-b pb-2 text-xs font-semibold uppercase">Perfil do contato</h2>
