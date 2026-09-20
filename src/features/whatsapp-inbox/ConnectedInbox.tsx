@@ -41,8 +41,8 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   const previews = useQuery({
     queryKey: ['lotti-agent-message-previews', user?.id], enabled: !!user, refetchInterval: 5000,
     queryFn: async () => {
-      const { data, error } = await db.from('lotti_agent_messages')
-        .select('conversation_id,direction,created_at,content').order('created_at', { ascending: false }).limit(1000);
+      const { data, error } = await db.from('lotti_agent_latest_messages')
+        .select('conversation_id,direction,created_at,content');
       if (error) throw error;
       return data as LatestMessage[];
     },

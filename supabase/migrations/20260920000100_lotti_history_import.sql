@@ -47,5 +47,11 @@ begin
 end $$;
 revoke all on function public.lotti_agent_import_history(text,jsonb) from public,anon,authenticated;
 grant execute on function public.lotti_agent_import_history(text,jsonb) to service_role;
+-- Security invoker preserves the underlying conversation/message RLS policies.
+create view public.lotti_agent_latest_messages with (security_invoker = true) as
+select distinct on (conversation_id) conversation_id,direction,created_at,content
+from public.lotti_agent_messages order by conversation_id,created_at desc,id desc;
+revoke all on public.lotti_agent_latest_messages from public,anon;
+grant select on public.lotti_agent_latest_messages to authenticated,service_role;
 notify pgrst,'reload schema';
 commit;
