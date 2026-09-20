@@ -14,5 +14,5 @@ export default function LiveAgentInbox() {
 
   if (preview) return <WhatsAppInboxPage />;
 
-  return <ConnectedInbox connected={connected} />;
+  return <div className="-mx-5 -mb-16 -mt-20 animate-fade-in md:-mx-8 md:-mt-8"><ConnectedInbox connected={connected} /></div>;
 }
