@@ -50,10 +50,9 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   return <div className="space-y-4 pb-16" data-testid="connected-inbox">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="text-sm text-muted-foreground">Conversas recebidas pelo número da empresa. <Link className="underline" to="/whatsapp/conexao">Ver conexão</Link></p></div>
+        <p className="text-sm text-muted-foreground">Conversas recebidas pelo número da empresa. <Link className="underline" to="/whatsapp/conexao">Ver conexão</Link>{!connected && <span role="status" className="ml-2 text-amber-700">· Desconectado</span>}</p></div>
       <Badge variant="outline">Atualiza a cada 5 segundos</Badge>
     </div>
-    {!connected && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">WhatsApp desconectado. As conversas já recebidas continuam visíveis; novas mensagens só chegam após reconectar.</p>}
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
     {list.isPending && <p role="status">Carregando conversas…</p>}
     {list.isSuccess && !list.data.length && <div className="rounded-xl border bg-card p-8 text-center">
