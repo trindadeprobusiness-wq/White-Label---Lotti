@@ -1835,3 +1835,7 @@ credencial); nao foi contornada.
 - Worktree C:\Users\Gabri\lotti-agent-platform esta limpo e no SHA e32cca5. Checkout original main cb255f2 divergiu (1 a frente, 29 atras) e contem alteracoes locais preexistentes, preservadas. Nenhum merge, push ou deploy executado.-   C o r r e c a o   ( A l u g u e i s ) :   A d i c i o n a d o   f i l t r o   d e   m e s   n a   a b a   d e   R e p a s s e s   a o s   P r o p r i e t a r i o s   p a r a   o t i m i z a r   v i s u a l i z a c a o   e   s o m a r   o s   K P I s   ( ' A g e n d a d o '   e   ' C o n f i r m a d o ' )   a p e n a s   r e f e r e n t e s   a o   m e s   a t i v o .  
  
 >>>>>>> 512faa2 (docs: registrar adicao de filtro de mes em Repasses)
+
+### 2026-09-19 - Codex (diagnóstico de deploy bloqueado)
+- Vercel confirmou que o deployment do commit `8564649` (PR #9) foi bloqueado porque o autor `rportocortes` não possui acesso de contribuição ao projeto. No plano Hobby, repositórios privados não aceitam colaboração; o redeploy permanece desabilitado e a única ação exibida é upgrade para Pro.
+- O deploy de produção atual do commit `b388d52` está `Ready` e atende `app.plataformalotti.com.br`; o conteúdo de `8564649` permanece ancestral da main. Nenhuma configuração, plano ou deploy foi alterado nesta verificação.
