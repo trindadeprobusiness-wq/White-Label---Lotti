@@ -1,6 +1,6 @@
 # Ações essenciais do Inbox conectado
 
-**Data:** 2026-09-21  
+**Data:** 2026-09-21
 **Escopo aprovado:** Nova conversa, edição do nome do contato e fechamento/reabertura da conversa.
 
 ## Objetivo

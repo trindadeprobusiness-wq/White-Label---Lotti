@@ -58,7 +58,7 @@ it('fecha, reabre e reabre automaticamente ao receber mensagem', async () => {
 
 - [ ] **Step 2: Executar o teste e confirmar RED**
 
-Run: `npm test -- --run supabase/migrations/lotti-inbox-actions.test.ts`  
+Run: `npm test -- --run supabase/migrations/lotti-inbox-actions.test.ts`
 Expected: FAIL porque migration/RPCs ainda não existem.
 
 - [ ] **Step 3: Implementar a migration mínima**
@@ -94,7 +94,7 @@ Adicionar gatilho `after insert on lotti_agent_messages` que atualiza `status='o
 
 - [ ] **Step 4: Executar teste e confirmar GREEN**
 
-Run: `npm test -- --run supabase/migrations/lotti-inbox-actions.test.ts`  
+Run: `npm test -- --run supabase/migrations/lotti-inbox-actions.test.ts`
 Expected: PASS para autorização cruzada, idempotência, rename, fechamento e reabertura.
 
 - [ ] **Step 5: Commit**
@@ -131,7 +131,7 @@ Adicionar teste de handler com dependências injetadas: `start` chama uma vez `s
 
 - [ ] **Step 2: Executar e confirmar RED**
 
-Run: `npm test -- --run supabase/functions/lotti-whatsapp/request.test.ts`  
+Run: `npm test -- --run supabase/functions/lotti-whatsapp/request.test.ts`
 Expected: FAIL porque parser/ação `start` não existem.
 
 - [ ] **Step 3: Implementar ação mínima**
@@ -158,12 +158,12 @@ Retornar `conversationId` junto de `sendStatus`; preservar o mapeamento atual de
 
 - [ ] **Step 4: Executar e confirmar GREEN**
 
-Run: `npm test -- --run supabase/functions/lotti-whatsapp/request.test.ts`  
+Run: `npm test -- --run supabase/functions/lotti-whatsapp/request.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Verificar bundle da função**
 
-Run: `npx esbuild supabase/functions/lotti-whatsapp/index.ts --bundle --platform=neutral --format=esm --outfile="$env:TEMP/lotti-whatsapp-actions.mjs" --external:https:* --external:npm:* --external:jsr:*`  
+Run: `npx esbuild supabase/functions/lotti-whatsapp/index.ts --bundle --platform=neutral --format=esm --outfile="$env:TEMP/lotti-whatsapp-actions.mjs" --external:https:* --external:npm:* --external:jsr:*`
 Expected: bundle concluído sem erro de resolução local.
 
 - [ ] **Step 6: Commit**
@@ -205,7 +205,7 @@ Cobrir também: lápis abre nome atual e só fecha após sucesso; `Aberta` abre 
 
 - [ ] **Step 2: Executar e confirmar RED**
 
-Run: `npm test -- --run src/features/whatsapp-inbox/InboxActionDialogs.test.tsx src/features/whatsapp-inbox/ConnectedInbox.test.tsx`  
+Run: `npm test -- --run src/features/whatsapp-inbox/InboxActionDialogs.test.tsx src/features/whatsapp-inbox/ConnectedInbox.test.tsx`
 Expected: FAIL porque botões não abrem os fluxos.
 
 - [ ] **Step 3: Implementar componentes de diálogo mínimos**
@@ -235,7 +235,7 @@ Após sucesso, invalidar conversas, previews, mensagens e cliente; selecionar `c
 
 - [ ] **Step 5: Executar e confirmar GREEN**
 
-Run: `npm test -- --run src/features/whatsapp-inbox/InboxActionDialogs.test.tsx src/features/whatsapp-inbox/ConnectedInbox.test.tsx`  
+Run: `npm test -- --run src/features/whatsapp-inbox/InboxActionDialogs.test.tsx src/features/whatsapp-inbox/ConnectedInbox.test.tsx`
 Expected: PASS para os três fluxos e falhas.
 
 - [ ] **Step 6: Commit**
@@ -269,10 +269,10 @@ Expected: todos passam.
 
 - [ ] **Step 2: Rodar validação completa**
 
-Run: `npm test -- --run` com as mesmas variáveis fictícias.  
-Run: `npm run build`.  
-Run: `npx eslint` somente nos TS/TSX alterados.  
-Run: `git diff --check`.  
+Run: `npm test -- --run` com as mesmas variáveis fictícias.
+Run: `npm run build`.
+Run: `npx eslint` somente nos TS/TSX alterados.
+Run: `git diff --check`.
 Expected: todos com exit code 0.
 
 - [ ] **Step 3: Inspecionar no navegador**
