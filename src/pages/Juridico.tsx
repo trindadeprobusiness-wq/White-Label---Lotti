@@ -1,8 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  FileText, CheckCircle, Clock, AlertTriangle, Plus, Download, Eye, Trash2, 
-  Search, Check, X, Edit, ArrowUpDown, FileImage, File, Building
-} from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, Building, Check, CheckCircle, Clock, Download, Edit, Eye, File, FileImage, FileSignature, FileText, Plus, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +39,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { PageHeader } from '@/components/shell/PageHeader';
+import {
+  abasSublinhadas, SectionCard, QuickActionRow,
+} from '@/components/shell/primitivos';
+import { numero } from '@/lib/formato';
+import { LimitGuard } from '@/components/subscription/LimitGuard';
 
 interface ClienteSimples {
   id: string;
@@ -296,103 +299,125 @@ export default function Juridico() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Jurídico</h1>
-          <p className="text-muted-foreground">
-            Gerencie documentos e contratos
-          </p>
-        </div>
-        <Button onClick={() => setContratoDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Gerar Contrato com IA
-        </Button>
-      </div>
+    <div className="animate-fade-in">
+      <PageHeader
+        titulo="Jurídico"
+        subtitulo="Centralize documentos, contratos e prazos com segurança."
+        comUtilitarios
+        acoes={
+          <>
+            <Button
+              variant="outline"
+              className="h-control"
+              onClick={() => {
+                document.querySelector<HTMLInputElement>('input[type="file"]')?.click();
+              }}
+            >
+              <Upload className="mr-2 h-[18px] w-[18px]" />
+              Enviar documento
+            </Button>
+            <LimitGuard featureKey="ai_contracts_monthly">
+              <Button className="h-control" onClick={() => setContratoDialogOpen(true)}>
+                <Sparkles className="mr-2 h-[18px] w-[18px]" />
+                Gerar contrato com IA
+              </Button>
+            </LimitGuard>
+          </>
+        }
+      />
 
-      <Tabs defaultValue="documentos">
-        <TabsList>
-          <TabsTrigger value="documentos" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
+      <Tabs defaultValue="documentos" className="space-y-5">
+        <TabsList className={abasSublinhadas.lista}>
+          <TabsTrigger value="documentos" className={abasSublinhadas.gatilho}>
+            <FileText className="mr-2 h-4 w-4" />
             Documentos
           </TabsTrigger>
-          <TabsTrigger value="contratos" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
+          <TabsTrigger value="contratos" className={abasSublinhadas.gatilho}>
+            <FileSignature className="mr-2 h-4 w-4" />
             Contratos
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="documentos" className="space-y-6 mt-6">
-          {/* Upload Area */}
-          <DocumentoUploadArea
-            clientes={clientes}
-            uploading={uploading}
-            onUpload={handleUpload}
-          />
+        <TabsContent value="documentos" className="mt-0 space-y-5">
+          {/* Faixa de indicadores com dot colorido. Um cartão só, dividido —
+              os cinco números são lidos em conjunto ("0 de 18 pendentes"), e
+              separá-los em caixas independentes quebra essa leitura.
+              Cada um filtra a tabela: o número é ação, não enfeite. */}
+          <div className="grid grid-cols-2 rounded-card border border-border bg-card shadow-card sm:grid-cols-5">
+            {([
+              { chave: 'TODOS',    rotulo: 'Total',     valor: kpis.total,     dot: 'bg-foreground' },
+              { chave: 'validado', rotulo: 'Validados', valor: kpis.validados, dot: 'bg-success' },
+              { chave: 'pendente', rotulo: 'Pendentes', valor: kpis.pendentes, dot: 'bg-muted-foreground' },
+              { chave: 'vencendo', rotulo: 'Vencendo',  valor: kpis.vencendo,  dot: 'bg-warning' },
+              { chave: 'vencido',  rotulo: 'Vencidos',  valor: kpis.vencidos,  dot: 'bg-destructive' },
+            ] as const).map((item, i) => (
+              <button
+                key={item.chave}
+                type="button"
+                onClick={() => handleKpiClick(item.chave as StatusFilter)}
+                aria-pressed={statusFilter === item.chave}
+                className={cn(
+                  'flex flex-col items-start gap-1 p-5 text-left transition-colors duration-150',
+                  'hover:bg-muted focus-ring',
+                  i > 0 && 'sm:border-l sm:border-border',
+                  i % 2 === 1 && 'border-l border-border sm:border-l',
+                  i < 4 && 'border-b border-border sm:border-b-0',
+                  statusFilter === item.chave && 'bg-surface-brand hover:bg-surface-brand',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span className={cn('h-2 w-2 rounded-full', item.dot)} aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">{item.rotulo}</span>
+                </span>
+                <span className="text-kpi tabular text-foreground">{numero(item.valor)}</span>
+              </button>
+            ))}
+          </div>
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Card 
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                statusFilter === 'TODOS' && "ring-2 ring-primary"
-              )}
-              onClick={() => handleKpiClick('TODOS')}
-            >
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-2xl font-bold">{kpis.total}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </CardContent>
-            </Card>
-            <Card 
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                statusFilter === 'validado' && "ring-2 ring-success"
-              )}
-              onClick={() => handleKpiClick('validado')}
-            >
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-2xl font-bold text-success">{kpis.validados}</p>
-                <p className="text-xs text-muted-foreground">Validados</p>
-              </CardContent>
-            </Card>
-            <Card 
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                statusFilter === 'pendente' && "ring-2 ring-muted-foreground"
-              )}
-              onClick={() => handleKpiClick('pendente')}
-            >
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-2xl font-bold text-muted-foreground">{kpis.pendentes}</p>
-                <p className="text-xs text-muted-foreground">Pendentes</p>
-              </CardContent>
-            </Card>
-            <Card 
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                statusFilter === 'vencendo' && "ring-2 ring-warning"
-              )}
-              onClick={() => handleKpiClick('vencendo')}
-            >
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-2xl font-bold text-warning">{kpis.vencendo}</p>
-                <p className="text-xs text-muted-foreground">Vencendo</p>
-              </CardContent>
-            </Card>
-            <Card 
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md col-span-2 sm:col-span-1",
-                statusFilter === 'vencido' && "ring-2 ring-destructive"
-              )}
-              onClick={() => handleKpiClick('vencido')}
-            >
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-2xl font-bold text-destructive">{kpis.vencidos}</p>
-                <p className="text-xs text-muted-foreground">Vencidos</p>
-              </CardContent>
-            </Card>
+          {/* Envio à esquerda, orientação à direita — quem chega sem documento
+              nenhum precisa das duas coisas na mesma dobra. */}
+          <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+            <SectionCard titulo="Adicionar documento">
+              <DocumentoUploadArea
+                clientes={clientes}
+                uploading={uploading}
+                onUpload={handleUpload}
+              />
+            </SectionCard>
+
+            <SectionCard titulo="Comece por aqui">
+              <ol className="space-y-3">
+                {[
+                  'Envie ou gere um documento',
+                  'Vincule ao cliente ou imóvel',
+                  'Acompanhe status e validade',
+                ].map((passo, i) => (
+                  <li key={passo} className="flex items-center gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-brand text-xs font-semibold text-primary">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 text-sm text-foreground">{passo}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <div className="mt-4 space-y-1 border-t border-border pt-3">
+                <QuickActionRow
+                  icone={<Sparkles className="h-[18px] w-[18px]" />}
+                  titulo="Gerar contrato com IA"
+                  onClick={() => setContratoDialogOpen(true)}
+                />
+                <QuickActionRow
+                  icone={<Upload className="h-[18px] w-[18px]" />}
+                  titulo="Enviar documento existente"
+                  onClick={() => {
+                    document
+                      .querySelector<HTMLInputElement>('input[type="file"]')
+                      ?.click();
+                  }}
+                />
+              </div>
+            </SectionCard>
           </div>
 
           {/* Filters */}

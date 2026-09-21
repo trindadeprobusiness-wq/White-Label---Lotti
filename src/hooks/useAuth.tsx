@@ -1,12 +1,21 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
+import { isolarTrocaDeSessao } from '@/lib/auth/isolamentoSessao';
+import {
+  deveRegistrarAtividade,
+  marcarAtividadeRegistrada,
+  obterVisitanteId,
+  temAtribuicaoPendente,
+  limparAtribuicaoPendente,
+} from '@/lib/admin/atribuicao';
 
 interface SignUpMetadata {
   nome: string;
-  creci: string;
+  cnpj: string;
   telefone: string;
 }
 
@@ -28,6 +37,56 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
+ * Registra que o usuário esteve presente.
+ *
+ * É o que torna "usuário ativo" calculável no back office — antes disso não
+ * existia nenhum dado de atividade fora de auth.users.last_sign_in_at, que não
+ * é consultável. O throttle de 30 min evita uma linha por navegação.
+ *
+ * Falha em silêncio de propósito: é telemetria, e não pode atrapalhar o login.
+ */
+async function registrarAtividadeSeNecessario(): Promise<void> {
+  try {
+    if (!deveRegistrarAtividade()) return;
+    await supabase.rpc('registrar_atividade' as never, {
+      p_tipo: 'login',
+      p_rota: window.location.pathname,
+    } as never);
+    marcarAtividadeRegistrada();
+  } catch {
+    /* telemetria nunca quebra a sessão */
+  }
+}
+
+/**
+ * Fecha o vínculo com o parceiro que trouxe este usuário, se houver.
+ *
+ * Só o visitante_id — um UUID opaco — sai daqui; quem é o parceiro é decidido
+ * no servidor a partir do clique que ele mesmo registrou. Idempotente pelo
+ * UNIQUE(user_id) no banco, então rodar a cada login é inofensivo.
+ */
+async function reivindicarAtribuicaoDeParceiro(): Promise<void> {
+  try {
+    if (!temAtribuicaoPendente()) return;
+
+    const { data } = await supabase.functions.invoke('parceiro-atribuir', {
+      body: { visitante_id: obterVisitanteId() },
+    });
+
+    const resposta = data as { ok?: boolean; ja_atribuido?: boolean } | null;
+
+    // Limpa quando resolveu — para o bem (vinculou) ou para o mal (expirou,
+    // parceiro inativo, autoindicação). Insistir a cada login não mudaria o
+    // resultado e só geraria chamada inútil.
+    if (resposta?.ok || resposta?.ja_atribuido) {
+      limparAtribuicaoPendente();
+    }
+  } catch {
+    /* tenta de novo no próximo login */
+  }
+}
+
+/**
  * Estado de autenticação — UM só para o app inteiro.
  *
  * Antes isto era um hook comum, e cada consumidor (ProtectedRoute, Auth,
@@ -37,30 +96,46 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * o spinner até a sessão resolver de novo.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const ultimoUsuarioId = useRef<string | null | undefined>(undefined);
+
+  const aplicarSessao = useCallback((sessao: Session | null) => {
+    const usuarioAtual = sessao?.user.id ?? null;
+    isolarTrocaDeSessao(ultimoUsuarioId.current, usuarioAtual, queryClient);
+    ultimoUsuarioId.current = usuarioAtual;
+    setSession(sessao);
+    setUser(sessao?.user ?? null);
+  }, [queryClient]);
 
   useEffect(() => {
     // O listener vem antes do getSession para não perder o evento que chega
     // entre uma coisa e outra.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, sessao) => {
-      setSession(sessao);
-      setUser(sessao?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((evento, sessao) => {
+      aplicarSessao(sessao);
       setLoading(false);
+
+      // Efeitos pós-login. Rodam soltos e nunca são aguardados: o callback do
+      // onAuthStateChange não pode bloquear, e nenhum dos dois pode atrasar ou
+      // impedir a entrada do usuário.
+      if (evento === 'SIGNED_IN' && sessao) {
+        void registrarAtividadeSeNecessario();
+        void reivindicarAtribuicaoDeParceiro();
+      }
     });
 
     supabase.auth.getSession()
       .then(({ data: { session: sessao }, error }) => {
         if (error) console.error('Erro ao obter sessão:', error);
-        setSession(sessao);
-        setUser(sessao?.user ?? null);
+        aplicarSessao(sessao);
       })
       .catch((e) => console.error('Erro inesperado ao obter sessão:', e))
       .finally(() => setLoading(false));
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [aplicarSessao]);
 
   const signUp = useCallback(async (email: string, password: string, metadata: SignUpMetadata) => {
     const { data, error } = await supabase.auth.signUp({
@@ -68,7 +143,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        data: { nome: metadata.nome, creci: metadata.creci, telefone: metadata.telefone },
+        data: {
+          nome: metadata.nome,
+          cnpj: metadata.cnpj,
+          // Mantém compatibilidade até a migration do cadastro por CNPJ ser
+          // aplicada: a coluna legada continua NOT NULL no banco.
+          creci: 'PENDENTE',
+          telefone: metadata.telefone,
+        },
       },
     });
 
@@ -108,14 +190,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * não há o que fazer aqui além de disparar.
    *
    * O trigger `handle_new_user` cria o corretor para QUALQUER novo usuário do
-   * auth, inclusive social — mas o Google não manda CRECI nem telefone, então
-   * esses campos nascem 'PENDENTE'/'' e o onboarding precisa pedir.
+   * auth, inclusive social — mas o Google não manda CNPJ nem telefone, então
+   * esses campos continuam pendentes para um onboarding futuro.
    */
   const entrarCom = useCallback(async (provedor: 'google' | 'azure') => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: provedor,
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/auth`,
         // Microsoft: sem 'email' explícito o token volta sem endereço e o
         // corretor nasce sem e-mail.
         scopes: provedor === 'azure' ? 'email openid profile' : undefined,

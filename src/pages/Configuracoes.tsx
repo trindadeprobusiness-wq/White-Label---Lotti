@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from 'next-themes';
@@ -14,7 +15,9 @@ import {
   Bell, 
   Palette, 
   Save,
-  Building2
+  Building2,
+  Landmark,
+  CreditCard,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,10 +26,15 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { FotoPerfilUpload } from '@/components/configuracoes/FotoPerfilUpload';
+import { AsaasConnectionPanel } from '@/components/configuracoes/AsaasConnectionPanel';
+import { ThemeSelector } from '@/components/configuracoes/ThemeSelector';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { TemaAparencia, FormatoMoeda, OrdenacaoClientes } from '@/types/crm';
+import { PageTitle } from '@/components/layout/PageTitle';
+import { PlanoAssinatura } from '@/pages/PlanoAssinatura';
+import { resolverDestinoConfiguracoes } from '@/lib/configuracoes';
 
 const Configuracoes = () => {
   const { toast } = useToast();
@@ -40,6 +48,15 @@ const Configuracoes = () => {
     updatePreferencias,
     updatePreferenciasNotificacoes 
   } = useCRMStore();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const abaSolicitada = searchParams.get('tab');
+  const destino = resolverDestinoConfiguracoes(abaSolicitada);
+  const abaInicial = destino.tipo === 'aba' ? destino.aba : 'perfil';
+
+  useEffect(() => {
+    if (abaSolicitada === 'agenda') navigate('/rotina#google-agenda', { replace: true });
+  }, [abaSolicitada, navigate]);
 
   // React Hook Form with Zod validation
   const {
@@ -141,14 +158,14 @@ const Configuracoes = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
+        <PageTitle>Configurações</PageTitle>
         <p className="text-muted-foreground mt-1">
-          Gerencie seu perfil, notificações e preferências do sistema
+          Gerencie seu perfil, preferências e integrações da sua operação
         </p>
       </div>
 
-      <Tabs defaultValue="perfil" className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+      <Tabs defaultValue={abaInicial} className="space-y-6">
+        <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-5">
           <TabsTrigger value="perfil" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Perfil
@@ -160,6 +177,14 @@ const Configuracoes = () => {
           <TabsTrigger value="aparencia" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
             Aparência
+          </TabsTrigger>
+          <TabsTrigger value="asaas" className="flex items-center gap-2">
+            <Landmark className="h-4 w-4" />
+            Asaas
+          </TabsTrigger>
+          <TabsTrigger value="assinatura" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Assinatura
           </TabsTrigger>
         </TabsList>
 
@@ -465,36 +490,10 @@ const Configuracoes = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <RadioGroup
+              <ThemeSelector
                 value={(theme as TemaAparencia) ?? preferencias.tema}
                 onValueChange={(value) => handleAlterarTema(value as TemaAparencia)}
-                className="grid grid-cols-3 gap-4"
-              >
-                <Label
-                  htmlFor="tema-light"
-                  className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer [&:has([data-state=checked])]:border-primary"
-                >
-                  <RadioGroupItem value="light" id="tema-light" className="sr-only" />
-                  <div className="h-8 w-8 rounded-full bg-background border shadow-sm mb-2" />
-                  <span className="text-sm font-medium">Claro</span>
-                </Label>
-                <Label
-                  htmlFor="tema-dark"
-                  className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer [&:has([data-state=checked])]:border-primary"
-                >
-                  <RadioGroupItem value="dark" id="tema-dark" className="sr-only" />
-                  <div className="h-8 w-8 rounded-full bg-sidebar-background border shadow-sm mb-2" />
-                  <span className="text-sm font-medium">Escuro</span>
-                </Label>
-                <Label
-                  htmlFor="tema-system"
-                  className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer [&:has([data-state=checked])]:border-primary"
-                >
-                  <RadioGroupItem value="system" id="tema-system" className="sr-only" />
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-r from-background to-sidebar-background border shadow-sm mb-2" />
-                  <span className="text-sm font-medium">Sistema</span>
-                </Label>
-              </RadioGroup>
+              />
             </CardContent>
           </Card>
 
@@ -556,6 +555,20 @@ const Configuracoes = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="asaas" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold">Conta de recebimento Asaas</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Saldo, clientes e cobranças ficam vinculados exclusivamente à conta conectada por esta operação.
+            </p>
+          </div>
+          <AsaasConnectionPanel />
+        </TabsContent>
+
+        <TabsContent value="assinatura" className="space-y-6">
+          <PlanoAssinatura />
         </TabsContent>
       </Tabs>
     </div>

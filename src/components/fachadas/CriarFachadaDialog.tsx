@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload, Plus } from 'lucide-react';
+import { Building2, MessageCircle, Zap, ImagePlus, Trash2, Camera, Loader2, Upload, Plus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,8 @@ import {
   DEFAULT_TEMPLATES,
 } from '@/types/fachada';
 import type { TipoNegocio, CTAPrincipal, FachadaComImovel } from '@/types/fachada';
+import { useCheckLimit } from '@/hooks/useSubscription';
+import { podeCriarRecurso } from '@/lib/planos';
 
 interface CustomTemplateOption {
   id: string;
@@ -66,7 +68,8 @@ export function CriarFachadaDialog({
   fachadaToEdit = null,
 }: CriarFachadaDialogProps) {
   const isEditing = !!fachadaToEdit;
-  const { imoveis } = useCRMStore();
+  const checkLimit = useCheckLimit();
+  const { imoveis, fetchImoveis } = useCRMStore();
   const { upload, uploading } = useFileUpload('imoveis-fotos');
   const [step, setStep] = useState(1);
   const [isNovoImovelOpen, setIsNovoImovelOpen] = useState(false);
@@ -86,6 +89,7 @@ export function CriarFachadaDialog({
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [qrSizePercent, setQrSizePercent] = useState(45);
 
+  const [isEditarImovelOpen, setIsEditarImovelOpen] = useState(false);
   const selectedImovel = imoveis.find((i) => i.id === imovelId);
 
   // Modo edição: pré-preenche o form com os dados da fachada.
@@ -137,44 +141,58 @@ export function CriarFachadaDialog({
 
   const handleSubmit = async () => {
     if (!imovelId) return;
+    if (!podeCriarRecurso(checkLimit('max_fachadas'), isEditing)) {
+      toast.error('Limite de Fachadas Inteligentes atingido. Veja as opções de plano.');
+      return;
+    }
     setLoading(true);
     try {
       let finalTemplateId = templateId;
 
       // Upload do template customizado
       if (templateId === 'custom' && customTemplateFile) {
+        // O corretor vem ANTES do upload: a policy de storage escopa a gravação
+        // por `fachadas/<corretor_id>/`, então o caminho precisa carregá-lo.
+        const { data: corretorId } = await supabase.rpc('get_corretor_id');
+        if (!corretorId) {
+          throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
+        }
+
         const ext = customTemplateFile.name.split('.').pop();
         const fileName = `fachada-template-${Date.now()}.${ext}`;
-        const result = await upload(customTemplateFile, `fachadas/${fileName}`);
-        if (result?.url) {
-          finalTemplateId = result.url;
-          
-          try {
-            const { data: corretorId } = await supabase.rpc('get_corretor_id');
-            if (corretorId) {
-              // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
-              // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
-              await (supabase as any).from('fachada_templates').insert({
-                corretor_id: corretorId,
-                nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
-                categoria: tipoNegocio,
-                padrao: false,
-                config: {
-                  imagem_url: result.url,
-                  qrPosition: { x: qrPosition.x, y: qrPosition.y },
-                  qrSize: qrSizePercent,
-                  corPrimaria: '#000000',
-                  corSecundaria: '#ffffff',
-                  corTexto: '#ffffff',
-                  corFundo: '#000000',
-                  estilo: 'profissional',
-                  layout: 'vertical',
-                },
-              } as any);
-            }
-          } catch (e) {
-            console.error('Erro ao salvar template avulso:', e);
-          }
+        const result = await upload(customTemplateFile, `fachadas/${corretorId}/${fileName}`);
+        // Sem arte não há fachada personalizada. Seguir em silêncio deixaria
+        // `finalTemplateId` como a string 'custom', que não é um template.
+        if (!result?.url) throw new Error('Não foi possível enviar a arte do template.');
+
+        finalTemplateId = result.url;
+
+        try {
+          // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
+          // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
+          await (supabase as any).from('fachada_templates').insert({
+            corretor_id: corretorId,
+            nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
+            categoria: tipoNegocio,
+            padrao: false,
+            config: {
+              imagem_url: result.url,
+              qrPosition: { x: qrPosition.x, y: qrPosition.y },
+              qrSize: qrSizePercent,
+              corPrimaria: '#000000',
+              corSecundaria: '#ffffff',
+              corTexto: '#ffffff',
+              corFundo: '#000000',
+              estilo: 'profissional',
+              layout: 'vertical',
+            },
+          } as any);
+        } catch (e) {
+          // Aqui o catch é intencional e diferente do outro caso: a fachada já
+          // tem a arte pelo `finalTemplateId`, e ela funciona mesmo que o
+          // template não fique salvo na biblioteca para reuso. Falhar a criação
+          // inteira por causa do reuso seria pior para quem está criando.
+          console.error('Erro ao salvar template avulso na biblioteca:', e);
         }
       }
 
@@ -236,15 +254,32 @@ export function CriarFachadaDialog({
                 <Label>Imóvel *</Label>
                 {/* Cadastrar sem abandonar o wizard: antes era preciso sair, ir na aba
                     Imóveis, cadastrar e recomeçar a fachada do zero. */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className="h-auto p-0 text-xs text-primary hover:text-primary/80"
-                  onClick={() => setIsNovoImovelOpen(true)}
-                >
-                  <Plus className="w-3 h-3 mr-1" /> Novo Imóvel
-                </Button>
+                <div className="flex items-center gap-3">
+                  {/* Editar o imóvel da própria fachada, sem sair daqui. Antes
+                      era preciso fechar o wizard, ir na aba Imóveis, editar e
+                      recomeçar — e no modo edição isso significava perder o
+                      progresso das 4 etapas. */}
+                  {selectedImovel && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                      onClick={() => setIsEditarImovelOpen(true)}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Editar imóvel
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                    onClick={() => setIsNovoImovelOpen(true)}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Novo Imóvel
+                  </Button>
+                </div>
               </div>
               <Select value={imovelId} onValueChange={setImovelId}>
                 <SelectTrigger>
@@ -581,6 +616,18 @@ export function CriarFachadaDialog({
         open={isNovoImovelOpen}
         onOpenChange={setIsNovoImovelOpen}
         onCreated={(novoId) => setImovelId(novoId)}
+      />
+
+      {/* Mesmo componente em modo edição — não há tela nova a manter. Ao
+          fechar, recarrega os imóveis para o resumo abaixo refletir a mudança.
+          O id da fachada NÃO é tocado aqui: o QR impresso continua o mesmo. */}
+      <NovoImovelDialog
+        open={isEditarImovelOpen}
+        onOpenChange={(aberto) => {
+          setIsEditarImovelOpen(aberto);
+          if (!aberto) void fetchImoveis();
+        }}
+        imovelToEdit={selectedImovel}
       />
     </Dialog>
   );

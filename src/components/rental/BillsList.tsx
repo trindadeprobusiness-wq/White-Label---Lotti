@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock, MoreHorizontal } from "lucide-react";
+import { FileText, Loader2, CalendarDays, Wallet, Search, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownLeft, Building2, ChevronLeft, ChevronRight, Eye, X, UploadCloud, Landmark, RefreshCw, Link2, RotateCcw, CalendarClock, MoreHorizontal, Trash2 } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -36,10 +37,12 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { parseContratoContent } from "@/types/rental";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
+import { Dinheiro } from "@/components/ui/dinheiro";
 
 export function BillsList() {
     const queryClient = useQueryClient();
@@ -63,6 +66,9 @@ export function BillsList() {
     const [saldoAsaas, setSaldoAsaas] = useState<number | null>(null);
     const [saldoLoading, setSaldoLoading] = useState(true);
     const [saldoNote, setSaldoNote] = useState<string | null>(null);
+    // Diferente de "indisponível": aqui não há conta ligada, e o certo é convidar
+    // a conectar. Mostrar "Indisponível" faria parecer defeito do sistema.
+    const [naoConectado, setNaoConectado] = useState(false);
 
     const referenceMonthStr = format(referenceDate, 'MM/yyyy');
     const refYear = referenceDate.getFullYear();
@@ -434,6 +440,10 @@ export function BillsList() {
     const [billToEditDate, setBillToEditDate] = useState<any>(null);
     const [newDueDate, setNewDueDate] = useState("");
     const [savingDate, setSavingDate] = useState(false);
+    // Excluir boleto (cancela cobrança no Asaas + marca CANCELADO no banco).
+    const [billToDelete, setBillToDelete] = useState<any>(null);
+    // Reativar fatura cancelada (volta para PENDENTE).
+    const [billToReactivate, setBillToReactivate] = useState<any>(null);
 
     // Garante que a fatura exista no banco (persiste virtuais como PENDENTE) e
     // devolve o id real. A transição para PAGO é feita à parte para o trigger
@@ -562,6 +572,74 @@ export function BillsList() {
         }
     };
 
+    // Exclui o boleto: cancela no Asaas (se emitido) e marca como CANCELADO no
+    // banco. O registro permanece para auditoria — nunca fazemos DELETE físico.
+    const handleDeleteBill = async (bill: any) => {
+        setProcessingId(bill.id);
+        const loadingToast = toast.loading("Excluindo boleto...");
+        const avisos: string[] = [];
+        try {
+            // Se emitida no Asaas, cancela via Edge Function (que faz DELETE na
+            // API + marca CANCELADO no banco + registra na auditoria)
+            if (bill.externalId) {
+                const r = await chamarAsaas('excluir_cobranca', bill.id);
+                if (Array.isArray(r?.avisos) && r.avisos.length) avisos.push(...r.avisos);
+            } else {
+                // Fatura local sem cobrança: marca direto como CANCELADO
+                const { error } = await (supabase as any)
+                    .from('faturas_aluguel')
+                    .update({ status: 'CANCELADO' })
+                    .eq('id', bill.id);
+                if (error) throw error;
+            }
+
+            toast.dismiss(loadingToast);
+            toast.success("Boleto excluído com sucesso.");
+            if (avisos.length) toast.warning(avisos.join(" "), { duration: 10000 });
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao excluir boleto:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Não foi possível excluir: " + (error?.message ?? "erro desconhecido"));
+        } finally {
+            setProcessingId(null);
+            setBillToDelete(null);
+        }
+    };
+
+    // Reativa uma fatura cancelada: volta o status para PENDENTE.
+    const handleReactivateBill = async (bill: any) => {
+        setProcessingId(bill.id);
+        const loadingToast = toast.loading("Reativando fatura...");
+        try {
+            const { error } = await (supabase as any)
+                .from('faturas_aluguel')
+                .update({
+                    status: 'PENDENTE',
+                    // Limpa referências da cobrança cancelada no Asaas para que o
+                    // botão "Emitir cobrança" volte a aparecer e os links mortos do
+                    // boleto/PIX antigo não fiquem visíveis.
+                    external_id: null,
+                    boleto_url: null,
+                    boleto_url_asaas: null,
+                    pix_qrcode_text: null,
+                })
+                .eq('id', bill.id);
+            if (error) throw error;
+
+            toast.dismiss(loadingToast);
+            toast.success("Fatura reativada com sucesso — agora está pendente novamente.");
+            queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+        } catch (error: any) {
+            console.error("Erro ao reativar fatura:", error);
+            toast.dismiss(loadingToast);
+            toast.error("Não foi possível reativar: " + (error?.message ?? "erro desconhecido"));
+        } finally {
+            setProcessingId(null);
+            setBillToReactivate(null);
+        }
+    };
+
     // Edita o vencimento de UMA fatura específica e, se ela já estiver emitida,
     // re-sincroniza o boleto no Asaas com a nova data (mesmo link).
     const handleSaveDueDate = async () => {
@@ -658,9 +736,20 @@ export function BillsList() {
             });
             if (error) {
                 let msg = error.message;
-                try { msg = (await error.context?.json())?.error ?? msg; } catch { /* ignore */ }
+                let corpo: { error?: string; codigo?: string } | null = null;
+                try { corpo = await error.context?.json(); msg = corpo?.error ?? msg; } catch { /* ignore */ }
+
+                // Conta Asaas ainda não conectada não é falha: é convite. A decisão
+                // vem do CÓDIGO, não do texto — melhorar a frase não pode quebrar a tela.
+                if (corpo?.codigo === 'ASAAS_NAO_CONECTADO') {
+                    setNaoConectado(true);
+                    setSaldoAsaas(null);
+                    setSaldoNote(null);
+                    return;
+                }
                 throw new Error(msg);
             }
+            setNaoConectado(false);
             if (data?.error) throw new Error(data.error);
             // Saldo indisponível por falta de permissão na chave → nota amigável, não é erro.
             if (data?.unavailable || data?.balance == null) {
@@ -670,6 +759,10 @@ export function BillsList() {
                 setSaldoAsaas(Number(data.balance));
             }
         } catch {
+            // Limpa o estado de "não conectada": sem isto, uma falha de rede
+            // depois de uma conexão bem-sucedida deixaria o cartão pedindo para
+            // conectar uma conta que já está conectada, escondendo o erro real.
+            setNaoConectado(false);
             setSaldoAsaas(null);
             setSaldoNote("Não foi possível carregar o saldo agora.");
         } finally {
@@ -700,7 +793,7 @@ export function BillsList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">A Receber</p>
-                            <h3 className="text-2xl font-bold text-yellow-600">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-yellow-600"><Dinheiro valor={totalPending} /></h3>
                         </div>
                         <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">
                             <AlertCircle className="h-5 w-5" />
@@ -711,7 +804,7 @@ export function BillsList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Recebido</p>
-                            <h3 className="text-2xl font-bold text-green-600">R$ {totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-green-600"><Dinheiro valor={totalPaid} /></h3>
                         </div>
                         <div className="p-2 bg-green-100 rounded-full text-green-600">
                             <CheckCircle className="h-5 w-5" />
@@ -736,9 +829,21 @@ export function BillsList() {
                                 <h3 className="text-2xl font-bold text-blue-600 flex items-center h-8">
                                     <Loader2 className="h-5 w-5 animate-spin" />
                                 </h3>
+                            ) : naoConectado ? (
+                                <div className="text-left">
+                                    <span className="text-lg font-semibold text-muted-foreground">
+                                        Conta não conectada
+                                    </span>
+                                    <span className="block text-[10px] text-muted-foreground/80 leading-tight max-w-[15rem] mt-0.5">
+                                        Conecte sua conta Asaas em Configurações para emitir cobranças e ver seu saldo.
+                                    </span>
+                                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" asChild>
+                                        <Link to="/configuracoes?tab=asaas">Conectar agora</Link>
+                                    </Button>
+                                </div>
                             ) : saldoAsaas != null ? (
                                 <h3 className="text-2xl font-bold text-blue-600">
-                                    R$ {saldoAsaas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <Dinheiro valor={saldoAsaas} />
                                 </h3>
                             ) : (
                                 <button onClick={fetchSaldo} className="text-left" title={saldoNote ?? undefined}>
@@ -895,7 +1000,7 @@ export function BillsList() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="font-semibold text-foreground">
-                                                        R$ {bill.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        <Dinheiro valor={bill.valor_total} />
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
@@ -980,6 +1085,32 @@ export function BillsList() {
                                                                         <RotateCcw className="h-4 w-4 mr-2" /> Desfazer pagamento
                                                                     </DropdownMenuItem>
                                                                 )}
+
+                                                                {/* Excluir: só para faturas materializadas (não virtuais) e que não estejam pagas */}
+                                                                {!bill.isVirtual && bill.status !== 'PAGO' && bill.status !== 'CANCELADO' && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => setBillToDelete(bill)}
+                                                                            className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4 mr-2" /> Excluir boleto
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Reativar: só para faturas canceladas */}
+                                                                {bill.status === 'CANCELADO' && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => setBillToReactivate(bill)}
+                                                                            className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                        >
+                                                                            <RefreshCw className="h-4 w-4 mr-2" /> Reativar fatura
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
                                                     </div>
@@ -1037,6 +1168,61 @@ export function BillsList() {
                         onClick={() => billToRevert && handleRevertPayment(billToRevert)}
                     >
                         Desfazer pagamento
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Excluir boleto (confirmação antes de cancelar) */}
+        <AlertDialog open={!!billToDelete} onOpenChange={(o) => { if (!o) setBillToDelete(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir este boleto?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {billToDelete && (
+                            <>
+                                A fatura de <strong>{billToDelete.contract?.imoveis?.titulo || billToDelete.contract?.titulo || 'imóvel'}</strong>
+                                {' '}({billToDelete.mesReferencia}) será <strong>cancelada</strong>
+                                {billToDelete.externalId ? ' e a cobrança no Asaas será removida' : ''}.
+                                {' '}O registro permanece no histórico para auditoria. Essa ação <strong>não pode ser desfeita</strong>.
+                            </>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => billToDelete && handleDeleteBill(billToDelete)}
+                    >
+                        Excluir boleto
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reativar fatura cancelada (confirmação) */}
+        <AlertDialog open={!!billToReactivate} onOpenChange={(o) => { if (!o) setBillToReactivate(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Reativar esta fatura?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {billToReactivate && (
+                            <>
+                                A fatura de <strong>{billToReactivate.contract?.imoveis?.titulo || billToReactivate.contract?.titulo || 'imóvel'}</strong>
+                                {' '}({billToReactivate.mesReferencia}) será reativada e voltará ao status <strong>Pendente</strong>.
+                                {' '}Se houver cobrança no Asaas, será necessário emiti-la novamente.
+                            </>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => billToReactivate && handleReactivateBill(billToReactivate)}
+                    >
+                        Reativar fatura
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -1125,7 +1311,7 @@ export function BillsList() {
                             <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30">
                                 <p className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold mb-1">Aluguel</p>
                                 <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                                    R$ {contractViewerDetails.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <Dinheiro valor={contractViewerDetails.valor} />
                                 </p>
                             </div>
                             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30">
@@ -1137,7 +1323,7 @@ export function BillsList() {
                             <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30">
                                 <p className="text-[10px] uppercase tracking-wider text-green-600 dark:text-green-400 font-semibold mb-1">Líquido</p>
                                 <p className="text-lg font-bold text-green-700 dark:text-green-300">
-                                    R$ {(contractViewerDetails.valor - (contractViewerDetails.valor * contractViewerDetails.taxaAdm / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <Dinheiro valor={(contractViewerDetails.valor - (contractViewerDetails.valor * contractViewerDetails.taxaAdm / 100))} />
                                 </p>
                             </div>
                         </div>

@@ -57,6 +57,7 @@ async function corretorId(): Promise<string> {
 /** Linha crua de clientes no modo legado (com o imóvel de interesse embutido). */
 type ClienteBruto = {
   id: string; nome: string; telefone: string | null; status_funil: string; created_at: string;
+  is_sample_data?: boolean;
   // O PostgREST devolve relacao aninhada como array na inferencia do cliente sem
   // tipos gerados, mesmo quando a relacao e para-um. Dai o helper primeiro().
   cliente_imovel?: { imovel_id: string; imoveis?: { titulo: string; valor: number }[] }[];
@@ -75,7 +76,7 @@ type AlertaBruto = {
 export type ModoCrm = 'completo' | 'legado';
 
 /** Etapas sintéticas equivalentes ao enum status_funil, para o modo legado. */
-const ETAPAS_LEGADO: CrmEtapa[] = [
+export const ETAPAS_LEGADO: CrmEtapa[] = [
   { id: 'QUALIFICACAO', corretor_id: '', nome: 'Qualificação', ordem: 1, cor: 'blue', tipo: 'ABERTA', ativo: true },
   { id: 'VISITA_PROPOSTA', corretor_id: '', nome: 'Visita / Proposta', ordem: 2, cor: 'amber', tipo: 'ABERTA', ativo: true },
   { id: 'DOCUMENTACAO', corretor_id: '', nome: 'Documentação', ordem: 3, cor: 'orange', tipo: 'ABERTA', ativo: true },
@@ -124,7 +125,7 @@ export function useOportunidades() {
         // do primeiro imóvel de interesse — a mesma leitura que o funil já fazia.
         const { data, error } = await db()
           .from('clientes')
-          .select('id, nome, telefone, status_funil, created_at, cliente_imovel(imovel_id, imoveis(titulo, valor))')
+          .select('id, nome, telefone, status_funil, created_at, is_sample_data, cliente_imovel(imovel_id, imoveis(titulo, valor))')
           .order('created_at', { ascending: false });
         if (error) throw error;
         return (data ?? []).map((c: ClienteBruto, i: number) => {
@@ -139,6 +140,7 @@ export function useOportunidades() {
             probabilidade: 0, data_prevista_fechamento: null, motivo_perda: null,
             origem: null, ordem: i, observacoes: null, fechada_em: null,
             created_at: c.created_at, updated_at: c.created_at,
+            is_sample_data: c.is_sample_data,
             clientes: { nome: c.nome, telefone: c.telefone },
             imoveis: imovel ? { titulo: imovel.titulo } : undefined,
           } as CrmOportunidade;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Bed, Car, Ruler, Image, Megaphone } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Bed, Car, Ruler, Image, Megaphone, FileSpreadsheet, Sparkles, Building2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { useCRMStore } from '@/stores/crmStore';
 import { TipoImovel, Imovel } from '@/types/crm';
 import { NovoImovelDialog } from '@/components/imoveis/NovoImovelDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { LimitGuard } from '@/components/subscription/LimitGuard';
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -94,10 +95,12 @@ export default function Imoveis() {
             {imoveis.length} imóveis cadastrados
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Imóvel
-        </Button>
+        <LimitGuard featureKey="max_imoveis">
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Imóvel
+          </Button>
+        </LimitGuard>
       </div>
 
       {/* Filters */}
@@ -140,17 +143,26 @@ export default function Imoveis() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredImoveis.length === 0 ? (
           <Card className="col-span-full">
-            <CardContent className="py-12 flex flex-col items-center gap-4 text-center text-muted-foreground">
-              <p>
+            <CardContent className="py-12 flex flex-col items-center gap-3 text-center text-muted-foreground">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Building2 className="h-5 w-5" /></span>
+              <p className="font-semibold text-foreground">
                 {search || tipoFilter !== 'TODOS'
                   ? 'Nenhum imóvel encontrado com os filtros aplicados.'
-                  : 'Nenhum imóvel cadastrado ainda.'}
+                  : 'Ainda não há imóveis cadastrados.'}
               </p>
               {!search && tipoFilter === 'TODOS' && statusAnuncioFilter === 'TODOS' && (
-                <Button onClick={() => setDialogOpen(true)} variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Cadastrar primeiro imóvel
-                </Button>
+                <p className="max-w-md text-sm">Cadastre seu primeiro imóvel, prepare uma importação ou use dados de demonstração para conhecer o fluxo.</p>
+              )}
+              {!search && tipoFilter === 'TODOS' && statusAnuncioFilter === 'TODOS' && (
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  <LimitGuard featureKey="max_imoveis">
+                    <Button onClick={() => setDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />Cadastrar imóvel
+                    </Button>
+                  </LimitGuard>
+                  <Button variant="outline" asChild><Link to="/onboarding?etapa=entrada_dados"><FileSpreadsheet className="mr-2 h-4 w-4" />Importar</Link></Button>
+                  <Button variant="ghost" asChild><Link to="/onboarding?etapa=entrada_dados"><Sparkles className="mr-2 h-4 w-4" />Usar demonstração</Link></Button>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -191,7 +203,10 @@ export default function Imoveis() {
               </div>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <h3 className="font-semibold line-clamp-1">{imovel.titulo}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold line-clamp-1">{imovel.titulo}</h3>
+                    {imovel.is_sample_data && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">Demo</Badge>}
+                  </div>
                   <p className="text-primary font-bold text-lg">
                     {formatPrice(imovel.valor)}
                   </p>

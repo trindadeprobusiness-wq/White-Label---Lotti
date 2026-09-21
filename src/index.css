@@ -60,7 +60,7 @@
     --sidebar-foreground: 220 39% 11%;
     --sidebar-primary: 157 70% 12%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 82 100% 95%;          /* #F6FFE7 */
+    --sidebar-accent: 150 9% 93%;          /* verde acinzentado discreto */
     --sidebar-accent-foreground: 157 70% 12%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 157 70% 12%;
@@ -72,6 +72,52 @@
     --funnel-closing: 82 100% 95%;
 
     --gold: 43 74% 49%;
+
+    /* ─────────────────────────────────────────────────────────────
+       Tokens adicionais exigidos pelo back office e pelos componentes
+       de shell. DERIVADOS da paleta acima — o verde da marca continua
+       sendo #093323 (--primary). Nada aqui redefine cor de marca.
+
+       Existem porque o design system original cobre o essencial do
+       shadcn, mas não tinha: superfície de marca para blocos pastéis,
+       pares fundo/frente para os cinco status, nem os degraus de
+       cinza e borda que as tabelas administrativas usam.
+       ───────────────────────────────────────────────────────────── */
+
+    /* Escala da marca, a partir do #093323 do --primary. */
+    --brand-950: 157 72% 8%;
+    --brand-900: 157 70% 10%;
+    --brand-850: 157 70% 12%;
+    --brand-800: 157 66% 15%;
+    --brand-700: 157 60% 20%;
+    --brand-600: 157 52% 27%;
+    --brand-100: 150 24% 90%;
+    --brand-50: 82 100% 95%;
+
+    /* Superfícies. --surface-brand é o #F6FFE7 que a sidebar já usa
+       como hover, reaproveitado nos blocos de ícone dos indicadores. */
+    --surface: 80 14% 97%;
+    --surface-brand: 82 100% 95%;
+
+    /* Degraus que faltavam entre --muted-foreground e --foreground. */
+    --muted-strong: 220 10% 62%;
+    --border-strong: 220 13% 84%;
+
+    /* Fundos de status. O sucesso da main aponta para o verde da marca,
+       então o fundo aqui acompanha o verde, não um verde genérico. */
+    --success-surface: 140 45% 95%;
+    --warning-surface: 43 100% 92%;
+    --destructive-surface: 0 85% 96%;
+
+    /* Informação e documentação: não existiam: o funil usava apenas
+       fundos pastéis, sem uma cor forte para dot, texto e ícone. */
+    --info: 217 27% 56%;
+    --info-foreground: 0 0% 100%;
+    --info-surface: 213 44% 95%;
+
+    --doc: 13 86% 57%;
+    --doc-foreground: 0 0% 100%;
+    --doc-surface: 17 100% 96%;
   }
 
   /* Tema escuro real — preto profundo, verde da marca como acento e um
@@ -121,7 +167,7 @@
     --sidebar-foreground: 0 0% 92%;
     --sidebar-primary: 157 70% 15%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 157 70% 15%;
+    --sidebar-accent: 150 8% 20%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 220 15% 18%;
     --sidebar-ring: 156 60% 45%;
@@ -191,5 +237,27 @@
   .fp-glass-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+}
+
+@layer utilities {
+  /* Números de KPI, moeda e contadores: sem isto "1.234" e "9.999"
+     ocupam larguras diferentes e a coluna dança ao atualizar. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* Foco visível e consistente — o padrão do navegador some sobre
+     superfície clara e não atende navegação por teclado. */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* Espaço de segurança abaixo do conteúdo para a bottom navigation mobile.
+     Combina a altura da barra (64px) com o home indicator do iPhone
+     (env(safe-area-inset-bottom)). Evita que conteúdo fique coberto. */
+  .pb-mobile-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
 }

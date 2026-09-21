@@ -8,6 +8,19 @@ const corsHeaders = {
 };
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB for video
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv",
+  "text/plain",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -54,9 +67,15 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (!ALLOWED_MIME.has(file.type)) {
+      return new Response(JSON.stringify({ error: "File type not allowed" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Upload to storage
-    const fileExt = file.name.split(".").pop() || "bin";
+    const fileExt = (file.name.split(".").pop() || "bin").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "bin";
     const storagePath = `${user.id}/${Date.now()}.${fileExt}`;
     const { error: uploadError } = await supabaseClient.storage
       .from("ai-attachments")
@@ -94,10 +113,7 @@ serve(async (req) => {
       extractedText = await extractTextFromXlsx(file);
       metadata = { type: "spreadsheet" };
     } else if (mimeType.startsWith("image/")) {
-      const { data: urlData } = supabaseClient.storage
-        .from("ai-attachments")
-        .getPublicUrl(storagePath);
-      metadata = { image_url: urlData.publicUrl, width: 0, height: 0 };
+      metadata = { storage_path: storagePath, width: 0, height: 0 };
       extractedText = `[Imagem: ${file.name}]`;
     } else if (mimeType.startsWith("video/")) {
       metadata = {
@@ -237,7 +253,7 @@ async function findXmlInZip(zipBytes: Uint8Array, targetPath: string): Promise<s
         // Deflate — use DecompressionStream
         try {
           const compressed = zipBytes.slice(dataOffset, dataOffset + compressedSize);
-          const ds = new DecompressionStream("raw");
+          const ds = new DecompressionStream("deflate-raw");
           const writer = ds.writable.getWriter();
           writer.write(compressed);
           writer.close();

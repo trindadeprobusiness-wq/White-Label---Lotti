@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { useAuth } from '@/hooks/useAuth';
+import { emailRecuperacaoSchema } from '@/lib/auth/validacao';
+import { z } from 'zod';
 
 /**
  * Recuperação de senha — não existia no projeto. Quem esquecia a senha ficava
@@ -22,8 +24,18 @@ export default function RecuperarSenha() {
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro(null);
+
+    let emailValidado: string;
+    try {
+      emailValidado = emailRecuperacaoSchema.parse(email);
+    } catch (falha) {
+      setErro(falha instanceof z.ZodError ? falha.errors[0].message : 'Informe um e-mail válido.');
+      return;
+    }
+
+    setEmail(emailValidado);
     setEnviando(true);
-    const r = await pedirRecuperacao(email.trim());
+    const r = await pedirRecuperacao(emailValidado);
     setEnviando(false);
     // Confirmação idêntica com ou sem conta: dizer "e-mail não encontrado"
     // entregaria a estranhos quais endereços têm conta aqui.
@@ -48,7 +60,7 @@ export default function RecuperarSenha() {
                 <h1 className="text-lg font-semibold">Verifique seu e-mail</h1>
                 <p className="text-sm text-muted-foreground">
                   Se existir uma conta para <strong className="text-foreground">{email}</strong>,
-                  enviamos um link para criar uma nova senha. Ele vale por 1 hora.
+                  enviamos um link para criar uma nova senha. Ele vale por tempo limitado.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Não chegou? Confira a caixa de spam antes de pedir de novo.

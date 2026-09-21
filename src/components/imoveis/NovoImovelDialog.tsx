@@ -18,6 +18,8 @@ import { getTrackingData } from '@/hooks/useUTMTracker';
 import { useVideos } from '@/hooks/useVideos';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { cn } from '@/lib/utils';
+import { useCheckLimit } from '@/hooks/useSubscription';
+import { podeCriarRecurso } from '@/lib/planos';
 
 type Finalidade = 'VENDA' | 'LOCACAO' | 'AMBOS';
 
@@ -47,6 +49,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isEditing = !!imovelToEdit;
+  const checkLimit = useCheckLimit();
 
   // Default values set to empty strings for cleaner UX (users don't have to delete '0')
   const [form, setForm] = useState({
@@ -132,6 +135,14 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!podeCriarRecurso(checkLimit('max_imoveis'), isEditing)) {
+      toast({
+        title: 'Limite de imóveis atingido',
+        description: 'Acesse Plano e Assinatura para liberar mais imóveis.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSubmitting(true);
 
     try {

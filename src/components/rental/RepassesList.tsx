@@ -6,15 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRightLeft, Loader2, CalendarDays, Search, AlertCircle, CheckCircle2 } from "lucide-react";
-import { format } from "date-fns";
+import { ArrowRightLeft, Loader2, CalendarDays, Search, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import { format, subMonths, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dinheiro } from '@/components/ui/dinheiro';
 
 export function RepassesList() {
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
+    const [referenceDate, setReferenceDate] = useState(new Date());
 
     const { data: payouts, isLoading } = useQuery({
         queryKey: ["rental-payouts"],
@@ -59,7 +61,14 @@ export function RepassesList() {
         }
     };
 
-    const filteredPayouts = payouts?.filter(payout => {
+    const monthlyPayouts = payouts?.filter(payout => {
+        if (!payout.data_prevista) return false;
+        const payoutDate = new Date(payout.data_prevista);
+        return payoutDate.getMonth() === referenceDate.getMonth() && 
+               payoutDate.getFullYear() === referenceDate.getFullYear();
+    });
+
+    const filteredPayouts = monthlyPayouts?.filter(payout => {
         const matchesSearch =
             payout.proprietario_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             payout.contratos?.imoveis?.titulo?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -69,9 +78,9 @@ export function RepassesList() {
         return matchesSearch && matchesStatus;
     });
 
-    // Stats
-    const totalScheduled = payouts?.filter(p => p.status === "AGENDADO").reduce((acc, curr) => acc + curr.valor_liquido_repasse, 0) || 0;
-    const totalConfirmed = payouts?.filter(p => p.status === "CONFIRMADO").reduce((acc, curr) => acc + curr.valor_liquido_repasse, 0) || 0;
+    // Stats based on the selected month
+    const totalScheduled = monthlyPayouts?.filter(p => p.status === "AGENDADO").reduce((acc, curr) => acc + curr.valor_liquido_repasse, 0) || 0;
+    const totalConfirmed = monthlyPayouts?.filter(p => p.status === "CONFIRMADO").reduce((acc, curr) => acc + curr.valor_liquido_repasse, 0) || 0;
 
     const getStatusStyle = (status: string) => {
         switch (status) {
@@ -100,7 +109,7 @@ export function RepassesList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Agendado (Líquido)</p>
-                            <h3 className="text-2xl font-bold text-yellow-600">R$ {totalScheduled.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-yellow-600"><Dinheiro valor={totalScheduled} /></h3>
                         </div>
                         <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">
                             <CalendarDays className="h-5 w-5" />
@@ -111,7 +120,7 @@ export function RepassesList() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Confirmado (Mês)</p>
-                            <h3 className="text-2xl font-bold text-green-600">R$ {totalConfirmed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                            <h3 className="text-2xl font-bold text-green-600"><Dinheiro valor={totalConfirmed} /></h3>
                         </div>
                         <div className="p-2 bg-green-100 rounded-full text-green-600">
                             <CheckCircle2 className="h-5 w-5" />
@@ -132,12 +141,35 @@ export function RepassesList() {
                                 Gestão automatizada de transferências
                             </CardDescription>
                         </div>
-                        <div className="flex items-center gap-2 w-full md:w-auto">
+                        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                            {/* Month Selector */}
+                            <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1 border">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground"
+                                    onClick={() => setReferenceDate(subMonths(referenceDate, 1))}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <div className="w-32 text-center font-medium text-sm capitalize">
+                                    {format(referenceDate, "MMMM 'de' yyyy", { locale: ptBR })}
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground"
+                                    onClick={() => setReferenceDate(addMonths(referenceDate, 1))}
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+
                             <div className="relative flex-1 md:w-64">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Buscar proprietário..."
-                                    className="pl-9"
+                                    className="pl-9 h-10"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -192,14 +224,14 @@ export function RepassesList() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-muted-foreground">
-                                                    R$ {payout.valor_bruto_recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    <Dinheiro valor={payout.valor_bruto_recebido} />
                                                 </TableCell>
                                                 <TableCell className="text-red-500 text-xs">
-                                                    - R$ {payout.valor_taxa_adm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    - <Dinheiro valor={payout.valor_taxa_adm} />
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="font-bold text-green-600">
-                                                        R$ {payout.valor_liquido_repasse.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        <Dinheiro valor={payout.valor_liquido_repasse} />
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>

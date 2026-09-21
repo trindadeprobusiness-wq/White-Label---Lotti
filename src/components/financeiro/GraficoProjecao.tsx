@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Info } from 'lucide-react';
 import { ProjecaoMensal } from '@/types/financeiro';
+import { VALOR_MASCARADO } from '@/lib/privacidade';
+import { usePrivacidade } from '@/stores/privacidadeStore';
 
 interface GraficoProjecaoProps {
   dados: ProjecaoMensal[];
@@ -21,7 +23,13 @@ interface GraficoProjecaoProps {
 }
 
 export function GraficoProjecao({ dados, metaAnual }: GraficoProjecaoProps) {
+  // O gráfico também expõe dinheiro: tooltip, legenda e totais.
+  const oculto = usePrivacidade((s) => s.valoresOcultos);
   const formatarValor = (value: number) => {
+    // O eixo também entrega dinheiro: quem lê "R$ 40k" no topo sabe a ordem
+    // de grandeza mesmo com todos os números mascarados. No modo privado o
+    // eixo fica sem rótulo e o gráfico mostra só a forma.
+    if (oculto) return '';
     if (value >= 1000) {
       return `R$ ${(value / 1000).toFixed(0)}k`;
     }
@@ -73,8 +81,8 @@ export function GraficoProjecao({ dados, metaAnual }: GraficoProjecaoProps) {
           </TooltipProvider>
         </div>
         <CardDescription>
-          Realizado: {totais.totalRealizado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | 
-          Projetado: {totais.totalProjetado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          Realizado: {oculto ? VALOR_MASCARADO : totais.totalRealizado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | 
+          Projetado: {oculto ? VALOR_MASCARADO : totais.totalProjetado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -104,7 +112,9 @@ export function GraficoProjecao({ dados, metaAnual }: GraficoProjecaoProps) {
               />
               <Tooltip
                 formatter={(value: number, name: string) => [
-                  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+                  oculto
+                    ? VALOR_MASCARADO
+                    : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
                   name === 'receita' ? 'Receita' : name === 'despesa' ? 'Despesa' : 'Lucro'
                 ]}
                 labelFormatter={(label, payload) => {

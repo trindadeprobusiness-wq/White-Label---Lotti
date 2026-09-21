@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, MessageSquare, MoreVertical, Pin, PinOff, Search, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, MoreVertical, Pin, PinOff, Search, Trash2, Pencil } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -60,6 +61,11 @@ export function AIConversationList({
 }: AIConversationListProps) {
   const [toDelete, setToDelete] = useState<AIConversation | null>(null);
   const [busca, setBusca] = useState('');
+  const [renaming, setRenaming] = useState<AIConversation | null>(null);
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [renameError, setRenameError] = useState('');
+  const openRename = (conversation: AIConversation) => { setRenaming(conversation); setTitle(conversation.title); setRenameError(''); };
 
   useEffect(() => {
     onLoad();
@@ -78,18 +84,17 @@ export function AIConversationList({
   }, [conversations, busca]);
 
   return (
-    <div className="flex flex-col h-full bg-sidebar">
+    <div className="flex flex-col h-full bg-muted/20">
       {/* Header — título + botão de nova conversa alinhados */}
-      <div className="px-4 pt-5 pb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-foreground">Conversas</h2>
+      <div className="border-b border-border/70 px-4 py-4"><h2 className="text-base font-semibold text-foreground">Assistente Lotti</h2><p className="mt-1 text-xs text-muted-foreground">Seus dados, novas perspectivas</p></div>
+      <div className="px-4 py-4">
         <Button
           onClick={onNew}
-          size="icon"
-          className="h-8 w-8 rounded-full"
+          className="h-10 w-full gap-2 rounded-xl"
           title="Nova conversa"
           aria-label="Nova conversa"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" /> Nova análise
         </Button>
       </div>
 
@@ -121,6 +126,7 @@ export function AIConversationList({
                   onSelect={onSelect}
                   onTogglePin={onTogglePin}
                   onAskDelete={setToDelete}
+                  onAskRename={openRename}
                 />
               ))}
             </ConversationGroup>
@@ -136,6 +142,7 @@ export function AIConversationList({
                   onSelect={onSelect}
                   onTogglePin={onTogglePin}
                   onAskDelete={setToDelete}
+                  onAskRename={openRename}
                 />
               ))}
             </ConversationGroup>
@@ -161,6 +168,17 @@ export function AIConversationList({
         </div>
       </div>
 
+      <Dialog open={!!renaming} onOpenChange={open => { if (!open && !saving) setRenaming(null); }}><DialogContent><DialogTitle>Renomear conversa</DialogTitle><DialogDescription>Altere o título exibido no histórico do Assistente.</DialogDescription><form className="space-y-4" onSubmit={async event => {
+        event.preventDefault(); if (!renaming || !title.trim() || saving) return;
+        setSaving(true); setRenameError('');
+        try {
+          const { supabase } = await import('@/integrations/supabase/client');
+          const { data, error } = await supabase.from('ai_conversations').update({ title: title.trim() }).eq('id', renaming.id).select('id').single();
+          if (error || !data) throw new Error();
+          onLoad(); setRenaming(null);
+        } catch { setRenameError('Não foi possível salvar o título. Tente novamente.'); }
+        finally { setSaving(false); }
+      }}><Input aria-label="Título da conversa" required autoFocus maxLength={120} value={title} disabled={saving} onChange={event => setTitle(event.target.value)} />{renameError && <p role="alert" className="text-sm text-destructive">{renameError}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={saving} onClick={() => setRenaming(null)}>Cancelar</Button><Button type="submit" disabled={saving || !title.trim()}>{saving ? 'Salvando…' : 'Salvar título'}</Button></div></form></DialogContent></Dialog>
       <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -207,12 +225,14 @@ function ConversationRow({
   onSelect,
   onTogglePin,
   onAskDelete,
+  onAskRename,
 }: {
   conv: AIConversation;
   active: boolean;
   onSelect: (id: string) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
   onAskDelete: (c: AIConversation) => void;
+  onAskRename: (c: AIConversation) => void;
 }) {
   return (
     <div
@@ -220,12 +240,12 @@ function ConversationRow({
         'group relative flex items-center rounded-lg transition-colors min-w-0 w-full',
         active
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-          : 'hover:bg-[#F3F4F3] text-foreground',
+          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
     >
       <button
         onClick={() => onSelect(conv.id)}
-        className="grid grid-cols-[0.875rem_minmax(0,1fr)_auto] items-center gap-2 w-full min-w-0 text-left px-2.5 py-2 text-sm overflow-hidden"
+        className="grid grid-cols-[0.875rem_minmax(0,1fr)_auto] items-center gap-2 flex-1 min-w-0 text-left pl-2.5 pr-1 py-2 text-sm overflow-hidden"
       >
         {conv.pinned ? (
           <Pin className="h-3.5 w-3.5 shrink-0 fill-current" />
@@ -246,13 +266,14 @@ function ConversationRow({
             variant="ghost"
             size="icon"
             aria-label="Opções da conversa"
-            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 bg-sidebar/95"
+            className="mr-1 h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onClick={() => onAskRename(conv)}><Pencil className="mr-2 h-4 w-4" />Renomear</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onTogglePin(conv.id, !conv.pinned)}>
             {conv.pinned ? (
               <>

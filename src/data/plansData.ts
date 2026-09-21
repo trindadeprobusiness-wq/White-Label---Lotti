@@ -28,7 +28,6 @@ export interface PlanDisplayInfo {
   icon: LucideIcon;
   audience: string;
   cta: string;
-  secondaryCta?: string;
   features: string[];
   /** Features que NÃO estão incluídas (exibidas riscadas ou omitidas) */
   excluded?: string[];
@@ -38,9 +37,11 @@ export const plansDisplay: PlanDisplayInfo[] = [
   {
     code: 'essencial',
     icon: Rocket,
-    audience: 'Corretor autônomo',
+    audience: 'Corretor autônomo ou operação pequena',
     cta: 'Começar teste gratuito',
     features: [
+      '100 leads atendidos pela IA / mês',
+      'Qualificação e resumo do lead para o corretor',
       'Dashboard principal',
       'Cadastro de clientes e imóveis',
       'Funil de vendas Kanban',
@@ -48,14 +49,12 @@ export const plansDisplay: PlanDisplayInfo[] = [
       'Controle financeiro básico',
       'Mensagens personalizadas para WhatsApp',
       '10 contratos com IA / mês',
-      '5 Fachadas Inteligentes',
+      '15 Fachadas Inteligentes',
       'Landing pages dos imóveis',
       'Tema claro e escuro',
       'Suporte padrão',
     ],
     excluded: [
-      'Gestão de aluguéis',
-      'Integração Asaas',
       'Relatórios avançados',
       'Gestão de equipe',
     ],
@@ -63,20 +62,22 @@ export const plansDisplay: PlanDisplayInfo[] = [
   {
     code: 'profissional',
     icon: Crown,
-    audience: 'Corretores e pequenas equipes',
+    audience: 'Equipes menores em crescimento',
     cta: 'Começar teste gratuito',
     features: [
-      'Tudo do Essencial, mais:',
-      'Até 2 usuários',
+      '250 leads atendidos pela IA / mês',
+      'Qualificação e resumo do lead para o corretor',
+      'Tudo do Inteligente, mais:',
+      'Até 3 usuários',
       'Controle financeiro completo',
       'Gestão de comissões e projeção anual',
       'Gestão completa de aluguéis',
       'Integração com Asaas',
-      '60 contratos com IA / mês',
+      '25 contratos com IA / mês',
       'Análise de contratos existentes',
       'Exportação PDF e DOCX',
       'Assistente de IA integrado ao CRM',
-      '25 Fachadas Inteligentes',
+      '60 Fachadas Inteligentes',
       'Métricas detalhadas de Fachadas',
       'Relatórios comerciais e financeiros',
       'Automações e alertas',
@@ -86,10 +87,11 @@ export const plansDisplay: PlanDisplayInfo[] = [
   {
     code: 'imobiliaria',
     icon: Building2,
-    audience: 'Imobiliárias com equipe',
+    audience: 'Imobiliárias com operação maior',
     cta: 'Começar teste gratuito',
-    secondaryCta: 'Falar com especialista',
     features: [
+      '600 leads atendidos pela IA / mês',
+      'Qualificação e resumo do lead para o corretor',
       'Tudo do Profissional, mais:',
       'Até 10 usuários',
       'Imóveis ilimitados',
@@ -97,12 +99,13 @@ export const plansDisplay: PlanDisplayInfo[] = [
       'Perfis e permissões (admin, gestor, corretor)',
       'Distribuição de leads',
       'Indicadores por corretor e ranking',
-      '250 contratos com IA / mês',
-      '100 Fachadas Inteligentes',
+      '40 contratos com IA / mês',
+      'Fachadas Inteligentes sem limite',
       'Relatórios avançados com exportação',
       'Histórico de auditoria',
       'Atendimento prioritário',
       'Onboarding orientado',
+      'Suporte prioritário',
     ],
   },
 ];
@@ -117,12 +120,13 @@ export interface PlanLimit {
 }
 
 export const planLimits: PlanLimit[] = [
-  { icon: Users,             label: 'Usuários',                 essencial: '1',         profissional: '2',       imobiliaria: '10' },
-  { icon: Building2,         label: 'Imóveis ativos',           essencial: '100',       profissional: '500',     imobiliaria: 'Ilimitado' },
-  { icon: QrCode,            label: 'Fachadas Inteligentes',    essencial: '5',         profissional: '25',      imobiliaria: '100' },
-  { icon: FileSignature,     label: 'Contratos com IA / mês',   essencial: '10',        profissional: '60',      imobiliaria: '250' },
-  { icon: MessageSquareText, label: 'Assistente IA / mês',      essencial: '30',        profissional: '300',     imobiliaria: '1.500' },
-  { icon: HardDrive,         label: 'Armazenamento',            essencial: '5 GB',      profissional: '25 GB',   imobiliaria: '100 GB' },
+  { icon: MessageSquareText, label: 'Leads atendidos pela IA / mês', essencial: '100', profissional: '250', imobiliaria: '600' },
+  { icon: Users,             label: 'Usuários',                 essencial: '1',         profissional: '3',       imobiliaria: '10' },
+  { icon: Building2,         label: 'Imóveis ativos',           essencial: '250',       profissional: '1.500',     imobiliaria: 'Ilimitado' },
+  { icon: QrCode,            label: 'Fachadas Inteligentes',    essencial: '15',        profissional: '60',      imobiliaria: 'Ilimitado' },
+  { icon: FileSignature,     label: 'Contratos com IA / mês',   essencial: '10',        profissional: '25',      imobiliaria: '40' },
+  { icon: MessageSquareText, label: 'Assistente IA / mês',      essencial: '60',        profissional: '200',     imobiliaria: '500' },
+  { icon: HardDrive,         label: 'Armazenamento',            essencial: '3 GB',      profissional: '15 GB',   imobiliaria: '50 GB' },
 ];
 
 // ── Categorias para tabela comparativa ──

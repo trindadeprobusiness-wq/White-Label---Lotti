@@ -1,8 +1,10 @@
+import { PublicRequestError, UUID_PATTERN, readPublicJson } from '../_shared/public-request.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'X-Content-Type-Options': 'nosniff',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
@@ -26,6 +28,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  if (!['GET', 'POST'].includes(req.method)) return new Response(JSON.stringify({ error: 'Método não permitido.' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -36,12 +40,14 @@ serve(async (req) => {
     let fachadaId = url.searchParams.get('id') ?? url.searchParams.get('fachadaId')
     if (!fachadaId && req.method === 'POST') {
       try {
-        const body = await req.json()
-        fachadaId = body?.fachadaId ?? body?.id ?? null
-      } catch { /* sem body */ }
+        const body = await readPublicJson(req) as Record<string, unknown>
+        const supplied = body?.fachadaId ?? body?.id
+        if (typeof supplied !== 'string') throw new PublicRequestError(400, 'Fachada inválida.')
+        fachadaId = supplied
+      } catch (error) { if (error instanceof PublicRequestError) throw error; throw new PublicRequestError(400, 'Corpo inválido.'); }
     }
 
-    if (!fachadaId) {
+    if (!fachadaId || !UUID_PATTERN.test(fachadaId)) {
       return json({ error: 'Parâmetro "id" (fachadaId) é obrigatório' }, 400)
     }
 
@@ -96,8 +102,9 @@ serve(async (req) => {
       fotos,
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return json({ error: errorMessage }, 500)
+    const status = error instanceof PublicRequestError ? error.status : 500
+    const errorMessage = error instanceof PublicRequestError ? error.message : 'Não foi possível carregar os dados. Tente novamente.'
+    return json({ error: errorMessage }, status)
   }
 })
 

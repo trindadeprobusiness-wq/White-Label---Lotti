@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, RotateCcw, AlertCircle, Sparkles } from 'lucide-react';
+import {
+  Send, RotateCcw, AlertCircle, Sparkles, Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIChat } from '@/hooks/useAIChat';
 import { AIMessageBubble } from '@/components/ai/AIMessageBubble';
@@ -12,11 +14,15 @@ import type { AIFileUploadHandle } from '@/components/ai/AIFileUpload';
 import { AIConversationList } from '@/components/ai/AIConversationList';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { AI_ACCEPTED_TYPES } from '@/types/ai';
+import { EstadoInicialIA } from '@/components/ai/EstadoInicialIA';
+import { useCRMStore } from '@/stores/crmStore';
+
 
 export default function Assistente() {
   const [inputText, setInputText] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { corretor } = useCRMStore();
 
   const {
     messages,
@@ -74,11 +80,10 @@ export default function Assistente() {
   );
 
   return (
-    // Full-bleed dentro do AppLayout: os negative margins anulam o padding
-    // do <main> para o assistente ocupar toda a área do canvas.
-    <div className="flex h-[calc(100vh-4rem)] -my-8 -mx-4 md:-mx-8 rounded-none overflow-hidden bg-background">
+    // O AppLayout não aplica padding nesta rota; o chat ocupa a altura disponível.
+    <div className="flex h-[calc(100dvh-4.5rem)] m-2 md:m-5 md:h-[calc(100dvh-2.5rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
       {/* Coluna de conversas */}
-      <aside className="w-[300px] shrink-0 border-r border-border hidden md:flex flex-col overflow-hidden">
+      <aside className="w-[260px] xl:w-[280px] shrink-0 border-r border-border/70 hidden md:flex flex-col overflow-hidden bg-muted/20">
         <AIConversationList
           conversations={conversations}
           activeId={activeConversation}
@@ -92,7 +97,7 @@ export default function Assistente() {
 
       {/* Área principal do chat */}
       <section
-        className="flex-1 flex flex-col min-w-0 relative bg-background"
+        className="flex-1 flex flex-col min-h-0 min-w-0 relative bg-background"
         {...chatDropProps}
       >
         {chatDragActive && (
@@ -104,26 +109,44 @@ export default function Assistente() {
         )}
 
         {/* Header do chat — respiro maior, tipografia mais legível */}
-        <header className="border-b border-border px-6 py-4 flex items-center gap-3 bg-background">
-          <div className="bg-accent p-2 rounded-full">
+        <header className="flex items-center gap-3 border-b border-border bg-background px-6 py-4">
+          <div className="rounded-lg bg-surface-brand p-2">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
-          <div className="min-w-0">
-            <h1 className="text-base font-semibold text-foreground leading-tight">
-              Assistente IA
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-semibold leading-tight text-foreground">
+              {messages.length ? 'Análise em andamento' : 'Nova análise'}
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Integrado ao seu CRM · Gemini 2.5 Flash
-            </p>
+            {/* "Conectado aos dados da Lotti" e não o nome do modelo: o que
+                importa ao corretor é que a IA enxerga os dados dele, não qual
+                LLM está por trás. */}
+            <p className="mt-1 text-xs text-muted-foreground">Explore os dados da sua operação imobiliária</p>
           </div>
+
+          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+            <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
+            Disponível
+          </span>
+
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={startConversation}>
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Limpar conversa</span>
+            </Button>
+          )}
         </header>
 
         {/* Mensagens */}
-        <ScrollArea className="flex-1">
-          <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
-            {displayMessages.map((msg) => (
-              <AIMessageBubble key={msg.id} message={msg} />
-            ))}
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="max-w-4xl mx-auto px-5 py-3 space-y-4">
+            {messages.length === 0 ? (
+              <EstadoInicialIA
+                nome={corretor?.nome}
+                onSugestao={(texto) => { setInputText(texto); }}
+              />
+            ) : (
+              messages.map((msg) => <AIMessageBubble key={msg.id} message={msg} />)
+            )}
             {pendingActions.map((action) => (
               <AIActionCard
                 key={action.id}
@@ -147,8 +170,8 @@ export default function Assistente() {
         </ScrollArea>
 
         {/* Composer */}
-        <div className="border-t border-border px-6 py-4 bg-background">
-          <div className="max-w-3xl mx-auto space-y-2">
+        <div className="shrink-0 border-t border-border px-5 py-2.5 bg-background">
+          <div className="max-w-4xl mx-auto space-y-2">
             {fileContext && (
               <div className="text-xs bg-accent border border-primary/20 p-2 rounded-lg flex items-center justify-between">
                 <span className="truncate text-accent-foreground">
@@ -166,7 +189,7 @@ export default function Assistente() {
               </div>
             )}
             <form
-              className="flex items-center gap-2 rounded-xl border border-border bg-background focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20 transition px-2"
+              className="flex items-center gap-2 rounded-xl border border-border bg-background focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition p-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSend();
@@ -178,11 +201,13 @@ export default function Assistente() {
                 uploadFile={uploadFile}
                 disabled={isStreaming}
               />
-              <Input
-                placeholder="Pergunte algo ou envie um arquivo…"
+              <Textarea
+                placeholder="Pergunte sobre imóveis, clientes, contratos ou financeiro…"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 h-11 bg-transparent"
+                className="min-h-9 max-h-32 flex-1 resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm"
+                rows={1}
+                onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!isStreaming) void handleSend(); } }}
                 disabled={isStreaming}
                 autoFocus
               />
@@ -196,12 +221,13 @@ export default function Assistente() {
                 <Send className="h-4 w-4" />
               </Button>
             </form>
-            <p className="text-[10px] text-muted-foreground text-center">
-              Enter envia · Shift+Enter quebra linha · Arraste arquivos pra qualquer canto
+            <p className="text-center text-[11px] text-muted-foreground">
+              Enter envia · Shift+Enter quebra linha
             </p>
           </div>
         </div>
       </section>
+
     </div>
   );
 }

@@ -1,10 +1,40 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { asaasGet, asaasPost, asaasPut, AsaasError } from "../_shared/asaas.ts";
+import { clienteAsaas, AsaasError, AsaasNaoConectado, type ClienteAsaas } from "../_shared/asaas.ts";
+import { excluirCobrancaNoAsaas } from "../_shared/excluir-cobranca.ts";
 import { telefoneParaAsaas } from "../_shared/telefone.ts";
 
 const AVISO_TELEFONE =
     "A cobrança foi emitida, mas o telefone do inquilino não foi aceito pelo Asaas e ficou de fora do cadastro. Corrija o telefone no cadastro do cliente.";
+
+interface RespostaSaldoAsaas {
+    balance?: number | string | null;
+}
+
+interface PagamentoAsaas {
+    id: string;
+    status?: string | null;
+    billingType?: string | null;
+    bankSlipUrl?: string | null;
+    invoiceUrl?: string | null;
+    value?: number | null;
+}
+
+interface RespostaStatusAsaas {
+    status?: string | null;
+}
+
+interface RespostaPixAsaas {
+    payload?: string | null;
+}
+
+interface ClienteAsaasResposta {
+    id: string;
+}
+
+interface ListaClientesAsaas {
+    data?: ClienteAsaasResposta[];
+}
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -39,8 +69,8 @@ function computeVencimento(mesRef: string, diaVenc: number): string {
 // que "sem multa" no contrato realmente zere a multa no boleto, sem depender de
 // padrões da conta Asaas.
 function multaJuros(contrato: Record<string, unknown> | null) {
-    const multaPct = Math.max(0, Number((contrato as any)?.multa_atraso_percentual ?? 0) || 0);
-    const jurosDiaPct = Math.max(0, Number((contrato as any)?.juros_mora_diario_percentual ?? 0) || 0);
+    const multaPct = Math.max(0, Number(contrato?.multa_atraso_percentual ?? 0) || 0);
+    const jurosDiaPct = Math.max(0, Number(contrato?.juros_mora_diario_percentual ?? 0) || 0);
     const jurosMensalPct = Number((jurosDiaPct * 30).toFixed(2));
     return {
         multaPct,
@@ -72,12 +102,45 @@ serve(async (req) => {
             return json({ error: "Sua sessão expirou. Entre novamente para continuar." }, 401);
         }
 
+        // Cliente de serviço: escreve auditoria (que não tem policy de INSERT para
+        // authenticated) e lê a credencial Asaas do inquilino, que mora numa tabela
+        // sem policy nenhuma — inalcançável pela Data API por construção.
+        const admin = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+
+        // De quem é esta sessão. Toda chamada à Asaas passa a depender desta
+        // pergunta: sem inquilino resolvido não há chave, e sem chave não há
+        // operação. Enquanto a chave era global a pergunta nunca era feita — e era
+        // exatamente aí que a conta de um corretor atendia o pedido de outro.
+        const { data: corretorId } = await userClient.rpc("get_corretor_id");
+        if (!corretorId) {
+            return json({ error: "Não foi possível identificar o corretor da sua sessão." }, 403);
+        }
+
+        // Preguiçoso de propósito. Resolver a credencial aqui, de olhos fechados,
+        // faria ações que NÃO falam com a Asaas passarem a exigir conta conectada:
+        // dar baixa numa fatura que nunca foi emitida devolvia `sem_cobranca` e
+        // passaria a estourar 409. O cliente só é construído no primeiro uso real,
+        // e uma vez só por requisição.
+        let clienteMemo: ClienteAsaas | null = null;
+        const cli = async (): Promise<ClienteAsaas> =>
+            (clienteMemo ??= await clienteAsaas(admin, corretorId as string));
+
+        const asaas = {
+            get: async <T = unknown>(p: string): Promise<T> => (await cli()).get<T>(p),
+            post: async <T = unknown>(p: string, b: unknown): Promise<T> => (await cli()).post<T>(p, b),
+            put: async <T = unknown>(p: string, b: unknown): Promise<T> => (await cli()).put<T>(p, b),
+            delete: async <T = unknown>(p: string): Promise<T> => (await cli()).delete<T>(p),
+        };
+
         const { action, fatura_id, data_pagamento } = await req.json();
 
         // Ação: consultar o saldo da conta Asaas (não depende de fatura).
         if (action === "saldo") {
             try {
-                const bal = await asaasGet("/finance/balance");
+                const bal = await asaas.get<RespostaSaldoAsaas>("/finance/balance");
                 return json({ balance: Number(bal?.balance ?? 0) });
             } catch (e) {
                 // Chave Asaas sem escopo FINANCIAL_TRANSACTION:READ → não é erro do app.
@@ -94,6 +157,7 @@ serve(async (req) => {
 
         const ACOES_FATURA = [
             "emitir_cobranca", "atualizar_cobranca", "receber_em_dinheiro", "desfazer_recebimento",
+            "excluir_cobranca",
         ];
         if (!ACOES_FATURA.includes(action) || !fatura_id) {
             return json({ error: "Requisição inválida" }, 400);
@@ -119,12 +183,12 @@ serve(async (req) => {
         const imovel = fatura.imoveis;
         const descImovel = imovel?.titulo || imovel?.endereco || "imóvel";
 
-        // Cliente de serviço para escritas privilegiadas (auditoria não tem policy de INSERT
-        // para authenticated; a posse da fatura já foi provada pela leitura acima).
-        const admin = createClient(
-            Deno.env.get("SUPABASE_URL") ?? "",
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        );
+        // Defesa em profundidade: a RLS já garantiu a posse na leitura acima, mas
+        // esta é uma função que move dinheiro. Se a fatura não for do inquilino cuja
+        // chave Asaas acabou de ser carregada, a cobrança sairia na conta errada.
+        if (fatura.corretor_id !== corretorId) {
+            return json({ error: "Fatura não encontrada" }, 404);
+        }
 
         // Vencimento: a data gravada na fatura é a fonte por-fatura (o corretor pode
         // editar o vencimento de uma fatura específica). Se ausente/inválida, deriva
@@ -141,12 +205,12 @@ serve(async (req) => {
                 return json({ error: "Esta cobrança ainda não foi emitida." }, 409);
             }
             // Não altera cobrança já paga/confirmada no Asaas.
-            const atual = await asaasGet(`/payments/${fatura.external_id}`);
+            const atual = await asaas.get<PagamentoAsaas>(`/payments/${fatura.external_id}`);
             if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(String(atual?.status))) {
                 return json({ error: "Cobrança já foi paga/confirmada — não é possível alterar." }, 409);
             }
 
-            const payment = await asaasPut(`/payments/${fatura.external_id}`, {
+            const payment = await asaas.put<PagamentoAsaas>(`/payments/${fatura.external_id}`, {
                 billingType: atual?.billingType ?? "UNDEFINED",
                 dueDate: vencimento,
                 value: Number(fatura.valor_total),
@@ -158,7 +222,7 @@ serve(async (req) => {
 
             let pixText: string | null = fatura.pix_qrcode_text ?? null;
             try {
-                const pix = await asaasGet(`/payments/${payment.id}/pixQrCode`);
+                const pix = await asaas.get<RespostaPixAsaas>(`/payments/${payment.id}/pixQrCode`);
                 pixText = pix?.payload ?? pixText;
             } catch (_) { /* segue com o pix atual */ }
 
@@ -205,7 +269,7 @@ serve(async (req) => {
                 return json({ ok: true, sem_cobranca: true, avisos: [] });
             }
 
-            const atual = await asaasGet(`/payments/${fatura.external_id}`);
+            const atual = await asaas.get<RespostaStatusAsaas>(`/payments/${fatura.external_id}`);
             const st = String(atual?.status ?? "");
 
             if (st === "RECEIVED_IN_CASH") {
@@ -222,7 +286,7 @@ serve(async (req) => {
             }
 
             const dataPg = /^\d{4}-\d{2}-\d{2}$/.test(String(data_pagamento ?? "")) ? data_pagamento : hoje();
-            const recebido = await asaasPost(`/payments/${fatura.external_id}/receiveInCash`, {
+            const recebido = await asaas.post<RespostaStatusAsaas>(`/payments/${fatura.external_id}/receiveInCash`, {
                 paymentDate: dataPg,
                 value: Number(fatura.valor_total),
                 notifyCustomer: false,
@@ -254,7 +318,7 @@ serve(async (req) => {
         if (action === "desfazer_recebimento") {
             if (!fatura.external_id) return json({ ok: true, sem_cobranca: true, avisos: [] });
 
-            const atual = await asaasGet(`/payments/${fatura.external_id}`);
+            const atual = await asaas.get<RespostaStatusAsaas>(`/payments/${fatura.external_id}`);
             const st = String(atual?.status ?? "");
             if (st !== "RECEIVED_IN_CASH") {
                 // Não foi baixa em dinheiro (ou já foi desfeita): nada a reverter lá.
@@ -268,7 +332,7 @@ serve(async (req) => {
                 });
             }
 
-            const desfeito = await asaasPost(`/payments/${fatura.external_id}/undoReceivedInCash`, {});
+            const desfeito = await asaas.post<RespostaStatusAsaas>(`/payments/${fatura.external_id}/undoReceivedInCash`, {});
 
             await admin.from("faturas_aluguel")
                 .update({ asaas_status: desfeito?.status ?? "PENDING" })
@@ -285,6 +349,52 @@ serve(async (req) => {
             });
 
             return json({ ok: true, status: desfeito?.status ?? null, avisos: [] });
+        }
+
+        // ── Ação: EXCLUIR cobrança (cancela no Asaas + marca CANCELADO no banco) ──
+        if (action === "excluir_cobranca") {
+            if (fatura.status === "PAGO") {
+                return json({ error: "Fatura já está paga — use 'Desfazer pagamento' se foi um erro." }, 409);
+            }
+            if (fatura.status === "CANCELADO") {
+                return json({ error: "Fatura já está cancelada." }, 409);
+            }
+
+            // O Asaas é a fonte de verdade para a cobrança externa. Só alteramos o
+            // banco depois de consultar o estado e receber a confirmação da remoção.
+            // Um 404 é idempotente: significa que o boleto já não está ativo lá.
+            if (fatura.external_id) {
+                await excluirCobrancaNoAsaas(fatura.external_id, {
+                    consultar: asaas.get,
+                    excluir: asaas.delete,
+                });
+            }
+
+            // Marca como CANCELADO no banco (não deleta o registro para auditoria)
+            const { error: cancelError } = await admin.from("faturas_aluguel").update({
+                status: "CANCELADO",
+                asaas_status: "DELETED",
+                external_id: null,
+                boleto_url: null,
+                boleto_url_asaas: null,
+                pix_qrcode_text: null,
+            }).eq("id", fatura.id);
+            if (cancelError) throw cancelError;
+
+            await admin.from("auditoria_financeira").insert({
+                corretor_id: fatura.corretor_id,
+                entidade: "faturas_aluguel",
+                entidade_id: fatura.id,
+                acao: "COBRANCA_EXCLUIDA",
+                dados_depois: {
+                    external_id: fatura.external_id ?? null,
+                    status_anterior: fatura.status,
+                },
+                origem: "ui",
+                ator: user.id,
+            });
+
+            return json({ ok: true, avisos: [] });
         }
 
         // ── Ação: EMITIR (idempotente) ──
@@ -319,7 +429,7 @@ serve(async (req) => {
         if (!customerId) {
             // dedupe por CPF antes de criar
             try {
-                const busca = await asaasGet(`/customers?cpfCnpj=${cpf}`);
+                const busca = await asaas.get<ListaClientesAsaas>(`/customers?cpfCnpj=${cpf}`);
                 if (busca?.data?.length) customerId = busca.data[0].id;
             } catch (_) { /* segue para criação */ }
 
@@ -332,7 +442,7 @@ serve(async (req) => {
                 };
                 // Cria primeiro só com os dados necessários para cobrar. Telefone é
                 // enriquecimento opcional e nunca participa desta requisição crítica.
-                const novo = await asaasPost("/customers", base);
+                const novo = await asaas.post<ClienteAsaasResposta>("/customers", base);
                 customerId = novo.id;
             }
             await admin.from("clientes").update({ asaas_customer_id: customerId }).eq("id", cliente.id);
@@ -343,7 +453,7 @@ serve(async (req) => {
             // best-effort: qualquer regra do Asaas sobre telefone fica isolada e a
             // cobrança continua sendo criada apenas com customer, CPF e valor.
             try {
-                await asaasPut(`/customers/${customerId}`, tel);
+                await asaas.put(`/customers/${customerId}`, tel);
             } catch (e) {
                 console.warn("Não foi possível atualizar o telefone do customer no Asaas.", e);
                 avisos.push(AVISO_TELEFONE);
@@ -351,7 +461,7 @@ serve(async (req) => {
         }
 
         // 4. create_payment
-        const payment = await asaasPost("/payments", {
+        const payment = await asaas.post<PagamentoAsaas>("/payments", {
             customer: customerId,
             billingType: "UNDEFINED", // inquilino escolhe boleto, PIX ou cartão
             dueDate: vencimento,
@@ -365,7 +475,7 @@ serve(async (req) => {
         // PIX copia-e-cola (não fatal se indisponível)
         let pixText: string | null = null;
         try {
-            const pix = await asaasGet(`/payments/${payment.id}/pixQrCode`);
+            const pix = await asaas.get<RespostaPixAsaas>(`/payments/${payment.id}/pixQrCode`);
             pixText = pix?.payload ?? null;
         } catch (_) { /* segue sem PIX */ }
 
@@ -403,11 +513,19 @@ serve(async (req) => {
             avisos,
         });
     } catch (error) {
+        // Não conectar uma conta não é falha: é configuração que falta. A tela usa
+        // o CÓDIGO para desenhar o convite a conectar — casar texto de mensagem
+        // quebraria na primeira vez que alguém melhorasse a frase.
+        if (error instanceof AsaasNaoConectado) {
+            return json({ error: error.message, codigo: error.codigo, nao_conectado: true }, 409);
+        }
         if (error instanceof AsaasError) {
             console.error("Asaas error:", error.status, error.body);
-            const msg = typeof error.body === "object" && error.body !== null
-                ? ((error.body as any).errors?.[0]?.description ?? "Erro na API do Asaas")
-                : "Erro na API do Asaas";
+            const corpo = typeof error.body === "object" && error.body !== null
+                ? error.body as { errors?: Array<{ description?: unknown }> }
+                : null;
+            const descricao = corpo?.errors?.[0]?.description;
+            const msg = typeof descricao === "string" ? descricao : "Erro na API do Asaas";
             return json({ error: msg }, error.status === 401 ? 502 : 400);
         }
         console.error("asaas-sync error:", error);

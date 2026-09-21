@@ -1,0 +1,23 @@
+name: Security and tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: test-public-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run audit:security
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install chromium --with-deps --only-shell
+      - run: npm run test:security-browser

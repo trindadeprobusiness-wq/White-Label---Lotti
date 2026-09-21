@@ -1,0 +1,26 @@
+Pessoal, segue o pacote estratégico completo da Lotti para nossa análise e decisão.
+
+O material reúne:
+• estudo de mercado e concorrência;
+• auditoria do produto real;
+• modelo de unit economics e projeções;
+• recomendação de pricing;
+• comparação de gateways;
+• stress tests de CAC, churn e margem;
+• plano objetivo de execução para 90 dias.
+
+A recomendação central é testar a faixa de R$129 / R$249 / R$499 por coortes, com
+limites claros e critérios de decisão. Esses valores ainda são uma hipótese de teste,
+não uma definição final validada.
+
+Para uma leitura rápida, comecem pelo PDF “Business Review Estratégico”. A planilha e
+o estudo completo ficam como base técnica para revisar premissas e números.
+
+Sugiro concentrarmos a discussão em cinco decisões:
+1. faixa de preços do experimento;
+2. gateway para a assinatura SaaS;
+3. responsáveis por cada frente;
+4. orçamento inicial de aquisição;
+5. critérios de continuar, ajustar ou interromper o teste.
+
+Depois da leitura, podemos fechar responsáveis e datas para os próximos 30, 60 e 90 dias.

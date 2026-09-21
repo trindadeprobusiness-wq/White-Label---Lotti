@@ -1,5 +1,9 @@
 project_id = "dqlolypbmsjgqrvdesev"
 
+# Auth.getUser validates the bearer JWT before every channel operation.
+[functions.lotti-whatsapp]
+verify_jwt = false
+
 [functions.generate-whatsapp-message]
 verify_jwt = false
 
@@ -25,4 +29,31 @@ verify_jwt = false
 # asaas-sync valida a sessão do corretor in-code (auth.getUser); mantém o
 # padrão das demais funções voltadas ao usuário.
 [functions.asaas-sync]
+verify_jwt = false
+
+# Conexão self-service: recebe a chave apenas sobre HTTPS e valida a sessão
+# dentro da função antes de cifrar/persistir. verify_jwt fica desligado no
+# gateway pelo mesmo motivo de asaas-sync; a validação não foi removida.
+[functions.asaas-conexao]
+verify_jwt = false
+
+# OAuth do Google volta sem JWT da Lotti; todas as rotas validam sessão, state
+# ou segredo interno dentro da função. Webhook e sync também possuem guards
+# próprios porque o Google não envia Authorization do Supabase.
+[functions.google-calendar-auth]
+verify_jwt = false
+
+[functions.google-calendar-sync]
+verify_jwt = false
+
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+[functions.routine-command]
+verify_jwt = false
+
+# Registro do clique no link do parceiro. Roda ANTES de existir conta — é o
+# primeiro contato do visitante com a Lotti —, então não pode exigir JWT.
+# A validação é o slug: só link ativo de parceiro ativo registra.
+[functions.parceiro-clique]
 verify_jwt = false

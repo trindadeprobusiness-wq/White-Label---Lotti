@@ -10,7 +10,24 @@ interface UpgradePromptProps {
   onOpenChange: (open: boolean) => void;
   featureKey: FeatureKey;
   featureName: string;
-  currentPlanCode: string;
+  currentPlanName: string;
+  used: number;
+  limit: number | null;
+  recommendedPlanName: string | null;
+}
+
+export function conteudoUpgrade({
+  featureName,
+  used,
+  limit,
+  currentPlanName,
+  recommendedPlanName,
+}: Pick<UpgradePromptProps, 'featureName' | 'used' | 'limit' | 'currentPlanName' | 'recommendedPlanName'>) {
+  return {
+    title: `Limite de ${featureName} atingido`,
+    description: `Você usou ${used} de ${limit ?? 0} no plano ${currentPlanName}.`,
+    actionLabel: recommendedPlanName ? `Ver plano ${recommendedPlanName}` : 'Ver opções de plano',
+  };
 }
 
 export function UpgradePrompt({
@@ -18,12 +35,16 @@ export function UpgradePrompt({
   onOpenChange,
   featureKey,
   featureName,
-  currentPlanCode,
+  currentPlanName,
+  used,
+  limit,
+  recommendedPlanName,
 }: UpgradePromptProps) {
   const navigate = useNavigate();
+  const conteudo = conteudoUpgrade({ featureName, used, limit, currentPlanName, recommendedPlanName });
 
   const handleUpgradeClick = () => {
-    planEvents.limitReached(featureKey, currentPlanCode);
+    planEvents.limitReached(featureKey, currentPlanName);
     onOpenChange(false);
     navigate('/plano');
   };
@@ -36,24 +57,25 @@ export function UpgradePrompt({
             <ShieldAlert className="h-6 w-6 text-warning" />
           </div>
           <DialogTitle className="text-center text-xl">
-            Limite de {featureName} atingido
+            {conteudo.title}
           </DialogTitle>
           <DialogDescription className="text-center pt-2">
-            Seu plano atual ({currentPlanCode}) não permite mais operações de{' '}
-            <span className="font-medium text-foreground">{featureName}</span> neste ciclo.
+            {conteudo.description}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
           <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground text-center">
-            Faça um upgrade no seu plano ou contrate um pacote adicional para liberar mais limite imediatamente.
+            {recommendedPlanName
+              ? `O plano ${recommendedPlanName} oferece mais capacidade para este recurso.`
+              : 'Consulte as opções disponíveis para ampliar sua capacidade.'}
           </div>
         </div>
 
         <DialogFooter className="flex-col sm:justify-center sm:space-x-0 gap-2">
           <Button onClick={handleUpgradeClick} className="w-full gap-2">
             <Rocket className="h-4 w-4" />
-            Ver opções de Upgrade
+            {conteudo.actionLabel}
           </Button>
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full">
             Entendi, talvez depois

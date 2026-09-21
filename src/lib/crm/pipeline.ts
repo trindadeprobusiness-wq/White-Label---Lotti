@@ -27,6 +27,21 @@ export function agruparPorEtapa(
     });
 }
 
+/** Pesquisa local do quadro por negócio, cliente ou imóvel, sem alterar os dados. */
+export function filtrarOportunidades<T extends CrmOportunidade & {
+  clientes?: { nome?: string };
+  imoveis?: { titulo?: string };
+}>(oportunidades: T[], busca: string): T[] {
+  const termo = busca.trim().toLocaleLowerCase('pt-BR');
+  if (!termo) return oportunidades;
+
+  return oportunidades.filter((oportunidade) => [
+    oportunidade.titulo,
+    oportunidade.clientes?.nome,
+    oportunidade.imoveis?.titulo,
+  ].some((valor) => valor?.toLocaleLowerCase('pt-BR').includes(termo)));
+}
+
 /**
  * Move um negócio para outra etapa/posição e RENUMERA as colunas afetadas.
  * Renumerar evita buraco e empate em `ordem` — empate deixaria a coluna

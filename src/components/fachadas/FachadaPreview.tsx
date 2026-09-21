@@ -150,7 +150,7 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Fachada - ${fachada.imovel?.titulo}</title>
+          <title>Fachada</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5; }
@@ -161,6 +161,7 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
       </html>
     `);
     printWindow.document.close();
+    printWindow.document.title = `Fachada - ${fachada.imovel?.titulo ?? ''}`;
     setTimeout(() => printWindow.print(), 500);
   };
 

@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 interface LancamentoCardProps {
   lancamento: LancamentoFinanceiro;
@@ -70,7 +71,7 @@ export function LancamentoCard({ lancamento, onDelete, onEdit }: LancamentoCardP
           "text-lg font-semibold",
           isReceita ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
         )}>
-          {isReceita ? '+' : '-'} {formatarValor(Number(lancamento.valor))}
+          <DadoSensivel valor={`${isReceita ? '+' : '-'} ${formatarValor(Number(lancamento.valor))}`} tipo="valor" />
         </p>
 
         <div className="flex items-center gap-1">

@@ -13,7 +13,10 @@
 //  3. Caso contrário, usa a própria origem (funciona em produção e em qualquer
 //     domínio próprio futuro automaticamente).
 
-const PROD_FALLBACK = 'https://casa-mente-contrato-1.vercel.app';
+// Domínio próprio do aplicativo. Os endereços .vercel.app continuam
+// respondendo, mas não servem como fallback: este valor vai impresso em QR
+// Code e em link de parceiro, que duram muito mais que um endereço técnico.
+const PROD_FALLBACK = 'https://app.plataformalotti.com.br';
 
 function isDevHost(host: string): boolean {
   return (
@@ -40,4 +43,15 @@ export function getPublicBaseUrl(): string {
 /** URL pública da landing page de uma fachada (o que o QR Code aponta). */
 export function getFachadaPublicUrl(fachadaId: string): string {
   return `${getPublicBaseUrl()}/p/${fachadaId}`;
+}
+
+/**
+ * Link exclusivo de um parceiro.
+ *
+ * Mesmo motivo do QR: este link é copiado para WhatsApp, e-mail e material
+ * impresso. Se saísse com `localhost` porque alguém gerou em desenvolvimento,
+ * o parceiro divulgaria um endereço morto sem ninguém perceber.
+ */
+export function getParceiroLinkUrl(slug: string): string {
+  return `${getPublicBaseUrl()}/r/${slug}`;
 }

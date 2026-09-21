@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Video, Search, Filter, Loader2, Grid3X3, List, Trash2 } from 'lucide-react';
+import {
+  ArrowDownUp, Building2, Eye, Film, Filter, Grid3X3, Link as LinkIcon, List,
+  Loader2, Megaphone, Plane, Plus, Rotate3d, Search, Sparkles, Trash2, Upload, Video,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +17,11 @@ import { EditarVideoDialog } from '@/components/midias/EditarVideoDialog';
 import { CompartilharVideoDialog } from '@/components/midias/CompartilharVideoDialog';
 import { FotosIA } from '@/components/midias/FotosIA';
 import { supabase } from '@/integrations/supabase/client';
+import { PageHeader } from '@/components/shell/PageHeader';
+import {
+  abasSublinhadas, MetricStrip, SectionCard, EmptyState,
+} from '@/components/shell/primitivos';
+import { numero } from '@/lib/formato';
 
 interface ImovelSimples {
   id: string;
@@ -23,7 +31,7 @@ interface ImovelSimples {
 type SortOption = 'recentes' | 'antigos' | 'nome' | 'visualizacoes';
 
 const TIPOS_VIDEO: { value: TipoVideo | 'TODOS'; label: string }[] = [
-  { value: 'TODOS', label: 'Todos os Tipos' },
+  { value: 'TODOS', label: 'Todos os tipos' },
   { value: 'TOUR_VIRTUAL', label: 'Tour Virtual' },
   { value: 'APRESENTACAO', label: 'Apresentação' },
   { value: 'DEPOIMENTO', label: 'Depoimento' },
@@ -35,6 +43,7 @@ const TIPOS_VIDEO: { value: TipoVideo | 'TODOS'; label: string }[] = [
 export default function Midias() {
   const { videos, loading, uploading, uploadProgress, uploadVideo, deleteVideo, updateVideo, incrementVisualizacoes, getTemporaryShareUrl } = useVideos();
 
+  const [abaAtiva, setAbaAtiva] = useState('videos');
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<TipoVideo | 'TODOS'>('TODOS');
   const [imovelFilter, setImovelFilter] = useState<string>('TODOS');
@@ -145,23 +154,44 @@ export default function Midias() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Video className="h-6 w-6 text-primary" />
-          Mídias
-        </h1>
-        <p className="text-muted-foreground">
-          Gerencie vídeos e conteúdos do seu banco de mídias
-        </p>
-      </div>
+    <div className="animate-fade-in">
+      <PageHeader
+        titulo="Mídias"
+        subtitulo="Organize vídeos, fotos e conteúdos dos seus imóveis."
+        comUtilitarios
+        mostrarPrivacidade={false}
+        acoes={
+          <>
+            <Button
+              variant="outline"
+              className="h-control"
+              onClick={() => setAbaAtiva('fotos-ia')}
+            >
+              <Building2 className="mr-2 h-[18px] w-[18px]" />
+              Gerar fotos com IA
+            </Button>
+            <Button className="h-control" onClick={() => setAbaAtiva('upload')}>
+              <Plus className="mr-2 h-[18px] w-[18px]" />
+              Enviar mídia
+            </Button>
+          </>
+        }
+      />
 
-      <Tabs defaultValue="videos" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="videos">Vídeos</TabsTrigger>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
-          <TabsTrigger value="fotos-ia">✨ Fotos IA</TabsTrigger>
+      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="space-y-5">
+        <TabsList className={abasSublinhadas.lista}>
+          <TabsTrigger value="videos" className={abasSublinhadas.gatilho}>
+            <Video className="mr-2 h-4 w-4" />
+            Biblioteca
+          </TabsTrigger>
+          <TabsTrigger value="upload" className={abasSublinhadas.gatilho}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload
+          </TabsTrigger>
+          <TabsTrigger value="fotos-ia" className={abasSublinhadas.gatilho}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            Fotos IA
+          </TabsTrigger>
         </TabsList>
 
         {/* Fotos IA Tab */}
@@ -190,56 +220,41 @@ export default function Midias() {
 
         {/* Videos Tab */}
         <TabsContent value="videos" className="space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTipoFilter('TODOS'); setImovelFilter('TODOS'); }}>
-              <CardContent className="p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{kpis.total}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setTipoFilter('TOUR_VIRTUAL')}>
-              <CardContent className="p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">{kpis.tourVirtual}</p>
-                <p className="text-xs text-muted-foreground">Tours Virtuais</p>
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setTipoFilter('DRONE')}>
-              <CardContent className="p-4 text-center">
-                <p className="text-2xl font-bold text-orange-600">{kpis.drone}</p>
-                <p className="text-xs text-muted-foreground">Drone</p>
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setImovelFilter('SEM_IMOVEL')}>
-              <CardContent className="p-4 text-center">
-                <p className="text-2xl font-bold text-green-600">{kpis.vinculados}</p>
-                <p className="text-xs text-muted-foreground">Vinculados</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <p className="text-2xl font-bold text-purple-600">{kpis.visualizacoes}</p>
-                <p className="text-xs text-muted-foreground">Visualizações</p>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Faixa de indicadores. Cada um é um filtro: clicar em "Drone"
+              mostra só os vídeos de drone — o número vira ação, não enfeite. */}
+          <MetricStrip
+            className="lg:grid-cols-5"
+            carregando={loading}
+            itens={[
+              { id: 'total', valor: numero(kpis.total), label: 'Total',
+                icone: <Film className="h-5 w-5" />, tom: 'brand' },
+              { id: 'tours', valor: numero(kpis.tourVirtual), label: 'Tours virtuais',
+                icone: <Rotate3d className="h-5 w-5" />, tom: 'info' },
+              { id: 'drone', valor: numero(kpis.drone), label: 'Drone',
+                icone: <Plane className="h-5 w-5" />, tom: 'warning' },
+              { id: 'vinculados', valor: numero(kpis.vinculados), label: 'Vinculados',
+                icone: <LinkIcon className="h-5 w-5" />, tom: 'success' },
+              { id: 'views', valor: numero(kpis.visualizacoes), label: 'Visualizações',
+                icone: <Eye className="h-5 w-5" />, tom: 'brand' },
+            ]}
+          />
 
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          {/* Filtros */}
+          <div className="flex flex-col gap-3 rounded-card border border-border bg-card p-3 md:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar vídeos..."
+                placeholder="Buscar mídias..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="h-control pl-11"
               />
             </div>
 
             <Select value={tipoFilter} onValueChange={(v) => setTipoFilter(v as TipoVideo | 'TODOS')}>
-              <SelectTrigger className="w-full md:w-40">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Tipo" />
+              <SelectTrigger className="h-control w-full md:w-44">
+                <Filter className="mr-2 h-[18px] w-[18px] text-muted-foreground" />
+                <SelectValue placeholder="Tipo de mídia" />
               </SelectTrigger>
               <SelectContent>
                 {TIPOS_VIDEO.map((t) => (
@@ -249,12 +264,13 @@ export default function Midias() {
             </Select>
 
             <Select value={imovelFilter} onValueChange={setImovelFilter}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Imóvel" />
+              <SelectTrigger className="h-control w-full md:w-48">
+                <Building2 className="mr-2 h-[18px] w-[18px] text-muted-foreground" />
+                <SelectValue placeholder="Todos os imóveis" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="TODOS">Todos os Imóveis</SelectItem>
-                <SelectItem value="SEM_IMOVEL">Sem Imóvel</SelectItem>
+                <SelectItem value="TODOS">Todos os imóveis</SelectItem>
+                <SelectItem value="SEM_IMOVEL">Sem imóvel</SelectItem>
                 {imoveis.map((im) => (
                   <SelectItem key={im.id} value={im.id}>{im.titulo}</SelectItem>
                 ))}
@@ -262,7 +278,8 @@ export default function Midias() {
             </Select>
 
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-              <SelectTrigger className="w-full md:w-40">
+              <SelectTrigger className="h-control w-full md:w-44">
+                <ArrowDownUp className="mr-2 h-[18px] w-[18px] text-muted-foreground" />
                 <SelectValue placeholder="Ordenar" />
               </SelectTrigger>
               <SelectContent>
@@ -273,36 +290,72 @@ export default function Midias() {
               </SelectContent>
             </Select>
 
-            <div className="flex gap-1">
+            <div className="flex shrink-0 gap-1 rounded-lg border border-border p-1">
               <Button
-                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
                 size="icon"
+                className="h-9 w-9"
                 onClick={() => setViewMode('grid')}
+                aria-label="Ver em grade"
+                aria-pressed={viewMode === 'grid'}
               >
-                <Grid3X3 className="h-4 w-4" />
+                <Grid3X3 className="h-[18px] w-[18px]" />
               </Button>
               <Button
-                variant={viewMode === 'list' ? 'default' : 'outline'}
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
                 size="icon"
+                className="h-9 w-9"
                 onClick={() => setViewMode('list')}
+                aria-label="Ver em lista"
+                aria-pressed={viewMode === 'list'}
               >
-                <List className="h-4 w-4" />
+                <List className="h-[18px] w-[18px]" />
               </Button>
             </div>
           </div>
 
           {/* Videos Grid */}
           {filteredVideos.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Video className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground">
-                  {videos.length === 0
-                    ? 'Nenhum vídeo cadastrado ainda. Faça upload do primeiro vídeo!'
-                    : 'Nenhum vídeo encontrado com os filtros aplicados.'}
-                </p>
-              </CardContent>
-            </Card>
+            <SectionCard>
+              {videos.length === 0 ? (
+                // Banco vazio e busca sem resultado são situações diferentes:
+                // uma pede o primeiro upload, a outra pede limpar o filtro.
+                <EmptyState
+                  icone={<Film className="h-6 w-6" />}
+                  titulo="Seu banco de mídia está vazio"
+                  descricao="Envie fotos e vídeos para organizar o material de cada imóvel e reutilizar nos seus anúncios."
+                  acao={
+                    <Button className="h-control" onClick={() => setAbaAtiva('upload')}>
+                      <Upload className="mr-2 h-[18px] w-[18px]" />
+                      Enviar primeira mídia
+                    </Button>
+                  }
+                  secundaria={
+                    <Button variant="ghost" onClick={() => setAbaAtiva('fotos-ia')}>
+                      Criar fotos com IA
+                    </Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icone={<Search className="h-6 w-6" />}
+                  titulo="Nenhuma mídia encontrada"
+                  descricao="Nenhum item corresponde aos filtros aplicados."
+                  acao={
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setTipoFilter('TODOS');
+                        setImovelFilter('TODOS');
+                      }}
+                    >
+                      Limpar filtros
+                    </Button>
+                  }
+                />
+              )}
+            </SectionCard>
           ) : (
             <div className={viewMode === 'grid'
               ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
@@ -321,6 +374,43 @@ export default function Midias() {
               ))}
             </div>
           )}
+
+          <SectionCard titulo="Como funciona">
+            <ol className="grid gap-5 sm:grid-cols-3">
+              {[
+                { n: 1, icone: <Upload className="h-[18px] w-[18px]" />,
+                  titulo: 'Envie seus arquivos',
+                  texto: 'Fotos, vídeos, tours ou imagens de drone' },
+                { n: 2, icone: <LinkIcon className="h-[18px] w-[18px]" />,
+                  titulo: 'Vincule ao imóvel',
+                  texto: 'Mantenha todo o material organizado' },
+                { n: 3, icone: <Megaphone className="h-[18px] w-[18px]" />,
+                  titulo: 'Use nos anúncios',
+                  texto: 'Encontre e reutilize o conteúdo com rapidez' },
+              ].map((passo, i, todos) => (
+                <li key={passo.n} className="relative flex min-w-0 items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {passo.n}
+                  </span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-brand text-primary">
+                    {passo.icone}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{passo.titulo}</span>
+                    <span className="mt-0.5 block text-sm text-muted-foreground">{passo.texto}</span>
+                  </span>
+                  {/* Conector pontilhado só entre passos, e só quando estão
+                      lado a lado — empilhados, a linha cairia no vazio. */}
+                  {i < todos.length - 1 && (
+                    <span
+                      className="absolute -right-3 top-3.5 hidden w-6 border-t border-dashed border-border sm:block"
+                      aria-hidden="true"
+                    />
+                  )}
+                </li>
+              ))}
+            </ol>
+          </SectionCard>
         </TabsContent>
       </Tabs>
 

@@ -19,6 +19,8 @@ import { Database } from "@/integrations/supabase/types";
 import { NovoImovelDialog } from "@/components/imoveis/NovoImovelDialog";
 import { NovoClienteDialog } from "@/components/clientes/NovoClienteDialog";
 import { extractContractData } from "@/services/contractExtractionService";
+import { useCheckLimit } from "@/hooks/useSubscription";
+import { podeCriarRecurso } from "@/lib/planos";
 
 type TipoContrato = Database["public"]["Enums"]["tipo_contrato"];
 
@@ -31,6 +33,7 @@ interface NewContractDialogProps {
 export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewContractDialogProps) {
     const queryClient = useQueryClient();
     const isEditing = !!contractToEdit;
+    const checkLimit = useCheckLimit();
 
     // Form States
     const [clientId, setClientId] = useState("");
@@ -225,6 +228,9 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
     // Mutation
     const upsertContractMutation = useMutation({
         mutationFn: async () => {
+            if (!podeCriarRecurso(checkLimit('max_contratos_locacao'), isEditing)) {
+                throw new Error('Limite de contratos de aluguel atingido. Veja as opções de plano.');
+            }
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Usuário não autenticado");
 

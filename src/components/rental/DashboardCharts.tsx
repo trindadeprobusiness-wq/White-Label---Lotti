@@ -2,8 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { VALOR_MASCARADO } from '@/lib/privacidade';
+import { usePrivacidade } from '@/stores/privacidadeStore';
 
 export function DashboardCharts() {
+  // O gráfico também expõe dinheiro: tooltip, legenda e totais.
+  const oculto = usePrivacidade((s) => s.valoresOcultos);
     const { data: chartData, isLoading } = useQuery({
         queryKey: ["rental-charts"],
         queryFn: async () => {
@@ -66,7 +70,7 @@ export function DashboardCharts() {
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                 ))}
                             </Pie>
-                            <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
+                            <Tooltip formatter={(value: number) => (oculto ? VALOR_MASCARADO : `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)} />
                             <Legend verticalAlign="bottom" height={36} />
                         </PieChart>
                     </ResponsiveContainer>
@@ -83,7 +87,7 @@ export function DashboardCharts() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis />
-                            <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                            <Tooltip formatter={(value: number) => (oculto ? VALOR_MASCARADO : `R$ ${value.toLocaleString('pt-BR')}`)} />
                             <Legend />
                             <Bar dataKey="receita" name="Receita Bruta" fill="#94a3b8" />
                             <Bar dataKey="repasse" name="Repasse Líquido" fill="#22c55e" />
