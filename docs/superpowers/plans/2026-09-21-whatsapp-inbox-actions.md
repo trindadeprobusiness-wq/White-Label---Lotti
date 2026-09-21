@@ -1,5 +1,7 @@
 # WhatsApp Inbox Actions Implementation Plan
 
+**Status:** implementação concluída e verificada em 2026-09-21; publicação da migration e Edge Function permanece externa ao PR.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Tornar persistentes e funcionais as ações Nova conversa, editar nome e fechar/reabrir no Inbox conectado, preservando o visual Clix aprovado.

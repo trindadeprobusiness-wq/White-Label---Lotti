@@ -1,5 +1,10 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — ações funcionais do Inbox em PR (2026-09-21)
+- Branch `codex/whatsapp-inbox-actions`: `Nova` abre formulário compacto e cria/reutiliza cliente+conversa antes do envio manual; o lápis renomeia o cliente; `Aberta/Fechada` confirma e persiste fechamento/reabertura.
+- Migration `20260921130000_lotti_inbox_actions.sql` adiciona status e três RPCs autorizadas por `auth.uid()`; mensagem recebida reabre conversa fechada. A Edge Function ganhou a ação `start`, reutilizando a idempotência do envio manual.
+- Verificação: 78 arquivos/581 testes, build, ESLint direcionado, bundle da Edge Function e `git diff --check` passaram. Migration e Edge Function ainda não foram publicadas; dependem da aprovação/aplicação pelo dono.
+
 ## Codex — Inbox Clix integrado à main (2026-09-21)
 - A versão visual aprovada do Inbox conectado foi integrada à `main` no merge `9b483e2` e enviada para `origin/main`, preservando o commit local anterior do favicon e as mudanças remotas.
 - Verificação no resultado integrado: 75 arquivos/572 testes passaram com as variáveis fictícias do CI; build de produção e `git diff --check` passaram. O push não publica migration nem Edge Function.
