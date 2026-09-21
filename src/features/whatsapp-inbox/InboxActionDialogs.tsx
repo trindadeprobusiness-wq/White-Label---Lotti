@@ -1,0 +1,23 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+
+type Common={open:boolean;onOpenChange:(open:boolean)=>void;pending:boolean;error?:string};
+
+export function NewConversationDialog({open,onOpenChange,onSubmit,pending,error}:Common&{onSubmit:(data:{phone:string;name?:string;text:string})=>void}){
+ const [phone,setPhone]=useState(''),[name,setName]=useState(''),[message,setMessage]=useState('');
+ useEffect(()=>{if(!open){setPhone('');setName('');setMessage('')}},[open]);
+ function submit(event:FormEvent){event.preventDefault();let normalized=phone.replace(/\D/g,'');if(normalized.length===10||normalized.length===11)normalized=`55${normalized}`;if(normalized.length<12||normalized.length>15||!message.trim())return;onSubmit({phone:normalized,...(name.trim()?{name:name.trim()}:{}),text:message.trim()})}
+ return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto"><DialogHeader><DialogTitle>Nova conversa</DialogTitle><DialogDescription>Informe o cliente e a primeira mensagem para começar o atendimento.</DialogDescription></DialogHeader><form onSubmit={submit} className="space-y-4"><label className="block text-sm font-medium">Telefone<Input aria-label="Telefone" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Ex.: (62) 99999-8888" className="mt-1.5" /></label><label className="block text-sm font-medium">Nome (opcional)<Input aria-label="Nome (opcional)" value={name} maxLength={120} onChange={e=>setName(e.target.value)} className="mt-1.5" /></label><label className="block text-sm font-medium">Mensagem inicial<Textarea aria-label="Mensagem inicial" value={message} maxLength={8000} onChange={e=>setMessage(e.target.value)} className="mt-1.5 min-h-24" /></label>{error&&<p role="alert" className="text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={()=>onOpenChange(false)} disabled={pending}>Cancelar</Button><Button type="submit" disabled={pending||!message.trim()}>{pending?'Enviando…':'Enviar mensagem'}</Button></DialogFooter></form></DialogContent></Dialog>
+}
+
+export function RenameContactDialog({open,initialName,onOpenChange,onSubmit,pending,error}:Common&{initialName:string;onSubmit:(name:string)=>void}){
+ const [name,setName]=useState(initialName);useEffect(()=>{if(open)setName(initialName)},[open,initialName]);
+ return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-md"><DialogHeader><DialogTitle>Editar nome</DialogTitle><DialogDescription>Atualize como este cliente aparece no atendimento.</DialogDescription></DialogHeader><form onSubmit={e=>{e.preventDefault();if(name.trim())onSubmit(name.trim())}} className="space-y-4"><label className="block text-sm font-medium">Nome do cliente<Input aria-label="Nome do cliente" value={name} maxLength={120} onChange={e=>setName(e.target.value)} className="mt-1.5" /></label>{error&&<p role="alert" className="text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={()=>onOpenChange(false)} disabled={pending}>Cancelar</Button><Button type="submit" disabled={pending||!name.trim()}>{pending?'Salvando…':'Salvar nome'}</Button></DialogFooter></form></DialogContent></Dialog>
+}
+
+export function ConversationStatusDialog({open,status,onOpenChange,onConfirm,pending,error}:Common&{status:'open'|'closed';onConfirm:(status:'open'|'closed')=>void}){
+ const closing=status==='open';return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-md"><DialogHeader><DialogTitle>{closing?'Fechar conversa?':'Reabrir conversa?'}</DialogTitle><DialogDescription>{closing?'A conversa fica marcada como Fechada.':'A conversa volta para a fila de atendimento.'}</DialogDescription></DialogHeader>{error&&<p role="alert" className="text-sm text-destructive">{error}</p>}<DialogFooter><Button variant="outline" onClick={()=>onOpenChange(false)} disabled={pending}>Cancelar</Button><Button onClick={()=>onConfirm(closing?'closed':'open')} disabled={pending}>{pending?'Salvando…':closing?'Fechar':'Reabrir'}</Button></DialogFooter></DialogContent></Dialog>
+}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -87,4 +87,16 @@ it('mantém a densidade compacta da referência do Clix', async () => {
   expect(screen.getByRole('button', { name: /5511999990000/ }).className).toContain('min-h-[64px]');
   expect(screen.getByRole('switch', { name: 'IA' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Ocultar info' })).not.toBeNull();
+});
+
+it('abre as três ações essenciais pelos controles do Inbox', async () => {
+  mount(true);
+  fireEvent.click(await screen.findByRole('button', { name: 'Nova' }));
+  expect(screen.getByRole('dialog', { name: 'Nova conversa' })).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Editar nome' }));
+  expect(screen.getByRole('dialog', { name: 'Editar nome' })).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
+  expect(screen.getByRole('dialog', { name: 'Fechar conversa?' })).not.toBeNull();
 });
