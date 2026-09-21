@@ -1,5 +1,18 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — Inbox conectado compacto (2026-09-20)
+- Em 2026-09-21, a densidade deixou de ser estimada pela captura e foi alinhada ao código-fonte real do Clix em `C:\Users\rafae\Clix\catalogo`: lista com 306 px, perfil com 330 px, gap/padding de 10 px, cabeçalho com 68 px e faixa de etapa com 42 px. O cabeçalho agora usa o interruptor `IA` e `Ocultar info`, como a referência, preservando a troca de modo existente.
+- Inspeção local em 1600×900 mediu exatamente `306px 684px 330px`, gap 10 px, header 68 px e etapa 42 px; nenhum botão flutuante `IA Lotti` foi encontrado. Validação desta rodada: 15/15 testes direcionados, ESLint direcionado, build de produção e `git diff --check` passaram.
+- No worktree `codex/whatsapp-inbox-send`, o Inbox real foi ajustado para três colunas compactas, com conversa flexível, rolagem interna e compositor no rodapé do painel.
+- Balões de conversa ficaram compactos e os metadados das mensagens enviadas usam contraste claro sobre o fundo escuro. Campos de qualificação sem dados não ocupam espaço no perfil.
+- Falha da consulta de status agora aparece como conexão não confirmada no Inbox; a página Conexão não oferece novo pareamento enquanto o estado estiver indisponível. Isso não altera a estabilidade da sessão externa do WhatsApp.
+- Validação: 12/12 testes direcionados, build de produção, ESLint direcionado e `git diff --check` passaram. Sem inspeção visual autenticada nem publicação nesta etapa.
+
+## Codex — paridade visual do Inbox com o Clix (2026-09-21)
+- O Inbox real passou a reproduzir a composição da referência do Clix: lista de conversas com busca/filtros à esquerda, chat de altura integral com cabeçalho e barra de etapa ao centro, e perfil com resumo, timeline, atribuição, tags e notas à direita.
+- O assistente flutuante `IA Lotti` foi desativado em todas as rotas `/whatsapp`, usando a regra já existente e agora aplicada pelo `AppLayout`.
+- A inspeção no navegador em viewport 1600×900 confirmou as três colunas, rolagens internas e ausência do widget. Validação: 42/42 testes direcionados, build, ESLint direcionado e `git diff --check` passaram. Nada foi publicado.
+
 ## Codex — favicon da Lotti (2026-08-17)
 - `public/favicon.svg` usa o símbolo da logo branca fornecida pelo usuário, verde no tema claro e branco no tema escuro.
 - Validações da entrega original: SVG XML válido e `git diff --check` sem erros.

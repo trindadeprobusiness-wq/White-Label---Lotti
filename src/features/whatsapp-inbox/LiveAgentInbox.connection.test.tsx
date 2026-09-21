@@ -9,7 +9,7 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } }) }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 vi.mock('@/pages/WhatsAppInbox', () => ({ default: () => <div><h1>Inbox completo</h1><p>Todas Atrasando Urgente</p></div> }));
-vi.mock('./ConnectedInbox', () => ({ default: () => <div><h1>Inbox real</h1><p>Conversas persistidas</p></div> }));
+vi.mock('./ConnectedInbox', () => ({ default: ({ connected }: { connected: boolean | 'unknown' }) => <div><h1>Inbox real</h1><p>Conversas persistidas</p><span data-testid="connection-state">{String(connected)}</span></div> }));
 
 function mount(initialEntry = '/whatsapp') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -39,5 +39,11 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
     invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
     mount('/whatsapp?preview=connected');
     expect(await screen.findByRole('heading', { name: 'Inbox completo' })).not.toBeNull();
+  });
+
+  it('erro da consulta mantém o estado desconhecido, sem afirmar desconexão', async () => {
+    invoke.mockResolvedValue({ data: null, error: new Error('indisponível') });
+    mount();
+    expect((await screen.findByTestId('connection-state')).textContent).toBe('unknown');
   });
 });

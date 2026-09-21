@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Bot, Filter, MessageCircle, Pause, Search, Timer, UserRound } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Filter, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UsersRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
@@ -20,7 +20,7 @@ type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' |
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
 
-export default function ConnectedInbox({ connected = true }: { connected?: boolean }) {
+export default function ConnectedInbox({ connected = true }: { connected?: boolean | 'unknown' }) {
   const { user } = useAuth();
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
@@ -30,6 +30,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   const [modeFilter, setModeFilter] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('');
+  const [infoVisible, setInfoVisible] = useState(true);
   const list = useQuery({
     queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user, refetchInterval: 5000,
     queryFn: async () => {
@@ -79,62 +80,60 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
     onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
   });
   const q = selected?.qualification;
-  return <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-2" data-testid="connected-inbox">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="text-xs text-muted-foreground">Conversas recebidas pelo número da empresa. <Link className="underline" to="/whatsapp/conexao">Ver conexão</Link>{!connected && <span role="status" className="ml-2 text-amber-700">· Desconectado</span>}</p></div>
-      <Badge variant="outline" className="text-[10px]">Atualiza a cada 5 segundos</Badge>
-    </div>
+  const connectionKnown = connected !== 'unknown';
+  return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
+    <h1 className="sr-only">Inbox</h1>
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
     {list.isPending && <p role="status">Carregando conversas…</p>}
     {list.isSuccess && !list.data.length && <div className="rounded-xl border bg-card p-8 text-center">
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>
       <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste depois de conectar. Conversas antigas do celular não são importadas automaticamente.</p>
     </div>}
-    {!!list.data?.length && <div className="grid min-h-[65vh] flex-1 gap-2 lg:grid-cols-[minmax(260px,24%)_minmax(0,1fr)_minmax(260px,24%)]">
-      <nav aria-label="Conversas conectadas" className="flex min-h-0 flex-col rounded-xl border bg-card">
-        <div className="space-y-2 border-b p-2.5">
-          <h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2>
-          <label className="relative block"><Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar telefone ou mensagem" className="h-8 pl-8 text-xs" /></label>
+    {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 flex-1 gap-[10px] bg-secondary p-[10px] ${infoVisible ? 'lg:grid-cols-[306px_minmax(0,1fr)_330px]' : 'lg:grid-cols-[306px_minmax(0,1fr)]'}`}>
+      <nav aria-label="Conversas conectadas" className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border bg-card shadow-sm">
+        <div className="space-y-2 border-b px-[14px] pb-[13px] pt-[15px]">
+          <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 px-2.5 text-[11px]"><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
+          <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
           <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground">{filtered.length} de {list.data.length}</span><button className="text-[11px] text-destructive" onClick={() => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); }}>Limpar</button></div>
           <div className="grid grid-cols-3 gap-1"><Button size="sm" className="h-7 px-1 text-[11px]" variant={quick === 'all' ? 'default' : 'outline'} onClick={() => setQuick('all')}>Todas</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-amber-700" variant={quick === 'late' ? 'secondary' : 'outline'} onClick={() => setQuick('late')} aria-label={`Atrasando: ${count('late')} conversas`}><Timer className="h-3 w-3" />{count('late')}</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-red-600" variant={quick === 'urgent' ? 'secondary' : 'outline'} onClick={() => setQuick('urgent')} aria-label={`Urgente: ${count('urgent')} conversas`}><AlertTriangle className="h-3 w-3" />{count('urgent')}</Button></div>
         </div>
-        <div className="max-h-[65vh] min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5">
-        {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); }} className={`flex min-h-[60px] w-full items-center gap-2 rounded-lg border p-2 text-left text-xs ${selected?.id === c.id ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted'}`}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{c.phone.slice(-2)}</span><span className="min-w-0 flex-1"><span className="block truncate font-semibold">+{c.phone}</span><span className="block truncate text-[11px] text-muted-foreground">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="block text-[10px] text-muted-foreground">{c.mode === 'ai' ? 'Lotti IA' : c.mode === 'human' ? 'Humano' : 'Pausado'} · {new Date(c.updated_at).toLocaleDateString('pt-BR')}</span></span>
+        <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
+        {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/40 bg-primary/10 shadow-sm ring-1 ring-primary/20' : 'border-transparent hover:bg-primary/5'}`}>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-primary">{c.phone.slice(-2)}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-xs font-semibold">+{c.phone}</span><time className="ml-auto text-[9px] text-muted-foreground">{new Date(c.updated_at).toLocaleDateString('pt-BR')}</time></span><span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-0.5 block text-[9px] text-muted-foreground">{c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
         </button>)}
         {!filtered.length && <p className="p-4 text-center text-xs text-muted-foreground">Nenhuma conversa encontrada.</p>}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
         </div>
       </nav>
-      {selected ? <section aria-label="Histórico conectado" className="flex min-w-0 flex-col rounded-xl border bg-card">
-        <header className="flex flex-wrap items-center gap-2 border-b p-3">
-          <span className="mr-auto font-medium">+{selected?.phone}</span>
-          <Button size="sm" disabled={mode.isPending || selected?.mode === 'human'} onClick={() => mode.mutate('human')}><UserRound className="mr-1 h-4 w-4" /> Assumir</Button>
-          <Button size="sm" variant="outline" disabled={mode.isPending || selected?.mode === 'paused'} onClick={() => mode.mutate('paused')}><Pause className="mr-1 h-4 w-4" /> Pausar</Button>
-          <Button size="sm" variant="outline" disabled={mode.isPending || selected?.mode === 'ai'} onClick={() => mode.mutate('ai')}><Bot className="mr-1 h-4 w-4" /> Retomar IA</Button>
-        </header>
+      {selected ? <section aria-label="Histórico conectado" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border bg-card shadow-sm">
+        <header data-testid="conversation-header" className="flex min-h-[68px] flex-nowrap items-center gap-2 border-b px-[15px] py-[11px]">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{selected.phone.slice(-2)}</span><div className="mr-auto min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate text-sm">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</strong><Pencil className="h-3 w-3 shrink-0 text-muted-foreground" /></div><p className="truncate text-[11px] text-muted-foreground">+{selected.phone}</p></div><Badge variant="outline" className="shrink-0 gap-1 px-2 text-[10px]"><UsersRound className="h-3 w-3" />Equipe</Badge>
+          <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending} onClick={() => mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')} className="ml-2 flex h-8 shrink-0 items-center gap-2 rounded-lg px-1 text-xs font-semibold disabled:opacity-50"><span>IA</span><span className={`flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors ${selected.mode === 'ai' ? 'border-primary bg-primary' : 'border-border bg-secondary'}`}><span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${selected.mode === 'ai' ? 'translate-x-[18px]' : 'translate-x-0'}`} /></span></button>
+          <Button size="sm" className="h-9 shrink-0 px-3 text-xs" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
+        </header><div data-testid="conversation-stage-bar" className="flex min-h-[42px] shrink-0 items-center border-b bg-secondary/40 px-[14px] text-[11px]"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="ml-2 h-2 w-2 rounded-full bg-primary" /><strong className="ml-1.5">{stages[q?.stage ?? ''] ?? 'Em atendimento humano'}</strong><ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground" /><span className="ml-4 h-2 w-2 rounded-full bg-success" /><strong className="ml-1.5">Aberta</strong></div>
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
-        <div className="max-h-[65vh] min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-          {messages.data?.map(m => <article key={m.id} className={`max-w-[85%] rounded-lg border p-2.5 ${m.direction === 'out' ? 'ml-auto border-primary/10 bg-primary text-primary-foreground' : 'border-border bg-background'}`}>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">{m.sender === 'ai' ? 'Lotti IA' : m.sender === 'human' ? 'Corretor' : 'Cliente'}</p>
-            <p className="whitespace-pre-wrap break-words text-sm">{m.content}</p><time className="mt-2 block text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString('pt-BR')}</time>
+        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-secondary/60 p-2.5">
+          {messages.data?.map(m => <article key={m.id} className={`w-fit max-w-[82%] rounded-lg px-2.5 py-1.5 shadow-sm ${m.direction === 'out' ? 'ml-auto rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm border border-border bg-card'}`}>
+            <p className={`mb-1 text-[11px] font-medium ${m.direction === 'out' ? 'text-primary-foreground/75' : 'text-muted-foreground'}`}>{m.sender === 'ai' ? 'Lotti IA' : m.sender === 'human' ? 'Corretor' : 'Cliente'}</p>
+            <p className="whitespace-pre-wrap break-words text-xs">{m.content}</p><time className={`mt-1 block text-[9px] ${m.direction === 'out' ? 'text-primary-foreground/75' : 'text-muted-foreground'}`}>{new Date(m.created_at).toLocaleString('pt-BR')}</time>
           </article>)}
           {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>
-        {connected
+        {connected === true
           ? <MessageComposer conversationId={selected.id} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />
-          : <footer className="border-t p-3 text-xs text-muted-foreground">Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</footer>}
+          : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
-      {selected && <aside className="max-h-[75vh] space-y-4 overflow-y-auto rounded-xl border bg-card p-3">
-        <h2 className="border-b pb-2 text-xs font-semibold uppercase">Perfil do contato</h2>
-        <div className="rounded-xl border p-3"><p className="text-sm font-semibold">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</p><p className="text-xs text-muted-foreground">+{selected.phone}</p>{client.data?.email && <p className="break-words text-xs text-muted-foreground">{client.data.email}</p>}</div>
-        <div className="space-y-2 border-t pt-3"><h3 className="text-xs font-semibold uppercase">Linha do tempo</h3><p className="text-xs">Conversa no WhatsApp <span className="block text-muted-foreground">Última atividade: {new Date(selected.updated_at).toLocaleString('pt-BR')}</span></p>{client.data?.created_at && <p className="text-xs">Lead criado <span className="block text-muted-foreground">{new Date(client.data.created_at).toLocaleString('pt-BR')}</span></p>}</div>
-        <h3 className="text-xs font-semibold uppercase">Qualificação comercial</h3>
+      {selected && infoVisible && <aside aria-label="Perfil do contato" className="min-h-0 overflow-y-auto rounded-[14px] border bg-card p-[14px] shadow-sm">
+        <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
+        <div className="mt-2.5 rounded-xl border bg-secondary/30 p-3"><p className="text-xs font-semibold">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</p><p className="text-[11px] text-muted-foreground">+{selected.phone}</p>{client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}<h3 className="mt-4 flex items-center text-[10px] font-semibold uppercase text-muted-foreground">Resumo do caso <Badge variant="secondary" className="ml-auto gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge></h3><p className="mt-2 rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p></div>
+        <div className="mt-4 space-y-3"><h3 className="text-xs font-semibold uppercase text-muted-foreground">Linha do tempo</h3><p className="text-xs text-primary">Conversou no WhatsApp <span className="block text-muted-foreground">Última atividade: {new Date(selected.updated_at).toLocaleString('pt-BR')}</span></p>{client.data?.created_at && <p className="text-xs text-primary">Lead criado <span className="block text-muted-foreground">{new Date(client.data.created_at).toLocaleString('pt-BR')}</span></p>}</div>
+        <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Qualificação comercial</h3>
         <div className="flex flex-wrap gap-2"><Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>{q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}{q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}</div>
-        {q?.reason && <p className="text-sm">{q.reason}</p>}
-        <dl className="space-y-3">{Object.entries(labels).map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="break-words text-sm">{q?.profile?.[key] || 'Ainda não informado'}</dd></div>)}</dl>
+        <dl className="space-y-3">{Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="break-words text-sm">{q?.profile?.[key]}</dd></div>)}</dl>
+        <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Atribuição</h3><select aria-label="Atribuição" className="mt-2 h-10 w-full rounded-lg border bg-background px-3 text-sm"><option>— Sem atribuição —</option><option>Equipe</option></select>
+        <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Tags</h3><div className="mt-2 flex gap-2"><Input aria-label="Adicionar tag" placeholder="+ tag" className="h-9" /><Button size="icon" variant="secondary" className="h-9 w-9"><Plus className="h-4 w-4" /></Button></div>
+        <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Notas internas</h3><textarea aria-label="Nota interna" placeholder="Anota algo (só pro time)..." className="mt-2 min-h-20 w-full resize-none rounded-lg border bg-background p-3 text-sm" /><Button disabled className="mt-2 w-full">Adicionar nota</Button>
         {selected?.last_error && <p className="rounded-lg bg-muted p-3 text-xs">Esta conversa precisa de revisão operacional. O histórico foi preservado.</p>}
         {selected?.cliente_id && <Link className="inline-block text-sm text-primary underline" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
       </aside>}

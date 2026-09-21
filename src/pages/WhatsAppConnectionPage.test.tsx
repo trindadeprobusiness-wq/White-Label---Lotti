@@ -44,6 +44,17 @@ it('oferece a reconexão na página Conexão sem depender do Inbox', async () =>
   expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
 });
 
+it('falha de consulta não oferece pareamento como se estivesse desconectado', async () => {
+  invoke.mockResolvedValue({ data: null, error: new Error('status_unavailable') });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><WhatsAppConnectionPage /></QueryClientProvider></MemoryRouter>);
+
+  expect(await screen.findByText('Indisponível', {}, { timeout: 3000 })).not.toBeNull();
+  expect(screen.getByText(/estado anterior não foi confirmado/i)).not.toBeNull();
+  expect(screen.queryByRole('button', { name: 'Conectar WhatsApp' })).toBeNull();
+  expect(screen.queryByText('Desconectado')).toBeNull();
+});
+
 it('desconecta pelo servidor apenas após confirmação', async () => {
   let connected = true;
   invoke.mockImplementation((_name, options) => {

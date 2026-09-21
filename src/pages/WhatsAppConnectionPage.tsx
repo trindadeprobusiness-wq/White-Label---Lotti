@@ -49,7 +49,7 @@ export default function WhatsAppConnectionPage() {
         {connected && <Button type="button" variant="outline" className="mt-4 border-destructive text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => setConfirmDisconnect(true)}>Desconectar</Button>}
         {disconnect.isError && <p role="alert" className="mt-3 text-sm text-destructive">Não foi possível desconectar. Verifique o estado da conexão e tente novamente.</p>}
       </section>
-      {!connected && <WhatsAppConnection />}
+      {!connection.isPending && !connection.isError && !connected && <WhatsAppConnection />}
       <section className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">Teste de recebimento</h2>
         <p className="mt-3 text-sm leading-5 text-muted-foreground">Depois que o status estiver conectado, envie uma mensagem de um contato de teste para o número da empresa. Conversas antigas não são importadas automaticamente; grupos e status não entram no Inbox.</p></section>
     </div>

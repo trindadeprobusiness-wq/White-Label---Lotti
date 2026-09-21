@@ -10,7 +10,9 @@ export default function LiveAgentInbox() {
   const previewMode = new URLSearchParams(search).get('preview');
   const preview = import.meta.env.DEV && previewMode === 'connected';
   const connection = useWhatsAppConnectionQuery(user?.id);
-  const connected = preview || (connection.data?.state === 'connected' && !connection.isError);
+  const connected = connection.isPending || connection.isError
+    ? 'unknown'
+    : connection.data?.state === 'connected';
 
   if (preview) return <WhatsAppInboxPage />;
 
