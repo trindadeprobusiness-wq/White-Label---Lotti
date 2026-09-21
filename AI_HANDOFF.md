@@ -1,5 +1,9 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — Inbox Clix integrado à main (2026-09-21)
+- A versão visual aprovada do Inbox conectado foi integrada à `main` no merge `9b483e2` e enviada para `origin/main`, preservando o commit local anterior do favicon e as mudanças remotas.
+- Verificação no resultado integrado: 75 arquivos/572 testes passaram com as variáveis fictícias do CI; build de produção e `git diff --check` passaram. O push não publica migration nem Edge Function.
+
 ## Codex — Inbox conectado compacto (2026-09-20)
 - Em 2026-09-21, a densidade deixou de ser estimada pela captura e foi alinhada ao código-fonte real do Clix em `C:\Users\rafae\Clix\catalogo`: lista com 306 px, perfil com 330 px, gap/padding de 10 px, cabeçalho com 68 px e faixa de etapa com 42 px. O cabeçalho agora usa o interruptor `IA` e `Ocultar info`, como a referência, preservando a troca de modo existente.
 - Inspeção local em 1600×900 mediu exatamente `306px 684px 330px`, gap 10 px, header 68 px e etapa 42 px; nenhum botão flutuante `IA Lotti` foi encontrado. Validação desta rodada: 15/15 testes direcionados, ESLint direcionado, build de produção e `git diff --check` passaram.
