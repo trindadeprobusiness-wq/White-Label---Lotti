@@ -33,15 +33,14 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByTestId('connection-page').className).toContain('-mb-16');
 });
 
-it('mostra estado desconectado real sem oferecer desconexão fictícia', async () => {
+it('oferece a reconexão na página Conexão sem depender do Inbox', async () => {
   invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><WhatsAppConnectionPage /></QueryClientProvider></MemoryRouter>);
 
   expect(await screen.findByText('Desconectado')).not.toBeNull();
   expect(screen.queryByRole('button', { name: 'Desconectar' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Conectar WhatsApp' })).toBeNull();
-  expect(screen.queryByText('Conecte ao WhatsApp')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Conectar WhatsApp' })).not.toBeNull();
   expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
 });
 

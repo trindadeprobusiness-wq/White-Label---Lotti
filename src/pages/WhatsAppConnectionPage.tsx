@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppConnectionQuery, type WhatsAppConnectionState } from '@/features/whatsapp-inbox/useWhatsAppConnection';
+import { WhatsAppConnection } from '@/features/whatsapp-inbox/WhatsAppConnection';
 
 export default function WhatsAppConnectionPage() {
   const { user } = useAuth();
@@ -42,12 +43,13 @@ export default function WhatsAppConnectionPage() {
           <label htmlFor="company" className="block max-w-xl font-semibold">Empresa
             <Input id="company" value={company} onChange={event => setCompany(event.target.value)} className="mt-2 font-normal" placeholder="Nome da empresa onde você trabalha" /></label>
           {connected ? <p className="text-muted-foreground">Número conectado. As mensagens novas aparecem no Inbox após serem recebidas.</p>
-            : <p className="text-muted-foreground">{connection.isError ? 'Não foi possível consultar o WhatsApp agora. O estado anterior não foi confirmado.' : state === 'connecting' ? 'Aguardando a confirmação do WhatsApp no celular.' : 'Nenhum dispositivo conectado no momento. Para conectar, abra o Inbox.'}</p>}
+            : <p className="text-muted-foreground">{connection.isError ? 'Não foi possível consultar o WhatsApp agora. O estado anterior não foi confirmado.' : state === 'connecting' ? 'Aguardando a confirmação do WhatsApp no celular.' : 'Nenhum dispositivo conectado no momento.'}</p>}
         </div>
         {connection.isError && <Button variant="outline" className="mt-4" onClick={() => void connection.refetch()}>Tentar novamente</Button>}
         {connected && <Button type="button" variant="outline" className="mt-4 border-destructive text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => setConfirmDisconnect(true)}>Desconectar</Button>}
         {disconnect.isError && <p role="alert" className="mt-3 text-sm text-destructive">Não foi possível desconectar. Verifique o estado da conexão e tente novamente.</p>}
       </section>
+      {!connected && <WhatsAppConnection />}
       <section className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">Teste de recebimento</h2>
         <p className="mt-3 text-sm leading-5 text-muted-foreground">Depois que o status estiver conectado, envie uma mensagem de um contato de teste para o número da empresa. Conversas antigas não são importadas automaticamente; grupos e status não entram no Inbox.</p></section>
     </div>

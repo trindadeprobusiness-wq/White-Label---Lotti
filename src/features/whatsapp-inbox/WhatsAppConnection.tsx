@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { QrCode, CheckCircle2 } from 'lucide-react';
-import { useWhatsAppConnectionQuery } from './useWhatsAppConnection';
+import { useWhatsAppConnectionQuery, type WhatsAppConnectionState } from './useWhatsAppConnection';
 export function WhatsAppConnection(){
  const {user}=useAuth();const [pairing,setPairing]=useState(false);
+ const cache=useQueryClient();
  const [expired,setExpired]=useState(false);
  const [starting,setStarting]=useState(false);const [startError,setStartError]=useState(false);
  const attempt=useRef(0);const [now,setNow]=useState(Date.now());
@@ -13,7 +15,7 @@ export function WhatsAppConnection(){
  useEffect(()=>()=>{attempt.current++},[user?.id]);
  const connection=useWhatsAppConnectionQuery(user?.id);
  const connected=connection.data?.state==='connected';
- const begin=async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {error}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error)throw error;await connection.refetch();if(id===attempt.current)setPairing(true);}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}};
+ const begin=async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {data,error}=await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error||!data)throw error??new Error('connection_unavailable');cache.setQueryData(['whatsapp-connection',user?.id],data);setPairing(data.state!=='connected');}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}};
  useEffect(()=>{
    if(!pairing)return;
    if(connected){setPairing(false);return;}
