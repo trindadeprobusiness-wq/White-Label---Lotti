@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
 import { MessageComposer } from './MessageComposer';
+import { ConversationStatusDialog, NewConversationDialog, RenameContactDialog } from './InboxActionDialogs';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
 type Qualification = { stage?: string; temperature?: string; priority?: string; reason?: string; profile?: Record<string, string | null> };
-type Conversation = { id: string; phone: string; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; updated_at: string; qualification: Qualification; last_error: string | null };
+type Conversation = { id: string; phone: string; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null };
 type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; created_at: string };
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
@@ -31,11 +32,12 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   const [stageFilter, setStageFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('');
   const [infoVisible, setInfoVisible] = useState(true);
+  const [newOpen,setNewOpen]=useState(false),[renameOpen,setRenameOpen]=useState(false),[statusOpen,setStatusOpen]=useState(false);
   const list = useQuery({
     queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user, refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_conversations')
-        .select('id,phone,cliente_id,mode,updated_at,qualification,last_error').order('updated_at', { ascending: false }).limit(100);
+        .select('id,phone,cliente_id,mode,status,updated_at,qualification,last_error').order('updated_at', { ascending: false }).limit(100);
       if (error) throw error;
       return data as Conversation[];
     },
@@ -79,6 +81,10 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
     },
     onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
   });
+  const refreshConversation=async(id?:string)=>{if(id)setSelectedId(id);await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-agent-message-previews',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-client',user?.id]})])};
+  const startConversation=useMutation({mutationFn:async(data:{phone:string;name?:string;text:string})=>{const {data:result,error}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'start',...data,request_id:crypto.randomUUID()}});if(error||!result?.conversationId)throw error??new Error('start_failed');if(result.sendStatus!=='sent')throw new Error(result.sendStatus==='uncertain'?'uncertain':'send_failed');return result.conversationId as string},onSuccess:async id=>{setNewOpen(false);await refreshConversation(id)}});
+  const renameContact=useMutation({mutationFn:async(name:string)=>{const {data,error}=await db.rpc('lotti_inbox_rename_client',{p_conversation:selected!.id,p_name:name});if(error)throw error;return data},onSuccess:async()=>{setRenameOpen(false);await refreshConversation()}});
+  const changeStatus=useMutation({mutationFn:async(status:'open'|'closed')=>{const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async()=>{setStatusOpen(false);await refreshConversation()}});
   const q = selected?.qualification;
   const connectionKnown = connected !== 'unknown';
   return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
@@ -92,7 +98,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
     {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 flex-1 gap-[10px] bg-secondary p-[10px] ${infoVisible ? 'lg:grid-cols-[306px_minmax(0,1fr)_330px]' : 'lg:grid-cols-[306px_minmax(0,1fr)]'}`}>
       <nav aria-label="Conversas conectadas" className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border bg-card shadow-sm">
         <div className="space-y-2 border-b px-[14px] pb-[13px] pt-[15px]">
-          <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 px-2.5 text-[11px]"><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
+          <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 px-2.5 text-[11px]" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
           <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground">{filtered.length} de {list.data.length}</span><button className="text-[11px] text-destructive" onClick={() => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); }}>Limpar</button></div>
           <div className="grid grid-cols-3 gap-1"><Button size="sm" className="h-7 px-1 text-[11px]" variant={quick === 'all' ? 'default' : 'outline'} onClick={() => setQuick('all')}>Todas</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-amber-700" variant={quick === 'late' ? 'secondary' : 'outline'} onClick={() => setQuick('late')} aria-label={`Atrasando: ${count('late')} conversas`}><Timer className="h-3 w-3" />{count('late')}</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-red-600" variant={quick === 'urgent' ? 'secondary' : 'outline'} onClick={() => setQuick('urgent')} aria-label={`Urgente: ${count('urgent')} conversas`}><AlertTriangle className="h-3 w-3" />{count('urgent')}</Button></div>
@@ -107,10 +113,10 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
       </nav>
       {selected ? <section aria-label="Histórico conectado" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border bg-card shadow-sm">
         <header data-testid="conversation-header" className="flex min-h-[68px] flex-nowrap items-center gap-2 border-b px-[15px] py-[11px]">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{selected.phone.slice(-2)}</span><div className="mr-auto min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate text-sm">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</strong><Pencil className="h-3 w-3 shrink-0 text-muted-foreground" /></div><p className="truncate text-[11px] text-muted-foreground">+{selected.phone}</p></div><Badge variant="outline" className="shrink-0 gap-1 px-2 text-[10px]"><UsersRound className="h-3 w-3" />Equipe</Badge>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{selected.phone.slice(-2)}</span><div className="mr-auto min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate text-sm">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3 shrink-0" /></button></div><p className="truncate text-[11px] text-muted-foreground">+{selected.phone}</p></div><Badge variant="outline" className="shrink-0 gap-1 px-2 text-[10px]"><UsersRound className="h-3 w-3" />Equipe</Badge>
           <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending} onClick={() => mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')} className="ml-2 flex h-8 shrink-0 items-center gap-2 rounded-lg px-1 text-xs font-semibold disabled:opacity-50"><span>IA</span><span className={`flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors ${selected.mode === 'ai' ? 'border-primary bg-primary' : 'border-border bg-secondary'}`}><span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${selected.mode === 'ai' ? 'translate-x-[18px]' : 'translate-x-0'}`} /></span></button>
           <Button size="sm" className="h-9 shrink-0 px-3 text-xs" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
-        </header><div data-testid="conversation-stage-bar" className="flex min-h-[42px] shrink-0 items-center border-b bg-secondary/40 px-[14px] text-[11px]"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="ml-2 h-2 w-2 rounded-full bg-primary" /><strong className="ml-1.5">{stages[q?.stage ?? ''] ?? 'Em atendimento humano'}</strong><ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground" /><span className="ml-4 h-2 w-2 rounded-full bg-success" /><strong className="ml-1.5">Aberta</strong></div>
+        </header><div data-testid="conversation-stage-bar" className="flex min-h-[42px] shrink-0 items-center border-b bg-secondary/40 px-[14px] text-[11px]"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="ml-2 h-2 w-2 rounded-full bg-primary" /><strong className="ml-1.5">{stages[q?.stage ?? ''] ?? 'Em atendimento humano'}</strong><ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground" /><button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="ml-4 flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold hover:bg-muted"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-success'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button></div>
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-secondary/60 p-2.5">
@@ -138,6 +144,8 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
         {selected?.cliente_id && <Link className="inline-block text-sm text-primary underline" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
       </aside>}
     </div>}
+    <NewConversationDialog open={newOpen} onOpenChange={setNewOpen} onSubmit={data=>startConversation.mutate(data)} pending={startConversation.isPending} error={startConversation.isError?(startConversation.error instanceof Error&&startConversation.error.message==='uncertain'?'Envio sem confirmação. Verifique no WhatsApp antes de tentar novamente.':'Não foi possível iniciar a conversa.'):undefined} />
+    {selected&&<><RenameContactDialog open={renameOpen} initialName={client.data?.nome??''} onOpenChange={setRenameOpen} onSubmit={name=>renameContact.mutate(name)} pending={renameContact.isPending} error={renameContact.isError?'Não foi possível salvar o nome.':undefined} /><ConversationStatusDialog open={statusOpen} status={selected.status??'open'} onOpenChange={setStatusOpen} onConfirm={status=>changeStatus.mutate(status)} pending={changeStatus.isPending} error={changeStatus.isError?'Não foi possível alterar o estado da conversa.':undefined} /></>}
     <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}><SheetContent side="left" className="space-y-5"><SheetTitle>Filtros</SheetTitle><SheetDescription>Filtre as conversas já recebidas.</SheetDescription>
       <label className="block text-sm">Atendimento<select className="mt-1 w-full rounded-md border bg-background p-2" value={modeFilter} onChange={e => setModeFilter(e.target.value)}><option value="">Todos</option><option value="human">Humano</option><option value="ai">IA</option><option value="paused">Pausado</option></select></label>
       <label className="block text-sm">Etapa<select className="mt-1 w-full rounded-md border bg-background p-2" value={stageFilter} onChange={e => setStageFilter(e.target.value)}><option value="">Todas</option>{Object.entries(stages).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
