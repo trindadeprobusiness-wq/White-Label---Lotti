@@ -23,6 +23,10 @@ describe('upload privado de anexo',()=>{
   const parsed=parseLottiRequest({action:'prepare_upload',request_id:requestId,name:'Contrato final.pdf',mime:'application/pdf',size:80*1024*1024});
   expect(buildAttachmentPath(parsed,'owner-id')).toBe('owner-id/11111111-1111-4111-8111-111111111111/Contrato-final.pdf');
  });
+ it('aceita os MIME alternativos usados pelo navegador para CSV e ZIP',()=>{
+  expect(parseLottiRequest({action:'prepare_upload',request_id:requestId,name:'leads.csv',mime:'application/vnd.ms-excel',size:1024})).toMatchObject({action:'prepare_upload',mime:'application/vnd.ms-excel'});
+  expect(parseLottiRequest({action:'prepare_upload',request_id:requestId,name:'documentos.zip',mime:'application/x-zip-compressed',size:1024})).toMatchObject({action:'prepare_upload',mime:'application/x-zip-compressed'});
+ });
  it('recusa script e arquivo maior que 100 MB',()=>{
   expect(()=>parseLottiRequest({action:'prepare_upload',request_id:requestId,name:'roubo.ps1',mime:'application/octet-stream',size:10})).toThrow('invalid_file');
   expect(()=>parseLottiRequest({action:'prepare_upload',request_id:requestId,name:'contrato.pdf',mime:'application/pdf',size:100*1024*1024+1})).toThrow('invalid_file');
