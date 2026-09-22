@@ -1,12 +1,13 @@
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from '@/integrations/supabase/client';
 import {Button} from '@/components/ui/button';
-import {Mic,Send,Square,Trash2} from 'lucide-react';
+import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
 type Props={conversationId:string;onSent:()=>void};
 export function MessageComposer({conversationId,onSent}:Props){
  const [text,setText]=useState(''),[audio,setAudio]=useState<Blob>(),[preview,setPreview]=useState('');
  const [recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const recorder=useRef<MediaRecorder>(),stream=useRef<MediaStream>(),timer=useRef<ReturnType<typeof setTimeout>>(),alive=useRef(true);
+ const fileInput=useRef<HTMLInputElement>(null);
  const pending=useRef<Record<string,unknown>>();
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());}},[]);
  useEffect(()=>{if(!audio){setPreview('');return;}const url=URL.createObjectURL(audio);setPreview(url);return()=>URL.revokeObjectURL(url)},[audio]);
@@ -44,15 +45,17 @@ export function MessageComposer({conversationId,onSent}:Props){
   finally{if(alive.current)setBusy(false);}
  }
  const locked=busy||!!pending.current;
- return <footer className="space-y-3 border-t bg-card p-3">
-  {notice&&<p role="status" className="text-xs text-muted-foreground">{notice}</p>}
+ const canSend=!!text.trim()||!!audio||!!pending.current;
+ return <footer className="space-y-2 border-t bg-card p-3">
   {preview&&<div className="flex items-center gap-2"><audio controls src={preview} className="h-10 min-w-0 flex-1"/><Button aria-label="Descartar áudio" variant="ghost" disabled={locked} onClick={()=>setAudio(undefined)}><Trash2 className="h-4 w-4"/></Button></div>}
-  {!audio&&<textarea aria-label="Mensagem" placeholder="Escreva uma mensagem…" value={text} maxLength={8000} disabled={locked||recording} onChange={e=>setText(e.target.value)} className="min-h-20 w-full resize-y rounded-lg border bg-background p-3 text-sm"/>}
-  <div className="flex flex-wrap items-center gap-2">
-   <Button variant="outline" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="mr-2 h-4 w-4"/>:<Mic className="mr-2 h-4 w-4"/>}{recording?'Parar gravação':'Gravar áudio'}</Button>
-   <label className="text-xs underline">Anexar áudio<input aria-label="Anexar áudio" className="block max-w-44 text-xs" type="file" accept="audio/webm,audio/ogg,audio/mp4,audio/mpeg" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f&&f.size<=4194304){setAudio(f);setNotice('')}else setNotice('Selecione um áudio de até 4 MB.');e.target.value='';}}/></label>
-   <Button className="ml-auto" disabled={busy||recording||(!text.trim()&&!audio&&!pending.current)} onClick={send}><Send className="mr-2 h-4 w-4"/>{busy?'Enviando…':pending.current?'Verificar envio':'Enviar'}</Button>
-  </div><p className="text-[11px] text-muted-foreground">Ao enviar, você assume o atendimento e pausa a IA nesta conversa. Gravações de até 90 segundos.</p>
+  <div className="flex min-h-12 items-end gap-1 rounded-2xl border border-input bg-background px-2 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1">
+   <input ref={fileInput} aria-label="Anexar arquivo de áudio" className="sr-only" type="file" accept="audio/webm,audio/ogg,audio/mp4,audio/mpeg" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f&&f.size<=4194304){setAudio(f);setNotice('')}else if(f)setNotice('Selecione um áudio de até 4 MB.');e.target.value='';}}/>
+   <Button type="button" aria-label="Anexar áudio" title="Anexar áudio" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||recording} onClick={()=>fileInput.current?.click()}><Paperclip className="h-5 w-5"/></Button>
+   {!audio&&<textarea aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0"/>}
+   {canSend?<Button type="button" aria-label={busy?'Enviando':pending.current?'Verificar envio':'Enviar'} title={pending.current?'Verificar envio':'Enviar'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-primary" disabled={busy||recording} onClick={send}><Send className="h-5 w-5"/></Button>
+    :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
+  </div>
+  {notice&&<p role="status" className="px-1 text-[11px] text-muted-foreground">{notice}</p>}
  </footer>;
 }
 export function AudioMessage({path}:{path:string}){

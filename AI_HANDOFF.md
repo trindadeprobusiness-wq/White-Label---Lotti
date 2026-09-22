@@ -1884,3 +1884,8 @@ credencial); nao foi contornada.
 ### 2026-09-22 - Codex (liberação das ações do Inbox)
 - A revisão da PR #11 confirmou que seus commits funcionais já estavam na main; faltava a migration no checkout e a infraestrutura publicada. A migration `20260921130000_lotti_inbox_actions.sql` foi adicionada ao repositório e aplicada isoladamente no projeto Supabase vinculado, sem `--include-all`.
 - Verificado no banco: coluna `status`, RPCs `lotti_inbox_start_conversation`, `lotti_inbox_rename_client`, `lotti_inbox_set_status` e trigger `lotti_inbox_reopen_on_inbound`. A Edge Function `lotti-whatsapp` foi republicada com sucesso. Pendente nesta entrada: commit autorizado e confirmação do deploy Vercel.
+
+### 2026-09-22 - Codex (composer compacto e importacao historica)
+- A barra de resposta do Inbox foi reduzida para um composer de uma linha, com anexo oculto por botao, campo central, microfone e envio contextual. O controle nativo de arquivo e o bloco alto foram removidos. Testes direcionados: 10/10; build de producao passou.
+- Runtime de historico foi atualizado sobre a main: `MESSAGES_SET` separado do fluxo ao vivo e reaplicacao de settings/webhook inclusive em instancia ja aberta. Grupos, broadcasts e LIDs sem telefone real continuam descartados; nenhuma resposta automatica e disparada pela importacao. Testes runtime: 30/30.
+- Pendente para producao: mesclar/publicar os dois PRs, aplicar a migration `20260920000100_lotti_history_import.sql` isoladamente e configurar `HISTORY_IMPORT_ENABLED=true` no host persistente do runtime. Quick Tunnel local segue temporario.
