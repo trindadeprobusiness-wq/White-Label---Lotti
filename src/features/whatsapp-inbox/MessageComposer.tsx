@@ -2,9 +2,10 @@ import {useEffect,useRef,useState} from 'react';
 import {supabase} from '@/integrations/supabase/client';
 import {Button} from '@/components/ui/button';
 import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
+import {safeAttachmentName,validateAttachment} from './attachments';
 type Props={conversationId:string;onSent:()=>void};
 export function MessageComposer({conversationId,onSent}:Props){
- const [text,setText]=useState(''),[audio,setAudio]=useState<Blob>(),[preview,setPreview]=useState('');
+ const [text,setText]=useState(''),[audio,setAudio]=useState<Blob>(),[attachment,setAttachment]=useState<File>(),[preview,setPreview]=useState('');
  const [recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const recorder=useRef<MediaRecorder>(),stream=useRef<MediaStream>(),timer=useRef<ReturnType<typeof setTimeout>>(),alive=useRef(true);
  const fileInput=useRef<HTMLInputElement>(null);
@@ -29,29 +30,35 @@ export function MessageComposer({conversationId,onSent}:Props){
   if(busy)return;setBusy(true);setNotice('');
   try{
    if(!pending.current){
-    if(!audio&&!text.trim())return;
+    if(!audio&&!attachment&&!text.trim())return;
     if(audio&&audio.size>4194304){setNotice('O áudio deve ter até 4 MB.');return;}
     let encoded:string|undefined;
     if(audio)encoded=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(audio)});
-    pending.current={action:'send',conversation_id:conversationId,request_id:crypto.randomUUID(),kind:audio?'audio':'text',...(audio?{audio:encoded,mime:audio.type.split(';')[0]}:{text:text.trim()})};
+    const requestId=crypto.randomUUID();
+    if(attachment){
+     const meta=validateAttachment(attachment);const {data:prepared,error:prepareError}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'prepare_upload',request_id:requestId,name:attachment.name,mime:meta.mime,size:attachment.size}});
+     if(prepareError||!prepared?.path||!prepared?.token)throw Error('upload_prepare_failed');
+     const {error:uploadError}=await supabase.storage.from('lotti-inbox-files').uploadToSignedUrl(prepared.path,prepared.token,attachment,{contentType:meta.mime});if(uploadError)throw Error('upload_failed');
+     pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:'file',name:attachment.name,mime:meta.mime,size:attachment.size,storage_path:prepared.path};
+    }else pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:audio?'audio':'text',...(audio?{audio:encoded,mime:audio.type.split(';')[0]}:{text:text.trim()})};
    }
    const {data,error}=await supabase.functions.invoke('lotti-whatsapp',{body:pending.current});
    if(!alive.current)return;
    if(error||!data)throw Error('unknown');
-   if(data.sendStatus==='sent'){pending.current=undefined;setText('');setAudio(undefined);setNotice('Enviado. Você assumiu esta conversa.');onSent();}
+   if(data.sendStatus==='sent'){pending.current=undefined;setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');onSent();}
    else if(['failed','busy'].includes(data.sendStatus)){pending.current=undefined;setNotice(data.sendStatus==='busy'?'Há uma entrega em andamento. Aguarde antes de enviar.':'Não foi enviado. Verifique a conexão e tente novamente.');}
    else setNotice('Envio sem confirmação. Confira no WhatsApp antes de tentar uma nova mensagem.');
   }catch{if(alive.current)setNotice('A confirmação demorou. Use Verificar envio para consultar sem duplicar a mensagem.');}
   finally{if(alive.current)setBusy(false);}
  }
  const locked=busy||!!pending.current;
- const canSend=!!text.trim()||!!audio||!!pending.current;
+ const canSend=!!text.trim()||!!audio||!!attachment||!!pending.current;
  return <footer className="space-y-2 border-t bg-card p-3">
-  {preview&&<div className="flex items-center gap-2"><audio controls src={preview} className="h-10 min-w-0 flex-1"/><Button aria-label="Descartar áudio" variant="ghost" disabled={locked} onClick={()=>setAudio(undefined)}><Trash2 className="h-4 w-4"/></Button></div>}
+  {(preview||attachment)&&<div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">{preview?<audio controls src={preview} className="h-10 min-w-0 flex-1"/>:<span className="min-w-0 flex-1 truncate">{attachment?.name} · {attachment&&Math.ceil(attachment.size/1024/1024)} MB</span>}<Button aria-label="Descartar anexo" variant="ghost" disabled={locked} onClick={()=>{setAudio(undefined);setAttachment(undefined)}}><Trash2 className="h-4 w-4"/></Button></div>}
   <div className="flex min-h-12 items-end gap-1 rounded-2xl border border-input bg-background px-2 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1">
-   <input ref={fileInput} aria-label="Anexar arquivo de áudio" className="sr-only" type="file" accept="audio/webm,audio/ogg,audio/mp4,audio/mpeg" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f&&f.size<=4194304){setAudio(f);setNotice('')}else if(f)setNotice('Selecione um áudio de até 4 MB.');e.target.value='';}}/>
-   <Button type="button" aria-label="Anexar áudio" title="Anexar áudio" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||recording} onClick={()=>fileInput.current?.click()}><Paperclip className="h-5 w-5"/></Button>
-   {!audio&&<textarea aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0"/>}
+   <input ref={fileInput} aria-label="Anexar arquivo" className="sr-only" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov,.mp3,.ogg,.m4a,.wav" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f)try{validateAttachment(f);setAttachment(new File([f],safeAttachmentName(f.name),{type:f.type}));setAudio(undefined);setNotice('')}catch(error){setNotice(error instanceof Error&&error.message==='file_too_large'?'O arquivo deve ter até 100 MB.':'Este tipo de arquivo não é permitido por segurança.')}e.target.value='';}}/>
+   <Button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||recording} onClick={()=>fileInput.current?.click()}><Paperclip className="h-5 w-5"/></Button>
+   {!audio&&!attachment&&<textarea aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0"/>}
    {canSend?<Button type="button" aria-label={busy?'Enviando':pending.current?'Verificar envio':'Enviar'} title={pending.current?'Verificar envio':'Enviar'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-primary" disabled={busy||recording} onClick={send}><Send className="h-5 w-5"/></Button>
     :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
   </div>

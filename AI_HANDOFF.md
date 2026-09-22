@@ -1889,3 +1889,7 @@ credencial); nao foi contornada.
 - A barra de resposta do Inbox foi reduzida para um composer de uma linha, com anexo oculto por botao, campo central, microfone e envio contextual. O controle nativo de arquivo e o bloco alto foram removidos. Testes direcionados: 10/10; build de producao passou.
 - Runtime de historico foi atualizado sobre a main: `MESSAGES_SET` separado do fluxo ao vivo e reaplicacao de settings/webhook inclusive em instancia ja aberta. Grupos, broadcasts e LIDs sem telefone real continuam descartados; nenhuma resposta automatica e disparada pela importacao. Testes runtime: 30/30.
 - Pendente para producao: mesclar/publicar os dois PRs, aplicar a migration `20260920000100_lotti_history_import.sql` isoladamente e configurar `HISTORY_IMPORT_ENABLED=true` no host persistente do runtime. Quick Tunnel local segue temporario.
+### 2026-09-22 - Codex (anexos privados no Inbox)
+- O composer do Inbox agora aceita PDF, Office, texto/CSV, ZIP, imagens, vídeos e áudios de até 100 MB. Executáveis, scripts e extensões fora da lista permitida são recusados antes do upload.
+- O navegador solicita URL de upload assinada, envia ao bucket privado `lotti-inbox-files` e encaminha somente o caminho/metadados ao runtime; o provedor recebe URL de leitura com validade curta.
+- Verificação desta etapa: 13/13 testes frontend/Edge direcionados, 32/32 testes do runtime e build Vite de produção passaram. Pendente aplicar a nova migration do bucket, publicar a Edge Function e reconstruir o runtime antes do teste real.
