@@ -1860,3 +1860,16 @@ credencial); nao foi contornada.
 ### 2026-09-19 - Codex (diagnóstico de deploy bloqueado)
 - Vercel confirmou que o deployment do commit `8564649` (PR #9) foi bloqueado porque o autor `rportocortes` não possui acesso de contribuição ao projeto. No plano Hobby, repositórios privados não aceitam colaboração; o redeploy permanece desabilitado e a única ação exibida é upgrade para Pro.
 - O deploy de produção atual do commit `b388d52` está `Ready` e atende `app.plataformalotti.com.br`; o conteúdo de `8564649` permanece ancestral da main. Nenhuma configuração, plano ou deploy foi alterado nesta verificação.
+
+### 2026-09-20 - Codex (publicação da correção de conversas offline)
+- A main remota foi atualizada para `8564649`, que contém `14b27dc` (manter conversas recebidas visíveis quando o WhatsApp desconecta). Como o merge é assinado por colaborador sem acesso à Vercel Hobby, foi enviado o commit administrativo `911c315`, assinado por `trindadeprobusiness-wq`, sem alterar código funcional.
+- Vercel concluiu o deployment de produção `dpl_EfDuhDk2SGpH2tD8Xsv5APCjVYD8` como `Ready` em 2026-09-20 10:21 BRT. Aliases confirmados: `app.plataformalotti.com.br` e `olivercrm.vercel.app`. Verificações: `git diff --check` e consulta `vercel inspect`; a compilação local iniciada nesta etapa não teve resultado final registrado.
+
+### 2026-09-20 - Codex (publicação do Inbox da PR #10)
+- PR #10 foi integrada como merge `cf12341` pela conta `trindadeprobusiness-wq`, evitando o bloqueio de contribuição que atingia o preview da branch. O merge inclui busca, filtros, perfil/timeline e composer manual no Inbox conectado.
+- Vercel publicou `dpl_9vicxBddfBRimqGNhqDitUUBLHfQ` como `Ready` em produção; aliases confirmados: `app.plataformalotti.com.br` e `olivercrm.vercel.app`. `git diff --check` passou.
+- A migration `20260920000100_lotti_history_import.sql` não foi aplicada: o `supabase db push --dry-run` detectou dezenas de migrations locais anteriores ausentes no histórico remoto e sugeriu `--include-all`. Nenhuma migration antiga foi forçada. A lista, perfil, filtros e envio manual não dependem da nova view; somente a prévia otimizada da última mensagem permanece pendente até reconciliar o histórico do banco.
+
+### 2026-09-22 - Codex (liberação das ações do Inbox)
+- A revisão da PR #11 confirmou que seus commits funcionais já estavam na main; faltava a migration no checkout e a infraestrutura publicada. A migration `20260921130000_lotti_inbox_actions.sql` foi adicionada ao repositório e aplicada isoladamente no projeto Supabase vinculado, sem `--include-all`.
+- Verificado no banco: coluna `status`, RPCs `lotti_inbox_start_conversation`, `lotti_inbox_rename_client`, `lotti_inbox_set_status` e trigger `lotti_inbox_reopen_on_inbound`. A Edge Function `lotti-whatsapp` foi republicada com sucesso. Pendente nesta entrada: commit autorizado e confirmação do deploy Vercel.
