@@ -144,10 +144,10 @@ export function PaginaInicialPublica() {
                 <Sparkles className="h-3.5 w-3.5" /> CRM imobiliário com rotina
               </p>
               <h1 className="mt-6 max-w-3xl font-serif text-4xl font-semibold leading-[1.04] tracking-[-0.035em] text-[#0d2a1e] sm:text-6xl">
-                O trabalho imobiliário avança quando a rotina não se perde.
+                Clientes, imóveis e negociações. Cada próximo passo à vista.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-[#52665b]">
-                A Lotti reúne clientes, imóveis, funil, contratos, financeiro e Google Agenda para que cada próximo passo fique claro — do primeiro contato à assinatura.
+                A Lotti reúne funil, contratos, financeiro e compromissos em uma rotina clara — do primeiro contato à assinatura. Se quiser, conecte também o Google Agenda.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a

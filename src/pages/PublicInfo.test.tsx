@@ -38,6 +38,7 @@ describe('páginas públicas exigidas para o OAuth', () => {
     const html = renderPage(PaginaInicialPublica, '/sobre');
 
     expect(html).toContain('CRM imobiliário');
+    expect(html).toContain('Clientes, imóveis e negociações. Cada próximo passo à vista.');
     expect(html).toContain('Google Agenda');
     // Os botões "Entrar" e "Entrar na Lotti" apontam para o subdomínio
     // app.plataformalotti.com.br, garantindo que visitantes do site
