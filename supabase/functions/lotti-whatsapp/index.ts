@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { buildStartBridgeRequest, parseLottiRequest, sanitizeConnectionPhone, sanitizeConnectionTimestamp, type StartRequest } from './request.ts';
+import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, sanitizeConnectionPhone, sanitizeConnectionTimestamp, type StartRequest, type UploadRequest } from './request.ts';
 const cors={ 'Access-Control-Allow-Origin':'https://app.plataformalotti.com.br', 'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods':'POST, OPTIONS', 'Cache-Control':'no-store' };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
@@ -14,14 +14,18 @@ Deno.serve(async req=>{
    if(Number(req.headers.get('Content-Length')||0)>6000000)return json({error:'payload_too_large'},413);
    let body:Record<string,unknown>;
    try{body=parseLottiRequest(await req.json())}catch(error){return json({error:error instanceof Error?error.message:'invalid_request'},400)}
-   if(!['status','connect','disconnect','send','start'].includes(String(body.action)))return json({error:'invalid_action'},400);
+   if(!['status','connect','disconnect','send','start','prepare_upload'].includes(String(body.action)))return json({error:'invalid_action'},400);
    // Identity comes from verified Auth, never a caller-supplied account/instance.
    const {data:owner,error}=await db.from('corretores').select('id,status').eq('user_id',auth.user.id).single();
    if(error||!owner)return json({error:'account_not_found'},403);
    if(owner.status==='suspenso')return json({error:'account_suspended'},403);
+   if(body.action==='prepare_upload'){
+    const path=buildAttachmentPath(body as UploadRequest,owner.id);const {data,error:uploadError}=await db.storage.from('lotti-inbox-files').createSignedUploadUrl(path);
+    return uploadError||!data?json({error:'upload_unavailable'},503):json({path:data.path,token:data.token});
+   }
    const url=Deno.env.get('LOTTI_CHANNEL_BRIDGE_URL'),secret=Deno.env.get('LOTTI_CHANNEL_BRIDGE_TOKEN');
    if(!url||!secret)return json({error:'connection_service_unavailable'},503);
-   let bridgeBody:Record<string,unknown>={action:body.action,corretor_id:owner.id,...(body.action==='send'?{conversation_id:body.conversation_id,request_id:body.request_id,kind:body.kind,text:body.text,audio:body.audio,mime:body.mime}:{})};
+   let bridgeBody:Record<string,unknown>={action:body.action,corretor_id:owner.id,...(body.action==='send'?{conversation_id:body.conversation_id,request_id:body.request_id,kind:body.kind,text:body.text,audio:body.audio,mime:body.mime,name:body.name,size:body.size,storage_path:body.storage_path}:{})};
    let conversationId:string|undefined;
    if(body.action==='start'){
     const start=body as StartRequest;
