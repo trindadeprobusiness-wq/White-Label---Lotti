@@ -19,3 +19,12 @@ export function parseLottiRequest(value:unknown):Record<string,unknown>|StartReq
 export function buildStartBridgeRequest(request:StartRequest,ownerId:string,conversationId:string){
  return {action:'send',corretor_id:ownerId,conversation_id:conversationId,request_id:request.request_id,kind:'text',text:request.text};
 }
+
+export function sanitizeConnectionPhone(value:unknown){
+ const phone=String(value??'').split('@')[0].replace(/\D/g,'');
+ return phone.length>=8&&phone.length<=15?phone:undefined;
+}
+
+export function sanitizeConnectionTimestamp(value:unknown){
+ return typeof value==='string'&&!Number.isNaN(Date.parse(value))?value:undefined;
+}

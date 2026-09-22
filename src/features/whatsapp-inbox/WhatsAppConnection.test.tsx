@@ -9,7 +9,22 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{functions:{invoke}}}));
 beforeEach(()=>{vi.useFakeTimers();invoke.mockReset();});
 afterEach(()=>{cleanup();vi.useRealTimers();});
 async function advance(ms=100){await act(async()=>{await vi.advanceTimersByTimeAsync(ms)});}
-function mount(){const client=new QueryClient({defaultOptions:{queries:{retry:false}}});render(<QueryClientProvider client={client}><WhatsAppConnection/></QueryClientProvider>);}
+function mount(props: Parameters<typeof WhatsAppConnection>[0] = {}){const client=new QueryClient({defaultOptions:{queries:{retry:false}}});render(<QueryClientProvider client={client}><WhatsAppConnection {...props}/></QueryClientProvider>);}
+it('inicia o QR automaticamente quando usado como bloqueio do Inbox',async()=>{
+ invoke.mockImplementation((_name,options)=>Promise.resolve({data:options.body.action==='connect'
+   ?{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,test',qrExpiresAt:Date.now()+10000}
+   :{state:'disconnected',agentEnabled:false},error:null}));
+ mount({autoStart:true});await advance();
+ expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).not.toBeNull();
+ expect(screen.getByText(/WhatsApp → Configurações → Aparelhos conectados/)).not.toBeNull();
+ expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(1);
+});
+it('mantém o QR ilustrativo visível sem aplicar a expiração real',async()=>{
+ invoke.mockResolvedValue({data:{state:'disconnected',agentEnabled:false},error:null});
+ mount({previewPairing:true});await advance(121000);
+ expect(screen.queryByAltText('QR Code de demonstração para conectar seu WhatsApp')).not.toBeNull();
+ expect(screen.queryByText(/tentativa nesta tela foi encerrada/i)).toBeNull();
+});
 it('starts once, polls read-only, expires a QR locally and cancels without logout',async()=>{
  const expiresAt=Date.now()+10000;
  invoke.mockResolvedValue({data:{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,test',qrExpiresAt:expiresAt},error:null});

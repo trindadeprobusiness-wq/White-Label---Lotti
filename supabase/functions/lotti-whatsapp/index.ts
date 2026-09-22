@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { buildStartBridgeRequest, parseLottiRequest, type StartRequest } from './request.ts';
+import { buildStartBridgeRequest, parseLottiRequest, sanitizeConnectionPhone, sanitizeConnectionTimestamp, type StartRequest } from './request.ts';
 const cors={ 'Access-Control-Allow-Origin':'https://app.plataformalotti.com.br', 'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods':'POST, OPTIONS', 'Cache-Control':'no-store' };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
@@ -35,6 +35,8 @@ Deno.serve(async req=>{
    const result=await response.json();
    if(body.action==='send'||body.action==='start')return ['sent','sending','uncertain','failed','busy'].includes(result.sendStatus)?json({sendStatus:result.sendStatus,...(conversationId?{conversationId}:{})}):json({error:'send_unavailable'},503);
    if(!['connected','connecting','disconnected'].includes(result.state))return json({error:'connection_service_unavailable'},503);
-   return json({state:result.state,agentEnabled:result.agentEnabled===true,...(typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?{qr:result.qr,qrExpiresAt:result.qrExpiresAt,qrGeneration:result.qrGeneration}:{})});
+   const phone=sanitizeConnectionPhone(result.phone??result.ownerJid);
+   const connectedAt=sanitizeConnectionTimestamp(result.connectedAt);
+   return json({state:result.state,agentEnabled:result.agentEnabled===true,...(phone?{phone}:{}),...(connectedAt?{connectedAt}:{}),...(typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?{qr:result.qr,qrExpiresAt:result.qrExpiresAt,qrGeneration:result.qrGeneration}:{})});
  }catch{return json({error:'connection_service_unavailable'},503);}
 });

@@ -1,5 +1,11 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — QR automático e dados reais de conexão no PR #11 (2026-09-22)
+- A branch `codex/whatsapp-inbox-actions` agora bloqueia o Inbox enquanto o WhatsApp não estiver conectado, inicia o pareamento automaticamente e mostra QR com instruções de `WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho`; a prévia local `?preview=pairing` é somente visual.
+- A página Conexão exibe número, empresa, horário disponível e desconexão quando conectada. O teste envia `Olá, tudo bem?` pela ação autenticada `start`, cria/reutiliza a conversa e permanece desabilitado sem conexão. A prévia `?preview=connected` existe somente em desenvolvimento.
+- A Edge Function sanitiza telefone e horário recebidos da ponte. Alteração complementar isolada em `n8n-agent-lotti`, branch `codex/whatsapp-connection-metadata`, consulta metadados da instância conectada sem transformar falha opcional de metadados em queda da conexão.
+- Verificação: plataforma com 78 arquivos/587 testes e build aprovados; bundle da Edge Function aprovado. Runtime com 26/26 testes aprovado. Publicação ainda depende do merge, deploy da Edge Function, migration já descrita no PR #11 e atualização da ponte.
+
 ## Codex — ações funcionais do Inbox em PR (2026-09-21)
 - Branch `codex/whatsapp-inbox-actions`: `Nova` abre formulário compacto e cria/reutiliza cliente+conversa antes do envio manual; o lápis renomeia o cliente; `Aberta/Fechada` confirma e persiste fechamento/reabertura.
 - Migration `20260921130000_lotti_inbox_actions.sql` adiciona status e três RPCs autorizadas por `auth.uid()`; mensagem recebida reabre conversa fechada. A Edge Function ganhou a ação `start`, reutilizando a idempotência do envio manual.

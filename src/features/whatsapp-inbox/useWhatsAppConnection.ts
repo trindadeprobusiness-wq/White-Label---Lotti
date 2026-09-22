@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 export type WhatsAppConnectionState = {
   state: 'connected' | 'connecting' | 'disconnected';
   agentEnabled: boolean;
+  phone?: string;
+  connectedAt?: string;
   qr?: string;
   qrExpiresAt?: number;
   qrGeneration?: string;
