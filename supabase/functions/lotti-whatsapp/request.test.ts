@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, sanitizeConnectionPhone, sanitizeConnectionTimestamp } from './request';
+import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, resolveBridgeUrl, sanitizeConnectionPhone, sanitizeConnectionTimestamp } from './request';
+
+describe('endereço da ponte do WhatsApp', () => {
+  const secret = 'https://antigo-tunel.trycloudflare.com/webhook/lotti-whatsapp-connect';
+  it('usa o túnel registrado pelo runtime com o mesmo caminho do secret', () => {
+    expect(resolveBridgeUrl(secret, 'novo-tunel.trycloudflare.com')).toBe('https://novo-tunel.trycloudflare.com/webhook/lotti-whatsapp-connect');
+  });
+  it('usa o caminho padrão quando o secret não existe', () => {
+    expect(resolveBridgeUrl(undefined, 'novo-tunel.trycloudflare.com')).toBe('https://novo-tunel.trycloudflare.com/webhook/lotti-whatsapp-connect');
+  });
+  it('cai no secret quando não há registro válido', () => {
+    expect(resolveBridgeUrl(secret, null)).toBe(secret);
+    for (const host of ['attacker.example.com', 'x.trycloudflare.com.evil.io', 'a/b.trycloudflare.com', 'A B.trycloudflare.com'])
+      expect(resolveBridgeUrl(secret, host)).toBe(secret);
+  });
+  it('não inventa endereço sem secret nem registro', () => {
+    expect(resolveBridgeUrl(undefined, undefined)).toBeUndefined();
+  });
+});
 
 const requestId = '11111111-1111-4111-8111-111111111111';
 

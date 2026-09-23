@@ -37,3 +37,14 @@ export function sanitizeConnectionPhone(value:unknown){
 export function sanitizeConnectionTimestamp(value:unknown){
  return typeof value==='string'&&!Number.isNaN(Date.parse(value))?value:undefined;
 }
+
+// The runtime registers its current Quick Tunnel host, which changes on every
+// Docker restart. Only Cloudflare quick-tunnel hosts are accepted, so the bridge
+// token is never sent elsewhere; the static secret remains the fallback.
+const DEFAULT_BRIDGE_PATH='/webhook/lotti-whatsapp-connect';
+export function resolveBridgeUrl(secretUrl:string|undefined,registeredHost:unknown){
+ if(typeof registeredHost!=='string'||!/^[a-z0-9-]+\.trycloudflare\.com$/.test(registeredHost))return secretUrl;
+ let path=DEFAULT_BRIDGE_PATH;
+ try{if(secretUrl)path=new URL(secretUrl).pathname||DEFAULT_BRIDGE_PATH;}catch{/* keep default path */}
+ return `https://${registeredHost}${path}`;
+}

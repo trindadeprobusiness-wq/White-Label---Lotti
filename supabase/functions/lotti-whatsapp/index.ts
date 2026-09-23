@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, sanitizeConnectionPhone, sanitizeConnectionTimestamp, type StartRequest, type UploadRequest } from './request.ts';
+import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, resolveBridgeUrl, sanitizeConnectionPhone, sanitizeConnectionTimestamp, type StartRequest, type UploadRequest } from './request.ts';
 const cors={ 'Access-Control-Allow-Origin':'https://app.plataformalotti.com.br', 'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods':'POST, OPTIONS', 'Cache-Control':'no-store' };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
@@ -23,7 +23,9 @@ Deno.serve(async req=>{
     const path=buildAttachmentPath(body as UploadRequest,owner.id);const {data,error:uploadError}=await db.storage.from('lotti-inbox-files').createSignedUploadUrl(path);
     return uploadError||!data?json({error:'upload_unavailable'},503):json({path:data.path,token:data.token});
    }
-   const url=Deno.env.get('LOTTI_CHANNEL_BRIDGE_URL'),secret=Deno.env.get('LOTTI_CHANNEL_BRIDGE_TOKEN');
+   // A missing table or row (migration not applied yet) falls back to the secret.
+   const {data:bridge}=await db.from('lotti_agent_bridge_endpoint').select('host').maybeSingle();
+   const url=resolveBridgeUrl(Deno.env.get('LOTTI_CHANNEL_BRIDGE_URL'),bridge?.host),secret=Deno.env.get('LOTTI_CHANNEL_BRIDGE_TOKEN');
    if(!url||!secret)return json({error:'connection_service_unavailable'},503);
    let bridgeBody:Record<string,unknown>={action:body.action,corretor_id:owner.id,...(body.action==='send'?{conversation_id:body.conversation_id,request_id:body.request_id,kind:body.kind,text:body.text,audio:body.audio,mime:body.mime,name:body.name,size:body.size,storage_path:body.storage_path}:{})};
    let conversationId:string|undefined;
