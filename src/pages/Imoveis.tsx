@@ -25,6 +25,57 @@ const tipoLabels: Record<TipoImovel, string> = {
   TERRENO: 'Terreno',
 };
 
+function PropertyCardImage({ fotos, titulo }: { fotos: string[]; titulo: string }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (!isHovered || fotos.length <= 1) {
+      if (!isHovered) setCurrentIndex(0); // Reset to first photo when mouse leaves
+      return;
+    }
+    // Auto-cycle photos every 2.5 seconds while hovered
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % fotos.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isHovered, fotos.length]);
+
+  if (!fotos || fotos.length === 0) return null;
+
+  return (
+    <div 
+      className="w-full h-full relative overflow-hidden bg-muted"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <img
+        src={fotos[currentIndex]}
+        alt={titulo}
+        loading="lazy"
+        decoding="async"
+        className="w-full h-full object-cover transition-all duration-300"
+      />
+      {fotos.length > 1 && isHovered && (
+        <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded backdrop-blur-sm font-medium animate-in fade-in zoom-in-95 duration-200">
+          {currentIndex + 1} / {fotos.length}
+        </div>
+      )}
+      {/* ProgressBar style indicator at the bottom */}
+      {fotos.length > 1 && isHovered && (
+        <div className="absolute bottom-1 left-0 right-0 flex gap-0.5 px-2">
+          {fotos.map((_, i) => (
+            <div 
+              key={i} 
+              className={`h-0.5 rounded-full flex-1 transition-colors duration-300 ${i === currentIndex ? 'bg-white' : 'bg-white/40'}`} 
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Imoveis() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -34,7 +85,7 @@ export default function Imoveis() {
   const [statusAnuncioFilter, setStatusAnuncioFilter] = useState<string>('TODOS');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [imovelToEdit, setImovelToEdit] = useState<Imovel | null>(null);
-  const [fotosPrincipais, setFotosPrincipais] = useState<Record<string, string>>({});
+  const [fotosPrincipais, setFotosPrincipais] = useState<Record<string, string[]>>({});
 
   // Fetch main photos for all properties
   useEffect(() => {
@@ -43,13 +94,23 @@ export default function Imoveis() {
 
       const { data } = await supabase
         .from('imovel_fotos')
-        .select('imovel_id, arquivo_url')
+        .select('imovel_id, arquivo_url, principal')
         .in('imovel_id', imoveis.map(i => i.id))
-        .eq('principal', true);
+        .order('created_at', { ascending: true });
 
       if (data) {
-        const fotosMap: Record<string, string> = {};
-        data.forEach(f => { fotosMap[f.imovel_id] = f.arquivo_url; });
+        const fotosMap: Record<string, string[]> = {};
+        data.forEach(f => {
+          if (!fotosMap[f.imovel_id]) {
+            fotosMap[f.imovel_id] = [];
+          }
+          // Se for a foto principal explícita, coloca no início da fila
+          if (f.principal) {
+            fotosMap[f.imovel_id].unshift(f.arquivo_url);
+          } else {
+            fotosMap[f.imovel_id].push(f.arquivo_url);
+          }
+        });
         setFotosPrincipais(fotosMap);
       }
     };
@@ -174,14 +235,8 @@ export default function Imoveis() {
               onClick={() => navigate(`/imoveis/${imovel.id}`)}
             >
               <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center relative overflow-hidden">
-                {fotosPrincipais[imovel.id] ? (
-                  <img
-                    src={fotosPrincipais[imovel.id]}
-                    alt={imovel.titulo}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover"
-                  />
+                {fotosPrincipais[imovel.id] && fotosPrincipais[imovel.id].length > 0 ? (
+                  <PropertyCardImage fotos={fotosPrincipais[imovel.id]} titulo={imovel.titulo} />
                 ) : (
                   <div className="flex flex-col items-center gap-1 text-muted-foreground/50">
                     <Image className="w-8 h-8" />

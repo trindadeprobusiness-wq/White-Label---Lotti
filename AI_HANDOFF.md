@@ -1861,12 +1861,12 @@ credencial); nao foi contornada.
 - Edge Functions lead-capture v19, public-imoveis v17, imovel-detalhe v17 e fachada-publica v16 publicadas e ACTIVE; chamadas publicas com payload vazio retornaram erros esperados 400/405, sem 5xx.
 - Build atual passou; smoke de login, rota protegida e CSP passou. Landing QR abriu, aceitou lead sintetico e exibiu detalhes; registro de teste removido e ausencia confirmada. Preview da fachada exibiu arte e QR. Script local e scripts externos do Clarity carregaram na pagina; recebimento de sessoes no painel e impressao fisica nao foram confirmados.
 - Google Agenda: cliente OAuth nao encontrado nos projetos acessiveis da conta Google conectada no Chrome. Redirect do Google Cloud e secrets do Supabase nao foram alterados; precisa de acesso ao projeto/conta dona do cliente OAuth antes de trocar a URI e testar a conexao. Checkout original e arquivos de terceiros preservados.
+
 ### 2026-09-16 - Codex (sincronizacao das branches remotas)
 - Git fetch origin --prune no worktree limpo confirmou origin/main e32cca5. Branches remotas codex/whatsapp-connection, fix/google-agenda-oauth e codex/security-hardening foram descobertas neste checkout; todas possuem 0 commits a frente da main (7, 18 e 17 atras, respectivamente).
 - API GitHub confirmou PR #6 e #7 merged, PR #5 merged e PR #3 ainda open. Nenhum PR foi alterado nesta etapa.
-- Worktree C:\Users\Gabri\lotti-agent-platform esta limpo e no SHA e32cca5. Checkout original main cb255f2 divergiu (1 a frente, 29 atras) e contem alteracoes locais preexistentes, preservadas. Nenhum merge, push ou deploy executado.-   C o r r e c a o   ( A l u g u e i s ) :   A d i c i o n a d o   f i l t r o   d e   m e s   n a   a b a   d e   R e p a s s e s   a o s   P r o p r i e t a r i o s   p a r a   o t i m i z a r   v i s u a l i z a c a o   e   s o m a r   o s   K P I s   ( ' A g e n d a d o '   e   ' C o n f i r m a d o ' )   a p e n a s   r e f e r e n t e s   a o   m e s   a t i v o .  
- 
->>>>>>> 512faa2 (docs: registrar adicao de filtro de mes em Repasses)
+- Worktree C:\Users\Gabri\lotti-agent-platform esta limpo e no SHA e32cca5. Checkout original main cb255f2 divergiu (1 a frente, 29 atras) e contem alteracoes locais preexistentes, preservadas. Nenhum merge, push ou deploy executado.
+- Correcão (Alugueis): Adicionado filtro de mes na aba de Repasses aos Proprietarios para otimizar visualizacao e somar os KPIs ('Agendado' e 'Confirmado') apenas referentes ao mes ativo.
 
 ### 2026-09-19 - Codex (diagnóstico de deploy bloqueado)
 - Vercel confirmou que o deployment do commit `8564649` (PR #9) foi bloqueado porque o autor `rportocortes` não possui acesso de contribuição ao projeto. No plano Hobby, repositórios privados não aceitam colaboração; o redeploy permanece desabilitado e a única ação exibida é upgrade para Pro.
@@ -1884,11 +1884,13 @@ credencial); nao foi contornada.
 ### 2026-09-22 - Codex (liberação das ações do Inbox)
 - A revisão da PR #11 confirmou que seus commits funcionais já estavam na main; faltava a migration no checkout e a infraestrutura publicada. A migration `20260921130000_lotti_inbox_actions.sql` foi adicionada ao repositório e aplicada isoladamente no projeto Supabase vinculado, sem `--include-all`.
 - Verificado no banco: coluna `status`, RPCs `lotti_inbox_start_conversation`, `lotti_inbox_rename_client`, `lotti_inbox_set_status` e trigger `lotti_inbox_reopen_on_inbound`. A Edge Function `lotti-whatsapp` foi republicada com sucesso. Pendente nesta entrada: commit autorizado e confirmação do deploy Vercel.
+- Commit autorizado `f15775c` enviado para a main. Vercel publicou `dpl_76Q1HnYmjgfuJBgnQSK76fZqQxVc` como `Ready` em produção, com aliases `app.plataformalotti.com.br` e `olivercrm.vercel.app` confirmados. `git diff --check` passou.
 
 ### 2026-09-22 - Codex (composer compacto e importacao historica)
 - A barra de resposta do Inbox foi reduzida para um composer de uma linha, com anexo oculto por botao, campo central, microfone e envio contextual. O controle nativo de arquivo e o bloco alto foram removidos. Testes direcionados: 10/10; build de producao passou.
 - Runtime de historico foi atualizado sobre a main: `MESSAGES_SET` separado do fluxo ao vivo e reaplicacao de settings/webhook inclusive em instancia ja aberta. Grupos, broadcasts e LIDs sem telefone real continuam descartados; nenhuma resposta automatica e disparada pela importacao. Testes runtime: 30/30.
 - Pendente para producao: mesclar/publicar os dois PRs, aplicar a migration `20260920000100_lotti_history_import.sql` isoladamente e configurar `HISTORY_IMPORT_ENABLED=true` no host persistente do runtime. Quick Tunnel local segue temporario.
+
 ### 2026-09-22 - Codex (anexos privados no Inbox)
 - O composer do Inbox agora aceita PDF, Office, texto/CSV, ZIP, imagens, vídeos e áudios de até 100 MB. Executáveis, scripts e extensões fora da lista permitida são recusados antes do upload.
 - O navegador solicita URL de upload assinada, envia ao bucket privado `lotti-inbox-files` e encaminha somente o caminho/metadados ao runtime; o provedor recebe URL de leitura com validade curta.
@@ -1897,3 +1899,26 @@ credencial); nao foi contornada.
 - Migration `20260922000200_lotti_inbox_files.sql` aplicada isoladamente e registrada, sem `--include-all`. Bucket confirmado privado, com limite de 104857600 bytes e 25 MIME types. Edge Function `lotti-whatsapp` v20 ficou `ACTIVE`; chamada sem autenticação retornou 401.
 - PR #12 integrada em `36d72b3`; Vercel `dpl_87opxun6t31QYxwjy9DPLVrGNSQr` ficou `Ready` com aliases oficiais. Resultado integrado: 79 arquivos/595 testes e build passaram com variáveis públicas fictícias do CI.
 - PR #4 integrada no runtime em `85192b7`; 33/33 testes passaram. Somente o serviço Docker `agent` foi reconstruído/recriado; Evolution, Postgres, Redis e volumes permaneceram ativos. Health: runtime e IA configurados, envios automáticos desativados. Nenhum arquivo foi enviado a contato real; teste ponta a ponta ainda requer destinatário autorizado.
+
+### 2026-09-22 - Codex (slide comercial do ecossistema Lotti)
+- Slide unico criado em `output/presentations/LOTTI_ECOSSISTEMA_COMERCIAL.pptx` com os tres planos de software, Growth, Performance e fluxo captação → corretor. Preços e escopos seguiram o briefing desta tarefa.
+- Identidade verificada em `src/index.css`, `tailwind.config.ts`, `src/pages/PublicInfo.tsx` e nos arquivos de marca do projeto: branco, verde `#093323`, Inter, Lora e logotipo existente. Nenhum asset externo foi criado.
+- PPTX finalizado com integridade, layout, contagem de um slide, fontes e importação aprovados; renderização final inspecionada. Não houve teste em PowerPoint ou Google Slides.
+
+### 2026-09-22 - Codex (artes do funil comercial)
+- Figma e Miro autenticados. Arquivo de design Figma `OmAEQ6ppvVuTCYRgBxbvMJ` criado com três pranchas vazias e tokens de cor Lotti; a edição posterior foi bloqueada pelo limite de chamadas MCP do plano Starter. As pranchas no Figma não estão concluídas.
+- Três artes vetoriais SVG e versões PNG foram criadas em `output/figma-assets/` usando a paleta e tipografia existentes no projeto. Temas: tração do funil, ecossistema ponta a ponta e exemplo ilustrativo de qualificação. PNGs renderizados e inspecionados; nenhuma métrica real ou dado pessoal foi usado.
+- Board Miro `https://miro.com/app/board/uXjVHjofzpY=/` criado após confirmação do usuário e recebeu as três artes SVG em sequência vertical. O board foi aberto no preview do app. Pendente: importar/concluir as artes no arquivo Figma quando o limite permitir.
+
+### 2026-09-22 - Codex (auditoria do Reel para a página pública)
+- O Reel `Ddkzc55OkHm` foi inspecionado e comparado com as superfícies públicas e a arquitetura atual. A única lacuna relevante encontrada foi a clareza imediata do título de `/sobre`; o hero existente foi preservado e recebeu texto mais direto sobre clientes, imóveis, negociações e próximos passos.
+- Não foram criados WhatsApp, depoimentos, endereço, FAQ, páginas por serviço ou nova medição: WhatsApp já existe na fachada pública quando há corretor, Clarity e metadados por rota já existem, e os demais itens exigiriam conteúdo real ou não correspondem ao escopo do produto autenticado.
+- Validação: build de produção, ESLint direcionado, teste direcionado (3/3), suíte sem a cópia antiga de `.vercel` (75 arquivos/572 testes) e `git diff --check` passaram. Inspeção responsiva em 1440x900, 1024x768, 768x1024 e 390x844 não encontrou overflow horizontal. O lint global e o typecheck continuam falhando em erros preexistentes fora dos arquivos alterados; o runner sem exclusão também coleta uma cópia antiga em `.vercel/oauth-deploy`.
+- Commit `326ad2f` rebasedado sobre a main atual e enviado para `origin/main`. Na revisão integrada, build, ESLint direcionado e 78 arquivos/587 testes passaram; a primeira execução paralela teve timeout de workers sem falhas de asserção e passou isoladamente com concorrência limitada. Vercel publicou `dpl_8sRwbcFssm9iDThyX4YRjPjie8rF` como `Ready`, com os aliases `app.plataformalotti.com.br` e `olivercrm.vercel.app`; ambos responderam HTTP 200 em `/sobre`.
+
+### 2026-09-22 - Codex (PRs #11/#3 e liberação do WhatsApp)
+- PR #11 da plataforma mesclada pela conta proprietária em `7cd0384`; PR #3 do runtime mesclada em `7ab6407`. Revisão sem achados bloqueantes. Verificações locais: 587/587 testes e build da plataforma; 26/26 testes do runtime; merges simulados sem conflito. No GitHub, os checks de segurança/testes da plataforma passaram e somente o preview da Vercel estava bloqueado pela permissão do autor.
+- O schema remoto já continha a coluna `status`, as RPCs e o trigger da migration `20260921130000_lotti_inbox_actions.sql`, mas faltava o registro no histórico; o histórico foi reparado como `applied` após consulta de verificação, sem aplicar migrations antigas. `lotti-whatsapp` v18 foi publicada e ficou `ACTIVE`; chamada sem autenticação retornou 401.
+- Runtime local atualizado para `7ab6407`; somente o container `agent` foi reconstruído/recriado. Health respondeu 200 com runtime configurado e envios automáticos desativados. A consulta do canal confirmou `connected`, com telefone e horário presentes, sem registrar os valores; Evolution, Postgres e Redis permaneceram ativos e os volumes não foram alterados.
+- Docker Desktop 4.72 foi recuperado de sockets AF_UNIX corrompidos renomeando apenas os diretórios efêmeros `Docker\\run` e `docker-secrets-engine` para backups `*.stale-*`; nenhum reset/prune foi executado. A configuração de IA do Docker foi restaurada ao valor anterior.
+- Vercel publicou `dpl_7hg8aAze5VDGsGDr96MJsi1F65jA` como `READY` em produção; aliases `app.plataformalotti.com.br` e `olivercrm.vercel.app` confirmados. `/whatsapp` respondeu HTTP 200. Pendente apenas teste autenticado no navegador e envio real para um destinatário autorizado.
