@@ -137,7 +137,7 @@ it('abre as três ações essenciais pelos controles do Inbox', async () => {
   expect(screen.getByRole('dialog', { name: 'Nova conversa' })).not.toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
   fireEvent.click(screen.getByRole('button', { name: 'Editar nome' }));
-  expect(screen.getByRole('dialog', { name: 'Editar nome' })).not.toBeNull();
+  expect(screen.getByRole('dialog', { name: 'Editar contato' })).not.toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
   fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
   expect(screen.getByRole('dialog', { name: 'Fechar conversa?' })).not.toBeNull();

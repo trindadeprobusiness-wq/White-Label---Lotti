@@ -4,7 +4,7 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {MessageComposer} from './MessageComposer';
 const {invoke,uploadToSignedUrl}=vi.hoisted(()=>({invoke:vi.fn(),uploadToSignedUrl:vi.fn()}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{functions:{invoke},storage:{from:()=>({uploadToSignedUrl})}}}));
-afterEach(()=>{cleanup();vi.resetAllMocks()});
+afterEach(()=>{cleanup();vi.resetAllMocks();vi.unstubAllGlobals()});
 it('sends text from the selected conversation and clears only after confirmation',async()=>{
  invoke.mockResolvedValue({data:{sendStatus:'sent'}});const sent=vi.fn();render(<MessageComposer conversationId="conversation-a" onSent={sent}/>);
  fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Olá, podemos agendar?'}});fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
@@ -29,4 +29,23 @@ it('uploads an allowed contract privately before asking the runtime to send it',
  render(<MessageComposer conversationId="conversation-file" onSent={()=>{}}/>);const file=new File(['pdf'],'contrato.pdf',{type:'application/pdf'});
  fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
  await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect(invoke.mock.calls[1][1].body).toMatchObject({kind:'file',name:'contrato.pdf',mime:'application/pdf',storage_path:'owner/request/contrato.pdf'});
+});
+it('keeps the message field available and sends a selected file with Enter',async()=>{
+ invoke.mockResolvedValueOnce({data:{path:'owner/request/recibo.pdf',token:'signed-upload'}}).mockResolvedValueOnce({data:{sendStatus:'sent'}});uploadToSignedUrl.mockResolvedValue({error:null});
+ render(<MessageComposer conversationId="conversation-file-enter" onSent={()=>{}}/>);const file=new File(['pdf'],'recibo.pdf',{type:'application/pdf'});
+ fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});
+ const message=screen.getByLabelText('Mensagem');fireEvent.keyDown(message,{key:'Enter',code:'Enter'});
+ await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect(invoke.mock.calls[1][1].body).toMatchObject({conversation_id:'conversation-file-enter',kind:'file',name:'recibo.pdf'});
+});
+it('preserves typed text after sending a file because file captions are not supported',async()=>{
+ invoke.mockResolvedValueOnce({data:{path:'owner/request/recibo.pdf',token:'signed-upload'}}).mockResolvedValueOnce({data:{sendStatus:'sent'}});uploadToSignedUrl.mockResolvedValue({error:null});
+ render(<MessageComposer conversationId="conversation-caption" onSent={()=>{}}/>);const file=new File(['pdf'],'recibo.pdf',{type:'application/pdf'});
+ fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Segue o recibo'}});fireEvent.keyDown(screen.getByLabelText('Mensagem'),{key:'Enter',code:'Enter'});
+ await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).value).toBe('Segue o recibo');
+});
+it('explains how to release microphone access when Chrome blocks recording',async()=>{
+ Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:vi.fn().mockRejectedValue(new DOMException('denied','NotAllowedError'))}});
+ vi.stubGlobal('MediaRecorder',class FakeMediaRecorder{static isTypeSupported(){return true}});
+ render(<MessageComposer conversationId="conversation-audio" onSent={()=>{}}/>);fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
+ expect(await screen.findByText(/controles.*Microfone.*Permitir.*recarregue/i)).not.toBeNull();
 });

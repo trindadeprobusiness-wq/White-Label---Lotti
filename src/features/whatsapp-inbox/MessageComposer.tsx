@@ -24,7 +24,7 @@ export function MessageComposer({conversationId,onSent}:Props){
    r.onstop=()=>{input.getTracks().forEach(t=>t.stop());if(alive.current){setRecording(false);setAudio(new Blob(chunks,{type:mime.split(';')[0]}));}};
    r.onerror=()=>{stop();if(alive.current)setNotice('Não foi possível gravar. Verifique o microfone.');};
    r.start();setRecording(true);timer.current=setTimeout(stop,90000);
-  }catch{stream.current?.getTracks().forEach(t=>t.stop());if(alive.current)setNotice('Permita o microfone para gravar ou anexe um arquivo de áudio.');}
+  }catch(error){stream.current?.getTracks().forEach(t=>t.stop());if(alive.current)setNotice(error instanceof DOMException&&['NotAllowedError','SecurityError'].includes(error.name)?'No Chrome, clique no ícone de controles à esquerda do endereço, escolha Microfone → Permitir e recarregue a página.':'Não foi possível iniciar a gravação. Você também pode anexar um arquivo de áudio.');}
  }
  async function send(){
   if(busy)return;setBusy(true);setNotice('');
@@ -45,7 +45,7 @@ export function MessageComposer({conversationId,onSent}:Props){
    const {data,error}=await supabase.functions.invoke('lotti-whatsapp',{body:pending.current});
    if(!alive.current)return;
    if(error||!data)throw Error('unknown');
-   if(data.sendStatus==='sent'){pending.current=undefined;setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');onSent();}
+   if(data.sendStatus==='sent'){pending.current=undefined;if(!attachment)setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');onSent();}
    else if(['failed','busy'].includes(data.sendStatus)){pending.current=undefined;setNotice(data.sendStatus==='busy'?'Há uma entrega em andamento. Aguarde antes de enviar.':'Não foi enviado. Verifique a conexão e tente novamente.');}
    else setNotice('Envio sem confirmação. Confira no WhatsApp antes de tentar uma nova mensagem.');
   }catch{if(alive.current)setNotice('A confirmação demorou. Use Verificar envio para consultar sem duplicar a mensagem.');}
@@ -58,7 +58,7 @@ export function MessageComposer({conversationId,onSent}:Props){
   <div className="flex min-h-12 items-end gap-1 rounded-2xl border border-input bg-background px-2 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1">
    <input ref={fileInput} aria-label="Anexar arquivo" className="sr-only" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov,.mp3,.ogg,.m4a,.wav" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f)try{validateAttachment(f);setAttachment(new File([f],safeAttachmentName(f.name),{type:f.type}));setAudio(undefined);setNotice('')}catch(error){setNotice(error instanceof Error&&error.message==='file_too_large'?'O arquivo deve ter até 100 MB.':'Este tipo de arquivo não é permitido por segurança.')}e.target.value='';}}/>
    <Button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||recording} onClick={()=>fileInput.current?.click()}><Paperclip className="h-5 w-5"/></Button>
-   {!audio&&!attachment&&<textarea aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0"/>}
+   {!audio&&<textarea aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0"/>}
    {canSend?<Button type="button" aria-label={busy?'Enviando':pending.current?'Verificar envio':'Enviar'} title={pending.current?'Verificar envio':'Enviar'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-primary" disabled={busy||recording} onClick={send}><Send className="h-5 w-5"/></Button>
     :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
   </div>
