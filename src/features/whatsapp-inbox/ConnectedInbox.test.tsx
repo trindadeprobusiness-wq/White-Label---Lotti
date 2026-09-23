@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -13,7 +13,7 @@ const dataByTable: Record<string, unknown[]> = {
   lotti_agent_messages: [],
 };
 // missingColumns simulates the production database before the account-scope migration.
-const mockDb = { missingColumns: false, filters: [] as string[] };
+const mockDb = { missingColumns: false, filters: [] as string[], reads: {} as Record<string, number> };
 function builder(table: string) {
   let columns = '';
   const filters: string[] = [];
@@ -22,6 +22,7 @@ function builder(table: string) {
     is: (column: string, value: unknown) => { filters.push(column); mockDb.filters.push(`${table}.${column} is ${value}`); return b; },
     single: () => Promise.resolve({ data: null, error: null }),
     then: (resolve: (v: { data: unknown[] | null; error: { code: string } | null }) => unknown) => {
+      mockDb.reads[table] = (mockDb.reads[table] ?? 0) + 1;
       const usesNewColumns = columns.includes('contact_name') || filters.length > 0;
       if (table === 'lotti_agent_conversations' && mockDb.missingColumns && usesNewColumns)
         return Promise.resolve({ data: null, error: { code: '42703' } }).then(resolve);
@@ -44,7 +45,7 @@ function mount(connected: boolean | 'unknown') {
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
 }
 
-afterEach(() => { cleanup(); mockDb.missingColumns = false; mockDb.filters = []; dataByTable.lotti_agent_conversations = [conversationFixture()]; });
+afterEach(() => { cleanup(); vi.useRealTimers(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
@@ -73,6 +74,15 @@ it('conectado oferece o compositor para responder pela tela', async () => {
   mount(true);
   expect(await screen.findByLabelText('Mensagem')).not.toBeNull();
   expect(screen.queryByText(/não está disponível/i)).toBeNull();
+});
+
+it('atualiza mensagens novas em menos de dois segundos', async () => {
+  vi.useFakeTimers();
+  mount(true);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const initial = mockDb.reads.lotti_agent_messages ?? 0;
+  await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+  expect(mockDb.reads.lotti_agent_messages).toBeGreaterThan(initial);
 });
 
 it('desconectado orienta a conectar em vez de compor', async () => {

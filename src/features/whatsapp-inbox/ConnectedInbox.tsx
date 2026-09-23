@@ -48,11 +48,11 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   const [infoVisible, setInfoVisible] = useState(true);
   const [newOpen,setNewOpen]=useState(false),[renameOpen,setRenameOpen]=useState(false),[statusOpen,setStatusOpen]=useState(false);
   const list = useQuery({
-    queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user, refetchInterval: 5000,
+    queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user, refetchInterval: 1500,
     queryFn: fetchConversations,
   });
   const previews = useQuery({
-    queryKey: ['lotti-agent-message-previews', user?.id], enabled: !!user, refetchInterval: 5000,
+    queryKey: ['lotti-agent-message-previews', user?.id], enabled: !!user, refetchInterval: 1500,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_latest_messages')
         .select('conversation_id,direction,created_at,content');
@@ -66,7 +66,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   const selected = filtered.find(c => c.id === selectedId) ?? filtered[0];
   const count = (kind: QuickFilter) => (list.data ?? []).filter(c => liveUrgency(c, latest.get(c.id), now) === kind).length;
   const messages = useQuery({
-    queryKey: ['lotti-agent-messages', user?.id, selected?.id], enabled: !!user && !!selected, refetchInterval: 5000,
+    queryKey: ['lotti-agent-messages', user?.id, selected?.id], enabled: !!user && !!selected, refetchInterval: 1500,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_messages').select('id,direction,sender,content,created_at')
         .eq('conversation_id', selected!.id).order('created_at', { ascending: false }).limit(200);
