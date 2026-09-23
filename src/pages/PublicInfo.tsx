@@ -2,15 +2,15 @@ import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
-  Building2,
+  CalendarCheck2,
   CalendarDays,
   Check,
-  Clock3,
-  FileText,
   LockKeyhole,
+  MessageCircleMore,
+  RefreshCw,
+  SearchCheck,
   ShieldCheck,
   Sparkles,
-  Users2,
 } from 'lucide-react';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 
@@ -128,6 +128,149 @@ function SyncBoard() {
   );
 }
 
+const serviceStages = [
+  {
+    icon: MessageCircleMore,
+    title: 'Responde e entende',
+    items: [
+      'Responde na hora',
+      'Separa compra de locação',
+      'Mapeia faixa de preço, região, entrada e financiamento',
+    ],
+  },
+  {
+    icon: SearchCheck,
+    title: 'Cruza e encaminha',
+    items: [
+      'Conecta o interesse aos imóveis disponíveis',
+      'Agenda a visita',
+      'Entrega o contexto completo ao corretor',
+    ],
+  },
+  {
+    icon: RefreshCw,
+    title: 'Mantém a conversa viva',
+    items: [
+      'Faz follow-up no tempo certo',
+      'Cultiva o relacionamento até o cliente estar pronto',
+    ],
+  },
+];
+
+function LottiServiceFlow() {
+  return (
+    <section id="como-funciona" className="relative overflow-hidden border-b border-[#d9e3dd] bg-[#f3f7f5]">
+      <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-[42%] bg-[linear-gradient(135deg,rgba(9,51,35,0.055),transparent_62%)] lg:block" />
+      <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+        <div className="grid gap-5 lg:grid-cols-[1.12fr_0.88fr] lg:items-end lg:gap-14">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold text-[#416050]">
+              <span aria-hidden="true" className="h-2 w-2 rounded-sm bg-[#093323]" />
+              Como a Lotti trabalha
+            </p>
+            <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-[1.1] tracking-[-0.03em] text-[#0d2a1e] sm:text-5xl">
+              A Lotti cuida do repetitivo. O corretor entra no momento certo.
+            </h2>
+          </div>
+          <p className="max-w-xl text-base leading-7 text-[#52665b] sm:text-lg">
+            Ela responde, qualifica, acompanha e agenda. O corretor recebe o contexto pronto para avançar.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-12 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:gap-20">
+          <figure className="relative mx-auto w-full max-w-[23rem] lg:mx-0">
+            <div aria-hidden="true" className="absolute -inset-6 rounded-[3.5rem] border border-[#b8c9bf]/70" />
+            <div aria-hidden="true" className="absolute -right-8 top-16 h-36 w-36 rounded-full bg-[#d5e7dc] blur-3xl" />
+
+            <div className="relative rounded-[2.6rem] bg-[#092c20] p-[7px] shadow-[0_30px_70px_rgba(9,44,32,0.22)]">
+              <div className="overflow-hidden rounded-[2.2rem] bg-[#f8fbf9]">
+                <div className="relative flex items-center gap-3 bg-[#0b3b2a] px-5 pb-4 pt-7 text-white">
+                  <span aria-hidden="true" className="absolute left-1/2 top-2 h-1.5 w-16 -translate-x-1/2 rounded-full bg-white/20" />
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white font-serif text-lg font-semibold text-[#0b3b2a]">L</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Atendimento Lotti</p>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/70">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#78d7a5]" /> respondendo agora
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 px-4 py-5 text-[13px] leading-[1.45]">
+                  <div className="ml-auto max-w-[84%] rounded-[1rem_1rem_0.3rem_1rem] bg-[#dcebe2] px-3.5 py-2.5 text-[#173b2c]">
+                    Procuro um apartamento para comprar no Setor Bueno.
+                  </div>
+                  <div className="max-w-[88%] rounded-[1rem_1rem_1rem_0.3rem] border border-[#dbe5df] bg-white px-3.5 py-2.5 text-[#40564a] shadow-sm">
+                    Perfeito. Qual faixa de valor e quanto pretende dar de entrada?
+                  </div>
+
+                  <div className="rounded-2xl border border-[#cbdcd2] bg-white p-3.5 shadow-[0_10px_30px_rgba(9,51,35,0.07)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold text-[#163b2b]">Perfil organizado</p>
+                      <span className="rounded-full bg-[#e8f2ec] px-2 py-1 text-[10px] font-semibold text-[#275640]">Completo</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium text-[#4d6558]">
+                      {['Compra', 'Setor Bueno', 'Até R$ 650 mil', 'Entrada R$ 120 mil', 'Financiamento'].map((item) => (
+                        <span key={item} className="rounded-full border border-[#dce6e0] bg-[#f8faf9] px-2 py-1">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl bg-[#0b3b2a] p-3 text-white">
+                      <SearchCheck className="h-4 w-4 text-[#9dd1b4]" />
+                      <p className="mt-2 text-xs font-semibold">3 imóveis</p>
+                      <p className="mt-0.5 text-[11px] text-white/65">compatíveis</p>
+                    </div>
+                    <div className="rounded-xl border border-[#cbdcd2] bg-[#eef5f1] p-3 text-[#163b2b]">
+                      <CalendarCheck2 className="h-4 w-4 text-[#2c7252]" />
+                      <p className="mt-2 text-xs font-semibold">Visita</p>
+                      <p className="mt-0.5 text-[11px] text-[#5e7468]">quinta, 15h</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <figcaption className="mt-5 text-center text-xs leading-5 text-[#687b70]">
+              Exemplo de uma conversa qualificada pela Lotti.
+            </figcaption>
+          </figure>
+
+          <div>
+            <ol className="divide-y divide-[#cddbd3] border-y border-[#cddbd3]">
+              {serviceStages.map(({ icon: Icon, title, items }, index) => (
+                <li key={title} className="grid grid-cols-[2.75rem_1fr] gap-4 py-6 sm:grid-cols-[3.25rem_1fr] sm:gap-5 sm:py-7">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full border border-[#b8cbbf] bg-white text-[#093323] shadow-sm sm:h-12 sm:w-12">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <h3 className="text-lg font-semibold tracking-[-0.015em] text-[#173b2c] sm:text-xl">{title}</h3>
+                      <span className="text-xs font-semibold tabular-nums text-[#7a8c82]">0{index + 1}</span>
+                    </div>
+                    <ul className="mt-3 grid gap-x-5 gap-y-2 sm:grid-cols-2">
+                      {items.map((item) => (
+                        <li key={item} className="flex gap-2 text-sm leading-5 text-[#53685c]">
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#26714e]" aria-hidden="true" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#dfece5] px-4 py-4 text-sm leading-6 text-[#234b39] sm:px-5">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p><strong className="font-semibold">Para o corretor:</strong> atendimento organizado, próximos passos claros e mais tempo para negociar.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function PaginaInicialPublica() {
   usePublicPageMeta(
     'Lotti — CRM imobiliário',
@@ -168,25 +311,7 @@ export function PaginaInicialPublica() {
           </div>
         </section>
 
-        <section id="como-funciona" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#4c6b5c]">Uma operação, uma leitura</p>
-            <h2 className="mt-3 font-serif text-3xl font-semibold tracking-[-0.025em] sm:text-4xl">Contexto suficiente para decidir. Estrutura suficiente para executar.</h2>
-          </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {[
-              { icon: Users2, title: 'Relacionamento', text: 'Clientes, histórico, follow-ups e funil comercial no mesmo fluxo.' },
-              { icon: Building2, title: 'Operação', text: 'Imóveis, contratos, documentos, cobranças e repasses organizados.' },
-              { icon: Clock3, title: 'Rotina', text: 'Tarefas e compromissos com sincronização opcional do Google Agenda.' },
-            ].map(({ icon: Icon, title, text }) => (
-              <article key={title} className="rounded-2xl border border-[#d8e3dc] bg-white p-6 shadow-sm">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e8f1ec] text-[#093323]"><Icon className="h-5 w-5" /></span>
-                <h3 className="mt-5 text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#5c6f64]">{text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        <LottiServiceFlow />
 
         <section className="bg-[#092c20] text-white">
           <div className="mx-auto grid max-w-6xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">

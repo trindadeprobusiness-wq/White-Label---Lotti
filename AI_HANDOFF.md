@@ -1,5 +1,11 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — seção pública do atendimento automatizado (2026-09-23)
+- A seção `#como-funciona` de `/sobre` foi redesenhada em `src/pages/PublicInfo.tsx` com uma demonstração em formato de celular e três etapas que resumem resposta imediata, qualificação, cruzamento com imóveis, follow-up, agendamento e repasse de contexto ao corretor.
+- `src/pages/PublicInfo.test.tsx` cobre a nova promessa e os principais pontos do fluxo. A alteração preserva a paleta verde/branco, Inter/Lora e os links públicos existentes.
+- Verificação nesta base: suíte completa com 80 arquivos/623 testes, teste direcionado 3/3, ESLint direcionado, build de produção e `git diff --check` passaram com `.vercel/**` excluído. A inspeção anterior em 1440×1000 e 390×844 confirmou largura do documento igual à viewport e foi revisada visualmente.
+- Pendente: publicar. O typecheck global permanece com erros preexistentes de schema/tipos fora destes arquivos.
+
 ## Codex — QR estável durante renovação (2026-09-23)
 - A tela de conexão conserva o último QR ainda válido quando uma consulta de status retorna temporariamente sem código ou com erro; QR vencido continua oculto e cancelar limpa o código local.
 - A sondagem do Inbox conectado foi reduzida de 5 s para 1,5 s para mensagens, prévias e conversas; teste com relógio controlado garante atualização em menos de 2 s.
@@ -1940,3 +1946,6 @@ credencial); nao foi contornada.
 - O modal do lápis passou a editar nome e telefone atuais. Nova RPC `lotti_inbox_update_contact` valida os campos, verifica o proprietário autenticado, atualiza cliente e conversa na mesma transação e trata telefone já usado.
 - Verificação: 621/621 testes passaram com as variáveis públicas fictícias do CI; build Vite passou; ESLint direcionado passou. O typecheck global continua falhando nos erros antigos de schema/tipos fora deste escopo.
 - Diagnóstico do histórico: os lotes recebidos nesta sessão continham somente grupos ou LIDs sem telefone mapeável (`accepted=0`), portanto não há importação segura de contatos recentes. A configuração local `HISTORY_IMPORT_ENABLED` foi desativada para impedir novas conversas fantasmas; nenhuma conversa existente foi apagada ou arquivada nesta etapa.
+
+### 2026-09-23 - Codex (seção de atendimento em `/sobre`)
+- Fluxo visual do atendimento repetitivo reaplicado sobre a `main` atual; 80 arquivos/623 testes, ESLint, build e `git diff --check` aprovados. Publicação permanece pendente.
