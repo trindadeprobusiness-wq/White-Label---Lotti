@@ -3,8 +3,8 @@
 ## Codex — seção pública do atendimento automatizado (2026-09-23)
 - A seção `#como-funciona` de `/sobre` foi redesenhada em `src/pages/PublicInfo.tsx` com uma demonstração em formato de celular e três etapas que resumem resposta imediata, qualificação, cruzamento com imóveis, follow-up, agendamento e repasse de contexto ao corretor.
 - `src/pages/PublicInfo.test.tsx` cobre a nova promessa e os principais pontos do fluxo. A alteração preserva a paleta verde/branco, Inter/Lora e os links públicos existentes.
-- Verificação nesta base: suíte completa com 80 arquivos/623 testes, teste direcionado 3/3, ESLint direcionado, build de produção e `git diff --check` passaram com `.vercel/**` excluído. A inspeção anterior em 1440×1000 e 390×844 confirmou largura do documento igual à viewport e foi revisada visualmente.
-- Pendente: publicar. O typecheck global permanece com erros preexistentes de schema/tipos fora destes arquivos.
+- Verificação nesta base: suíte completa com 80 arquivos/623 testes, teste direcionado 3/3, ESLint direcionado, build de produção e `git diff --check` passaram com `.vercel/**` excluído. A inspeção em 1440×1000 e 390×844 confirmou largura do documento igual à viewport e foi revisada visualmente.
+- Commit `d77c6fc` enviado à `main`. Vercel publicou `dpl_9XN2U4EWR2bpgidLtCGtf6PVr7ns` como `Ready`, com aliases `app.plataformalotti.com.br` e `olivercrm.vercel.app`; `/sobre` respondeu HTTP 200 e exibiu a nova seção em 390 px e 1440 px. O typecheck global permanece com erros preexistentes de schema/tipos fora destes arquivos.
 
 ## Codex — QR estável durante renovação (2026-09-23)
 - A tela de conexão conserva o último QR ainda válido quando uma consulta de status retorna temporariamente sem código ou com erro; QR vencido continua oculto e cancelar limpa o código local.
@@ -1948,4 +1948,4 @@ credencial); nao foi contornada.
 - Diagnóstico do histórico: os lotes recebidos nesta sessão continham somente grupos ou LIDs sem telefone mapeável (`accepted=0`), portanto não há importação segura de contatos recentes. A configuração local `HISTORY_IMPORT_ENABLED` foi desativada para impedir novas conversas fantasmas; nenhuma conversa existente foi apagada ou arquivada nesta etapa.
 
 ### 2026-09-23 - Codex (seção de atendimento em `/sobre`)
-- Fluxo visual do atendimento repetitivo reaplicado sobre a `main` atual; 80 arquivos/623 testes, ESLint, build e `git diff --check` aprovados. Publicação permanece pendente.
+- Fluxo visual do atendimento repetitivo integrado em `d77c6fc` e publicado em produção; 80 arquivos/623 testes, ESLint, build, `git diff --check` e smoke responsivo de `/sobre` aprovados.
