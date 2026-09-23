@@ -1,5 +1,10 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — QR estável durante renovação (2026-09-23)
+- A tela de conexão conserva o último QR ainda válido quando uma consulta de status retorna temporariamente sem código ou com erro; QR vencido continua oculto e cancelar limpa o código local.
+- Teste de regressão reproduziu a oscilação. Verificações: 616/616 testes, build de produção, ESLint dos arquivos alterados e `git diff --check` passaram.
+- Mudança restrita ao componente visual de conexão e seu teste; Evolution, Docker, histórico, contatos, anexos, banco e Edge Function não foram modificados.
+
 ## Codex — QR automático e dados reais de conexão no PR #11 (2026-09-22)
 - A branch `codex/whatsapp-inbox-actions` agora bloqueia o Inbox enquanto o WhatsApp não estiver conectado, inicia o pareamento automaticamente e mostra QR com instruções de `WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho`; a prévia local `?preview=pairing` é somente visual.
 - A página Conexão exibe número, empresa, horário disponível e desconexão quando conectada. O teste envia `Olá, tudo bem?` pela ação autenticada `start`, cria/reutiliza a conversa e permanece desabilitado sem conexão. A prévia `?preview=connected` existe somente em desenvolvimento.

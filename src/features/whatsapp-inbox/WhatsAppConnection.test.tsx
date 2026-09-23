@@ -54,3 +54,20 @@ it('exibe o QR devolvido pela conexão sem esperar outra consulta de status',asy
  expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).not.toBeNull();
  expect(invoke.mock.calls.filter(call=>call[1].body.action==='status')).toHaveLength(prior);
 });
+it('mantém o último QR válido durante uma consulta temporariamente sem código',async()=>{
+ const qr='data:image/png;base64,stable';
+ const expiresAt=Date.now()+30000;
+ let statusCalls=0;
+ invoke.mockImplementation((_name,options)=>{
+   if(options.body.action==='connect')return Promise.resolve({data:{state:'connecting',agentEnabled:false,qr,qrExpiresAt:expiresAt},error:null});
+   statusCalls++;
+   return Promise.resolve({data:statusCalls===1
+     ?{state:'disconnected',agentEnabled:false}
+     :{state:'connecting',agentEnabled:false},error:null});
+ });
+ mount();await advance();fireEvent.click(screen.getByText('Conectar WhatsApp'));await advance();
+ const image=screen.getByAltText('QR Code atualizado para conectar seu WhatsApp');
+ expect(image.getAttribute('src')).toBe(qr);
+ await advance(2100);
+ expect(screen.getByAltText('QR Code atualizado para conectar seu WhatsApp').getAttribute('src')).toBe(qr);
+});

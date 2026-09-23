@@ -10,6 +10,7 @@ const previewQr=`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www
 export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsAppConnectionProps={}){
  const {user}=useAuth();const [pairing,setPairing]=useState(previewPairing);
  const cache=useQueryClient();
+ const [visibleQr,setVisibleQr]=useState<{src:string;expiresAt:number}|null>(null);
  const [expired,setExpired]=useState(false);
  const [starting,setStarting]=useState(false);const [startError,setStartError]=useState(false);
  const attempt=useRef(0);const [now,setNow]=useState(Date.now());
@@ -17,6 +18,11 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[]);
  useEffect(()=>()=>{attempt.current++},[user?.id]);
  const connection=useWhatsAppConnectionQuery(user?.id);
+ useEffect(()=>{setVisibleQr(null)},[user?.id]);
+ useEffect(()=>{
+   const src=connection.data?.qr;const expiresAt=Number(connection.data?.qrExpiresAt);
+   if(src&&expiresAt>Date.now())setVisibleQr(current=>current?.src===src&&current.expiresAt===expiresAt?current:{src,expiresAt});
+ },[connection.data?.qr,connection.data?.qrExpiresAt]);
  const connected=connection.data?.state==='connected';
  const begin=useCallback(async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {data,error}=await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error||!data)throw error??new Error('connection_unavailable');cache.setQueryData(['whatsapp-connection',user?.id],data);setPairing(data.state!=='connected');}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}},[cache,starting,user?.id]);
  useEffect(()=>{if(!autoStart||previewPairing||connection.isPending||connected||autoStarted.current)return;autoStarted.current=true;void begin();},[autoStart,previewPairing,connection.isPending,connected,begin]);
@@ -35,8 +41,8 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
    {(connection.isError||startError)&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível consultar a conexão agora. <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
    {expired&&!connected&&<p role="alert" className="mt-3 text-sm text-destructive">O WhatsApp não confirmou a conexão em dois minutos. A tentativa nesta tela foi encerrada. Clique em Conectar WhatsApp para iniciar outra tentativa.</p>}
    {pairing&&!connected&&<div className="mt-5 grid gap-4 sm:grid-cols-[280px_1fr]">
-     <div className="grid min-h-56 place-items-center rounded-xl bg-white p-4">{previewPairing?<img className="w-64 max-w-full" src={previewQr} alt="QR Code de demonstração para conectar seu WhatsApp"/>:connection.data?.qr&&Number(connection.data.qrExpiresAt)>now&&!connection.isError?<img className="w-64 max-w-full" src={connection.data.qr} alt="QR Code atualizado para conectar seu WhatsApp"/>:<p role="status" className="text-center text-sm text-slate-600">{connection.isError?'Código indisponível no momento.':'Preparando QR Code…'}</p>}</div>
-     <div className="self-center space-y-3 text-sm"><p>No celular, abra <strong>WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho</strong>.</p><p className="text-muted-foreground">Escaneie uma vez e aguarde a confirmação no celular. O código se renova enquanto aguarda; isso não significa que você precisa escanear novamente. Esta tentativa dura até dois minutos.</p>{!previewPairing&&<Button variant="outline" onClick={()=>{attempt.current++;setPairing(false);setStarting(false)}}>Cancelar</Button>}</div>
+     <div className="grid min-h-56 place-items-center rounded-xl bg-white p-4">{previewPairing?<img className="w-64 max-w-full" src={previewQr} alt="QR Code de demonstração para conectar seu WhatsApp"/>:visibleQr&&visibleQr.expiresAt>now?<img className="w-64 max-w-full" src={visibleQr.src} alt="QR Code atualizado para conectar seu WhatsApp"/>:<p role="status" className="text-center text-sm text-slate-600">{connection.isError?'Código indisponível no momento.':'Preparando QR Code…'}</p>}</div>
+     <div className="self-center space-y-3 text-sm"><p>No celular, abra <strong>WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho</strong>.</p><p className="text-muted-foreground">Escaneie uma vez e aguarde a confirmação no celular. O código se renova enquanto aguarda; isso não significa que você precisa escanear novamente. Esta tentativa dura até dois minutos.</p>{!previewPairing&&<Button variant="outline" onClick={()=>{attempt.current++;setPairing(false);setStarting(false);setVisibleQr(null)}}>Cancelar</Button>}</div>
    </div>}
  </section>;
 }
