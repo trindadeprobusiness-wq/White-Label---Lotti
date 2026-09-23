@@ -12,12 +12,21 @@ const dataByTable: Record<string, unknown[]> = {
   lotti_agent_latest_messages: [],
   lotti_agent_messages: [],
 };
+// missingColumns simulates the production database before the account-scope migration.
+const mockDb = { missingColumns: false, filters: [] as string[] };
 function builder(table: string) {
+  let columns = '';
+  const filters: string[] = [];
   const b: Record<string, unknown> = {
-    select: () => b, order: () => b, limit: () => b, eq: () => b,
+    select: (cols: string) => { columns = cols ?? ''; return b; }, order: () => b, limit: () => b, eq: () => b,
+    is: (column: string, value: unknown) => { filters.push(column); mockDb.filters.push(`${table}.${column} is ${value}`); return b; },
     single: () => Promise.resolve({ data: null, error: null }),
-    then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
-      Promise.resolve({ data: dataByTable[table] ?? [], error: null }).then(resolve),
+    then: (resolve: (v: { data: unknown[] | null; error: { code: string } | null }) => unknown) => {
+      const usesNewColumns = columns.includes('contact_name') || filters.length > 0;
+      if (table === 'lotti_agent_conversations' && mockDb.missingColumns && usesNewColumns)
+        return Promise.resolve({ data: null, error: { code: '42703' } }).then(resolve);
+      return Promise.resolve({ data: dataByTable[table] ?? [], error: null }).then(resolve);
+    },
   };
   return b;
 }
@@ -35,7 +44,30 @@ function mount(connected: boolean | 'unknown') {
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
 }
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); mockDb.missingColumns = false; mockDb.filters = []; dataByTable.lotti_agent_conversations = [conversationFixture()]; });
+
+function conversationFixture(extra: Record<string, unknown> = {}) {
+  return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
+}
+
+it('mostra o nome do contato do WhatsApp em vez do número cru', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Maria Souza' })];
+  mount(true);
+  expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
+});
+
+it('lista só conversas do número conectado, sem as arquivadas', async () => {
+  mount(true);
+  await screen.findByRole('button', { name: /5511999990000/ });
+  expect(mockDb.filters).toContain('lotti_agent_conversations.archived_at is null');
+});
+
+it('banco ainda sem a migration nova continua listando as conversas', async () => {
+  mockDb.missingColumns = true;
+  mount(true);
+  expect(await screen.findByRole('button', { name: /5511999990000/ })).not.toBeNull();
+  expect(screen.queryByText(/Não foi possível carregar as conversas/)).toBeNull();
+});
 
 it('conectado oferece o compositor para responder pela tela', async () => {
   mount(true);

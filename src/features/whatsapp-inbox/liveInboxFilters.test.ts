@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { filterLiveConversations, latestByConversation, liveUrgency, type LiveConversation } from './liveInboxFilters';
+import { conversationTitle, filterLiveConversations, latestByConversation, liveUrgency, type LiveConversation } from './liveInboxFilters';
+
+describe('nome do contato no Inbox real', () => {
+  const base: LiveConversation = { id: '9', phone: '5562999999999', mode: 'human', updated_at: '2026-09-20T14:45:00Z', qualification: {} };
+  it('prefere o nome editado no CRM, depois o nome do WhatsApp e por fim o número', () => {
+    expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Maria Souza')).toBe('Maria Souza');
+    expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Contato WhatsApp')).toBe('Maria (WhatsApp)');
+    expect(conversationTitle({ ...base, contact_name: null })).toBe('+5562999999999');
+  });
+  it('busca também pelo nome do contato', () => {
+    const options = { query: 'mari', quick: 'all' as const, mode: '', stage: '', period: '', now: Date.parse('2026-09-20T15:00:00Z') };
+    expect(filterLiveConversations([{ ...base, contact_name: 'Mariana' }, { ...base, id: '10' }], new Map(), options).map(c => c.id)).toEqual(['9']);
+  });
+});
 
 const now = Date.parse('2026-09-20T15:00:00Z');
 const conversation: LiveConversation = { id: '1', phone: '5562999999999', mode: 'human', updated_at: '2026-09-20T14:45:00Z', qualification: { stage: 'qualificando' } };

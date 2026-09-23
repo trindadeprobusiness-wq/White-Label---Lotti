@@ -9,14 +9,28 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, ChevronRight, Filter, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UsersRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
-import { filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
+import { conversationTitle, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
 import { MessageComposer } from './MessageComposer';
 import { ConversationStatusDialog, NewConversationDialog, RenameContactDialog } from './InboxActionDialogs';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
 type Qualification = { stage?: string; temperature?: string; priority?: string; reason?: string; profile?: Record<string, string | null> };
-type Conversation = { id: string; phone: string; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null };
+type Conversation = { id: string; phone: string; contact_name?: string | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null };
+const CONVERSATION_FIELDS = 'id,phone,cliente_id,mode,status,updated_at,qualification,last_error';
+// Archived conversations belong to a WhatsApp number that is no longer connected.
+async function fetchConversations() {
+  const recent = (fields: string, scoped: boolean) => {
+    let query = db.from('lotti_agent_conversations').select(fields);
+    if (scoped) query = query.is('archived_at', null);
+    return query.order('updated_at', { ascending: false }).limit(100);
+  };
+  let { data, error } = await recent(`${CONVERSATION_FIELDS},contact_name`, true);
+  // Until the account-scope migration is applied these columns do not exist.
+  if (error?.code === '42703') ({ data, error } = await recent(CONVERSATION_FIELDS, false));
+  if (error) throw error;
+  return data as unknown as Conversation[];
+}
 type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; created_at: string };
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
@@ -35,12 +49,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
   const [newOpen,setNewOpen]=useState(false),[renameOpen,setRenameOpen]=useState(false),[statusOpen,setStatusOpen]=useState(false);
   const list = useQuery({
     queryKey: ['lotti-agent-conversations', user?.id], enabled: !!user, refetchInterval: 5000,
-    queryFn: async () => {
-      const { data, error } = await db.from('lotti_agent_conversations')
-        .select('id,phone,cliente_id,mode,status,updated_at,qualification,last_error').order('updated_at', { ascending: false }).limit(100);
-      if (error) throw error;
-      return data as Conversation[];
-    },
+    queryFn: fetchConversations,
   });
   const previews = useQuery({
     queryKey: ['lotti-agent-message-previews', user?.id], enabled: !!user, refetchInterval: 5000,
@@ -105,7 +114,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
         {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/40 bg-primary/10 shadow-sm ring-1 ring-primary/20' : 'border-transparent hover:bg-primary/5'}`}>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-primary">{c.phone.slice(-2)}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-xs font-semibold">+{c.phone}</span><time className="ml-auto text-[9px] text-muted-foreground">{new Date(c.updated_at).toLocaleDateString('pt-BR')}</time></span><span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-0.5 block text-[9px] text-muted-foreground">{c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-primary">{c.phone.slice(-2)}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-xs font-semibold">{conversationTitle(c)}</span><time className="ml-auto text-[9px] text-muted-foreground">{new Date(c.updated_at).toLocaleDateString('pt-BR')}</time></span><span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-0.5 block text-[9px] text-muted-foreground">{c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
         </button>)}
         {!filtered.length && <p className="p-4 text-center text-xs text-muted-foreground">Nenhuma conversa encontrada.</p>}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
@@ -113,7 +122,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
       </nav>
       {selected ? <section aria-label="Histórico conectado" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border bg-card shadow-sm">
         <header data-testid="conversation-header" className="flex min-h-[68px] flex-nowrap items-center gap-2 border-b px-[15px] py-[11px]">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{selected.phone.slice(-2)}</span><div className="mr-auto min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate text-sm">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3 shrink-0" /></button></div><p className="truncate text-[11px] text-muted-foreground">+{selected.phone}</p></div><Badge variant="outline" className="shrink-0 gap-1 px-2 text-[10px]"><UsersRound className="h-3 w-3" />Equipe</Badge>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{selected.phone.slice(-2)}</span><div className="mr-auto min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate text-sm">{conversationTitle(selected, client.data?.nome)}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3 shrink-0" /></button></div><p className="truncate text-[11px] text-muted-foreground">+{selected.phone}</p></div><Badge variant="outline" className="shrink-0 gap-1 px-2 text-[10px]"><UsersRound className="h-3 w-3" />Equipe</Badge>
           <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending} onClick={() => mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')} className="ml-2 flex h-8 shrink-0 items-center gap-2 rounded-lg px-1 text-xs font-semibold disabled:opacity-50"><span>IA</span><span className={`flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors ${selected.mode === 'ai' ? 'border-primary bg-primary' : 'border-border bg-secondary'}`}><span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${selected.mode === 'ai' ? 'translate-x-[18px]' : 'translate-x-0'}`} /></span></button>
           <Button size="sm" className="h-9 shrink-0 px-3 text-xs" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
         </header><div data-testid="conversation-stage-bar" className="flex min-h-[42px] shrink-0 items-center border-b bg-secondary/40 px-[14px] text-[11px]"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="ml-2 h-2 w-2 rounded-full bg-primary" /><strong className="ml-1.5">{stages[q?.stage ?? ''] ?? 'Em atendimento humano'}</strong><ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground" /><button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="ml-4 flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold hover:bg-muted"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-success'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button></div>
@@ -132,7 +141,7 @@ export default function ConnectedInbox({ connected = true }: { connected?: boole
       </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
       {selected && infoVisible && <aside aria-label="Perfil do contato" className="min-h-0 overflow-y-auto rounded-[14px] border bg-card p-[14px] shadow-sm">
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
-        <div className="mt-2.5 rounded-xl border bg-secondary/30 p-3"><p className="text-xs font-semibold">{client.data?.nome && client.data.nome !== 'Contato WhatsApp' ? client.data.nome : `+${selected.phone}`}</p><p className="text-[11px] text-muted-foreground">+{selected.phone}</p>{client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}<h3 className="mt-4 flex items-center text-[10px] font-semibold uppercase text-muted-foreground">Resumo do caso <Badge variant="secondary" className="ml-auto gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge></h3><p className="mt-2 rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p></div>
+        <div className="mt-2.5 rounded-xl border bg-secondary/30 p-3"><p className="text-xs font-semibold">{conversationTitle(selected, client.data?.nome)}</p><p className="text-[11px] text-muted-foreground">+{selected.phone}</p>{client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}<h3 className="mt-4 flex items-center text-[10px] font-semibold uppercase text-muted-foreground">Resumo do caso <Badge variant="secondary" className="ml-auto gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge></h3><p className="mt-2 rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p></div>
         <div className="mt-4 space-y-3"><h3 className="text-xs font-semibold uppercase text-muted-foreground">Linha do tempo</h3><p className="text-xs text-primary">Conversou no WhatsApp <span className="block text-muted-foreground">Última atividade: {new Date(selected.updated_at).toLocaleString('pt-BR')}</span></p>{client.data?.created_at && <p className="text-xs text-primary">Lead criado <span className="block text-muted-foreground">{new Date(client.data.created_at).toLocaleString('pt-BR')}</span></p>}</div>
         <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Qualificação comercial</h3>
         <div className="flex flex-wrap gap-2"><Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>{q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}{q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}</div>
