@@ -19,12 +19,16 @@ describe('ações persistentes do Inbox', () => {
       CREATE TABLE public.corretores(id uuid primary key, user_id uuid not null);
       CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, status_funil text, tipo_interesse text, created_at timestamptz default now());
       CREATE TABLE public.lotti_agent_channels(id uuid primary key, corretor_id uuid not null, instance text not null, enabled boolean not null default true, sandbox boolean not null default false);
-      CREATE TABLE public.lotti_agent_conversations(id uuid primary key default gen_random_uuid(), channel_id uuid not null, corretor_id uuid not null, cliente_id uuid, phone text not null, mode text not null default 'ai', revision bigint not null default 0, updated_at timestamptz default now(), unique(channel_id,phone));
+      CREATE TABLE public.lotti_agent_conversations(id uuid primary key default gen_random_uuid(), channel_id uuid not null, corretor_id uuid not null, cliente_id uuid, phone text not null, mode text not null default 'ai', revision bigint not null default 0, lease_token uuid, lease_until timestamptz, updated_at timestamptz default now(), unique(channel_id,phone));
       CREATE TABLE public.lotti_agent_messages(id uuid primary key default gen_random_uuid(), conversation_id uuid not null, external_id text not null, direction text not null, sender text not null, content text not null, created_at timestamptz default now());
+      CREATE TABLE public.lotti_agent_outbox(id uuid primary key default gen_random_uuid(), conversation_id uuid not null, status text not null);
+      CREATE TABLE public.lotti_manual_sends(id uuid primary key default gen_random_uuid(), conversation_id uuid not null, status text not null);
       INSERT INTO corretores VALUES ('${ownerA}','${userA}'),('${ownerB}','${userB}');
       INSERT INTO lotti_agent_channels VALUES ('${channelA}','${ownerA}','a',true,false);
     `);
     await db.exec(readFileSync(new URL('./20260921130000_lotti_inbox_actions.sql', import.meta.url), 'utf8'));
+    await db.exec('alter table public.lotti_agent_conversations add column contact_name text');
+    await db.exec(readFileSync(new URL('./20260923220000_lotti_inbox_update_contact.sql', import.meta.url), 'utf8'));
   }, 30_000);
   afterAll(async () => db?.close());
   async function asUser(user: string, sql: string) {
@@ -46,5 +50,25 @@ describe('ações persistentes do Inbox', () => {
     expect((await asUser(userA, `select public.lotti_inbox_set_status('${id}','closed') status`)).rows[0].status).toBe('closed');
     await db.exec(`insert into lotti_agent_messages(conversation_id,external_id,direction,sender,content) values('${id}','m1','in','lead','oi')`);
     expect((await db.query(`select status from lotti_agent_conversations where id='${id}'`)).rows[0].status).toBe('open');
+  });
+
+  it('atualiza nome e telefone da conversa sem permitir acesso de outro usuário', async () => {
+    const created = await asUser(userA, "select public.lotti_inbox_start_conversation('5562777777777','Beatriz') id");
+    const id = created.rows[0].id as string;
+    await expect(asUser(userB, `select public.lotti_inbox_update_contact('${id}','Inválido','5562666666666')`)).rejects.toThrow(/forbidden/);
+    const updated = await asUser(userA, `select public.lotti_inbox_update_contact('${id}','Beatriz Lima','(62) 96666-5555') result`);
+    expect(updated.rows[0].result).toEqual({ name: 'Beatriz Lima', phone: '5562966665555' });
+    expect((await db.query(`select phone from lotti_agent_conversations where id='${id}'`)).rows[0].phone).toBe('5562966665555');
+  });
+
+  it('não troca o destino durante uma entrega e cancela trabalho ainda não enviado', async () => {
+    const created = await asUser(userA, "select public.lotti_inbox_start_conversation('5562555555555','Carla') id");
+    const id = created.rows[0].id as string;
+    await db.exec(`insert into lotti_agent_outbox(conversation_id,status) values('${id}','sending')`);
+    await expect(asUser(userA, `select public.lotti_inbox_update_contact('${id}','Carla','5562444444444')`)).rejects.toThrow(/delivery_pending/);
+    await db.exec(`update lotti_agent_outbox set status='prepared' where conversation_id='${id}'`);
+    await asUser(userA, `select public.lotti_inbox_update_contact('${id}','Carla','5562444444444')`);
+    expect((await db.query(`select status from lotti_agent_outbox where conversation_id='${id}'`)).rows[0].status).toBe('cancelled');
+    expect((await db.query(`select mode from lotti_agent_conversations where id='${id}'`)).rows[0].mode).toBe('human');
   });
 });

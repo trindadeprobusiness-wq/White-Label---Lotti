@@ -1933,3 +1933,10 @@ credencial); nao foi contornada.
 - `HISTORY_IMPORT_ENABLED=true` foi habilitado somente na configuracao local ignorada pelo Git. Uma reconexao por QR ainda e necessaria para o WhatsApp solicitar novamente o historico com o cache LID→telefone entre lotes; grupos, newsletters e broadcasts continuam excluidos.
 - Plataforma PR #14 integrada em `762e240`. Testes direcionados: 17/17; suite: 80 arquivos/617 testes; build de producao e `git diff --check` passaram.
 - Vercel publicou `dpl_G4jrnyqNWUaPf3pUePCQKGUMVtLX` como `Ready`; aliases `app.plataformalotti.com.br` e `olivercrm.vercel.app` confirmados, com `/` e `/whatsapp` respondendo HTTP 200.
+
+### 2026-09-23 - Codex (acabamento do Inbox: anexo, microfone e contato)
+- Branch `codex/whatsapp-live-only-attachments`. O compositor mantém o campo de mensagem após selecionar arquivo e permite enviar o anexo com Enter; Shift+Enter continua reservado para quebra de linha e composição IME não dispara envio.
+- Falha de permissão do microfone agora orienta explicitamente a liberar `Microfone → Permitir` no Chrome. A permissão continua sendo decisão do usuário/navegador.
+- O modal do lápis passou a editar nome e telefone atuais. Nova RPC `lotti_inbox_update_contact` valida os campos, verifica o proprietário autenticado, atualiza cliente e conversa na mesma transação e trata telefone já usado.
+- Verificação: 621/621 testes passaram com as variáveis públicas fictícias do CI; build Vite passou; ESLint direcionado passou. O typecheck global continua falhando nos erros antigos de schema/tipos fora deste escopo.
+- Diagnóstico do histórico: os lotes recebidos nesta sessão continham somente grupos ou LIDs sem telefone mapeável (`accepted=0`), portanto não há importação segura de contatos recentes. A configuração local `HISTORY_IMPORT_ENABLED` foi desativada para impedir novas conversas fantasmas; nenhuma conversa existente foi apagada ou arquivada nesta etapa.

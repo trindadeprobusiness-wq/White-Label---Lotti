@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { ConversationStatusDialog, NewConversationDialog, RenameContactDialog } from './InboxActionDialogs';
+
+afterEach(cleanup);
 
 it('valida e envia os dados mínimos de nova conversa', () => {
   const submit=vi.fn();
@@ -13,12 +15,21 @@ it('valida e envia os dados mínimos de nova conversa', () => {
   expect(submit).toHaveBeenCalledWith({phone:'5562999998888',name:'Maria',text:'Olá Maria'});
 });
 
-it('edita o nome atual', () => {
+it('edita o nome e o telefone atuais', () => {
   const submit=vi.fn();
-  render(<RenameContactDialog open initialName="Maria" onOpenChange={()=>{}} onSubmit={submit} pending={false} />);
+  render(<RenameContactDialog open initialName="Maria" initialPhone="5562999998888" onOpenChange={()=>{}} onSubmit={submit} pending={false} />);
   fireEvent.change(screen.getByLabelText('Nome do cliente'),{target:{value:'Maria Silva'}});
-  fireEvent.click(screen.getByRole('button',{name:'Salvar nome'}));
-  expect(submit).toHaveBeenCalledWith('Maria Silva');
+  expect((screen.getByLabelText('Telefone') as HTMLInputElement).value).toBe('5562999998888');
+  fireEvent.change(screen.getByLabelText('Telefone'),{target:{value:'(62) 98888-7777'}});
+  fireEvent.click(screen.getByRole('button',{name:'Salvar contato'}));
+  expect(submit).toHaveBeenCalledWith({name:'Maria Silva',phone:'5562988887777'});
+});
+
+it('explica telefone inválido antes de tentar salvar o contato', () => {
+  render(<RenameContactDialog open initialName="Maria" initialPhone="5562999998888" onOpenChange={()=>{}} onSubmit={()=>{}} pending={false} />);
+  fireEvent.change(screen.getByLabelText('Telefone'),{target:{value:'123'}});
+  expect(screen.getByText(/telefone com DDD/i)).not.toBeNull();
+  expect((screen.getByRole('button',{name:'Salvar contato'}) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('confirma fechamento e reabertura com textos explícitos', () => {
