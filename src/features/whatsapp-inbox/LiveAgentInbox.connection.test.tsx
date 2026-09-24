@@ -9,7 +9,7 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } }) }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 vi.mock('@/pages/WhatsAppInbox', () => ({ default: () => <div><h1>Inbox completo</h1><p>Todas Atrasando Urgente</p></div> }));
-vi.mock('./ConnectedInbox', () => ({ default: ({ connected }: { connected: boolean | 'unknown' }) => <div><h1>Inbox real</h1><p>Conversas persistidas</p><span data-testid="connection-state">{String(connected)}</span></div> }));
+vi.mock('./ConnectedInbox', () => ({ default: ({ connected, preview }: { connected: boolean | 'unknown'; preview?: boolean }) => <div><h1>Inbox real</h1><p>Conversas persistidas</p><span data-testid="connection-state">{String(connected)}</span>{preview && <span>Prévia da Inbox nova</span>}</div> }));
 
 function mount(initialEntry = '/whatsapp') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -37,10 +37,11 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
     expect(screen.queryByRole('heading', { name: 'Inbox completo' })).toBeNull();
   });
 
-  it('a prévia local abre o Inbox completo mesmo sem conexão real', async () => {
+  it('a prévia local abre a Inbox conectada nova, sem conexão real', async () => {
     invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
     mount('/whatsapp?preview=connected');
-    expect(await screen.findByRole('heading', { name: 'Inbox completo' })).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Inbox real' })).not.toBeNull();
+    expect(screen.getByText('Prévia da Inbox nova')).not.toBeNull();
   });
 
   it('erro da consulta não libera o Inbox sem confirmar a conexão', async () => {

@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import ConnectedInbox from './ConnectedInbox';
-import WhatsAppInboxPage from '@/pages/WhatsAppInbox';
 import { useWhatsAppConnectionQuery } from './useWhatsAppConnection';
 import { WhatsAppConnection } from './WhatsAppConnection';
 
@@ -14,7 +13,7 @@ export default function LiveAgentInbox() {
   const connection = useWhatsAppConnectionQuery(user?.id);
   const connected = !connection.isPending && !connection.isError && connection.data?.state === 'connected';
 
-  if (preview) return <WhatsAppInboxPage />;
+  if (preview) return <div className="-mx-5 -mb-16 -mt-20 animate-fade-in md:-mx-8 md:-mt-8"><ConnectedInbox connected={false} preview /></div>;
 
   if (pairingPreview) return <div className="mx-auto max-w-3xl animate-fade-in"><WhatsAppConnection previewPairing /></div>;
 

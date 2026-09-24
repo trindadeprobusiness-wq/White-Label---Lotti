@@ -47,6 +47,16 @@ function mount(connected: boolean | 'unknown') {
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
 }
 
+it('prévia conectada usa dados fictícios e não consulta nem altera o backend', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  expect(await screen.findByRole('button', { name: /Rafael/ })).not.toBeNull();
+  expect(screen.getByText(/Prévia visual com dados fictícios/)).not.toBeNull();
+  expect(screen.getByRole('switch', { name: 'IA' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByRole('button', { name: 'Nova' }).hasAttribute('disabled')).toBe(true);
+  expect(mockDb.reads).toEqual({});
+});
+
 afterEach(() => { cleanup(); vi.useRealTimers(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
