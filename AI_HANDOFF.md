@@ -1949,3 +1949,9 @@ credencial); nao foi contornada.
 
 ### 2026-09-23 - Codex (seção de atendimento em `/sobre`)
 - Fluxo visual do atendimento repetitivo integrado em `d77c6fc` e publicado em produção; 80 arquivos/623 testes, ESLint, build, `git diff --check` e smoke responsivo de `/sobre` aprovados.
+
+### 2026-09-24 - Codex (ajustes do Inbox conectado)
+- Branch `codex/whatsapp-inbox-polish` isolada a partir da main. O Inbox usa inicial do nome disponível (ou ícone neutro), exibe hora curta nas bolhas e nas conversas de hoje e distingue arquivos enviados usando `media_path` e URL assinada do bucket privado.
+- O compositor volta o foco ao campo de mensagem após selecionar um arquivo; Enter envia o anexo pelo fluxo existente. Avisos internos de mudança de modo da IA e de etapa do Funil são persistidos separadamente das mensagens de WhatsApp. A empresa exibida na Conexão pode ser editada para o canal/número ativo, sem alterar canais arquivados.
+- O teste de envio não informa sucesso enquanto a entrega estiver apenas em andamento e impede usar o próprio número conectado. A causa da falha real de envio ainda exige verificação no serviço/provedor; o fluxo de teste ainda cria conversa antes da confirmação e precisa de revisão separada.
+- Verificação: 82 arquivos/636 testes passaram após o refinamento; testes direcionados do Inbox e da migration de eventos passaram. Links assinados dos anexos são renovados enquanto o Inbox permanece aberto. Eventos de negócio incluem seu título para diferenciar múltiplas oportunidades do mesmo cliente. Typecheck global segue com erros preexistentes fora dos arquivos alterados. Pendente aplicar migrations, publicar PR e validar com conta conectada. Integração OpenAI depende de chave configurada no runtime e teste controlado; não foi ativada em produção.

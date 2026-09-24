@@ -11,6 +11,7 @@ const dataByTable: Record<string, unknown[]> = {
   ],
   lotti_agent_latest_messages: [],
   lotti_agent_messages: [],
+  lotti_inbox_events: [],
 };
 // missingColumns simulates the production database before the account-scope migration.
 const mockDb = { missingColumns: false, filters: [] as string[], reads: {} as Record<string, number> };
@@ -37,6 +38,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     from: (t: string) => builder(t),
     rpc: () => Promise.resolve({ data: true, error: null }),
     functions: { invoke: vi.fn().mockResolvedValue({ data: { sendStatus: 'sent' }, error: null }) },
+    storage: { from: () => ({ createSignedUrl: () => Promise.resolve({ data: { signedUrl: 'https://example.invalid/Custos.xlsx' }, error: null }) }) },
   },
 }));
 
@@ -45,7 +47,7 @@ function mount(connected: boolean | 'unknown') {
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
 }
 
-afterEach(() => { cleanup(); vi.useRealTimers(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; });
+afterEach(() => { cleanup(); vi.useRealTimers(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
@@ -55,6 +57,54 @@ it('mostra o nome do contato do WhatsApp em vez do número cru', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Maria Souza' })];
   mount(true);
   expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
+});
+
+it('usa a inicial do nome em todos os avatares, sem mostrar dígitos do telefone', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Rafael' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Rafael/ });
+  expect(screen.getAllByLabelText('Inicial de Rafael').length).toBe(2);
+  expect(screen.queryByText('00')).toBeNull();
+});
+
+it('usa o nome do cadastro quando não há nome de perfil no WhatsApp', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: null, clientes: { nome: 'Beatriz' } })];
+  mount(true);
+  await screen.findByRole('button', { name: /Beatriz/ });
+  expect(screen.getAllByLabelText('Inicial de Beatriz').length).toBe(2);
+});
+
+it('mostra a hora, e não a data, na lista das conversas de hoje', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-24T15:00:00Z'));
+  dataByTable.lotti_agent_conversations = [conversationFixture({ updated_at: '2026-09-24T14:20:00Z' })];
+  mount(true);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(screen.getByRole('navigation', { name: 'Conversas conectadas' }).querySelector('time')?.textContent).toBe('11:20');
+});
+
+it('mostra somente a hora na bolha e diferencia um arquivo enviado de texto', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm1', direction: 'out', sender: 'human', content: 'Custos.xlsx', media_path: 'owner/request/Custos.xlsx', created_at: '2026-09-24T14:00:00Z' }];
+  mount(true);
+  const file = await screen.findByRole('link', { name: /Custos.xlsx/ });
+  expect(file).not.toBeNull();
+  const time = screen.getByText('11:00');
+  expect(time.closest('time')?.textContent).toBe('11:00');
+  expect(screen.queryByText('24/09/2026, 11:00:00')).toBeNull();
+});
+
+it('mostra mudanças de IA e Funil como avisos internos ordenados no chat', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm2', direction: 'in', sender: 'lead', content: 'Olá', media_path: null, created_at: '2026-09-24T14:10:00Z' }];
+  dataByTable.lotti_inbox_events = [
+    { id: 'e1', kind: 'mode', from_label: 'Equipe', to_label: 'IA', actor_label: 'Corretor', created_at: '2026-09-24T14:00:00Z' },
+    { id: 'e2', kind: 'stage', from_label: 'Novo lead', to_label: 'Agendado', subject_label: 'Compra da casa', actor_label: 'Corretor', created_at: '2026-09-24T14:20:00Z' },
+  ];
+  mount(true);
+  const mode = await screen.findByText(/IA ligada por Corretor/);
+  const stage = screen.getByText(/Negócio Compra da casa movido de Novo lead para Agendado por Corretor/);
+  const text = screen.getByText('Olá');
+  expect(mode.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(text.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it('lista só conversas do número conectado, sem as arquivadas', async () => {

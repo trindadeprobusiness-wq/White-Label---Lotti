@@ -37,6 +37,12 @@ it('keeps the message field available and sends a selected file with Enter',asyn
  const message=screen.getByLabelText('Mensagem');fireEvent.keyDown(message,{key:'Enter',code:'Enter'});
  await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect(invoke.mock.calls[1][1].body).toMatchObject({conversation_id:'conversation-file-enter',kind:'file',name:'recibo.pdf'});
 });
+it('returns keyboard focus to the message field after choosing a file',()=>{
+ render(<MessageComposer conversationId="conversation-focus" onSent={()=>{}}/>);
+ const file=new File(['pdf'],'contrato.pdf',{type:'application/pdf'});
+ fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});
+ expect(document.activeElement).toBe(screen.getByLabelText('Mensagem'));
+});
 it('preserves typed text after sending a file because file captions are not supported',async()=>{
  invoke.mockResolvedValueOnce({data:{path:'owner/request/recibo.pdf',token:'signed-upload'}}).mockResolvedValueOnce({data:{sendStatus:'sent'}});uploadToSignedUrl.mockResolvedValue({error:null});
  render(<MessageComposer conversationId="conversation-caption" onSent={()=>{}}/>);const file=new File(['pdf'],'recibo.pdf',{type:'application/pdf'});
