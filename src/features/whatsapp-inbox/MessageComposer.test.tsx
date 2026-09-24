@@ -37,6 +37,11 @@ it('keeps the message field available and sends a selected file with Enter',asyn
  const message=screen.getByLabelText('Mensagem');fireEvent.keyDown(message,{key:'Enter',code:'Enter'});
  await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect(invoke.mock.calls[1][1].body).toMatchObject({conversation_id:'conversation-file-enter',kind:'file',name:'recibo.pdf'});
 });
+it('usa o compositor claro e retangular da referência sem alterar o envio',()=>{
+ render(<MessageComposer conversationId="conversation-visual" onSent={()=>{}}/>);
+ expect(screen.getByLabelText('Mensagem').parentElement?.className).toContain('rounded-xl');
+ expect(screen.getByLabelText('Mensagem').parentElement?.className).toContain('bg-[#fbfcfe]');
+});
 it('returns keyboard focus to the message field after choosing a file',()=>{
  render(<MessageComposer conversationId="conversation-focus" onSent={()=>{}}/>);
  const file=new File(['pdf'],'contrato.pdf',{type:'application/pdf'});

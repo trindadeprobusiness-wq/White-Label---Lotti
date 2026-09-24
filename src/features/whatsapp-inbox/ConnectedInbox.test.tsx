@@ -103,6 +103,20 @@ it('mostra somente a hora na bolha e diferencia um arquivo enviado de texto', as
   expect(screen.queryByText('24/09/2026, 11:00:00')).toBeNull();
 });
 
+it('aplica o visual Clix na conversa conectada: azul, fundo pontilhado e seleção lateral', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Rafael' })];
+  dataByTable.lotti_agent_messages = [{ id: 'm-visual', direction: 'out', sender: 'human', content: 'Olá!', media_path: null, created_at: new Date().toISOString() }];
+  mount(true);
+  const message = await screen.findByText('Olá!');
+  expect(message.closest('article')?.className).toContain('bg-[#3b5bdb]');
+  expect(message.closest('[data-testid="message-timeline"]')?.className).toContain('bg-[radial-gradient(');
+  expect(screen.getByRole('button', { name: /Rafael/ }).className).toContain('shadow-[inset_3px_0_0_#3b5bdb');
+  expect(screen.getByRole('button', { name: 'Nova' }).className).toContain('bg-[#3b5bdb]');
+  expect(screen.getByRole('switch', { name: 'IA' }).querySelectorAll('span')[1]?.className).toContain('bg-[#3b5bdb]');
+  expect(Array.from(screen.getByTestId('conversation-stage-bar').querySelectorAll('span')).some(span => span.className.includes('bg-[#3b5bdb]'))).toBe(true);
+  expect(screen.getByRole('button', { name: 'Ocultar info' }).className).toContain('border-[#3b5bdb]');
+});
+
 it('mostra mudanças de IA e Funil como avisos internos ordenados no chat', async () => {
   dataByTable.lotti_agent_messages = [{ id: 'm2', direction: 'in', sender: 'lead', content: 'Olá', media_path: null, created_at: '2026-09-24T14:10:00Z' }];
   dataByTable.lotti_inbox_events = [
