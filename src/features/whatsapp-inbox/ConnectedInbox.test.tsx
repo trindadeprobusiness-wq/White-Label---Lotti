@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import ConnectedInbox from './ConnectedInbox';
 
+const { previewInvoke, previewRpc } = vi.hoisted(() => ({ previewInvoke: vi.fn(), previewRpc: vi.fn() }));
 const dataByTable: Record<string, unknown[]> = {
   lotti_agent_conversations: [
     { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null },
@@ -36,8 +37,8 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } })
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (t: string) => builder(t),
-    rpc: () => Promise.resolve({ data: true, error: null }),
-    functions: { invoke: vi.fn().mockResolvedValue({ data: { sendStatus: 'sent' }, error: null }) },
+    rpc: (...args: unknown[]) => { previewRpc(...args); return Promise.resolve({ data: true, error: null }); },
+    functions: { invoke: (...args: unknown[]) => { previewInvoke(...args); return Promise.resolve({ data: { sendStatus: 'sent' }, error: null }); } },
     storage: { from: () => ({ createSignedUrl: () => Promise.resolve({ data: { signedUrl: 'https://example.invalid/Custos.xlsx' }, error: null }) }) },
   },
 }));
@@ -47,17 +48,64 @@ function mount(connected: boolean | 'unknown') {
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
 }
 
-it('prévia conectada usa dados fictícios e não consulta nem altera o backend', async () => {
+it('prévia permite ligar/desligar IA sem consultar nem alterar o backend', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
   expect(await screen.findByRole('button', { name: /Rafael/ })).not.toBeNull();
-  expect(screen.getByText(/Prévia visual com dados fictícios/)).not.toBeNull();
-  expect(screen.getByRole('switch', { name: 'IA' }).hasAttribute('disabled')).toBe(true);
-  expect(screen.getByRole('button', { name: 'Nova' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByText(/Prévia interativa com dados fictícios/)).not.toBeNull();
+  const ai = screen.getByRole('switch', { name: 'IA' });
+  expect(ai.hasAttribute('disabled')).toBe(false);
+  fireEvent.click(ai);
+  await waitFor(() => expect(ai.getAttribute('aria-checked')).toBe('false'));
+  expect(await screen.findByText(/IA desligada por Corretor/)).not.toBeNull();
   expect(mockDb.reads).toEqual({});
+  expect(previewRpc).not.toHaveBeenCalled();
+  expect(previewInvoke).not.toHaveBeenCalled();
 });
 
-afterEach(() => { cleanup(); vi.useRealTimers(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
+it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só na tela', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar nome' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Nome do cliente' }), { target: { value: 'Rafael Teste' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar contato' }));
+  expect(await screen.findByRole('button', { name: /Rafael Teste/ })).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+  expect(await screen.findByRole('button', { name: 'Fechada' })).not.toBeNull();
+  fireEvent.change(screen.getByLabelText('Atribuição'), { target: { value: 'Equipe' } });
+  expect((screen.getByLabelText('Atribuição') as HTMLSelectElement).value).toBe('Equipe');
+  fireEvent.change(screen.getByLabelText('Adicionar tag'), { target: { value: 'Comprador' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar tag' }));
+  expect(screen.getByText('Comprador')).not.toBeNull();
+  fireEvent.change(screen.getByLabelText('Nota interna'), { target: { value: 'Prefere imóvel no Centro.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Adicionar nota' }));
+  expect(screen.getByText('Prefere imóvel no Centro.')).not.toBeNull();
+  expect(mockDb.reads).toEqual({});
+  expect(previewRpc).not.toHaveBeenCalled();
+  expect(previewInvoke).not.toHaveBeenCalled();
+});
+
+it('prévia inicia conversa e mostra a mensagem inicial sem chamar envio real', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Nova' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Telefone' }), { target: { value: '11988887777' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Nome (opcional)' }), { target: { value: 'Cliente Teste' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Mensagem inicial' }), { target: { value: 'Olá, tudo bem?' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enviar mensagem' }));
+  expect(await screen.findByRole('button', { name: /Cliente Teste/ })).not.toBeNull();
+  expect(screen.getAllByText('Olá, tudo bem?').length).toBe(2);
+  expect(previewInvoke).not.toHaveBeenCalled();
+});
+
+it('prévia usa margens laterais menores no histórico', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  expect(screen.getByTestId('message-timeline').className).toContain('px-[clamp(12px,2vw,24px)]');
+});
+
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };

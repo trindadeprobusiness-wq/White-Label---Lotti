@@ -49,6 +49,26 @@ it('returns keyboard focus to the message field after choosing a file',()=>{
  fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});
  expect(document.activeElement).toBe(screen.getByLabelText('Mensagem'));
 });
+it('prévia envia texto e arquivo ao callback local sem chamar Supabase',async()=>{
+ const previewSend=vi.fn();render(<MessageComposer conversationId="preview" onSent={()=>{}} preview onPreviewSend={previewSend}/>);
+ fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Teste local'}});
+ fireEvent.keyDown(screen.getByLabelText('Mensagem'),{key:'Enter',code:'Enter'});
+ expect(previewSend).toHaveBeenCalledWith({kind:'text',content:'Teste local'});
+ const file=new File(['pdf'],'contrato.pdf',{type:'application/pdf'});
+ fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});
+ fireEvent.keyDown(screen.getByLabelText('Mensagem'),{key:'Enter',code:'Enter'});
+ expect(previewSend).toHaveBeenCalledWith({kind:'file',content:'contrato.pdf'});
+ expect(invoke).not.toHaveBeenCalled();
+});
+it('prévia simula gravar e enviar áudio sem pedir microfone nem chamar Supabase',()=>{
+ const previewSend=vi.fn();render(<MessageComposer conversationId="preview-audio" onSent={()=>{}} preview onPreviewSend={previewSend}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
+ fireEvent.click(screen.getByRole('button',{name:'Parar gravação'}));
+ expect(screen.getByText('Áudio de demonstração')).not.toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
+ expect(previewSend).toHaveBeenCalledWith({kind:'audio',content:'Áudio de demonstração'});
+ expect(invoke).not.toHaveBeenCalled();
+});
 it('preserves typed text after sending a file because file captions are not supported',async()=>{
  invoke.mockResolvedValueOnce({data:{path:'owner/request/recibo.pdf',token:'signed-upload'}}).mockResolvedValueOnce({data:{sendStatus:'sent'}});uploadToSignedUrl.mockResolvedValue({error:null});
  render(<MessageComposer conversationId="conversation-caption" onSent={()=>{}}/>);const file=new File(['pdf'],'recibo.pdf',{type:'application/pdf'});
