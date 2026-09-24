@@ -41,6 +41,7 @@ it('usa o compositor claro e retangular da referência sem alterar o envio',()=>
  render(<MessageComposer conversationId="conversation-visual" onSent={()=>{}}/>);
  expect(screen.getByLabelText('Mensagem').parentElement?.className).toContain('rounded-xl');
  expect(screen.getByLabelText('Mensagem').parentElement?.className).toContain('bg-[#fbfcfe]');
+ expect(screen.getByLabelText('Mensagem').parentElement?.className).toContain('focus-within:ring-primary/25');
 });
 it('returns keyboard focus to the message field after choosing a file',()=>{
  render(<MessageComposer conversationId="conversation-focus" onSent={()=>{}}/>);
