@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import ConnectedInbox from './ConnectedInbox';
 
+const { previewInvoke, previewRpc } = vi.hoisted(() => ({ previewInvoke: vi.fn(), previewRpc: vi.fn() }));
 const dataByTable: Record<string, unknown[]> = {
   lotti_agent_conversations: [
     { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null },
   ],
   lotti_agent_latest_messages: [],
   lotti_agent_messages: [],
+  lotti_inbox_events: [],
 };
 // missingColumns simulates the production database before the account-scope migration.
 const mockDb = { missingColumns: false, filters: [] as string[], reads: {} as Record<string, number> };
@@ -35,8 +37,9 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } })
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (t: string) => builder(t),
-    rpc: () => Promise.resolve({ data: true, error: null }),
-    functions: { invoke: vi.fn().mockResolvedValue({ data: { sendStatus: 'sent' }, error: null }) },
+    rpc: (...args: unknown[]) => { previewRpc(...args); return Promise.resolve({ data: true, error: null }); },
+    functions: { invoke: (...args: unknown[]) => { previewInvoke(...args); return Promise.resolve({ data: { sendStatus: 'sent' }, error: null }); } },
+    storage: { from: () => ({ createSignedUrl: () => Promise.resolve({ data: { signedUrl: 'https://example.invalid/Custos.xlsx' }, error: null }) }) },
   },
 }));
 
@@ -45,7 +48,64 @@ function mount(connected: boolean | 'unknown') {
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
 }
 
-afterEach(() => { cleanup(); vi.useRealTimers(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; });
+it('prévia permite ligar/desligar IA sem consultar nem alterar o backend', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  expect(await screen.findByRole('button', { name: /Rafael/ })).not.toBeNull();
+  expect(screen.getByText(/Prévia interativa com dados fictícios/)).not.toBeNull();
+  const ai = screen.getByRole('switch', { name: 'IA' });
+  expect(ai.hasAttribute('disabled')).toBe(false);
+  fireEvent.click(ai);
+  await waitFor(() => expect(ai.getAttribute('aria-checked')).toBe('false'));
+  expect(await screen.findByText(/IA desligada por Corretor/)).not.toBeNull();
+  expect(mockDb.reads).toEqual({});
+  expect(previewRpc).not.toHaveBeenCalled();
+  expect(previewInvoke).not.toHaveBeenCalled();
+});
+
+it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só na tela', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar nome' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Nome do cliente' }), { target: { value: 'Rafael Teste' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar contato' }));
+  expect(await screen.findByRole('button', { name: /Rafael Teste/ })).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+  expect(await screen.findByRole('button', { name: 'Fechada' })).not.toBeNull();
+  fireEvent.change(screen.getByLabelText('Atribuição'), { target: { value: 'Equipe' } });
+  expect((screen.getByLabelText('Atribuição') as HTMLSelectElement).value).toBe('Equipe');
+  fireEvent.change(screen.getByLabelText('Adicionar tag'), { target: { value: 'Comprador' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar tag' }));
+  expect(screen.getByText('Comprador')).not.toBeNull();
+  fireEvent.change(screen.getByLabelText('Nota interna'), { target: { value: 'Prefere imóvel no Centro.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Adicionar nota' }));
+  expect(screen.getByText('Prefere imóvel no Centro.')).not.toBeNull();
+  expect(mockDb.reads).toEqual({});
+  expect(previewRpc).not.toHaveBeenCalled();
+  expect(previewInvoke).not.toHaveBeenCalled();
+});
+
+it('prévia inicia conversa e mostra a mensagem inicial sem chamar envio real', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Nova' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Telefone' }), { target: { value: '11988887777' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Nome (opcional)' }), { target: { value: 'Cliente Teste' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Mensagem inicial' }), { target: { value: 'Olá, tudo bem?' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enviar mensagem' }));
+  expect(await screen.findByRole('button', { name: /Cliente Teste/ })).not.toBeNull();
+  expect(screen.getAllByText('Olá, tudo bem?').length).toBe(2);
+  expect(previewInvoke).not.toHaveBeenCalled();
+});
+
+it('prévia usa margens laterais menores no histórico', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  expect(screen.getByTestId('message-timeline').className).toContain('px-[clamp(12px,2vw,24px)]');
+});
+
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
@@ -55,6 +115,68 @@ it('mostra o nome do contato do WhatsApp em vez do número cru', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Maria Souza' })];
   mount(true);
   expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
+});
+
+it('usa a inicial do nome em todos os avatares, sem mostrar dígitos do telefone', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Rafael' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Rafael/ });
+  expect(screen.getAllByLabelText('Inicial de Rafael').length).toBe(2);
+  expect(screen.queryByText('00')).toBeNull();
+});
+
+it('usa o nome do cadastro quando não há nome de perfil no WhatsApp', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: null, clientes: { nome: 'Beatriz' } })];
+  mount(true);
+  await screen.findByRole('button', { name: /Beatriz/ });
+  expect(screen.getAllByLabelText('Inicial de Beatriz').length).toBe(2);
+});
+
+it('mostra a hora, e não a data, na lista das conversas de hoje', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-24T15:00:00Z'));
+  dataByTable.lotti_agent_conversations = [conversationFixture({ updated_at: '2026-09-24T14:20:00Z' })];
+  mount(true);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(screen.getByRole('navigation', { name: 'Conversas conectadas' }).querySelector('time')?.textContent).toBe('11:20');
+});
+
+it('mostra somente a hora na bolha e diferencia um arquivo enviado de texto', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm1', direction: 'out', sender: 'human', content: 'Custos.xlsx', media_path: 'owner/request/Custos.xlsx', created_at: '2026-09-24T14:00:00Z' }];
+  mount(true);
+  const file = await screen.findByRole('link', { name: /Custos.xlsx/ });
+  expect(file).not.toBeNull();
+  const time = screen.getByText('11:00');
+  expect(time.closest('time')?.textContent).toBe('11:00');
+  expect(screen.queryByText('24/09/2026, 11:00:00')).toBeNull();
+});
+
+it('mantém o layout de referência com as cores da Lotti, fundo pontilhado e seleção lateral', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Rafael' })];
+  dataByTable.lotti_agent_messages = [{ id: 'm-visual', direction: 'out', sender: 'human', content: 'Olá!', media_path: null, created_at: new Date().toISOString() }];
+  mount(true);
+  const message = await screen.findByText('Olá!');
+  expect(message.closest('article')?.className).toContain('bg-primary');
+  expect(message.closest('[data-testid="message-timeline"]')?.className).toContain('bg-[radial-gradient(');
+  expect(screen.getByRole('button', { name: /Rafael/ }).className).toContain('border-l-primary');
+  expect(screen.getByRole('button', { name: 'Nova' }).className).toContain('bg-primary');
+  expect(screen.getByRole('switch', { name: 'IA' }).querySelectorAll('span')[1]?.className).toContain('bg-primary');
+  expect(Array.from(screen.getByTestId('conversation-stage-bar').querySelectorAll('span')).some(span => span.className.includes('bg-primary'))).toBe(true);
+  expect(screen.getByRole('button', { name: 'Ocultar info' }).className).toContain('border-primary');
+});
+
+it('mostra mudanças de IA e Funil como avisos internos ordenados no chat', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm2', direction: 'in', sender: 'lead', content: 'Olá', media_path: null, created_at: '2026-09-24T14:10:00Z' }];
+  dataByTable.lotti_inbox_events = [
+    { id: 'e1', kind: 'mode', from_label: 'Equipe', to_label: 'IA', actor_label: 'Corretor', created_at: '2026-09-24T14:00:00Z' },
+    { id: 'e2', kind: 'stage', from_label: 'Novo lead', to_label: 'Agendado', subject_label: 'Compra da casa', actor_label: 'Corretor', created_at: '2026-09-24T14:20:00Z' },
+  ];
+  mount(true);
+  const mode = await screen.findByText(/IA ligada por Corretor/);
+  const stage = screen.getByText(/Negócio Compra da casa movido de Novo lead para Agendado por Corretor/);
+  const text = screen.getByText('Olá');
+  expect(mode.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(text.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it('lista só conversas do número conectado, sem as arquivadas', async () => {
