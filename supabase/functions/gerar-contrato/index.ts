@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { externalDataBlock } from "../_shared/ai/contracts.ts";
 import { LOTTI_PROMPT_VERSIONS } from "../_shared/ai/prompt-registry.ts";
 import { fastAIModel, requestGeminiChat } from "../_shared/ai/provider.ts";
-import { checarCota, registrarUso } from "../_shared/cotas.ts";
+import { reserveContractQuota, finishContractQuota } from "../_shared/quota-reservation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,6 +70,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let finishReservation: ((success: boolean) => Promise<void>) | undefined;
+  let quotaSucceeded = false;
   try {
     // Explicit auth check
     const authHeader = req.headers.get("Authorization");
@@ -84,7 +86,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, '').trim());
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: "Invalid session" }),
@@ -97,14 +99,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Perfil de corretor não encontrado' }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const cota = await checarCota(supabaseClient, corretorId, 'ai_contracts_monthly');
-    if (!cota.permitido) {
-      return new Response(JSON.stringify({
-        error: 'Limite mensal de operações com IA atingido.',
-        code: 'PLAN_LIMIT_REACHED', featureKey: 'ai_contracts_monthly',
-        used: cota.usado, limit: cota.limite,
-      }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+
 
     const body: ContratoRequest = await req.json();
 
@@ -243,6 +238,17 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
     console.log("Calling centralized AI provider...");
     const startTime = Date.now();
 
+    const quotaClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const cota = await reserveContractQuota(quotaClient, corretorId);
+    if (!cota.allowed) {
+      return new Response(JSON.stringify({
+        error: 'Limite mensal de operações com IA atingido.',
+        code: 'PLAN_LIMIT_REACHED', featureKey: 'ai_contracts_monthly',
+        used: cota.used, limit: cota.limit,
+      }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    finishReservation = (success) => finishContractQuota(quotaClient, cota.id!, success);
+
     const response = await requestGeminiChat({
       messages: [
         { role: "system", content: systemPrompt },
@@ -291,7 +297,8 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
 
     console.log("Contract generated successfully, length:", contratoGerado.length);
 
-    await registrarUso(supabaseClient, corretorId, 'ai_contracts_monthly');
+    await finishReservation(true);
+    quotaSucceeded = true;
     return new Response(
       JSON.stringify({
         contrato: contratoGerado,
@@ -307,6 +314,10 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
       JSON.stringify({ error: error instanceof Error ? error.message : "Erro desconhecido" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  } finally {
+    if (finishReservation && !quotaSucceeded) {
+      await finishReservation(false).catch(() => console.error('QUOTA_RELEASE_FAILED'));
+    }
   }
 });
 

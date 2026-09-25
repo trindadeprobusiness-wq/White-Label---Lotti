@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { useAuth } from '@/hooks/useAuth';
 
-const MINIMO = 8;
+const MINIMO = 10;
 
 /**
  * Destino do link enviado por e-mail. O Supabase troca o token do link por uma

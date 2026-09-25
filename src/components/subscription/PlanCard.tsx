@@ -15,6 +15,7 @@ interface PlanCardProps {
   onSelect?: (planId: string) => void;
   className?: string;
   actionLabel?: string;
+  disabled?: boolean;
 }
 
 export function PlanCard({
@@ -25,6 +26,7 @@ export function PlanCard({
   onSelect,
   className,
   actionLabel,
+  disabled = false,
 }: PlanCardProps) {
   const display = plansDisplay.find((d) => d.code === plan.code);
   const isHighlighted = plan.highlighted;
@@ -143,7 +145,7 @@ export function PlanCard({
             onClick={handleClick}
             variant={isHighlighted ? 'default' : 'outline'}
             className="w-full gap-2"
-            disabled={isCurrent}
+            disabled={isCurrent || disabled}
           >
             {isCurrent ? 'Plano atual' : (actionLabel || display?.cta || 'Começar teste gratuito')}
             {!isCurrent && <MoveRight className="h-4 w-4" />}
