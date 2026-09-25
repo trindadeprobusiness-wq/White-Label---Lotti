@@ -78,8 +78,8 @@ function MessageBubble({ message }: { message: Message }) {
   return <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-2 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'ml-auto rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
     <p className={`mb-1 text-[11px] font-medium ${outbound ? 'text-primary-foreground/75' : 'text-[#929aae]'}`}>{message.sender === 'ai' ? 'Lotti IA' : message.sender === 'human' ? 'Corretor' : 'Cliente'}</p>
     <MessageBody message={message} />
-    <time dateTime={message.created_at} title={new Date(message.created_at).toLocaleString('pt-BR')} className={`mt-1 block text-right text-[10px] ${outbound ? 'text-primary-foreground/75' : 'text-[#929aae]'}`}>
-      {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+    <time dateTime={message.created_at} title={new Date(message.created_at).toLocaleString('pt-BR', { timeZone: inboxTimeZone })} className={`mt-1 block text-right text-[10px] ${outbound ? 'text-primary-foreground/75' : 'text-[#929aae]'}`}>
+      {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: inboxTimeZone })}
     </time>
   </article>;
 }
