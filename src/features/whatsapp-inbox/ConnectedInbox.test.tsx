@@ -73,6 +73,7 @@ it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só n
   fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
   fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
   expect(await screen.findByRole('button', { name: 'Fechada' })).not.toBeNull();
+  expect(await screen.findByText(/Conversa fechada por Corretor/)).not.toBeNull();
   fireEvent.change(screen.getByLabelText('Atribuição'), { target: { value: 'Equipe' } });
   expect((screen.getByLabelText('Atribuição') as HTMLSelectElement).value).toBe('Equipe');
   fireEvent.change(screen.getByLabelText('Adicionar tag'), { target: { value: 'Comprador' } });
@@ -103,6 +104,44 @@ it('prévia usa margens laterais menores no histórico', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
   expect(screen.getByTestId('message-timeline').className).toContain('px-[clamp(12px,2vw,24px)]');
+});
+
+it('prévia usa o fundo verde claro da Lotti no histórico', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  expect(screen.getByTestId('message-timeline').className).toContain('bg-[#f4f8f5]');
+});
+
+it('organiza nome, telefone, etapa, status e IA no mesmo cabeçalho', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  const header = await screen.findByTestId('conversation-header');
+  expect(header.textContent).toContain('Rafael');
+  expect(header.textContent).toContain('+55 (11) 99999-0000');
+  expect(header.textContent).toContain('Em qualificação');
+  expect(header.textContent).toContain('Aberta');
+  expect(header.textContent).toContain('IA ligada');
+  expect(screen.queryByTestId('conversation-stage-bar')).toBeNull();
+  expect(screen.getByRole('switch', { name: 'IA' })).not.toBeNull();
+  expect(screen.getByTestId('conversation-header-actions').className).toContain('flex-nowrap');
+});
+
+it('mostra fechamento como conversa fechada, não IA pausada', async () => {
+  dataByTable.lotti_inbox_events = [{ id: 'event-closed', kind: 'status', from_label: 'Aberta', to_label: 'Fechada', subject_label: null, actor_label: 'Corretor', created_at: new Date().toISOString() }];
+  mount(true);
+  expect(await screen.findByText(/Conversa fechada por Corretor/)).not.toBeNull();
+  expect(screen.queryByText(/IA pausada/)).toBeNull();
+});
+
+it('atualiza a conversa aberta sem repetir toda a lista a cada ciclo', async () => {
+  mount(true);
+  await screen.findByRole('button', { name: /5511999990000/ });
+  await waitFor(() => expect(mockDb.reads.lotti_agent_messages).toBeGreaterThan(0));
+  const listBefore = mockDb.reads.lotti_agent_conversations;
+  const messagesBefore = mockDb.reads.lotti_agent_messages;
+  await new Promise(resolve => setTimeout(resolve, 3500));
+  expect(mockDb.reads.lotti_agent_messages - messagesBefore).toBeGreaterThanOrEqual(2);
+  expect(mockDb.reads.lotti_agent_conversations - listBefore).toBeLessThanOrEqual(1);
 });
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
@@ -146,6 +185,7 @@ it('mostra somente a hora na bolha e diferencia um arquivo enviado de texto', as
   mount(true);
   const file = await screen.findByRole('link', { name: /Custos.xlsx/ });
   expect(file).not.toBeNull();
+  expect(screen.getByText('Arquivo XLSX')).not.toBeNull();
   const time = screen.getByText('11:00');
   expect(time.closest('time')?.textContent).toBe('11:00');
   expect(screen.queryByText('24/09/2026, 11:00:00')).toBeNull();
@@ -160,8 +200,8 @@ it('mantém o layout de referência com as cores da Lotti, fundo pontilhado e se
   expect(message.closest('[data-testid="message-timeline"]')?.className).toContain('bg-[radial-gradient(');
   expect(screen.getByRole('button', { name: /Rafael/ }).className).toContain('border-l-primary');
   expect(screen.getByRole('button', { name: 'Nova' }).className).toContain('bg-primary');
-  expect(screen.getByRole('switch', { name: 'IA' }).querySelectorAll('span')[1]?.className).toContain('bg-primary');
-  expect(Array.from(screen.getByTestId('conversation-stage-bar').querySelectorAll('span')).some(span => span.className.includes('bg-primary'))).toBe(true);
+  expect(screen.getByRole('switch', { name: 'IA' }).getAttribute('aria-checked')).toBe('true');
+  expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Sem cliente vinculado');
   expect(screen.getByRole('button', { name: 'Ocultar info' }).className).toContain('border-primary');
 });
 
@@ -229,11 +269,11 @@ it('mantém a conversa como coluna principal e o compositor no rodapé do painel
   expect(screen.getByRole('complementary', { name: 'Perfil do contato' }).className).toContain('min-h-0');
 });
 
-it('reproduz a hierarquia do Clix com cabeçalho do contato, barra de etapa e painel de perfil', async () => {
+it('reproduz a hierarquia do Clix com cabeçalho compacto e painel de perfil', async () => {
   mount(true);
   expect(await screen.findByTestId('clix-inbox-shell')).not.toBeNull();
   expect(screen.getByTestId('conversation-header')).not.toBeNull();
-  expect(screen.getByTestId('conversation-stage-bar')).not.toBeNull();
+  expect(screen.getByTestId('conversation-stage-pill')).not.toBeNull();
   expect(screen.getByRole('heading', { name: /Resumo do caso/ })).not.toBeNull();
   expect(screen.getByRole('heading', { name: 'Atribuição' })).not.toBeNull();
   expect(screen.getByRole('heading', { name: 'Tags' })).not.toBeNull();
@@ -243,14 +283,16 @@ it('reproduz a hierarquia do Clix com cabeçalho do contato, barra de etapa e pa
 it('mantém a densidade compacta da referência do Clix', async () => {
   mount(true);
   const shell = await screen.findByTestId('clix-inbox-shell');
-  expect(shell.className).toContain('lg:grid-cols-[306px_minmax(0,1fr)_330px]');
+  expect(shell.className).toContain('lg:grid-cols-[230px_minmax(0,1fr)]');
+  expect(shell.className).toContain('2xl:grid-cols-[306px_minmax(0,1fr)_330px]');
   expect(shell.className).toContain('gap-[10px]');
   expect(shell.className).toContain('p-[10px]');
   expect(screen.getByTestId('conversation-header').className).toContain('min-h-[68px]');
-  expect(screen.getByTestId('conversation-stage-bar').className).toContain('min-h-[42px]');
+  expect(screen.getByTestId('conversation-stage-pill')).not.toBeNull();
   expect(screen.getByRole('button', { name: /5511999990000/ }).className).toContain('min-h-[64px]');
   expect(screen.getByRole('switch', { name: 'IA' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Ocultar info' })).not.toBeNull();
+  expect(screen.getByRole('complementary', { name: 'Perfil do contato' }).className).toContain('2xl:static');
 });
 
 it('abre as três ações essenciais pelos controles do Inbox', async () => {

@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, ChevronRight, FileText, Filter, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UserRound, UsersRound } from 'lucide-react';
+import { AlertTriangle, FileText, Filter, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { conversationTitle, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
@@ -32,14 +32,21 @@ async function fetchConversations() {
   return data as unknown as Conversation[];
 }
 type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; media_path: string | null; created_at: string; preview_kind?: 'file' | 'audio' };
-type InboxEvent = { id: string; kind: 'mode' | 'stage'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
+type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
 function eventText(event: InboxEvent) {
+  if (event.kind === 'status') return `Conversa ${event.to_label === 'Fechada' ? 'fechada' : 'reaberta'} por ${event.actor_label}`;
   if (event.kind === 'mode') return `${event.to_label === 'IA' ? 'IA ligada' : event.to_label === 'Pausada' ? 'IA pausada' : 'IA desligada'} por ${event.actor_label}`;
   return `${event.subject_label ? `Negócio ${event.subject_label} movido` : 'Movido'} de ${event.from_label || 'sem etapa'} para ${event.to_label} por ${event.actor_label}`;
 }
 function ContactAvatar({ name, className }: { name: string; className: string }) {
   const initial = name.trim().match(/^\p{L}/u)?.[0].toLocaleUpperCase('pt-BR');
   return <span aria-label={initial ? `Inicial de ${name}` : 'Contato sem nome'} className={className}>{initial || <UserRound className="h-4 w-4" />}</span>;
+}
+function formatContactPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 13 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  if (digits.length === 12 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  return digits ? `+${digits}` : value;
 }
 function MessageBody({ message }: { message: Message }) {
   const [url, setUrl] = useState('');
@@ -58,8 +65,13 @@ function MessageBody({ message }: { message: Message }) {
   }, [isFile, message.media_path, message.preview_kind]);
   if (message.preview_kind === 'audio') return <p className="text-sm">🎤 {message.content}</p>;
   if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]">{message.content}</p>;
-  if (message.preview_kind === 'file') return <div className="flex items-center gap-2 rounded-md border border-current/20 px-2 py-1.5 text-sm"><FileText className="h-4 w-4 shrink-0" /><span className="min-w-0 break-all">{message.content}</span></div>;
-  return <div className="flex items-center gap-2 rounded-md border border-current/20 px-2 py-1.5 text-sm"><FileText className="h-4 w-4 shrink-0" />{url ? <a className="min-w-0 break-all underline" href={url} target="_blank" rel="noopener noreferrer" download>{message.content}</a> : <span className="min-w-0 break-all">{message.content}</span>}</div>;
+  const extension = message.content.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase();
+  return <div className="flex min-w-[180px] max-w-full items-center gap-2.5 rounded-lg border border-current/20 bg-white/10 px-3 py-2.5 text-sm">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/15"><FileText className="h-5 w-5" /></span>
+    <span className="min-w-0 flex-1"><span className="block text-[10px] font-medium opacity-75">Arquivo{extension ? ` ${extension}` : ''}</span>
+      {url ? <a className="block break-all font-medium underline-offset-2 hover:underline" href={url} target="_blank" rel="noopener noreferrer" download>{message.content}</a> : <span className="block break-all font-medium">{message.content}</span>}
+    </span>
+  </div>;
 }
 function MessageBubble({ message }: { message: Message }) {
   const outbound = message.direction === 'out';
@@ -94,19 +106,19 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const [modeFilter, setModeFilter] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('');
-  const [infoVisible, setInfoVisible] = useState(true);
+  const [infoVisible, setInfoVisible] = useState(() => typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 1536px)').matches);
   const [newOpen,setNewOpen]=useState(false),[renameOpen,setRenameOpen]=useState(false),[statusOpen,setStatusOpen]=useState(false);
   const [demoAssignments,setDemoAssignments]=useState<Record<string,string>>({});
   const [demoTags,setDemoTags]=useState<Record<string,string[]>>({});
   const [demoNotes,setDemoNotes]=useState<Record<string,string[]>>({});
   const [tagDraft,setTagDraft]=useState(''),[noteDraft,setNoteDraft]=useState('');
   const list = useQuery({
-    queryKey: ['lotti-agent-conversations', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 1500,
+    queryKey: ['lotti-agent-conversations', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
     queryFn: fetchConversations,
     initialData: preview ? [demoConversation] : undefined,
   });
   const previews = useQuery({
-    queryKey: ['lotti-agent-message-previews', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 1500,
+    queryKey: ['lotti-agent-message-previews', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
     initialData: preview ? [{ conversation_id: demoConversation.id, direction: 'in' as const, content: 'Olá, gostaria de conhecer o imóvel.', created_at: demoTime }] : undefined,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_agent_latest_messages')
@@ -131,7 +143,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     },
   });
   const events = useQuery({
-    queryKey: ['lotti-inbox-events', user?.id, selected?.id, preview], enabled: !!user && !!selected && !preview, refetchInterval: preview ? false : 1500,
+    queryKey: ['lotti-inbox-events', user?.id, selected?.id, preview], enabled: !!user && !!selected && !preview, refetchInterval: preview ? false : 3000,
     initialData: preview ? [{ id: 'demo-event', kind: 'mode' as const, from_label: 'Equipe', to_label: 'IA', subject_label: null, actor_label: 'Corretor', created_at: demoTime }] : undefined,
     queryFn: async () => {
       const { data, error } = await db.from('lotti_inbox_events').select('id,kind,from_label,to_label,subject_label,actor_label,created_at')
@@ -170,6 +182,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     updateDemoConversation(id,{updated_at:created_at});
   };
   const appendDemoEvent=(id:string,to_label:string,from_label:string)=>cache.setQueryData<InboxEvent[]>(['lotti-inbox-events',user?.id,id,true],current=>[...(current??[]),{id:crypto.randomUUID(),kind:'mode',from_label,to_label,subject_label:null,actor_label:'Corretor',created_at:new Date().toISOString()}]);
+  const appendDemoStatusEvent=(id:string,status:'open'|'closed')=>cache.setQueryData<InboxEvent[]>(['lotti-inbox-events',user?.id,id,true],current=>[...(current??[]),{id:crypto.randomUUID(),kind:'status',from_label:status==='closed'?'Aberta':'Fechada',to_label:status==='closed'?'Fechada':'Aberta',subject_label:null,actor_label:'Corretor',created_at:new Date().toISOString()}]);
   const demoStart=(data:{phone:string;name?:string;text:string})=>{
     const id=crypto.randomUUID(),created_at=new Date().toISOString();
     const conversation:Conversation={id,phone:data.phone,contact_name:data.name||null,cliente_id:null,mode:'human',status:'open',updated_at:created_at,qualification:{},last_error:null};
@@ -193,8 +206,8 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>
       <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste depois de conectar. Conversas antigas do celular não são importadas automaticamente.</p>
     </div>}
-    {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 flex-1 gap-[10px] bg-[#f4f6fb] p-[10px] ${infoVisible ? 'lg:grid-cols-[306px_minmax(0,1fr)_330px]' : 'lg:grid-cols-[306px_minmax(0,1fr)]'}`}>
-      <nav aria-label="Conversas conectadas" className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-[#e9ebf3] bg-white shadow-sm">
+    {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[230px_minmax(0,1fr)] ${infoVisible ? '2xl:grid-cols-[306px_minmax(0,1fr)_330px]' : '2xl:grid-cols-[306px_minmax(0,1fr)]'}`}>
+      <nav aria-label="Conversas conectadas" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e9ebf3] bg-white shadow-sm">
         <div className="space-y-2 border-b border-[#e9ebf3] bg-gradient-to-b from-white to-[#fbfcfe] px-[14px] pb-[13px] pt-[15px]">
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 bg-primary px-2.5 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
@@ -210,14 +223,21 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </div>
       </nav>
       {selected ? <section aria-label="Histórico conectado" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e9ebf3] bg-white shadow-sm">
-        <header data-testid="conversation-header" className="flex min-h-[68px] flex-nowrap items-center gap-2 border-b px-[15px] py-[11px]">
-          <ContactAvatar name={client.data?.nome || selected.contact_name || selected.clientes?.nome || ''} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" /><div className="mr-auto min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate text-sm">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3 shrink-0" /></button></div><p className="truncate text-[11px] text-muted-foreground">+{selected.phone}</p></div><Badge variant="outline" className="shrink-0 gap-1 px-2 text-[10px]"><UsersRound className="h-3 w-3" />Equipe</Badge>
-          <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="ml-2 flex h-8 shrink-0 items-center gap-2 rounded-lg px-1 text-xs font-semibold disabled:opacity-50"><span>IA</span><span className={`flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors ${selected.mode === 'ai' ? 'border-primary bg-primary' : 'border-[#e9ebf3] bg-[#f1f3f9]'}`}><span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${selected.mode === 'ai' ? 'translate-x-[18px]' : 'translate-x-0'}`} /></span></button>
-          <Button size="sm" className="h-9 shrink-0 border-primary px-3 text-xs text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
-        </header><div data-testid="conversation-stage-bar" className="flex min-h-[42px] shrink-0 items-center border-b border-[#e9ebf3] bg-[#fbfcfe] px-[14px] text-[11px]"><span className="font-semibold uppercase text-[#929aae]">Etapa</span><span className="ml-2 h-2 w-2 rounded-full bg-primary" /><strong className="ml-1.5">{stages[q?.stage ?? ''] ?? 'Em atendimento humano'}</strong><ChevronRight className="ml-auto h-3.5 w-3.5 text-[#929aae]" /><button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="ml-4 flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-[#929aae]':'bg-[#12a867]'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button></div>
+        <header data-testid="conversation-header" className="flex min-h-[68px] flex-wrap items-center gap-2 border-b px-3 py-2 lg:flex-nowrap">
+          <div className="flex min-w-[155px] flex-1 items-center gap-2">
+            <ContactAvatar name={client.data?.nome || selected.contact_name || selected.clientes?.nome || ''} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" />
+            <div className="min-w-0"><div className="flex items-center gap-1"><strong className="block truncate text-sm">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3" /></button></div><p className="whitespace-nowrap text-[11px] text-muted-foreground">{formatContactPhone(selected.phone)}</p></div>
+          </div>
+          <div data-testid="conversation-header-actions" className="ml-auto flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap">
+            <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{stages[q?.stage ?? ''] ?? (selected.cliente_id ? 'Em atendimento humano' : 'Sem cliente vinculado')}</span></span>
+            <button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button>
+            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{selected.mode==='ai'?'IA ligada':selected.mode==='paused'?'IA pausada':'IA desligada'}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
+            <Button size="sm" className="h-8 shrink-0 border-primary px-2 text-[11px] text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
+          </div>
+        </header>
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
-        <div data-testid="message-timeline" className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#f4f6fb] bg-[radial-gradient(circle_at_1px_1px,rgba(146,154,174,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(12px,2vw,24px)] py-5">
+        <div data-testid="message-timeline" className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(12px,2vw,24px)] py-5">
           {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-1"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
           {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>
@@ -225,7 +245,8 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           ? <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />
           : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
-      {selected && infoVisible && <aside aria-label="Perfil do contato" className="min-h-0 overflow-y-auto rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-sm">
+      {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
+        <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
         <div className="mt-2.5 rounded-xl border bg-secondary/30 p-3"><p className="text-xs font-semibold">{conversationTitle(selected, client.data?.nome)}</p><p className="text-[11px] text-muted-foreground">+{selected.phone}</p>{client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}<h3 className="mt-4 flex items-center text-[10px] font-semibold uppercase text-muted-foreground">Resumo do caso <Badge variant="secondary" className="ml-auto gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge></h3><p className="mt-2 rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p></div>
         <div className="mt-4 space-y-3"><h3 className="text-xs font-semibold uppercase text-muted-foreground">Linha do tempo</h3><p className="text-xs text-primary">Conversou no WhatsApp <span className="block text-muted-foreground">Última atividade: {new Date(selected.updated_at).toLocaleString('pt-BR')}</span></p>{client.data?.created_at && <p className="text-xs text-primary">Lead criado <span className="block text-muted-foreground">{new Date(client.data.created_at).toLocaleString('pt-BR')}</span></p>}</div>
@@ -240,7 +261,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       </aside>}
     </div>}
     <NewConversationDialog open={newOpen} onOpenChange={setNewOpen} onSubmit={data=>preview?demoStart(data):startConversation.mutate(data)} pending={!preview&&startConversation.isPending} error={!preview&&startConversation.isError?(startConversation.error instanceof Error&&startConversation.error.message==='uncertain'?'Envio sem confirmação. Verifique no WhatsApp antes de tentar novamente.':'Não foi possível iniciar a conversa.'):undefined} />
-    {selected&&<><RenameContactDialog open={renameOpen} initialName={client.data?.nome??selected.contact_name??''} initialPhone={selected.phone} onOpenChange={setRenameOpen} onSubmit={contact=>{if(preview){updateDemoConversation(selected.id,{contact_name:contact.name,phone:contact.phone});setRenameOpen(false)}else renameContact.mutate(contact)}} pending={!preview&&renameContact.isPending} error={!preview&&renameContact.isError?'Não foi possível salvar o contato. Verifique se há um envio pendente ou se o telefone já está em outra conversa.':undefined} /><ConversationStatusDialog open={statusOpen} status={selected.status??'open'} onOpenChange={setStatusOpen} onConfirm={status=>{if(preview){updateDemoConversation(selected.id,{status});setStatusOpen(false)}else changeStatus.mutate(status)}} pending={!preview&&changeStatus.isPending} error={!preview&&changeStatus.isError?'Não foi possível alterar o estado da conversa.':undefined} /></>}
+      {selected&&<><RenameContactDialog open={renameOpen} initialName={client.data?.nome??selected.contact_name??''} initialPhone={selected.phone} onOpenChange={setRenameOpen} onSubmit={contact=>{if(preview){updateDemoConversation(selected.id,{contact_name:contact.name,phone:contact.phone});setRenameOpen(false)}else renameContact.mutate(contact)}} pending={!preview&&renameContact.isPending} error={!preview&&renameContact.isError?'Não foi possível salvar o contato. Verifique se há um envio pendente ou se o telefone já está em outra conversa.':undefined} /><ConversationStatusDialog open={statusOpen} status={selected.status??'open'} onOpenChange={setStatusOpen} onConfirm={status=>{if(preview){updateDemoConversation(selected.id,{status});appendDemoStatusEvent(selected.id,status);setStatusOpen(false)}else changeStatus.mutate(status)}} pending={!preview&&changeStatus.isPending} error={!preview&&changeStatus.isError?'Não foi possível alterar o estado da conversa.':undefined} /></>}
     <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}><SheetContent side="left" className="space-y-5"><SheetTitle>Filtros</SheetTitle><SheetDescription>Filtre as conversas já recebidas.</SheetDescription>
       <label className="block text-sm">Atendimento<select className="mt-1 w-full rounded-md border bg-background p-2" value={modeFilter} onChange={e => setModeFilter(e.target.value)}><option value="">Todos</option><option value="human">Humano</option><option value="ai">IA</option><option value="paused">Pausado</option></select></label>
       <label className="block text-sm">Etapa<select className="mt-1 w-full rounded-md border bg-background p-2" value={stageFilter} onChange={e => setStageFilter(e.target.value)}><option value="">Todas</option>{Object.entries(stages).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
