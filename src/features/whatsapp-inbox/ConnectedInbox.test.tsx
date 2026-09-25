@@ -100,10 +100,12 @@ it('prévia inicia conversa e mostra a mensagem inicial sem chamar envio real', 
   expect(previewInvoke).not.toHaveBeenCalled();
 });
 
-it('prévia usa margens laterais menores no histórico', async () => {
+it('prévia mantém o histórico compacto nas laterais e entre mensagens', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
-  expect(screen.getByTestId('message-timeline').className).toContain('px-[clamp(12px,2vw,24px)]');
+  const timeline = screen.getByTestId('message-timeline');
+  expect(timeline.className).toContain('px-[clamp(10px,1.5vw,18px)]');
+  expect(timeline.className).toContain('space-y-1');
 });
 
 it('prévia usa o fundo verde claro da Lotti no histórico', () => {
@@ -123,7 +125,16 @@ it('organiza nome, telefone, etapa, status e IA no mesmo cabeçalho', async () =
   expect(header.textContent).toContain('IA ligada');
   expect(screen.queryByTestId('conversation-stage-bar')).toBeNull();
   expect(screen.getByRole('switch', { name: 'IA' })).not.toBeNull();
-  expect(screen.getByTestId('conversation-header-actions').className).toContain('flex-nowrap');
+  expect(screen.getByTestId('conversation-header-actions').className).toContain('flex-wrap');
+  expect(screen.getByTestId('conversation-header-actions').className).not.toContain('lg:flex-nowrap');
+});
+
+it('usa a inicial do nome exibido quando o nome antigo é Contato WhatsApp', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Contato WhatsApp', clientes: { nome: 'Rafael' } })];
+  mount(true);
+  await screen.findByRole('button', { name: /Rafael/ });
+  expect(screen.getAllByLabelText('Inicial de Rafael')).toHaveLength(2);
+  expect(screen.queryByLabelText('Inicial de Contato WhatsApp')).toBeNull();
 });
 
 it('mostra fechamento como conversa fechada, não IA pausada', async () => {

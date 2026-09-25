@@ -1976,3 +1976,8 @@ credencial); nao foi contornada.
 ### 2026-09-25 - Codex (falha do CI no PR #17)
 - Os dois jobs `verify` do PR #17 falharam no teste de horário de anexo: a bolha usava o fuso do runner (UTC), enquanto o teste e a lista usam `America/Sao_Paulo`. A falha foi reproduzida localmente com `TZ=UTC` e o horário da bolha passou a usar explicitamente o fuso de São Paulo, inclusive no título.
 - Verificação com `TZ=UTC` e as variáveis públicas fictícias do CI: 82 arquivos e 649 testes passaram. Build Vite, ESLint direcionado e `git diff --check` passaram. O bloqueio separado da Vercel informa que o autor do commit precisa de acesso ao projeto; não é falha de código nem foi alterado nesta etapa.
+
+### 2026-09-25 - Codex (cabeçalho, avatar e espaçamento do Inbox)
+- Em branch isolada a partir da main que mesclou o PR #17, o cabeçalho da conversa permite quebra responsiva dos controles, evitando sobreposição do telefone com os indicadores. O avatar da lista e do cabeçalho passa a usar o mesmo nome exibido; o caso de cadastro `Contato WhatsApp` com nome `Rafael` foi coberto por teste de regressão.
+- O histórico usa margens laterais, espaçamento entre itens e altura das bolhas menores para aproximar mensagens. Nenhuma consulta, RPC, importação de contatos ou fluxo de envio foi alterado.
+- Verificação: 82 arquivos/650 testes com `TZ=UTC` e variáveis públicas fictícias do CI, build Vite, ESLint dos arquivos alterados e `git diff --check` passaram. Validação visual autenticada com canal real segue pendente.
