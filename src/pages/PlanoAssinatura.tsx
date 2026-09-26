@@ -235,7 +235,7 @@ export function PlanoAssinatura() {
                   ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
                   : 'A definir'}
               </p>
-              <p className="text-sm text-muted-foreground">Renovação automática</p>
+              <p className="text-sm text-muted-foreground">{subscription.billing_cycle === 'annual' ? 'Renovação mediante pagamento do Pix' : 'Renovação mensal no cartão'}</p>
             </div>
           </CardContent>
           {daysLeftInTrial !== null && (
@@ -266,7 +266,7 @@ export function PlanoAssinatura() {
       <section aria-labelledby="uso-plano" className="space-y-3">
         <div>
           <h2 id="uso-plano" className="text-xl font-semibold tracking-tight">Uso do plano</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Os limites são renovados no início de cada ciclo.</p>
+          <p className="mt-1 text-sm text-muted-foreground">As cotas mensais de IA são renovadas no início de cada mês. Os demais limites consideram os cadastros ativos.</p>
         </div>
         <Card className="shadow-sm">
           <CardContent className="grid gap-x-10 gap-y-6 p-6 md:grid-cols-2">
