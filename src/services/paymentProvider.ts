@@ -7,8 +7,8 @@
 // permite trocar o gateway sem alterar a lógica de planos.
 //
 // PENDÊNCIA: Implementar o provider real (Asaas subconta
-// separada, Stripe, etc). A implementação atual é um MOCK
-// que apenas retorna os estados sem processar pagamento.
+// separada, Stripe, etc). Enquanto isso, falhar de forma explícita é parte do
+// contrato: a interface nunca pode anunciar sucesso sem processar pagamento.
 // ============================================================
 
 import type { BillingCycle, SubscriptionStatus } from '@/types/subscription';
@@ -44,30 +44,42 @@ export interface PaymentProvider {
   changePlan(externalId: string, newPlanCode: string, billingCycle: BillingCycle): Promise<void>;
 }
 
-// ── Implementação Mock (para desenvolvimento) ──
-export class MockPaymentProvider implements PaymentProvider {
-  async createSubscription(params: CreateSubscriptionParams) {
-    console.log('[MockPayment] createSubscription', params);
-    return {
-      externalId: `mock_sub_${Date.now()}`,
-      status: 'trialing' as SubscriptionStatus,
-    };
-  }
-
-  async cancelSubscription(externalId: string) {
-    console.log('[MockPayment] cancelSubscription', externalId);
-  }
-
-  async createCheckoutUrl(params: CreateCheckoutParams) {
-    console.log('[MockPayment] createCheckoutUrl', params);
-    // Em produção, retornaria a URL do checkout do gateway
-    return params.returnUrl;
-  }
-
-  async changePlan(externalId: string, newPlanCode: string, billingCycle: BillingCycle) {
-    console.log('[MockPayment] changePlan', { externalId, newPlanCode, billingCycle });
+export class BillingIntegrationUnavailableError extends Error {
+  constructor() {
+    super('O checkout SaaS ainda não possui um gateway de pagamento configurado.');
+    this.name = 'BillingIntegrationUnavailableError';
   }
 }
 
-// Singleton — troque por `new AsaasProvider()` ou `new StripeProvider()` quando integrar
-export const paymentProvider: PaymentProvider = new MockPaymentProvider();
+/**
+ * Estado único consumido pela tela. Só deve virar `true` quando um provider
+ * server-side persistir a operação e confirmar a resposta do gateway.
+ */
+export const billingIntegrationReady = false;
+
+export class UnavailablePaymentProvider implements PaymentProvider {
+  async createSubscription(_params: CreateSubscriptionParams): Promise<{
+    externalId: string;
+    status: SubscriptionStatus;
+  }> {
+    throw new BillingIntegrationUnavailableError();
+  }
+
+  async cancelSubscription(_externalId: string): Promise<void> {
+    throw new BillingIntegrationUnavailableError();
+  }
+
+  async createCheckoutUrl(_params: CreateCheckoutParams): Promise<string> {
+    throw new BillingIntegrationUnavailableError();
+  }
+
+  async changePlan(
+    _externalId: string,
+    _newPlanCode: string,
+    _billingCycle: BillingCycle,
+  ): Promise<void> {
+    throw new BillingIntegrationUnavailableError();
+  }
+}
+
+export const paymentProvider: PaymentProvider = new UnavailablePaymentProvider();

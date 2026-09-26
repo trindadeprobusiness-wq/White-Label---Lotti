@@ -8,7 +8,7 @@ import { CreditCard, Loader2, Sparkles, AlertTriangle, Ban } from 'lucide-react'
 import { useSubscriptionSummary, useAllPlans } from '@/hooks/useSubscription';
 import { UsageBar } from '@/components/subscription/UsageBar';
 import { PlanCard } from '@/components/subscription/PlanCard';
-import { paymentProvider } from '@/services/paymentProvider';
+import { billingIntegrationReady, paymentProvider } from '@/services/paymentProvider';
 import type { BillingCycle, FeatureKey, PlanWithEntitlements, SubscriptionSummary } from '@/types/subscription';
 import { acaoEntrePlanos, cotasIncompativeis } from '@/lib/planos';
 import { toast } from 'sonner';
@@ -17,22 +17,26 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const DEMO_LIMITS: Record<string, [number, number, number]> = {
-  max_imoveis: [5, 20, 100],
-  max_contratos_locacao: [5, 15, 100],
-  max_fachadas: [5, 20, 100],
-  ai_contracts_monthly: [10, 20, 60],
+const DEMO_LIMITS: Record<string, [number | null, number | null, number | null]> = {
+  max_imoveis: [250, 1500, null],
+  max_contratos_locacao: [5, 30, null],
+  max_fachadas: [15, 60, null],
+  ai_contracts_monthly: [10, 25, 40],
+  leads_qualificados_monthly: [100, 250, 600],
 };
 
+// Mantida exportada para o teste da prévia local; não carrega estado global.
+// eslint-disable-next-line react-refresh/only-export-components
 export function criarAssinaturaDemonstracao(
   planoAtual: 'essencial' | 'profissional' | 'imobiliaria' = 'essencial',
 ): { summary: SubscriptionSummary; plans: PlanWithEntitlements[] } {
   const now = new Date();
   const iso = now.toISOString();
   const codes = ['essencial', 'profissional', 'imobiliaria'] as const;
-  const names = ['Lotti Essencial', 'Lotti Profissional', 'Lotti Imobiliária'] as const;
-  const prices = [129, 249, 499];
+  const names = ['Lotti Inteligente', 'Lotti Profissional', 'Lotti Eficazes'] as const;
+  const prices = [279, 399, 799];
   const featureNames: Record<string, string> = {
+    leads_qualificados_monthly: 'Leads atendidos pela IA / mês',
     max_imoveis: 'Imóveis ativos',
     max_contratos_locacao: 'Contratos de aluguel ativos',
     max_fachadas: 'Fachadas Inteligentes',
@@ -48,7 +52,7 @@ export function criarAssinaturaDemonstracao(
       id: `demo-${code}-${key}`, plan_id: `demo-${code}`,
       feature_key: key as FeatureKey, feature_name: featureNames[key],
       category: key === 'max_imoveis' ? 'imoveis' : key === 'max_fachadas' ? 'fachadas' : 'contratos',
-      enabled: true, limit_value: limits[index], unlimited: false,
+      enabled: true, limit_value: limits[index], unlimited: limits[index] === null,
       display_order: order + 1, created_at: iso, updated_at: iso,
     })),
   }));
@@ -70,12 +74,12 @@ export function criarAssinaturaDemonstracao(
       plan,
       usage: plan.entitlements.map((entitlement) => {
         const value = used[entitlement.feature_key] ?? 0;
-        const limit = entitlement.limit_value!;
-        const ratio = value / limit;
+        const limit = entitlement.limit_value;
+        const ratio = limit === null ? null : value / limit;
         return {
           feature_key: entitlement.feature_key, feature_name: entitlement.feature_name,
-          used: value, limit, unlimited: false, ratio,
-          status: ratio >= 1 ? 'exceeded' : ratio >= 0.8 ? 'warning' : 'ok',
+          used: value, limit, unlimited: entitlement.unlimited, ratio,
+          status: ratio !== null && ratio >= 1 ? 'exceeded' : ratio !== null && ratio >= 0.8 ? 'warning' : 'ok',
         };
       }),
       addons: [], campaign: null, daysLeftInTrial: null, isReadOnly: false,
@@ -168,12 +172,23 @@ export function PlanoAssinatura() {
   };
 
   const usageComercial = usage.filter((item) => [
-    'max_imoveis', 'max_contratos_locacao', 'max_fachadas', 'ai_contracts_monthly',
+    'leads_qualificados_monthly', 'max_imoveis', 'max_contratos_locacao', 'max_fachadas', 'ai_contracts_monthly',
   ].includes(item.feature_key));
   const precoAtual = subscription.billing_cycle === 'annual' ? plan.annual_price : plan.monthly_price;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-0">
+      {!billingIntegrationReady && !demoAtiva && (
+        <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 p-4" role="status">
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-warning" />
+          <div>
+            <h2 className="font-semibold">Alterações de assinatura temporariamente indisponíveis</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Seu plano e consumo continuam visíveis, mas troca e cancelamento ficam bloqueados até a ativação segura do checkout SaaS.
+            </p>
+          </div>
+        </div>
+      )}
       {isReadOnly && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
@@ -241,6 +256,7 @@ export function PlanoAssinatura() {
             variant="destructive"
             className="min-h-11 w-full font-semibold shadow-sm sm:w-auto"
             onClick={() => setCancelOpen(true)}
+            disabled={!billingIntegrationReady}
           >
             <Ban className="mr-2 h-4 w-4" /> Cancelar assinatura
           </Button>
@@ -309,6 +325,7 @@ export function PlanoAssinatura() {
                   : acaoEntrePlanos(plan, p) === 'downgrade'
                     ? `Fazer downgrade para ${p.name}`
                     : undefined}
+              disabled={!billingIntegrationReady && !demoAtiva}
             />
           ))}
         </div>

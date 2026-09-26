@@ -2,7 +2,7 @@
 // Lotti — Hook de assinatura e limites
 // ============================================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCRMStore } from '@/stores/crmStore';
 import type {
@@ -19,6 +19,7 @@ import type {
   LimitCheck,
 } from '@/types/subscription';
 import { proximoPlanoParaCota } from '@/lib/planos';
+import { monthlyUsagePeriod } from '@/lib/billingPeriod';
 
 // ── Buscar todos os planos (com entitlements) ──
 export function useAllPlans() {
@@ -64,7 +65,8 @@ export function useCurrentSubscription() {
         .from('subscriptions')
         .select('*, plan:plans(*)')
         .eq('corretor_id', corretorId)
-        .in('status', ['trialing', 'active', 'past_due', 'read_only'])
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -84,21 +86,15 @@ export function useUsage() {
       if (!corretorId) return [];
 
       const now = new Date();
-      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        .toISOString()
-        .split('T')[0];
-
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-        .toISOString()
-        .split('T')[0];
+      const { start: periodStart, end: periodEnd } = monthlyUsagePeriod(now);
       const [monthly, imoveis, contratos, fachadas] = await Promise.all([
         supabase.from('usage_counters').select('*')
           .eq('corretor_id', corretorId).eq('period_start', periodStart),
         supabase.from('imoveis').select('id', { count: 'exact', head: true })
           .eq('corretor_id', corretorId).eq('ativo', true),
         supabase.from('contratos').select('id', { count: 'exact', head: true })
-          .eq('corretor_id', corretorId).eq('tipo', 'LOCACAO_RESIDENCIAL').eq('status', 'ATIVO'),
-        (supabase as any).from('fachadas').select('id', { count: 'exact', head: true })
+          .eq('corretor_id', corretorId).in('tipo', ['LOCACAO_RESIDENCIAL', 'LOCACAO_COMERCIAL']).eq('status', 'ATIVO'),
+        supabase.from('fachadas').select('id', { count: 'exact', head: true })
           .eq('corretor_id', corretorId).eq('ativo', true),
       ]);
 
@@ -209,16 +205,22 @@ export function useCheckLimit() {
     if (!subscription || !plans) return LEGADO;
 
     const plan = plans.find((p) => p.id === subscription.plan_id);
-    if (!plan) return LEGADO;
+    if (!plan) return BLOQUEADO;
+
+    const endsAt = subscription.status === 'trialing' ? subscription.trial_ends_at : subscription.current_period_end;
+    if (!['active', 'trialing'].includes(subscription.status) || !endsAt || Date.parse(endsAt) <= Date.now()) {
+      return { ...BLOQUEADO, currentPlan: plan };
+    }
 
     const entitlement = plan.entitlements.find((e) => e.feature_key === featureKey);
-    if (!entitlement) return LEGADO;
+    if (!entitlement) return BLOQUEADO;
     const common = {
       featureName: entitlement.feature_name,
       currentPlan: plan,
       recommendedPlan: proximoPlanoParaCota(plans, plan.id, featureKey),
       ready: true,
     };
+    if (!entitlement.enabled) return { ...BLOQUEADO, ...common };
 
     // Feature boolean (tem ou não tem)
     if (entitlement.limit_value === null && !entitlement.unlimited) {
@@ -281,57 +283,6 @@ export function useCheckLimit() {
   };
 
   return checkLimit;
-}
-
-// ── Incrementar uso (chamado após operação bem-sucedida) ──
-export function useIncrementUsage() {
-  const corretorId = useCRMStore((s) => s.corretor?.id);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (featureKey: FeatureKey) => {
-      if (!corretorId) throw new Error('Corretor não logado');
-
-      const now = new Date();
-      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        .toISOString()
-        .split('T')[0];
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-        .toISOString()
-        .split('T')[0];
-
-      // Upsert: cria ou incrementa
-      const { data: existing } = await supabase
-        .from('usage_counters')
-        .select('id, used_quantity')
-        .eq('corretor_id', corretorId)
-        .eq('feature_key', featureKey)
-        .eq('period_start', periodStart)
-        .maybeSingle();
-
-      if (existing) {
-        const { error } = await supabase
-          .from('usage_counters')
-          .update({ used_quantity: existing.used_quantity + 1 })
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('usage_counters')
-          .insert({
-            corretor_id: corretorId,
-            feature_key: featureKey,
-            used_quantity: 1,
-            period_start: periodStart,
-            period_end: periodEnd,
-          });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['usage', corretorId] });
-    },
-  });
 }
 
 // ── Resumo completo para a página /plano ──
@@ -398,7 +349,9 @@ export function useSubscriptionSummary(): {
       addons: addons || [],
       campaign: campaign || null,
       daysLeftInTrial,
-      isReadOnly: subscription.status === 'read_only',
+      isReadOnly: !['active', 'trialing'].includes(subscription.status)
+        || !((subscription.status === 'trialing' ? subscription.trial_ends_at : subscription.current_period_end))
+        || Date.parse((subscription.status === 'trialing' ? subscription.trial_ends_at : subscription.current_period_end)!) <= Date.now(),
     },
     isLoading: false,
   };

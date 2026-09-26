@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { LOTTI_PROMPT_VERSIONS } from "../_shared/ai/prompt-registry.ts";
-import { checarCota, registrarUso } from "../_shared/cotas.ts";
+import { reserveContractQuota, finishContractQuota } from "../_shared/quota-reservation.ts";
 import { requestGeminiContent } from "../_shared/ai/provider.ts";
 
 const corsHeaders = {
@@ -305,6 +305,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let finishReservation: ((success: boolean) => Promise<void>) | undefined;
+  let quotaSucceeded = false;
   try {
     // Autenticação: só corretores logados podem usar.
     const authHeader = req.headers.get("Authorization");
@@ -325,14 +327,7 @@ serve(async (req) => {
 
     const { data: corretorId, error: corretorError } = await supabaseClient.rpc('get_corretor_id');
     if (corretorError || !corretorId) return jsonResponse({ error: 'Perfil de corretor não encontrado' }, 403);
-    const cota = await checarCota(supabaseClient, corretorId, 'ai_contracts_monthly');
-    if (!cota.permitido) {
-      return jsonResponse({
-        error: 'Limite mensal de operações com IA atingido.',
-        code: 'PLAN_LIMIT_REACHED', featureKey: 'ai_contracts_monthly',
-        used: cota.usado, limit: cota.limite,
-      }, 402);
-    }
+
 
     const { fileBase64, mimeType, modo } = await req.json();
     const isCentral = modo === "central";
@@ -348,6 +343,17 @@ Versão do prompt: ${LOTTI_PROMPT_VERSIONS.contractExtraction}`;
     if (typeof mimeType !== "string" || !ALLOWED_MIME.includes(mimeType)) {
       return jsonResponse({ error: "Formato inválido. Envie PDF ou imagem (JPG, PNG, WEBP)." }, 400);
     }
+
+    const quotaClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const cota = await reserveContractQuota(quotaClient, corretorId);
+    if (!cota.allowed) {
+      return jsonResponse({
+        error: 'Limite mensal de operações com IA atingido.',
+        code: 'PLAN_LIMIT_REACHED', featureKey: 'ai_contracts_monthly',
+        used: cota.used, limit: cota.limit,
+      }, 402);
+    }
+    finishReservation = (success) => finishContractQuota(quotaClient, cota.id!, success);
 
     const response = await requestGeminiContent({
       contents: [{
@@ -388,10 +394,15 @@ Versão do prompt: ${LOTTI_PROMPT_VERSIONS.contractExtraction}`;
       return jsonResponse({ error: "A IA não conseguiu estruturar os dados do contrato" }, 502);
     }
 
-    await registrarUso(supabaseClient, corretorId, 'ai_contracts_monthly');
+    await finishReservation(true);
+    quotaSucceeded = true;
     return jsonResponse({ dados: isCentral ? sanitizeCentral(parsed) : sanitizeExtraction(parsed) });
   } catch (error) {
     console.error("analisar-contrato error:", error);
     return jsonResponse({ error: "Erro interno ao analisar contrato" }, 500);
+  } finally {
+    if (finishReservation && !quotaSucceeded) {
+      await finishReservation(false).catch(() => console.error('QUOTA_RELEASE_FAILED'));
+    }
   }
 });

@@ -22,7 +22,22 @@ describe('compatibilidade de limites na integração da branch', () => {
     expect(useCheckLimit()('max_imoveis')).toMatchObject({ allowed: false, ready: false });
   });
   it('continua bloqueando uma assinatura com cota esgotada', () => {
-    queries({ plan_id: 'p1' });
+    queries({ plan_id: 'p1', status: 'active', current_period_end: '2099-01-01' });
     expect(useCheckLimit()('max_imoveis')).toMatchObject({ allowed: false, used: 5, limit: 5 });
+  });
+});
+
+describe('validade do acesso pago', () => {
+  it.each(['canceled','expired','past_due','read_only'])('não libera estado %s', (status) => {
+    queries({plan_id:'p1',status,current_period_end:'2099-01-01'});
+    expect(useCheckLimit()('max_imoveis').allowed).toBe(false);
+  });
+  it('não transforma plano desconhecido em ilimitado', () => {
+    queries({plan_id:'unknown',status:'active',current_period_end:'2099-01-01'});
+    expect(useCheckLimit()('max_imoveis').allowed).toBe(false);
+  });
+  it('nega acesso quando o período pago terminou', () => {
+    queries({plan_id:'p1',status:'active',current_period_end:'2000-01-01'});
+    expect(useCheckLimit()('max_imoveis').allowed).toBe(false);
   });
 });
