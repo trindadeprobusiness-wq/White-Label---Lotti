@@ -2007,6 +2007,7 @@ credencial); nao foi contornada.
 - Nenhum pagamento real efetuado e nenhuma assinatura sandbox aplicada ao banco de producao. Webhook e provisionamento completos ainda aguardam ambiente isolado. CHECKOUT_ENABLED segue false.
 - Formulario da chave de producao preparado no Comet com escrita em clientes, cobrancas, assinaturas e cartoes; demais permissoes negadas. Asaas exige Token App do titular no iPhone antes de gerar. SMTP proprio e teste de convite externo continuam pendentes.
 
+
 ### 2026-09-26 - Codex (fluxo completo em homologacao isolada)
 - PR #20 da plataforma integrada em 821fe73 e PR #3 do site integrada em 6182b2d. Site publicado em dpl_8cXQuXYaPXMotrSjKC3rTVFdLDsY, Ready com aliases oficiais; a consulta do QR aguarda a geracao assincrona sem duplicar assinatura.
 - Criado projeto Supabase local exclusivo lotti-billing-hml com schema public/private sem dados pessoais, somente catalogo de 3 planos/60 direitos e gatilho de criacao de perfil. Banco de producao nao recebeu contas ou pagamentos simulados.
