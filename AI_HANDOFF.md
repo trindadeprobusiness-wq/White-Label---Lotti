@@ -1,5 +1,14 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — evolução do módulo DRE Gerencial (2026-09-26)
+- Tabela `lancamentos_financeiros` estendida com campos essenciais para DRE: `data_competencia`, `status`, `impacta_dre`, `grupo_dre`, `subcategoria`, `source_type` e `source_id`.
+- ENUM `categoria_financeira` evoluído no banco e `src/types/financeiro.ts` para suportar classificações imobiliárias completas (ex: `TAXA_ADMINISTRACAO`, `MARKETING_ANUNCIO`, `COMISSAO_CORRETOR`, `IMPOSTO_FATURAMENTO`).
+- Migration `20260926170000_dre_financeiro_evolucao.sql` criada para adição das colunas, constraints, índices e backfill seguro (`data_competencia` herdando `data`). (Pendente `db push` remoto por divergência do histórico).
+- Motor de DRE em `src/lib/dre.ts` calcula a DRE em tempo de execução sem redundância no banco. Coberto por testes (`src/lib/dre.test.ts` com 11 passagens).
+- Interface: nova `DRETab.tsx` incluída em `src/pages/Financeiro.tsx`, suportando expansão de linhas, tooltips educacionais, e alerta de lançamentos não classificados. `NovoLancamentoDialog.tsx` atualizado para injetar defaults (`impacta_dre: true`, `status: 'pago'`).
+- Exportação Financeira (`csv.ts` e `Financeiro.tsx`): Adicionada dependência `xlsx`. O botão de exportação virou um menu (`DropdownMenu`) oferecendo opções `Exportar CSV` e `Exportar XLS`.
+- Testes unitários (vitest) e typecheck (tsc) passaram localmente.
+
 ## Codex — seção pública do atendimento automatizado (2026-09-23)
 - A seção `#como-funciona` de `/sobre` foi redesenhada em `src/pages/PublicInfo.tsx` com uma demonstração em formato de celular e três etapas que resumem resposta imediata, qualificação, cruzamento com imóveis, follow-up, agendamento e repasse de contexto ao corretor.
 - `src/pages/PublicInfo.test.tsx` cobre a nova promessa e os principais pontos do fluxo. A alteração preserva a paleta verde/branco, Inter/Lora e os links públicos existentes.

@@ -74,3 +74,19 @@ export function baixarCsv(conteudo: string, nomeArquivo: string): void {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+/** Dispara o download de um arquivo XLSX no navegador. */
+export async function baixarXlsx<T>(itens: readonly T[], colunas: readonly ColunaCsv<T>[], nomeArquivo: string): Promise<void> {
+  const XLSX = await import('xlsx');
+  
+  // Convertendo dados para o formato esperado pelo SheetJS (array de arrays)
+  const cabecalhos = colunas.map(c => c.cabecalho);
+  const linhas = itens.map(item => colunas.map(c => c.valor(item)));
+  
+  const worksheet = XLSX.utils.aoa_to_sheet([cabecalhos, ...linhas]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório');
+  
+  // Grava o arquivo
+  XLSX.writeFile(workbook, nomeArquivo);
+}

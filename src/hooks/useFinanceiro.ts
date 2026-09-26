@@ -25,9 +25,14 @@ interface NovoLancamento {
   descricao: string;
   valor: number;
   data: string;
+  data_competencia?: string;
   recorrente?: boolean;
   contrato_id?: string;
   imovel_id?: string;
+  status?: string;
+  impacta_dre?: boolean;
+  grupo_dre?: string;
+  subcategoria?: string;
 }
 
 export function useFinanceiro() {
@@ -84,6 +89,9 @@ export function useFinanceiro() {
       corretor_id: corretor.id,
       recorrente: novoLancamento.recorrente ?? false,
       data: novoLancamento.data,
+      data_competencia: novoLancamento.data_competencia || novoLancamento.data,
+      status: novoLancamento.status || 'pago',
+      impacta_dre: novoLancamento.impacta_dre ?? true,
     });
 
     // If recurring, add 11 more months
@@ -95,6 +103,9 @@ export function useFinanceiro() {
           corretor_id: corretor.id,
           recorrente: true,
           data: format(proximaData, 'yyyy-MM-dd'),
+          data_competencia: format(proximaData, 'yyyy-MM-dd'),
+          status: novoLancamento.status || 'pago',
+          impacta_dre: novoLancamento.impacta_dre ?? true,
           descricao: `${novoLancamento.descricao} (${i + 1}/12)`, // Optional: Add counter to description
         });
       }

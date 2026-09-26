@@ -181,7 +181,7 @@ export function NovoLancamentoDialog({
       {/* Only show trigger if not controlled (i.e., used as standalone button) */}
       {!setControlledOpen && (
         <DialogTrigger asChild>
-          <Button>
+          <Button id="btn-novo-lancamento">
             <Plus className="h-4 w-4 mr-2" />
             Novo Lançamento
           </Button>

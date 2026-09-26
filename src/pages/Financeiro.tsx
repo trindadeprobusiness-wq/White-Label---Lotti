@@ -25,14 +25,21 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFinanceiro } from '@/hooks/useFinanceiro';
 import { PageHeader } from '@/components/shell/PageHeader';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { MetricCard, SectionCard, abasSublinhadas } from '@/components/shell/primitivos';
 import { moeda, percentual, dataBR } from '@/lib/formato';
-import { montarCsv, baixarCsv, nomeArquivoCsv } from '@/lib/admin/csv';
+import { montarCsv, baixarCsv, baixarXlsx, nomeArquivoCsv } from '@/lib/admin/csv';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { LancamentoCard } from '@/components/financeiro/LancamentoCard';
 import { GraficoReceitaDespesa } from '@/components/financeiro/GraficoReceitaDespesa';
 import { GraficoProjecao } from '@/components/financeiro/GraficoProjecao';
 import { GraficoCategorias } from '@/components/financeiro/GraficoCategorias';
+import { DRETab } from '@/components/financeiro/DRETab';
 import { LancamentoFinanceiro, ProjecaoMensal, TipoLancamento } from '@/types/financeiro';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { toast } from 'sonner';
@@ -63,16 +70,26 @@ export default function Financeiro() {
    * já trata separador pt-BR, BOM e injeção de fórmula — o mesmo relatório
    * abre no Excel sem "ImobiliÃ¡ria" e sem executar nada.
    */
+  const colunasExportacao = [
+    { cabecalho: 'Data', valor: (l: LancamentoFinanceiro) => dataBR(l.data) },
+    { cabecalho: 'Tipo', valor: (l: LancamentoFinanceiro) => l.tipo },
+    { cabecalho: 'Categoria', valor: (l: LancamentoFinanceiro) => l.categoria },
+    { cabecalho: 'Descrição', valor: (l: LancamentoFinanceiro) => l.descricao },
+    { cabecalho: 'Valor', valor: (l: LancamentoFinanceiro) => l.valor },
+  ];
+
   const exportarCsv = () => {
     baixarCsv(
-      montarCsv(lancamentos, [
-        { cabecalho: 'Data', valor: (l) => dataBR(l.data) },
-        { cabecalho: 'Tipo', valor: (l) => l.tipo },
-        { cabecalho: 'Categoria', valor: (l) => l.categoria },
-        { cabecalho: 'Descrição', valor: (l) => l.descricao },
-        { cabecalho: 'Valor', valor: (l) => l.valor },
-      ]),
+      montarCsv(lancamentos, colunasExportacao),
       nomeArquivoCsv('financeiro'),
+    );
+  };
+
+  const exportarXlsx = () => {
+    baixarXlsx(
+      lancamentos, 
+      colunasExportacao,
+      nomeArquivoCsv('financeiro').replace('.csv', '.xlsx')
     );
   };
 
@@ -192,10 +209,22 @@ export default function Financeiro() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" className="h-control" onClick={exportarCsv}>
-              <Download className="mr-2 h-[18px] w-[18px]" />
-              Exportar
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-control">
+                  <Download className="mr-2 h-[18px] w-[18px]" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportarXlsx}>
+                  Exportar XLS
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportarCsv}>
+                  Exportar CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <NovoLancamentoDialog onSuccess={carregarDados} />
           </>
@@ -233,6 +262,7 @@ export default function Financeiro() {
       <Tabs defaultValue="visao_geral" className="space-y-5">
         <TabsList className={abasSublinhadas.lista}>
           <TabsTrigger value="visao_geral" className={abasSublinhadas.gatilho}>Visão geral</TabsTrigger>
+          <TabsTrigger value="dre" className={abasSublinhadas.gatilho}>DRE</TabsTrigger>
           <TabsTrigger value="custos" className={abasSublinhadas.gatilho}>Custos</TabsTrigger>
           <TabsTrigger value="faturamento" className={abasSublinhadas.gatilho}>Faturamento</TabsTrigger>
           <TabsTrigger value="projecao" className={abasSublinhadas.gatilho}>Projeção</TabsTrigger>
@@ -343,6 +373,15 @@ export default function Financeiro() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* DRE Gerencial */}
+        <TabsContent value="dre" className="space-y-6">
+          <DRETab 
+            lancamentos={lancamentos} 
+            periodoLabel={periodoLabel[periodo]} 
+            onAddLancamento={() => document.getElementById('btn-novo-lancamento')?.click()}
+          />
         </TabsContent>
 
         {/* Custos */}
