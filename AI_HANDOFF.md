@@ -2022,3 +2022,10 @@ credencial); nao foi contornada.
 - PR #21 integrada em 5555534 apos checks aprovados. Painel distingue renovacao do Pix e cotas por mes de cadastros ativos.
 - Ambiente local de homologacao e tunel encerrados; webhook sandbox exclusivo desativado. Dados locais de teste preservados, sem alterar outros containers ou banco real.
 - Bloqueio restante para novas vendas: configurar SMTP com dominio verificado e homologar convite externo. Login do Resend aberto no Comet e entregue ao titular; nao entrou nesta etapa. CHECKOUT_ENABLED continua false ate verificar esse fluxo. Troca/cancelamento permanecem indisponiveis.
+
+### 2026-09-26 - Codex (SMTP homologado e checkout liberado)
+- Titular entrou na Hostinger pelo Comet. Adicionados apenas TXT DKIM e dois CNAME do subdominio auth; registros anteriores preservados. Consulta ao DNS autoritativo confirmou valores e Resend confirmou dominio Verified.
+- SMTP Resend publicado no Supabase com remetente do dominio verificado. Diff remoto confirmou somente configuracao SMS nao declarada como diferenca; templates e demais configuracoes preservados.
+- Recuperacao e convite de conta nova aceitos pelo Auth com HTTP 200; ambos exibidos como Delivered no Resend. Conta de convite de teste sem assinatura paga. Nenhuma cobranca real criada.
+- CHECKOUT_ENABLED=true em Production e redeploy dpl_HtTizXunggeQzRsiK1Rr5P8HQKWC Ready com aliases oficiais. Smoke: checkout pagina 200, dados invalidos 400 INVALID_CHECKOUT_DATA, webhook sem token 401. Comet confirmou Inteligente mensal 279 e cotas 100/250/5/15/10.
+- Compra, provisionamento, renovacao e cotas previamente homologados no sandbox isolado. Troca/cancelamento dentro da plataforma e ativacao do agente WhatsApp continuam pendentes em escopos separados. Guia operacional atualizado; segredos fora do Git.

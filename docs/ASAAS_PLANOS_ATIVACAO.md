@@ -125,13 +125,27 @@ Fontes oficiais consultadas: [eventos de cobranças](https://docs.asaas.com/docs
 
 ## Estado verificado em 26/09/2026
 
-Codigo integrado: plataforma PR #19 e site PR #2. Banco e funcoes publicados;
-site e plataforma com deployments Ready e dominios oficiais confirmados. Testes:
-672 na plataforma, 8 no site, builds aprovados, ESLint direcionado da plataforma
-e completo do site aprovados. Navegador confirmou selecao mensal/cartao e anual/Pix.
+Plataforma: PRs #19, #20 e #21 integradas. Site: PRs #2 e #3 integradas.
+Banco, funcoes, templates Auth e dominios oficiais publicados. Validacoes anteriores:
+672 testes da plataforma, 8 do site, builds e ESLint direcionado aprovados.
 
-As vendas online permanecem desativadas. O endpoint de compra retorna 503;
-webhook sem token retorna 401. Nao houve cobranca real nem homologacao de pagamento
-Asaas. Uma recuperacao de senha para conta existente autorizada foi aceita pelo
-servico de Auth; ainda falta confirmar recebimento e entrega para novos clientes.
-A conta Asaas na janela acessivel pela automacao ainda aguarda login.
+Homologacao isolada com Asaas sandbox confirmou mensal no cartao e anual no Pix,
+webhook real, conta nova, convite, assinatura e limites. Reenvios nao duplicaram
+assinaturas nem periodos; o 251o imovel do plano Inteligente foi bloqueado.
+Pix tem consulta com repeticao limitada para aguardar geracao assincrona do QR,
+sem criar outra cobranca. Ambiente e webhook sandbox encerrados ao terminar.
+
+Asaas de producao conectado com chave sensivel no servidor e webhook exclusivo
+ativo, autenticado e sequencial. Integracao anterior de alugueis preservada.
+Dominio de envio auth.plataformalotti.com.br verificado no Resend; registros DKIM
+e CNAME publicados na Hostinger. SMTP Resend configurado no Supabase; recuperacao
+e convite para conta nova aceitos pelo Auth com HTTP 200 e registrados como
+Delivered no Resend. Credenciais nao constam neste documento ou no Git.
+
+CHECKOUT_ENABLED habilitado no ambiente Production apos essas verificacoes.
+Deployment dpl_HtTizXunggeQzRsiK1Rr5P8HQKWC confirmado Ready com aliases oficiais.
+Smoke publico: pagina de checkout 200; dados invalidos 400 INVALID_CHECKOUT_DATA;
+webhook sem autenticacao 401. O endpoint de compra nao esta mais bloqueado por configuracao.
+Nenhuma cobranca real foi criada. A conta de teste de convite nao recebeu
+assinatura paga. Troca/cancelamento na plataforma continuam indisponiveis;
+pareamento e envio real de WhatsApp continuam em homologacao separada.
