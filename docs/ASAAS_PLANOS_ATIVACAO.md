@@ -122,3 +122,16 @@ Fontes oficiais consultadas: [eventos de cobranças](https://docs.asaas.com/docs
 [webhooks](https://docs.asaas.com/docs/sobre-os-webhooks),
 [assinaturas](https://docs.asaas.com/reference/criar-nova-assinatura),
 [referência externa](https://docs.asaas.com/reference/listar-assinaturas).
+
+## Estado verificado em 26/09/2026
+
+Codigo integrado: plataforma PR #19 e site PR #2. Banco e funcoes publicados;
+site e plataforma com deployments Ready e dominios oficiais confirmados. Testes:
+672 na plataforma, 8 no site, builds aprovados, ESLint direcionado da plataforma
+e completo do site aprovados. Navegador confirmou selecao mensal/cartao e anual/Pix.
+
+As vendas online permanecem desativadas. O endpoint de compra retorna 503;
+webhook sem token retorna 401. Nao houve cobranca real nem homologacao de pagamento
+Asaas. Uma recuperacao de senha para conta existente autorizada foi aceita pelo
+servico de Auth; ainda falta confirmar recebimento e entrega para novos clientes.
+A conta Asaas na janela acessivel pela automacao ainda aguarda login.
