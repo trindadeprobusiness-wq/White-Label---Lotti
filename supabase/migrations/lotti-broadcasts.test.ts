@@ -282,6 +282,11 @@ describe('permissões', () => {
     finally { await db.exec('RESET ROLE; RESET request.jwt.claim.sub'); }
   });
 
+  it('a ponte marca presença a cada rodada e a tela consegue ler', async () => {
+    await claim();
+    expect(await asUser<boolean>(ownerUser, `select seen_at > now() - interval '1 minute' r from lotti_automation_heartbeat`)).toBe(true);
+  });
+
   it('outra conta não controla nem duplica a campanha', async () => {
     const id = await save(campaign());
     await expect(asUser(otherUser, 'select public.lotti_broadcast_control($1,$2) r', [id, 'cancel'])).rejects.toThrow(/forbidden/);

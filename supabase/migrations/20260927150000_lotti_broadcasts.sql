@@ -55,6 +55,18 @@ create table public.lotti_broadcast_events (
   created_at timestamptz not null default now()
 );
 
+-- A ponte marca presença a cada rodada de envio automático. A tela usa isso
+-- para avisar quando o envio automático não está liberado (nada sai da fila).
+create table public.lotti_automation_heartbeat (
+  id smallint primary key default 1 check (id = 1),
+  seen_at timestamptz not null default now()
+);
+alter table public.lotti_automation_heartbeat enable row level security;
+revoke all on public.lotti_automation_heartbeat from anon, authenticated;
+grant select on public.lotti_automation_heartbeat to authenticated;
+grant all on public.lotti_automation_heartbeat to service_role;
+create policy lotti_automation_heartbeat_read on public.lotti_automation_heartbeat for select to authenticated using (true);
+
 create index lotti_broadcast_campaign_owner_idx on public.lotti_broadcast_campaigns(corretor_id, updated_at desc);
 create index lotti_broadcast_campaign_due_idx on public.lotti_broadcast_campaigns(starts_at) where status = 'scheduled';
 create index lotti_broadcast_delivery_due_idx on public.lotti_broadcast_deliveries(scheduled_at) where status = 'pending';
@@ -326,6 +338,8 @@ language plpgsql security invoker set search_path = '' as $$
 declare v_campaign uuid; d public.lotti_broadcast_deliveries; cv public.lotti_agent_conversations; ch public.lotti_agent_channels;
   b public.lotti_broadcast_campaigns; v_token uuid := gen_random_uuid(); v_in timestamptz; v_reason text; v_outbox text; v_skipped int := 0;
 begin
+  insert into public.lotti_automation_heartbeat(id, seen_at) values (1, now())
+  on conflict (id) do update set seen_at = excluded.seen_at;
   for v_campaign in select id from public.lotti_broadcast_campaigns where status = 'scheduled' and starts_at <= now() order by starts_at limit 5 loop
     perform public.lotti_broadcast_start(v_campaign);
   end loop;
