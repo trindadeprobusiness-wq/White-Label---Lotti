@@ -2061,3 +2061,18 @@ credencial); nao foi contornada.
   - resposta com preço fora do catálogo ou do que o lead disse é rejeitada (SCRUM-34);
   - log `lotti.ai_usage` só com tokens (SCRUM-50).
 - Nada aplicado nem publicado.
+### 2026-09-27 - Claude (Agente de IA, etapa 1: configuração real)
+- Plataforma, branch `claude/agente-ia-configuracao-real` (a partir de `origin/main` 603208a):
+  - a tela do Agente de IA veio da `codex/follow-up-leads` para `/whatsapp/agente`, no grupo "Automações";
+  - `20260927130000_lotti_agent_settings.sql` cria `lotti_agent_settings` (leitura só do dono), `lotti_agent_save_settings` (validação no servidor; "Agente ativo" liga `lotti_agent_channels.enabled`), `lotti_agent_defer` (adia ou pula e devolve a franquia de quem a IA não atendeu) e `lotti_agent_handoff` (pausa a IA, avisa e move a etapa do funil). Também desacopla "Nova conversa" do agente ligado;
+  - a tela abre com a cópia local e usa a versão do banco. Sem a migration, salva no navegador e avisa. O agente começa desligado.
+- Ponte, branch `claude/agente-usa-configuracao` sobre `claude/no-logout-on-reconnect`:
+  - com configuração salva, o texto do agente sai da persona e das preferências, sobre as regras fixas;
+  - o agente fala como alguém da equipe e não cita IA nem Lotti; se perguntado diretamente, não mente;
+  - usa o modelo escolhido (OpenAI ou Gemini, com fallback), "quando atender", agrupamento, a ferramenta "Imóveis" e a transferência com mensagem ou silenciosa;
+  - sem configuração salva, comporta-se exatamente como antes.
+- Verificação: plataforma com 93 arquivos e 749 testes (16 da migration em PGlite) e build; ponte com 85/85.
+- Correções relacionadas, em branches próprias:
+  - `claude/whatsapp-reconexao-e-rolagem` (plataforma): a tela não pede "conectar" durante a reconexão, e a conversa abre na última mensagem;
+  - `claude/no-logout-on-reconnect` (ponte): sem logout de sessão reconectando. A causa foi confirmada pelo "Log out instance" no teste real.
+- Pendente: etapa 2 (envio de follow-up) e etapa 3 (disparos: decidir entre WhatsApp Web com limites ou API oficial da Meta). Nada aplicado nem publicado.
