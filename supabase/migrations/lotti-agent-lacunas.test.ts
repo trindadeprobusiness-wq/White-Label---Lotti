@@ -3,6 +3,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 
 // Lacunas confirmadas nas tarefas SCRUM-32, SCRUM-35 e SCRUM-37 (docs/jira/agente-mensagens.md).
+// SCRUM-37 (opt-out) foi corrigida em 20260927120100 e seus testes agora são `it`.
 // Cada `it.fails` descreve o comportamento ESPERADO e hoje falha de propósito:
 // a suíte continua verde e o teste passa a acusar erro quando a lacuna for corrigida
 // (troque `it.fails` por `it` nesse momento). Os cenários e as pré-condições do
@@ -18,6 +19,8 @@ const migrations = [
   '20260924000100_lotti_channel_company_name.sql',
   '20260924000200_lotti_inbox_events.sql',
   '20260925000100_lotti_inbox_status_events.sql',
+  '20260927120000_lotti_agent_stalled_claims.sql',
+  '20260927120100_lotti_agent_opt_out.sql',
 ];
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const plan = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
@@ -133,16 +136,16 @@ describe('SCRUM-37 — pedido de descadastro (opt-out)', () => {
     conversationId = (await conversation(phone)).id;
     await db.query(`update lotti_agent_conversations set processed_revision=revision where id=$1`, [conversationId]);
     await ingest(phone, 'o-2', 'SAIR. Não quero mais receber mensagens.');
-    const state = await one<{ mode: string; pending: boolean }>('select mode,revision>processed_revision pending from lotti_agent_conversations where id=$1', [conversationId]);
-    assume(state.mode === 'ai' && state.pending, 'o pedido de descadastro deveria estar registrado como mensagem nova');
+    const state = await one<{ pending: boolean }>('select revision>processed_revision pending from lotti_agent_conversations where id=$1', [conversationId]);
+    assume(state.pending, 'o pedido de descadastro deveria estar registrado como mensagem nova');
   });
 
-  it.fails('ESPERADO: depois do "SAIR" a IA não reserva a conversa para responder automaticamente', async () => {
+  it('ESPERADO: depois do "SAIR" a IA não reserva a conversa para responder automaticamente', async () => {
     const job = await claimOnly(conversationId);
     expect(job?.id).not.toBe(conversationId);
   });
 
-  it.fails('ESPERADO: depois do "SAIR" um novo envio manual não é liberado sem novo contato do lead', async () => {
+  it('ESPERADO: depois do "SAIR" um novo envio manual não é liberado sem novo contato do lead', async () => {
     await db.query(`update lotti_agent_conversations set mode='human',lease_token=null,lease_until=null where id=$1`, [conversationId]);
     const status = await one<{ r: { status: string } }>(`select public.lotti_manual_begin($1,$2,gen_random_uuid(),'fp','Temos novas opções para você',null) r`, [owner, conversationId])
       .then(result => result.r.status, () => 'recusado');
