@@ -25,10 +25,11 @@ it('edita o nome e o telefone atuais', () => {
   expect(submit).toHaveBeenCalledWith({name:'Maria Silva',phone:'5562988887777'});
 });
 
-it('renomeia contato com número oculto sem exigir telefone', () => {
+it('renomeia contato com número oculto sem permitir digitar telefone', () => {
   const submit=vi.fn();
-  render(<RenameContactDialog open initialName="Paula" initialPhone="" phoneOptional onOpenChange={()=>{}} onSubmit={submit} pending={false} />);
+  render(<RenameContactDialog open initialName="Paula" initialPhone="" phoneHidden onOpenChange={()=>{}} onSubmit={submit} pending={false} />);
   expect(screen.getByText(/WhatsApp não mostrou o número/i)).not.toBeNull();
+  expect((screen.getByLabelText('Telefone') as HTMLInputElement).disabled).toBe(true);
   fireEvent.change(screen.getByLabelText('Nome do cliente'),{target:{value:'Paula Lima'}});
   fireEvent.click(screen.getByRole('button',{name:'Salvar contato'}));
   expect(submit).toHaveBeenCalledWith({name:'Paula Lima',phone:''});

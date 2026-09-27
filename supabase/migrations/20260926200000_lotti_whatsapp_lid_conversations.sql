@@ -13,7 +13,8 @@ create unique index if not exists lotti_agent_conversation_lid_key
 
 -- Moves a LID-only conversation into the conversation that already has the
 -- phone. Duplicate provider messages are kept once; the dropped row's outbox
--- is removed by cascade.
+-- is removed by cascade, so callers must not merge while it is sending. The
+-- more restrictive state wins: a broker attending either row keeps the AI off.
 create or replace function public.lotti_agent_merge_conversation(p_keep uuid,p_drop uuid) returns void
 language plpgsql security invoker set search_path='' as $$
 declare keep_row public.lotti_agent_conversations; drop_row public.lotti_agent_conversations;
@@ -34,14 +35,23 @@ begin
     lid=coalesce(keep_row.lid,drop_row.lid),
     contact_name=coalesce(keep_row.contact_name,drop_row.contact_name),
     cliente_id=coalesce(keep_row.cliente_id,drop_row.cliente_id),
-    qualification=coalesce(keep_row.qualification,drop_row.qualification),
+    qualification=case when keep_row.qualification='{}'::jsonb then drop_row.qualification else keep_row.qualification end,
+    notified_stage=coalesce(keep_row.notified_stage,drop_row.notified_stage),
+    status=case when 'open' in (keep_row.status,drop_row.status) then 'open' else keep_row.status end,
     updated_at=greatest(keep_row.updated_at,drop_row.updated_at)
   where id=p_keep;
+  -- Mode is only written when it changes, so the manual-send guard is not triggered needlessly.
+  if keep_row.mode='ai' and drop_row.mode<>'ai' then
+    update public.lotti_agent_conversations set mode=drop_row.mode,lease_token=null,lease_until=null where id=p_keep;
+  end if;
 end $$;
 
 -- Finds or creates the conversation for a phone and/or LID in one channel.
 -- When both identifiers point to different rows, the LID row is merged into
--- the phone row. A phone already bound to another LID is left untouched.
+-- the phone row. A phone already bound to another LID is left untouched, and
+-- the merge waits while the LID row has an automatic reply being delivered.
+-- One lock per channel serializes resolutions, so a history batch and a live
+-- message cannot lock the same two rows in opposite order.
 create or replace function public.lotti_agent_resolve_conversation(
   p_channel uuid,p_phone text,p_lid text,p_mode text default null,p_updated_at timestamptz default now())
 returns public.lotti_agent_conversations
@@ -55,6 +65,7 @@ begin
   end if;
   select * into ch from public.lotti_agent_channels where id=p_channel;
   if ch.id is null then raise exception 'unknown_channel'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_channel::text,715));
   if v_phone is not null then
     select * into by_phone from public.lotti_agent_conversations where channel_id=p_channel and phone=v_phone for update;
   end if;
@@ -62,7 +73,10 @@ begin
     select * into by_lid from public.lotti_agent_conversations where channel_id=p_channel and lid=v_lid for update;
   end if;
   if by_phone.id is not null and by_lid.id is not null and by_phone.id<>by_lid.id then
-    if by_phone.lid is null then perform public.lotti_agent_merge_conversation(by_phone.id,by_lid.id); end if;
+    if by_phone.lid is null and not exists(select 1 from public.lotti_agent_outbox
+       where conversation_id=by_lid.id and status in ('sending','uncertain')) then
+      perform public.lotti_agent_merge_conversation(by_phone.id,by_lid.id);
+    end if;
     v_id:=by_phone.id;
   elsif by_phone.id is not null then
     if v_lid is not null and by_phone.lid is null then
@@ -70,8 +84,7 @@ begin
     end if;
     v_id:=by_phone.id;
   elsif by_lid.id is not null then
-    -- The provider's number wins over one typed by hand; no other row has it.
-    if v_phone is not null and by_lid.phone is distinct from v_phone then
+    if v_phone is not null and by_lid.phone is null then
       update public.lotti_agent_conversations set phone=v_phone where id=by_lid.id;
     end if;
     v_id:=by_lid.id;
@@ -83,7 +96,7 @@ begin
       insert into public.lotti_agent_conversations(channel_id,corretor_id,phone,lid,mode,updated_at)
       values(p_channel,ch.corretor_id,v_phone,v_lid,p_mode,p_updated_at) on conflict do nothing returning id into v_id;
     end if;
-    if v_id is null then -- created concurrently by another event
+    if v_id is null then -- created concurrently outside this lock (e.g. a new conversation started by the broker)
       select id into v_id from public.lotti_agent_conversations
       where channel_id=p_channel and ((v_phone is not null and phone=v_phone) or (v_lid is not null and lid=v_lid))
       order by phone is null limit 1;
@@ -243,7 +256,9 @@ begin
      insert into public.alertas(corretor_id,cliente_id,tipo,mensagem,metadata,origem) values(cv.corretor_id,cv.cliente_id,'GERAL','Novo contato aguardando atendimento: plano de IA indisponível',jsonb_build_object('source','lotti_agent','conversation_id',cv.id),'ia');
      return jsonb_build_object('blocked','no_active_entitlement');
    end if;
-   if not exists(select 1 from public.lotti_agent_usage where corretor_id=ch.corretor_id and phone=contact_key and period_start=pstart) then
+   -- A contact first seen by LID keeps its usage row after the phone appears.
+   if not exists(select 1 from public.lotti_agent_usage where corretor_id=ch.corretor_id and period_start=pstart
+      and phone in (cv.phone,'lid:'||cv.lid)) then
      select coalesce(max(used_quantity),0) into used from public.usage_counters where corretor_id=ch.corretor_id and feature_key='leads_qualificados_monthly' and period_start=pstart;
      if not coalesce(unlimited_flag,false) and used>=allowance then
        update public.lotti_agent_conversations set mode='human',last_error='quota_exhausted' where id=cv.id;
@@ -304,8 +319,9 @@ begin
  return jsonb_build_object('status','ready','instance',ch.instance,'phone',cv.phone,'lid',cv.lid);
 end $$;
 
--- Rename works without a CRM record; a conversation with a hidden number can be
--- renamed without typing a phone, and the broker may fill the phone later.
+-- Rename works without a CRM record. When WhatsApp identifies the contact by
+-- LID, the number is WhatsApp's: a typed number could reach a stranger or link
+-- the wrong CRM record, so it cannot be changed here.
 create or replace function public.lotti_inbox_update_contact(p_conversation uuid,p_name text,p_phone text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
@@ -317,11 +333,12 @@ begin
   select c.corretor_id,c.cliente_id,c.phone,c.lid into v_owner,v_client,v_current_phone,v_lid
     from public.lotti_agent_conversations c where c.id=p_conversation for update;
   if v_owner is null or not exists(select 1 from public.corretores r where r.id=v_owner and r.user_id=auth.uid()) then raise exception 'forbidden'; end if;
-  if v_phone='' and v_current_phone is null and v_lid is not null then
-    v_phone:=null;
-  else
-    if length(v_phone) in (10,11) then v_phone:='55'||v_phone; end if;
-    if length(v_phone)<12 or length(v_phone)>15 then raise exception 'invalid_phone'; end if;
+  if length(v_phone) in (10,11) then v_phone:='55'||v_phone; end if;
+  if v_lid is not null then
+    if v_phone<>'' and v_phone is distinct from v_current_phone then raise exception 'phone_managed_by_whatsapp'; end if;
+    v_phone:=v_current_phone;
+  elsif length(v_phone)<12 or length(v_phone)>15 then
+    raise exception 'invalid_phone';
   end if;
   if v_current_phone is distinct from v_phone then
     if exists(select 1 from public.lotti_agent_outbox where conversation_id=p_conversation and status in ('sending','uncertain'))

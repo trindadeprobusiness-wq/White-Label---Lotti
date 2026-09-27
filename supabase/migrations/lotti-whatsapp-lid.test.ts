@@ -13,10 +13,14 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
     db.query<{ r: Record<string, unknown> }>('select public.lotti_agent_ingest($1::jsonb) r', [JSON.stringify({ instance: 'lotti-agent', text: 'Oi', from_me: false, unsupported: false, ...event })]);
   const importHistory = (messages: Record<string, unknown>[]) =>
     db.query<{ r: { imported: number } }>('select public.lotti_agent_import_history($1,$2::jsonb) r', ['lotti-agent', JSON.stringify(messages)]);
-  const conversation = async (where: string) => (await db.query<{ id: string; phone: string | null; lid: string | null; cliente_id: string | null; contact_name: string | null; updated_at: string }>(
-    `select c.id,c.phone,c.lid,c.cliente_id,c.contact_name,c.updated_at from lotti_agent_conversations c join lotti_agent_channels h on h.id=c.channel_id where h.instance='lotti-agent' and ${where}`)).rows;
+  const conversation = async (where: string) => (await db.query<{ id: string; phone: string | null; lid: string | null; cliente_id: string | null; contact_name: string | null; updated_at: string; mode: string; status: string; qualification: Record<string, unknown>; notified_stage: string | null }>(
+    `select c.id,c.phone,c.lid,c.cliente_id,c.contact_name,c.updated_at,c.mode,c.status,c.qualification,c.notified_stage from lotti_agent_conversations c join lotti_agent_channels h on h.id=c.channel_id where h.instance='lotti-agent' and ${where}`)).rows;
   const messagesOf = async (id: string) => (await db.query<{ external_id: string }>(
     'select external_id from lotti_agent_messages where conversation_id=$1 order by external_id', [id])).rows.map((row) => row.external_id);
+  const asBroker = async <T,>(work: () => Promise<T>) => {
+    await db.exec(`SET request.jwt.claim.sub='${user}'; SET ROLE authenticated`);
+    try { return await work(); } finally { await db.exec('RESET ROLE'); }
+  };
 
   beforeAll(async () => {
     db = new PGlite();
@@ -31,11 +35,16 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
       CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text);
       CREATE TABLE public.crm_etapas(id uuid primary key, nome text);
       CREATE TABLE public.crm_oportunidades(id uuid primary key, corretor_id uuid, cliente_id uuid, etapa_id uuid, titulo text);
+      CREATE TABLE public.subscriptions(corretor_id uuid, plan_id text, status text, trial_ends_at timestamptz, current_period_end timestamptz, created_at timestamptz default now());
+      CREATE TABLE public.plan_entitlements(plan_id text, feature_key text, limit_value int, unlimited boolean, enabled boolean);
+      CREATE TABLE public.usage_counters(corretor_id uuid, feature_key text, used_quantity int, period_start date, period_end date, updated_at timestamptz, unique(corretor_id,feature_key,period_start));
       CREATE SCHEMA storage;
       CREATE TABLE storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
       CREATE TABLE storage.objects(id uuid primary key default gen_random_uuid(), bucket_id text, name text);
       CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql AS $$ SELECT string_to_array(name,'/') $$;
       INSERT INTO corretores VALUES ('${owner}','${user}','Evandro');
+      INSERT INTO subscriptions VALUES ('${owner}','pro','active',null,now()+interval '30 days');
+      INSERT INTO plan_entitlements VALUES ('pro','leads_qualificados_monthly',100,false,true);
     `);
     for (const name of [
       '20260912125137_lotti_agent_runtime.sql',
@@ -93,6 +102,33 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
     expect((await db.query(`select conversation_id from lotti_manual_sends where request_id='22222222-2222-4222-8222-222222222222'`)).rows).toEqual([{ conversation_id: rows[0].id }]);
   });
 
+  it('união preserva atendimento humano, conversa aberta, qualificação e alerta já enviado', async () => {
+    await ingest({ phone: '5511944445555', external_id: 'q-tel-1' });
+    await ingest({ lid: '321321321321321', external_id: 'q-lid-1' });
+    await db.exec(`update lotti_agent_conversations set mode='ai',status='closed' where phone='5511944445555'`);
+    await db.exec(`update lotti_agent_conversations set mode='human',status='open',qualification='{"stage":"qualificado_busca"}',notified_stage='qualificado_busca' where lid='321321321321321'`);
+
+    await ingest({ lid: '321321321321321', phone: '5511944445555', external_id: 'q-2', from_me: true });
+
+    const [row] = await conversation(`c.phone='5511944445555'`);
+    expect(row).toMatchObject({ lid: '321321321321321', mode: 'human', status: 'open', qualification: { stage: 'qualificado_busca' }, notified_stage: 'qualificado_busca' });
+  });
+
+  it('adia a união enquanto a conversa do LID tem uma resposta automática em envio', async () => {
+    await ingest({ phone: '5511955556666', external_id: 'o-tel-1' });
+    await ingest({ lid: '654654654654654', external_id: 'o-lid-1' });
+    const [hidden] = await conversation(`c.lid='654654654654654'`);
+    await db.exec(`insert into lotti_agent_outbox(conversation_id,revision,content,status) values('${hidden.id}',1,'Resposta','sending')`);
+
+    await ingest({ lid: '654654654654654', phone: '5511955556666', external_id: 'o-2' });
+    expect(await conversation(`(c.phone='5511955556666' or c.lid='654654654654654')`)).toHaveLength(2);
+    expect((await db.query(`select status from lotti_agent_outbox where conversation_id='${hidden.id}'`)).rows).toEqual([{ status: 'sending' }]);
+
+    await db.exec(`update lotti_agent_outbox set status='sent' where conversation_id='${hidden.id}'`);
+    await ingest({ lid: '654654654654654', phone: '5511955556666', external_id: 'o-3' });
+    expect(await conversation(`(c.phone='5511955556666' or c.lid='654654654654654')`)).toHaveLength(1);
+  });
+
   it('histórico aceita conversas só com LID e mantém a data antiga', async () => {
     const result = await importHistory([
       { external_id: 'h-lid-1', lid: '555555555555555', from_me: false, text: 'Oi', created_at: '2026-08-01T12:00:00Z', name: 'Bia' },
@@ -128,34 +164,43 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
 
   it('corretor renomeia conversa sem número e sem cliente, mantendo o número oculto', async () => {
     const [row] = await conversation(`c.lid='555555555555555'`);
-    await db.exec(`SET request.jwt.claim.sub='${user}'; SET ROLE authenticated`);
-    const { rows } = await db.query<{ r: Record<string, unknown> }>(`select public.lotti_inbox_update_contact('${row.id}','Beatriz','') r`);
-    await db.exec('RESET ROLE');
+    const { rows } = await asBroker(() => db.query<{ r: Record<string, unknown> }>(`select public.lotti_inbox_update_contact('${row.id}','Beatriz','') r`));
     expect(rows[0].r).toEqual({ name: 'Beatriz', phone: null });
     expect((await conversation(`c.id='${row.id}'`))[0]).toMatchObject({ contact_name: 'Beatriz', phone: null, lid: '555555555555555' });
   });
 
-  it('corretor pode informar o telefone de uma conversa sem número', async () => {
-    const [row] = await conversation(`c.lid='555555555555555'`);
-    await db.exec(`SET request.jwt.claim.sub='${user}'; SET ROLE authenticated`);
-    await db.query(`select public.lotti_inbox_update_contact('${row.id}','Beatriz','(11) 97777-6666')`);
-    await expect(db.query(`select public.lotti_inbox_update_contact('${row.id}','Beatriz','11 93333-4444')`)).rejects.toThrow(/phone_already_in_use/);
-    await db.exec('RESET ROLE');
-    expect((await conversation(`c.id='${row.id}'`))[0]).toMatchObject({ phone: '5511977776666', lid: '555555555555555' });
-  });
-
-  it('número revelado pelo WhatsApp corrige um telefone digitado errado', async () => {
-    const [row] = await conversation(`c.lid='555555555555555'`);
-    expect(row.phone).toBe('5511977776666');
-    await ingest({ lid: '555555555555555', phone: '5511955554444', external_id: 'revelado-1' });
-    expect((await conversation(`c.id='${row.id}'`))[0]).toMatchObject({ phone: '5511955554444', lid: '555555555555555' });
+  it('número de conversa identificada pelo WhatsApp não pode ser digitado pelo corretor', async () => {
+    const [hidden] = await conversation(`c.lid='555555555555555'`);
+    const [revealed] = await conversation(`c.lid='${lid}'`);
+    await asBroker(async () => {
+      await expect(db.query(`select public.lotti_inbox_update_contact('${hidden.id}','Beatriz','(11) 97777-6666')`)).rejects.toThrow(/phone_managed_by_whatsapp/);
+      await expect(db.query(`select public.lotti_inbox_update_contact('${revealed.id}','Paula','(11) 97777-6666')`)).rejects.toThrow(/phone_managed_by_whatsapp/);
+      await db.query(`select public.lotti_inbox_update_contact('${revealed.id}','Paula Lima','5511911112222')`);
+    });
+    expect((await conversation(`c.id='${hidden.id}'`))[0]).toMatchObject({ phone: null });
+    expect((await conversation(`c.id='${revealed.id}'`))[0]).toMatchObject({ phone: '5511911112222', contact_name: 'Paula Lima' });
   });
 
   it('fila automática identifica o destino pelo LID quando não há telefone', async () => {
     await db.exec(`INSERT INTO lotti_agent_channels(corretor_id,instance,enabled,sandbox) VALUES ('${owner}','lotti-sandbox',true,true)`);
     await db.exec(`insert into lotti_agent_conversations(channel_id,corretor_id,lid,mode,revision,processed_revision,next_attempt_at)
-      select id,corretor_id,'444444444444444','ai',1,0,now()-interval '1 minute' from lotti_agent_channels where instance='lotti-sandbox'`);
+      select id,corretor_id,'444444444444444','ai',1,0,now()-interval '2 minutes' from lotti_agent_channels where instance='lotti-sandbox'`);
     const { rows } = await db.query<{ r: Record<string, unknown> }>('select public.lotti_agent_claim() r');
     expect(rows[0].r).toMatchObject({ phone: null, lid: '444444444444444', instance: 'lotti-sandbox' });
+  });
+
+  it('cota de IA conta o contato uma vez, antes e depois do número aparecer', async () => {
+    await db.exec(`update lotti_agent_conversations set mode='human'`);
+    await ingest({ lid: '777777777777777', external_id: 'cota-1' });
+    const claimable = `update lotti_agent_conversations set mode='ai',revision=revision+1,next_attempt_at=now()-interval '1 minute',lease_until=null,lease_token=null where lid='777777777777777'`;
+    const used = async () => (await db.query<{ n: number }>(`select coalesce(sum(used_quantity),0)::int n from usage_counters`)).rows[0].n;
+    await db.exec(claimable);
+    await db.query('select public.lotti_agent_claim()');
+    expect(await used()).toBe(1);
+
+    await ingest({ lid: '777777777777777', phone: '5511977770000', external_id: 'cota-2' });
+    await db.exec(claimable);
+    await db.query('select public.lotti_agent_claim()');
+    expect(await used()).toBe(1);
   });
 });
