@@ -1,5 +1,5 @@
-// Configuração local do Agente de IA. Nada aqui chama WhatsApp, modelo ou
-// servidor: o formato é salvo no navegador até existir persistência remota.
+// Configuração do Agente de IA. O formato é salvo no banco (remoteSettings.ts)
+// e lido pela ponte do WhatsApp; o navegador guarda só uma cópia para abrir rápido.
 
 export const AGENT_SETTINGS_STORAGE_KEY = 'lotti:agent-settings';
 export const PROMPT_LIMIT = 3000;
@@ -155,7 +155,7 @@ export function createDefaultAgentSettings(): AgentSettings {
   const workday = (): DayHours => ({ enabled: true, start: '08:00', end: '18:00' });
   return {
     version: 2,
-    active: true,
+    active: false,
     model: 'gpt-4o-mini',
     identity: {
       name: 'Ana',

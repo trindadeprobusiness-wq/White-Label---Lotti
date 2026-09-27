@@ -3,7 +3,8 @@ import { AlertTriangle, Bot, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { AGENT_TABS, agentModel, loadAgentSettings, saveAgentSettings, type AgentSettings, type AgentTab } from './settings';
+import { AGENT_TABS, agentModel, loadAgentSettings, type AgentSettings, type AgentTab } from './settings';
+import { fetchServerSettings, storeSettings, type SettingsSource } from './remoteSettings';
 import { describeAttendMode, describeBusinessHours, describeHandoff } from './summary';
 import { hasBlockingIssues, issuesByTab, validateAgentSettings } from './validation';
 import { stageName, useStageOptions } from './useStageOptions';
@@ -30,7 +31,8 @@ export default function AgentSettingsPage() {
   const [saved, setSaved] = useState<AgentSettings>(() => loadAgentSettings());
   const [settings, setSettings] = useState<AgentSettings>(saved);
   const [activeTab, setActiveTab] = useState<AgentTab>('identity');
-  const [saveState, setSaveState] = useState<'idle' | 'saved' | 'blocked' | 'failed'>('idle');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'blocked' | 'failed'>('idle');
+  const [source, setSource] = useState<SettingsSource>('browser');
   const { stages, unavailable } = useStageOptions();
 
   const issues = useMemo(() => validateAgentSettings(settings), [settings]);
@@ -52,16 +54,36 @@ export default function AgentSettingsPage() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
+  // Abre na hora com a cópia local e troca pela versão do banco, sem perder edição em andamento.
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    let live = true;
+    fetchServerSettings().then((server) => {
+      if (!live || !server) return;
+      setSource('server');
+      setSaved(server);
+      if (!dirtyRef.current) setSettings(server);
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+
   const change = (next: AgentSettings) => {
     setSettings(next);
     setSaveState((state) => (state === 'blocked' ? 'blocked' : 'idle'));
   };
 
-  const save = () => {
+  const save = async () => {
     if (hasBlockingIssues(issues)) { setSaveState('blocked'); return; }
-    if (!saveAgentSettings(settings)) { setSaveState('failed'); return; }
-    setSaved(settings);
-    setSaveState('saved');
+    const snapshot = settings;
+    setSaveState('saving');
+    try {
+      setSource(await storeSettings(snapshot));
+      setSaved(snapshot);
+      setSaveState('saved');
+    } catch {
+      setSaveState('failed');
+    }
   };
 
   const discard = () => {
@@ -86,9 +108,9 @@ export default function AgentSettingsPage() {
         <p className="mt-1 max-w-2xl text-muted-foreground">Como a IA atende, qualifica e passa os leads do WhatsApp para a sua equipe.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <SaveStatus dirty={dirty} state={saveState} />
+        <SaveStatus dirty={dirty} state={saveState} source={source} />
         {dirty && <Button variant="ghost" onClick={discard}>Descartar</Button>}
-        <Button onClick={save}>Salvar alterações</Button>
+        <Button onClick={save} disabled={saveState === 'saving'}>Salvar alterações</Button>
       </div>
     </header>
 
@@ -102,7 +124,7 @@ export default function AgentSettingsPage() {
       </ul>
     </div>}
     {saveState === 'failed' && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-      O navegador não permitiu salvar (armazenamento cheio ou bloqueado). Suas alterações continuam na tela.
+      Não foi possível salvar a configuração agora. Suas alterações continuam na tela; tente de novo.
     </div>}
 
     <section aria-label="Estado do agente" className="rounded-xl border bg-card">
@@ -162,8 +184,9 @@ export default function AgentSettingsPage() {
   </div>;
 }
 
-function SaveStatus({ dirty, state }: { dirty: boolean; state: 'idle' | 'saved' | 'blocked' | 'failed' }) {
+function SaveStatus({ dirty, state, source }: { dirty: boolean; state: 'idle' | 'saving' | 'saved' | 'blocked' | 'failed'; source: SettingsSource }) {
+  if (state === 'saving') return <span className="text-xs font-medium text-muted-foreground">Salvando…</span>;
   if (dirty) return <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Alterações não salvas</span>;
-  if (state === 'saved') return <span className="flex items-center gap-1 text-xs font-medium text-primary"><Check className="h-3.5 w-3.5" aria-hidden="true" />Salvo neste navegador</span>;
+  if (state === 'saved') return <span className="flex items-center gap-1 text-xs font-medium text-primary"><Check className="h-3.5 w-3.5" aria-hidden="true" />{source === 'server' ? 'Salvo' : 'Salvo neste navegador'}</span>;
   return null;
 }
