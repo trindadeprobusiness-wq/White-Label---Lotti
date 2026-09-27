@@ -70,7 +70,8 @@ begin
     end if;
     v_id:=by_phone.id;
   elsif by_lid.id is not null then
-    if v_phone is not null and by_lid.phone is null then
+    -- The provider's number wins over one typed by hand; no other row has it.
+    if v_phone is not null and by_lid.phone is distinct from v_phone then
       update public.lotti_agent_conversations set phone=v_phone where id=by_lid.id;
     end if;
     v_id:=by_lid.id;

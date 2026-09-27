@@ -144,6 +144,13 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
     expect((await conversation(`c.id='${row.id}'`))[0]).toMatchObject({ phone: '5511977776666', lid: '555555555555555' });
   });
 
+  it('número revelado pelo WhatsApp corrige um telefone digitado errado', async () => {
+    const [row] = await conversation(`c.lid='555555555555555'`);
+    expect(row.phone).toBe('5511977776666');
+    await ingest({ lid: '555555555555555', phone: '5511955554444', external_id: 'revelado-1' });
+    expect((await conversation(`c.id='${row.id}'`))[0]).toMatchObject({ phone: '5511955554444', lid: '555555555555555' });
+  });
+
   it('fila automática identifica o destino pelo LID quando não há telefone', async () => {
     await db.exec(`INSERT INTO lotti_agent_channels(corretor_id,instance,enabled,sandbox) VALUES ('${owner}','lotti-sandbox',true,true)`);
     await db.exec(`insert into lotti_agent_conversations(channel_id,corretor_id,lid,mode,revision,processed_revision,next_attempt_at)
