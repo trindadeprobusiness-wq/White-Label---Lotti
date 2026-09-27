@@ -15,7 +15,7 @@ const dataByTable: Record<string, unknown[]> = {
   lotti_inbox_events: [],
 };
 // missingColumns simulates the production database before the account-scope migration.
-const mockDb = { missingColumns: false, filters: [] as string[], reads: {} as Record<string, number> };
+const mockDb = { missingColumns: false, missingOptOut: false, filters: [] as string[], reads: {} as Record<string, number> };
 function builder(table: string) {
   let columns = '';
   const filters: string[] = [];
@@ -27,6 +27,8 @@ function builder(table: string) {
       mockDb.reads[table] = (mockDb.reads[table] ?? 0) + 1;
       const usesNewColumns = columns.includes('contact_name') || filters.length > 0;
       if (table === 'lotti_agent_conversations' && mockDb.missingColumns && usesNewColumns)
+        return Promise.resolve({ data: null, error: { code: '42703' } }).then(resolve);
+      if (table === 'lotti_agent_conversations' && mockDb.missingOptOut && columns.includes('opted_out_at'))
         return Promise.resolve({ data: null, error: { code: '42703' } }).then(resolve);
       return Promise.resolve({ data: dataByTable[table] ?? [], error: null }).then(resolve);
     },
@@ -155,7 +157,7 @@ it('atualiza a conversa aberta sem repetir toda a lista a cada ciclo', async () 
   expect(mockDb.reads.lotti_agent_conversations - listBefore).toBeLessThanOrEqual(1);
 });
 
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.missingOptOut = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
@@ -316,4 +318,42 @@ it('abre as três ações essenciais pelos controles do Inbox', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
   fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
   expect(screen.getByRole('dialog', { name: 'Fechar conversa?' })).not.toBeNull();
+});
+
+it('contato que pediu para sair: sem compositor, IA bloqueada e opção de liberar', async () => {
+  const since = '2026-09-27T12:00:00Z';
+  dataByTable.lotti_agent_conversations = [conversationFixture({ mode: 'human', opted_out_at: since })];
+  dataByTable.lotti_agent_messages = [{ id: 'm1', direction: 'in', sender: 'lead', content: 'SAIR', media_path: null, created_at: since }];
+  dataByTable.lotti_inbox_events = [{ id: 'e1', kind: 'consent', from_label: null, to_label: 'Pediu para não receber mensagens', subject_label: null, actor_label: 'Contato', created_at: since }];
+  mount(true);
+  expect(await screen.findByText(/Você pode responder quando ele escrever de novo/)).not.toBeNull();
+  expect(await screen.findByText(/^Contato pediu para não receber mensagens ·/)).not.toBeNull();
+  expect(screen.queryByLabelText('Mensagem')).toBeNull();
+  const ai = screen.getByRole('switch', { name: 'IA' });
+  expect(ai.hasAttribute('disabled')).toBe(true);
+  expect(ai.textContent).toContain('IA bloqueada');
+  expect(screen.getByRole('button', { name: /5511999990000/ }).textContent).toContain('Não quer receber');
+  fireEvent.click(screen.getByRole('button', { name: 'Liberar contato' }));
+  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_clear_opt_out', { p_conversation: 'c1' }));
+});
+
+it('contato que pediu para sair e voltou a escrever pode receber resposta manual', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ mode: 'human', opted_out_at: '2026-09-27T12:00:00Z' })];
+  dataByTable.lotti_agent_messages = [
+    { id: 'm1', direction: 'in', sender: 'lead', content: 'SAIR', media_path: null, created_at: '2026-09-27T12:00:00Z' },
+    { id: 'm2', direction: 'in', sender: 'lead', content: 'Mudei de ideia', media_path: null, created_at: '2026-09-27T12:10:00Z' },
+  ];
+  dataByTable.lotti_inbox_events = [{ id: 'e2', kind: 'consent', from_label: 'Pediu para não receber mensagens', to_label: 'Contato liberado', subject_label: null, actor_label: 'Corretor', created_at: '2026-09-27T12:20:00Z' }];
+  mount(true);
+  expect(await screen.findByText(/voltou a escrever/)).not.toBeNull();
+  expect(screen.getByLabelText('Mensagem')).not.toBeNull();
+  expect(await screen.findByText(/Contato liberado por Corretor/)).not.toBeNull();
+});
+
+it('banco sem a coluna de opt-out continua mostrando o nome do contato', async () => {
+  mockDb.missingOptOut = true;
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Maria Souza' })];
+  mount(true);
+  expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
+  expect(screen.getByLabelText('Mensagem')).not.toBeNull();
 });
