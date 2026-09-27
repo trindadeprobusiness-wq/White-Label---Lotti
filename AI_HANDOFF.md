@@ -1795,7 +1795,6 @@ credencial); nao foi contornada.
 - Worktree de publicacao limpa. Checkout original preservado com alteracoes staged e nao rastreadas de terceiros; nenhum reset ou descarte. Nenhuma migration ou Edge Function publicada. Inbox continua demonstrativo; Evolution e agente real nao foram ativados. Nao houve teste autenticado ponta a ponta de atendimento real.
 -   C o r r e c a o :   o   v i s u a l   d a   t e l a   ' M a i s '   n o   m o b i l e   f o i   r e d e s e n h a d o   p a r a   u m a   g r a d e   3 x N   l i m p a   s e m   f u n d o s   c o l o r i d o s   n o s   i c o n e s ,   e   v a r i a v e i s   a u s e n t e s   q u e   c a u s a v a m   c r a s h   f o r a m   r e s t a u r a d a s .   O   M e n u   l a t e r a l   m o b i l e   f o i   d e s a t i v a d o   e   a g o r a   a   B o t t o m   N a v   +   T o p   B a r   o p e r a m   c o r r e t a m e n t e .  
  
-<<<<<<< HEAD
 ### 2026-09-12 - Codex (piloto n8n, Evolution e Supabase)
 
 - Implementado runtime versionavel em C:/Users/Gabri/n8n-agent-lotti: Evolution 2.3.7, PostgreSQL de sessoes, Redis e Node 22 em Docker. Evolution local porta 18085; runtime 8095. Credenciais apenas em configuracao local ignorada pelo Git.
@@ -1825,7 +1824,6 @@ credencial); nao foi contornada.
 - Migration 20260916000100 aplicada e registrada; Edge Function e runtime Docker atualizados. Testes: 512 frontend, 22 runtime, build e transacao SQL com rollback passaram. Nenhuma mensagem enviada a contato real para teste; validacao de texto/audio no aparelho destinatario permanece pendente.
 
 - Codex: conferencia em producao encontrou footer antigo ainda renderizado; ligado MessageComposer ao historico real. Novo teste da tela passou, dois testes do composer passaram e build passou. Validacao visual da nova publicacao pendente.
-=======
 ### 2026-09-12 - Codex (piloto do agente aplicado)
 - Implementacao, migrations, testes e pendencias registrados no handoff da main publicada em 5c36707. Workflow n8n pYLgIQVxv614rNuY ativo; round trip com dados ficticios passou. Evolution instalada; envios reais bloqueados aguardando numero/conta e teste real. Repositorio de automacao publicado em 786dec7. Checkout local e alteracoes nao rastreadas preservados.
 
@@ -2038,3 +2036,15 @@ credencial); nao foi contornada.
 - Recuperacao e convite de conta nova aceitos pelo Auth com HTTP 200; ambos exibidos como Delivered no Resend. Conta de convite de teste sem assinatura paga. Nenhuma cobranca real criada.
 - CHECKOUT_ENABLED=true em Production e redeploy dpl_HtTizXunggeQzRsiK1Rr5P8HQKWC Ready com aliases oficiais. Smoke: checkout pagina 200, dados invalidos 400 INVALID_CHECKOUT_DATA, webhook sem token 401. Comet confirmou Inteligente mensal 279 e cotas 100/250/5/15/10.
 - Compra, provisionamento, renovacao e cotas previamente homologados no sandbox isolado. Troca/cancelamento dentro da plataforma e ativacao do agente WhatsApp continuam pendentes em escopos separados. Guia operacional atualizado; segredos fora do Git.
+
+### 2026-09-27 - Claude (sprint do Jira sobre a main atual)
+- Branch `claude/jira-sprint-2026-09-27-main`, criada a partir de `origin/main` 603208a e reaplicada sobre ela. A versão anterior, baseada em 052327d, ficou em `claude/jira-sprint-2026-09-27-backup-052327d`.
+- As migrations de planos da versão anterior saíram: a `main`, pelo PR #19 (`20260925120000` a `20260925120300`, já aplicadas), cobre o mesmo ponto com regras mais rígidas, e elas reabririam `incrementar_uso` ao usuário. `docs/jira/planos-limites.md` passa a registrar o estado anterior ao #19.
+- Incluído, com testes em PGlite/Vitest:
+  - admin: funções auxiliares fechadas e escritas diretas do painel auditadas (`20260927090000`);
+  - onboarding: sem becos, convite preservado no login, CRECI mantido, pré-preenchimento tardio e tela sem jargão; reforço de corretor ativo para a migration de onboarding (`20260927110000`, depende da `20260821130000`);
+  - agente: conversa abandonada vai para a equipe (`20260927120000`) e opt-out com bloqueio de IA e de envio manual (`20260927120100`);
+  - Inbox: estado "Não quer receber" e botão "Liberar contato", sobre o cabeçalho compacto do PR #18.
+- Relatórios em `docs/jira/`: infra, admin, planos, agente e mensagens, onboarding.
+- Ponte, fora deste repositório: `n8n-agent-lotti` branch `claude/agent-catalog-stalled` (b280faa), com catálogo só de imóveis disponíveis e chamada a `lotti_agent_escalate_stalled` antes de cada claim.
+- Nada aplicado em produção nem publicado. Pendentes: mensagem de fallback ao lead, dados do lead no cadastro, regra de consentimento para conversas iniciadas pelo corretor e SCRUM-28.

@@ -366,14 +366,32 @@ Alternativa na plataforma: uma RPC ou view `lotti_agent_catalog(p_corretor)` tes
 |---|---|---|
 | SCRUM-30 | Parcial | Conferência ao vivo do webhook e da credencial; o canal nasce `enabled=false`, sem UI (o `start` exige `enabled`); `WEBHOOK_TOKEN` ausente quebra o webhook sem aviso |
 | SCRUM-31 | Parcial | Versionar o teste de RLS entre contas; teste com duas contas reais |
-| SCRUM-32 | Parcial | Lead não recebe fallback; `ai_not_configured` e lease expirado entram em laço sem alerta |
-| SCRUM-33 | Parcial | Catálogo inclui vendidos (`status_venda`) e imóveis de demonstração; consulta sem teste |
+| SCRUM-32 | Parcial | Laço corrigido (ver Correções); falta decidir a mensagem de fallback ao lead |
+| SCRUM-33 | Parcial | Filtro e teste corrigidos na ponte (ver Correções); falta o teste ao vivo em canal não sandbox |
 | SCRUM-34 | Parcial | `response` não é validada contra o catálogo; sem avaliação com modelo real |
 | SCRUM-35 | Parcial | Perfil só em `conversation.qualification`, sobrescrito a cada turno |
 | SCRUM-36 | Parcial | Sem teste de UI com perfil; `reason` ≠ resumo; alerta leva a tela sem resumo |
-| SCRUM-37 | Bloqueado | Não existe consentimento nem opt-out; precisa de regra de produto/LGPD |
+| SCRUM-37 | Parcial | Opt-out implementado (ver Correções); falta a regra de consentimento para conversas iniciadas pelo corretor |
 | SCRUM-39 | Concluído | Sem duplicidade; pendentes a conciliação de `uncertain` e o laço com `LIVE_SEND` desligado |
 | SCRUM-40 | Parcial | Teste ao vivo com dois números (depende do SCRUM-38) |
+
+## Correções (2026-09-27, Claude)
+
+Nada foi aplicado em produção nem publicado, e nenhuma mensagem foi enviada.
+
+- **SCRUM-32, conversa presa.** A migration `20260927120000_lotti_agent_stalled_claims.sql` cria `lotti_agent_escalate_stalled()`, restrita ao `service_role`. Na 3ª reserva abandonada (lease vencido sem `fail`), a conversa vai para a equipe com alerta clicável e `last_error='processing_stalled'`. A ponte (branch `claude/agent-catalog-stalled`, commit `b280faa`) chama essa função antes de cada `claim` e, sem chave da IA, registra `fail('ai_not_configured')` antes do 503. Em banco sem a função, a reserva segue como antes. **Continua pendente** a decisão sobre a mensagem de fallback ao lead: hoje o repasse é silencioso.
+- **SCRUM-33, catálogo.** A ponte passou a filtrar `status_venda=eq.DISPONIVEL` e `is_sample_data=eq.false` e a ordenar por `updated_at.desc`. Em bancos sem a coluna de demonstração (migration de onboarding ainda não aplicada), o filtro é pulado e tentado de novo a cada 10 min. A consulta tem teste (`runtime/catalog.test.mjs`).
+- **SCRUM-37, opt-out.** A migration `20260927120100_lotti_agent_opt_out.sql` faz o seguinte:
+  - reconhece "SAIR", "PARE", "PARAR", "STOP", pedidos de descadastro e frases explícitas sobre mensagens ou lista, sem confundir com "quero sair do aluguel";
+  - marca `opted_out_at`, tira a conversa da IA, cancela a resposta preparada, registra o evento `consent` e avisa a equipe;
+  - bloqueia religar a IA (`contact_opted_out`) e o envio manual até o lead escrever de novo;
+  - permite ao dono liberar o contato com `lotti_inbox_clear_opt_out`, que registra o evento e não religa a IA sozinho.
+
+  No histórico importado, só o pedido mais recente vale e pedidos antigos não geram alerta. O Inbox mostra "Não quer receber", um aviso com "Liberar contato", a IA bloqueada e o compositor oculto enquanto houver bloqueio. **Pendentes:**
+  - a regra de consentimento para conversas iniciadas pelo corretor;
+  - os Disparos futuros filtrarem `opted_out_at`;
+  - a branch LID levar `opted_out_at` ao juntar conversas (`lotti_agent_merge_conversation`).
+- **Testes.** `lotti-agent-protecoes.test.ts` tem 30 testes. As duas lacunas de opt-out em `lotti-agent-lacunas.test.ts` viraram `it`; seguem como falha esperada o fallback e os dois do perfil do lead. Soma-se o Inbox, com 3 testes de tela e 3 da regra (`optOut.test.ts`). Na ponte são 65/65.
 
 ## Como reproduzir
 
