@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, FileText, Filter, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
-import { conversationTitle, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
+import { conversationTitle, formatContactPhone, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
 import { MessageComposer } from './MessageComposer';
 import { ConversationStatusDialog, NewConversationDialog, RenameContactDialog } from './InboxActionDialogs';
 import { optOutState, type OptOutState } from './optOut';
@@ -53,12 +53,6 @@ function ContactAvatar({ name, className }: { name: string; className: string })
   return <span aria-label={initial ? `Inicial de ${name}` : 'Contato sem nome'} className={className}>{initial || <UserRound className="h-4 w-4" />}</span>;
 }
 const contactPhoneLabel = (value: string | null) => (value ? formatContactPhone(value) : 'Número oculto pelo WhatsApp');
-function formatContactPhone(value: string) {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 13 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
-  if (digits.length === 12 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
-  return digits ? `+${digits}` : value;
-}
 function MessageBody({ message }: { message: Message }) {
   const [url, setUrl] = useState('');
   const isFile = message.preview_kind === 'file' || (!!message.media_path && message.media_path.split('/').length >= 3);

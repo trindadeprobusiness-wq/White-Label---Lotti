@@ -8,10 +8,18 @@ export type LiveConversation = {
   qualification: { priority?: string; stage?: string };
 };
 
-// A name typed in the CRM wins; then the WhatsApp/address-book name; then the number.
+export function formatContactPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 13 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  if (digits.length === 12 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  return digits ? `+${digits}` : value;
+}
+
+// A name typed in the CRM wins; then the name saved in the phone's address book;
+// an unsaved contact is shown by its number, as in WhatsApp.
 export function conversationTitle(conversation: Pick<LiveConversation, 'phone' | 'contact_name'>, clientName?: string | null) {
   if (clientName && clientName !== 'Contato WhatsApp') return clientName;
-  return conversation.contact_name || (conversation.phone ? `+${conversation.phone}` : 'Contato sem número');
+  return conversation.contact_name || (conversation.phone ? formatContactPhone(conversation.phone) : 'Contato sem número');
 }
 
 export type LatestMessage = { conversation_id: string; direction: 'in' | 'out'; created_at: string; content: string };

@@ -6,7 +6,9 @@ describe('nome do contato no Inbox real', () => {
   it('prefere o nome editado no CRM, depois o nome do WhatsApp e por fim o número', () => {
     expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Maria Souza')).toBe('Maria Souza');
     expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Contato WhatsApp')).toBe('Maria (WhatsApp)');
-    expect(conversationTitle({ ...base, contact_name: null })).toBe('+5562999999999');
+    expect(conversationTitle({ ...base, contact_name: null })).toBe('+55 (62) 99999-9999');
+    expect(conversationTitle({ ...base, phone: '556233334444', contact_name: null })).toBe('+55 (62) 3333-4444');
+    expect(conversationTitle({ ...base, phone: '14155550100', contact_name: null })).toBe('+14155550100');
   });
   it('conversa com número oculto pelo WhatsApp não mostra número inventado', () => {
     expect(conversationTitle({ ...base, phone: null, contact_name: null })).toBe('Contato sem número');
