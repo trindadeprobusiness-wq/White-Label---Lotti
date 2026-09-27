@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable,
+  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Bot,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -72,6 +72,12 @@ function montarGrupos(): GrupoNav[] {
           ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
           : { label: 'Funil de Vendas', href: '/funil', icone: <Filter className={ic} /> },
         { label: 'Conexão', href: '/whatsapp/conexao', icone: <Cable className={ic} /> },
+      ],
+    },
+    {
+      titulo: 'Automações',
+      itens: [
+        { label: 'Agente de IA', href: '/whatsapp/agente', icone: <Bot className={ic} /> },
       ],
     },
     {
