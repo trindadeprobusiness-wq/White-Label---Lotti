@@ -174,7 +174,22 @@ describe('ativação e fila', () => {
     expect(b.excluded.over_limit).toBe(1);
   });
 
+  it('"IA atende" não passa a conversa para a IA com o Agente desligado', async () => {
+    const id = await save(campaign({ replyPolicy: 'ai' }));
+    await activate(id);
+    const c = (await claimDelivery())!;
+    await sendClaimed(c);
+    expect(await one<{ mode: string }>('select mode from lotti_agent_conversations where id=$1', [c.id])).toEqual({ mode: 'human' });
+  });
+
+  it('nome com barra invertida entra como texto', async () => {
+    await db.exec(`update clientes set nome='Ana\\1 Souza' where telefone='5562911110001'`);
+    const out = await preview(campaign());
+    expect(out.samples[0].text).toBe('Oi, Ana\\1! Aqui é Rafael Porto. Temos novidades.');
+  });
+
   it('entrega pelo envio automático, aplica "IA atende" e conclui a campanha', async () => {
+    await db.exec(`update lotti_agent_channels set enabled=true`);
     const id = await save(campaign({ replyPolicy: 'ai' }));
     await activate(id);
     const c = (await claimDelivery())!;
@@ -186,7 +201,6 @@ describe('ativação e fila', () => {
     expect(await one<{ status: string }>('select status from lotti_broadcast_campaigns where id=$1', [id])).toEqual({ status: 'completed' });
     // O agente não responde a mensagem do disparo como se fosse do lead.
     await db.exec(`update lotti_agent_conversations set next_attempt_at=now()-interval '1 second'`);
-    await db.exec(`update lotti_agent_channels set enabled=true`);
     try { expect(await r('select public.lotti_agent_claim() r')).toBeNull(); }
     finally { await db.exec(`update lotti_agent_channels set enabled=false`); }
   });

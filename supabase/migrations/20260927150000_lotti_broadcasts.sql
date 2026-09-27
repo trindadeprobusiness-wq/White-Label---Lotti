@@ -94,8 +94,9 @@ language plpgsql immutable set search_path = '' as $$
 declare v_first text := nullif(split_part(btrim(coalesce(p_name, '')), ' ', 1), '');
 begin
   if p_body ~ '\{\{\s*nome\s*\}\}' and v_first is null then return null; end if;
-  return regexp_replace(regexp_replace(p_body, '\{\{\s*nome\s*\}\}', coalesce(v_first, ''), 'g'),
-    '\{\{\s*corretor\s*\}\}', coalesce(nullif(btrim(p_broker), ''), 'a equipe'), 'g');
+  -- Barra invertida no nome não pode virar referência do regexp_replace.
+  return regexp_replace(regexp_replace(p_body, '\{\{\s*nome\s*\}\}', replace(coalesce(v_first, ''), '\', '\\'), 'g'),
+    '\{\{\s*corretor\s*\}\}', replace(coalesce(nullif(btrim(p_broker), ''), 'a equipe'), '\', '\\'), 'g');
 end $$;
 
 -- Público da conta: conversas do número conectado, com o motivo de exclusão
@@ -414,7 +415,9 @@ begin
   if p_status = 'sent' then
     select reply_policy into v_policy from public.lotti_broadcast_campaigns where id = d.campaign_id;
     if v_policy = 'ai' then
+      -- Só com o Agente ativo no número: senão a resposta ficaria sem ninguém.
       update public.lotti_agent_conversations c set mode = 'ai' where c.id = d.conversation_id and c.mode = 'human' and c.opted_out_at is null
+        and exists (select 1 from public.lotti_agent_channels h where h.id = c.channel_id and h.enabled)
         and not exists (select 1 from public.lotti_manual_sends m where m.conversation_id = c.id and m.status in ('sending', 'uncertain'))
         and not exists (select 1 from public.lotti_agent_outbox o where o.conversation_id = c.id and o.status = 'uncertain');
     elsif v_policy = 'human' then

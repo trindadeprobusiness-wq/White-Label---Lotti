@@ -2095,7 +2095,7 @@ credencial); nao foi contornada.
   - só com `AUTOMATIONS_ENABLED=true` e `LIVE_SEND_ENABLED=true`.
 - Verificação:
   - plataforma: 105 arquivos e 960 testes passando, mais 3 "expected fail";
-  - PGlite: 20 testes do follow-up e 24 dos Disparos; build e `git diff --check` passaram;
+  - PGlite: 20 testes do follow-up e 26 dos Disparos; build e `git diff --check` passaram;
   - o `routine-visual.test.tsx` falha também na pilha sem estas mudanças, porque depende do horário em que roda;
   - ponte: 105/105.
 - Nada aplicado em produção nem publicado, e nenhuma mensagem enviada. Ligar exige as migrations 140000 e 150000 e `AUTOMATIONS_ENABLED=true` na ponte, com autorização do Rafael.
