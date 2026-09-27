@@ -169,6 +169,14 @@ it('mostra o nome do contato do WhatsApp em vez do número cru', async () => {
   expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
 });
 
+it('conversa com número oculto pelo WhatsApp avisa em vez de mostrar número vazio', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ phone: null, lid: '123456789012345', contact_name: 'Paula' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Paula/ });
+  expect(screen.getAllByText('Número oculto pelo WhatsApp').length).toBeGreaterThan(0);
+  expect(screen.queryByText('+null')).toBeNull();
+});
+
 it('usa a inicial do nome em todos os avatares, sem mostrar dígitos do telefone', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Rafael' })];
   mount(true);

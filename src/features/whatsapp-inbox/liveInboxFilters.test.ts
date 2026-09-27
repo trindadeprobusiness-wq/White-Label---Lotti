@@ -8,6 +8,14 @@ describe('nome do contato no Inbox real', () => {
     expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Contato WhatsApp')).toBe('Maria (WhatsApp)');
     expect(conversationTitle({ ...base, contact_name: null })).toBe('+5562999999999');
   });
+  it('conversa com número oculto pelo WhatsApp não mostra número inventado', () => {
+    expect(conversationTitle({ ...base, phone: null, contact_name: null })).toBe('Contato sem número');
+    expect(conversationTitle({ ...base, phone: null, contact_name: 'Paula' })).toBe('Paula');
+  });
+  it('busca não quebra em conversa sem número', () => {
+    const options = { query: 'pau', quick: 'all' as const, mode: '', stage: '', period: '', now: Date.parse('2026-09-20T15:00:00Z') };
+    expect(filterLiveConversations([{ ...base, phone: null, contact_name: 'Paula' }, { ...base, id: '10', phone: null }], new Map(), options).map(c => c.id)).toEqual(['9']);
+  });
   it('busca também pelo nome do contato', () => {
     const options = { query: 'mari', quick: 'all' as const, mode: '', stage: '', period: '', now: Date.parse('2026-09-20T15:00:00Z') };
     expect(filterLiveConversations([{ ...base, contact_name: 'Mariana' }, { ...base, id: '10' }], new Map(), options).map(c => c.id)).toEqual(['9']);
