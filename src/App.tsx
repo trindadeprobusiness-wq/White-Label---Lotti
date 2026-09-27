@@ -42,6 +42,8 @@ const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
 const LiveAgentInbox = lazy(() => import('@/features/whatsapp-inbox/LiveAgentInbox'));
 const AgentSettingsPage = lazy(() => import('@/features/ai-agent/AgentSettingsPage'));
+const BroadcastsPage = lazy(() => import('@/features/broadcasts/BroadcastsPage'));
+const BroadcastRoute = lazy(() => import('@/features/broadcasts/BroadcastDetails'));
 const WhatsAppConnectionPage = lazy(whatsappConnectionLoader);
 const Clientes = lazy(clientesLoader);
 const ClienteDetalhes = lazy(() => import("@/pages/ClienteDetalhes"));
@@ -159,6 +161,8 @@ const App = () => (
             <Route path="/whatsapp/conexao" element={<WhatsAppConnectionPage />} />
             <Route path="/whatsapp/demo" element={<WhatsAppInbox />} />
             <Route path="/whatsapp/agente" element={<AgentSettingsPage />} />
+            <Route path="/automacoes" element={<BroadcastsPage />} />
+            <Route path="/automacoes/:id" element={<BroadcastRoute />} />
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/clientes/:id" element={<ClienteDetalhes />} />
             <Route path="/imoveis" element={<Imoveis />} />

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
-  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Bot,
+  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Bot, Send,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -78,6 +78,7 @@ function montarGrupos(): GrupoNav[] {
       titulo: 'Automações',
       itens: [
         { label: 'Agente de IA', href: '/whatsapp/agente', icone: <Bot className={ic} /> },
+        { label: 'Disparos', href: '/automacoes', icone: <Send className={ic} /> },
       ],
     },
     {
