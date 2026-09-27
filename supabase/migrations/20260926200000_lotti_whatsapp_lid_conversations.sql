@@ -220,6 +220,12 @@ begin
     if found then
       imported := imported+1;
       update public.lotti_agent_conversations set updated_at=greatest(updated_at,stamp) where id=cv.id;
+      -- Whoever has history already existed when the number was connected: the
+      -- team attends them, not the AI, even if a live message arrived first.
+      if cv.mode='ai' then
+        update public.lotti_agent_conversations set mode='human' where id=cv.id;
+        update public.lotti_agent_outbox set status='cancelled' where conversation_id=cv.id and status='prepared';
+      end if;
     end if;
   end loop;
   return jsonb_build_object('imported',imported);

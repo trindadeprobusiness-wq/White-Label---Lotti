@@ -149,6 +149,23 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
     expect((await db.query(`select status from lotti_agent_conversations where id='${row.id}'`)).rows[0]).toEqual({ status: 'open' });
   });
 
+  it('ao conectar, todo contato que já existia fica em atendimento humano', async () => {
+    await importHistory([{ external_id: 'h-novo-1', lid: '888888888888888', from_me: false, text: 'Oi', created_at: '2026-08-20T12:00:00Z' }]);
+    expect((await conversation(`c.lid='888888888888888'`))[0].mode).toBe('human');
+    // Escreveu logo depois de conectar, antes de o histórico dele chegar.
+    await ingest({ lid: '777777777777777', external_id: 'ao-vivo-1', text: 'Oi, tudo bem?' });
+    const [live] = await conversation(`c.lid='777777777777777'`);
+    expect(live.mode).toBe('ai');
+    await db.exec(`insert into lotti_agent_outbox(conversation_id,revision,content) values('${live.id}',1,'Olá!')`);
+    await importHistory([{ external_id: 'h-antiga-1', lid: '777777777777777', from_me: false, text: 'Mensagem do mês passado', created_at: '2026-08-20T12:00:00Z' }]);
+    expect((await conversation(`c.lid='777777777777777'`))[0].mode).toBe('human');
+    expect((await db.query(`select status from lotti_agent_outbox where conversation_id='${live.id}'`)).rows).toEqual([{ status: 'cancelled' }]);
+    // Reenviar o mesmo histórico (reinício da ponte) não tira da IA quem o corretor religou.
+    await db.exec(`update lotti_agent_conversations set mode='ai' where id='${live.id}'`);
+    await importHistory([{ external_id: 'h-antiga-1', lid: '777777777777777', from_me: false, text: 'Mensagem do mês passado', created_at: '2026-08-20T12:00:00Z' }]);
+    expect((await conversation(`c.lid='777777777777777'`))[0].mode).toBe('ai');
+  });
+
   it('histórico recusa item sem telefone e sem LID válido', async () => {
     await expect(importHistory([{ external_id: 'h-x', from_me: false, text: 'Oi', created_at: '2026-08-01T12:00:00Z' }])).rejects.toThrow(/invalid_history_message/);
     await expect(importHistory([{ external_id: 'h-y', lid: '12', from_me: false, text: 'Oi', created_at: '2026-08-01T12:00:00Z' }])).rejects.toThrow(/invalid_history_message/);
