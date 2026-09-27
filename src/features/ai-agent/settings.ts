@@ -19,9 +19,8 @@ export type HandoffTrigger = 'pede_corretor' | 'agendar_visita' | 'proposta' | '
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 export type DayHours = { enabled: boolean; start: string; end: string };
 
-// O atendimento pelo WhatsApp usa hoje o modelo definido no servidor
-// (OPENAI_MODEL, padrão gpt-4o-mini). Esta escolha fica salva para quando o
-// agente passar a ler a configuração.
+// A ponte do WhatsApp usa o modelo escolhido em cada resposta (OpenAI ou Google,
+// conforme a chave configurada no servidor; sem a chave, entra o provedor que houver).
 export const AGENT_MODEL_OPTIONS = [
   { id: 'gpt-4o-mini', label: 'GPT-4o mini', provider: 'OpenAI', description: 'Padrão atual do atendimento. Rápido e econômico.' },
   { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini', provider: 'OpenAI', description: 'Segue instruções longas com mais precisão.' },

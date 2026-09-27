@@ -14,7 +14,7 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
   return <>
     <SettingsSection
       title="Follow-up"
-      description={followUp.enabled ? 'A IA retoma a conversa quando o lead para de responder. Resposta do lead ou da equipe cancela os toques.' : 'Desligado: a IA não retoma conversas paradas.'}
+      description={followUp.enabled ? 'A IA retoma a conversa quando o lead para de responder. Resposta do lead ou da equipe cancela os toques. Os toques começam a sair quando o envio de follow-up for liberado.' : 'Desligado: a IA não retoma conversas paradas.'}
       action={<Switch aria-label="Retomar conversas paradas" checked={followUp.enabled} onCheckedChange={(enabled) => set({ enabled })} />}
     >
       {followUp.enabled && <>
