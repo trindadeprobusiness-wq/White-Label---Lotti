@@ -2049,7 +2049,7 @@ credencial); nao foi contornada.
 - Ponte, fora deste repositório: `n8n-agent-lotti` branch `claude/agent-catalog-stalled` (b280faa), com catálogo só de imóveis disponíveis e chamada a `lotti_agent_escalate_stalled` antes de cada claim.
 - Nada aplicado em produção nem publicado. Pendentes: mensagem de fallback ao lead, dados do lead no cadastro, regra de consentimento para conversas iniciadas pelo corretor e SCRUM-28.
 ### 2026-09-27 - Claude (tarefas em andamento do Jira)
-- Branch `claude/jira-andamento-2026-09-27`, a partir de `origin/main` 603208a e independente do PR #22.
+- Branch `claude/jira-andamento-sobre-pr22`, empilhada sobre o PR #22 (`claude/jira-sprint-2026-09-27`), com os conflitos de `AI_HANDOFF.md` e `ConnectedInbox.test.tsx` resolvidos mantendo os dois lados. Integrar depois do #22. A versão sobre a `main` pura é `claude/jira-andamento-2026-09-27`.
 - SCRUM-49 (`docs/jira/contatos-historico.md`): o histórico vem da sincronização do WhatsApp com o aparelho novo, só no primeiro pareamento. No teste real, as conversas individuais chegaram com cerca de 3 meses (primeira em 23/06/2026). Amostra de um aparelho.
 - SCRUM-50 (`docs/jira/custo-por-usuario.md`): custo estimado de R$ 23–61, R$ 33–105 e R$ 59–208 por conta/mês nos planos de R$ 279, R$ 399 e R$ 799 (cota cheia, 30 contas, `gpt-4o-mini`, cartão), antes de impostos. Preços oficiais consultados hoje. Deixa a consulta de `ai_runs` pronta para medir o custo real.
 - SCRUM-28: rótulos únicos de status (conta, atividade e assinatura; `past_due` = "Em atraso") e plano com situação na lista e no CSV de usuários.
