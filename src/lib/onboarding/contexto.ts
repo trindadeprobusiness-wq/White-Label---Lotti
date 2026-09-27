@@ -133,9 +133,13 @@ export function normalizarContextoOnboarding(raw: ContextoOnboardingBruto): Cont
   };
 }
 
+// Páginas que o próprio wizard oferece (conectar agenda, ver assinatura): mandar
+// de volta ao onboarding transformaria esses botões num laço.
+const ROTAS_LIBERADAS_NO_ONBOARDING = ['/onboarding', '/admin', '/rotina', '/plano'];
+
 export function deveAbrirOnboarding(contexto: ContextoOnboarding | null, pathname: string): boolean {
   if (!contexto?.profileId) return false;
-  if (pathname.startsWith('/onboarding') || pathname.startsWith('/admin')) return false;
+  if (ROTAS_LIBERADAS_NO_ONBOARDING.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`) || pathname.startsWith(`${rota}#`))) return false;
   return !contexto.concluidoEm && !contexto.dispensadoEm;
 }
 

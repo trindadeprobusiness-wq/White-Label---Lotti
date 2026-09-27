@@ -31,7 +31,10 @@ export default function Auth() {
   const [loginEmail, setLoginEmail] = useState(() => localStorage.getItem('lotti:ultimo-email') ?? '');
   const [loginPassword, setLoginPassword] = useState('');
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
+  // O destino inclui a query: um link de convite (/onboarding?invite=...) não
+  // pode perder o token no login.
+  const fromLocation = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+  const from = fromLocation?.pathname ? `${fromLocation.pathname}${fromLocation.search ?? ''}${fromLocation.hash ?? ''}` : '/';
 
   // Lido uma vez na montagem: é só rótulo, e não precisa reagir a mudanças.
   const [parceiroIndicador] = useState(() => nomeParceiroIndicador());
