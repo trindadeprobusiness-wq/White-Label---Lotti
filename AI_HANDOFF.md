@@ -2076,3 +2076,26 @@ credencial); nao foi contornada.
   - `claude/whatsapp-reconexao-e-rolagem` (plataforma): a tela não pede "conectar" durante a reconexão, e a conversa abre na última mensagem;
   - `claude/no-logout-on-reconnect` (ponte): sem logout de sessão reconectando. A causa foi confirmada pelo "Log out instance" no teste real.
 - Pendente: etapa 2 (envio de follow-up) e etapa 3 (disparos: decidir entre WhatsApp Web com limites ou API oficial da Meta). Nada aplicado nem publicado.
+### 2026-09-27 - Claude (follow-up automático e Disparos)
+- Plataforma, branch `claude/follow-up-sobre-pr25`, empilhada sobre o PR #25 (`claude/agente-ia-sobre-pr23`):
+  - `20260927140000_lotti_agent_follow_up.sql`:
+    - envio automático compartilhado (`lotti_agent_auto_begin/finish/fail`). Cada mensagem ganha revisão própria no `lotti_agent_outbox`: o eco é reconhecido como automático e uma mensagem nova do lead ou da equipe cancela o envio;
+    - follow-up: `arm`, `claim`, `release`, `advance` e `close`. O fechamento fecha a conversa e move a etapa;
+    - só `service_role` executa.
+  - `20260927150000_lotti_broadcasts.sql`:
+    - campanhas, entregas, eventos e `lotti_automation_heartbeat`;
+    - público e prévia calculados no servidor, só conversas com mensagem do lead nas últimas 24 h (decisão do Rafael), sem opt-out, pausadas, fechadas ou arquivadas;
+    - variáveis `{{nome}}` e `{{corretor}}`;
+    - ativar agora ou agendar; pausar, retomar, cancelar, duplicar e excluir rascunho;
+    - revalidação no envio, espaçamento por campanha e mínimo de 20 s por número, até 300 entregas por conta em 24 h.
+  - Tela: "Automações > Disparos" (`/automacoes`, `/automacoes/novo`, `/automacoes/:id`) com lista, criador em 4 etapas e acompanhamento por contato. O modelo da Meta e o disparo "Por evento" continuam indisponíveis. A tela avisa quando o envio automático não está liberado.
+- Ponte, `n8n-agent-lotti` branch `claude/follow-up-e-disparos` sobre `claude/agente-usa-configuracao`:
+  - arma o follow-up depois da resposta da IA;
+  - a cada 15 s envia toques vencidos (janela de 24 h, horário de atendimento, despedida e fechamento) e entregas de Disparos;
+  - só com `AUTOMATIONS_ENABLED=true` e `LIVE_SEND_ENABLED=true`.
+- Verificação:
+  - plataforma: 105 arquivos e 960 testes passando, mais 3 "expected fail";
+  - PGlite: 20 testes do follow-up e 24 dos Disparos; build e `git diff --check` passaram;
+  - o `routine-visual.test.tsx` falha também na pilha sem estas mudanças, porque depende do horário em que roda;
+  - ponte: 105/105.
+- Nada aplicado em produção nem publicado, e nenhuma mensagem enviada. Ligar exige as migrations 140000 e 150000 e `AUTOMATIONS_ENABLED=true` na ponte, com autorização do Rafael.
