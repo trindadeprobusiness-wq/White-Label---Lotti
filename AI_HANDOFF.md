@@ -2048,3 +2048,16 @@ credencial); nao foi contornada.
 - Relatórios em `docs/jira/`: infra, admin, planos, agente e mensagens, onboarding.
 - Ponte, fora deste repositório: `n8n-agent-lotti` branch `claude/agent-catalog-stalled` (b280faa), com catálogo só de imóveis disponíveis e chamada a `lotti_agent_escalate_stalled` antes de cada claim.
 - Nada aplicado em produção nem publicado. Pendentes: mensagem de fallback ao lead, dados do lead no cadastro, regra de consentimento para conversas iniciadas pelo corretor e SCRUM-28.
+### 2026-09-27 - Claude (tarefas em andamento do Jira)
+- Branch `claude/jira-andamento-2026-09-27`, a partir de `origin/main` 603208a e independente do PR #22.
+- SCRUM-49 (`docs/jira/contatos-historico.md`): o histórico vem da sincronização do WhatsApp com o aparelho novo, só no primeiro pareamento. No teste real, as conversas individuais chegaram com cerca de 3 meses (primeira em 23/06/2026). Amostra de um aparelho.
+- SCRUM-50 (`docs/jira/custo-por-usuario.md`): custo estimado de R$ 23–61, R$ 33–105 e R$ 59–208 por conta/mês nos planos de R$ 279, R$ 399 e R$ 799 (cota cheia, 30 contas, `gpt-4o-mini`, cartão), antes de impostos. Preços oficiais consultados hoje. Deixa a consulta de `ai_runs` pronta para medir o custo real.
+- SCRUM-28: rótulos únicos de status (conta, atividade e assinatura; `past_due` = "Em atraso") e plano com situação na lista e no CSV de usuários.
+- SCRUM-31 e SCRUM-40: teste PGlite versionado (`lotti-agent-isolamento.test.ts`) de RLS, ações, franquia e envio manual entre duas contas.
+- SCRUM-36: teste de tela com a qualificação preenchida no painel do Inbox.
+- Ponte, `n8n-agent-lotti` branch `claude/agent-webhook-and-claims` sobre `claude/agent-catalog-stalled`:
+  - connect falha sem `WEBHOOK_TOKEN` e o `/health` informa (SCRUM-30);
+  - o `.env.example` completo (SCRUM-30);
+  - resposta com preço fora do catálogo ou do que o lead disse é rejeitada (SCRUM-34);
+  - log `lotti.ai_usage` só com tokens (SCRUM-50).
+- Nada aplicado nem publicado.
