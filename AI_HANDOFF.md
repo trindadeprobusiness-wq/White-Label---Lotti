@@ -2084,3 +2084,18 @@ credencial); nao foi contornada.
 - Verificação final: plataforma 83 arquivos/667 testes (14 novos em PGlite para LID), build Vite, ESLint sem erros nos arquivos alterados (3 avisos antigos em `WhatsAppInbox.tsx`) e `git diff --check`; ponte 72/72 testes.
 - Pendente e não executado: aplicar a migration, publicar front e ponte, configurar `HISTORY_IMPORT_MODE=recent` e reconectar pelo QR. O envio para `<lid>@lid` pela Evolution 2.3.7 ainda não foi comprovado; o teste real deve confirmar entrega e medir `accepted`/`lid_only` no log `lotti.history`. Nada foi publicado, aplicado ou enviado.
 - Simulação local sem Docker (o Docker Desktop não iniciou por arquivos de socket travados): migrations reais em PGlite e código real da ponte recebendo lotes de histórico e mensagens ao vivo no formato da Evolution. Resultado: grupo ignorado; conversas de hoje com todas as mensagens; antigas com a última mensagem e a data real; contato só com LID exibido como "Número oculto pelo WhatsApp" e destino `<lid>@lid`; número revelado completa a conversa; conversa por LID unida à do telefone com 3 mensagens e modo Equipe; clientes no CRM só com telefone conhecido. A Inbox real da branch foi renderizada com esses dados numa prévia local fora do Git.
+
+### 2026-09-27 - Claude (teste com número real e correções do número oculto)
+- Teste local com um número real pela ponte de teste (Docker `lotti-lidtest`, Supabase local `lotti-lid-test`), com envio bloqueado:
+  - a página de QR e o app de teste (`.claude/preview`, fora do Git) só permitem status, conectar e desconectar;
+  - entraram 102 conversas e 108 mensagens, todas só com LID e sem nome;
+  - a sessão caiu cerca de 3,5 min depois com código 401 (aparelho removido); a origem ainda não foi confirmada.
+- Causa do número ausente: ao conectar, o buffer de eventos do Baileys junta os lotes de histórico e descarta `lidPnMappings`, embora já os tenha guardado. O repositório de mapeamentos da sessão tinha o telefone das 102 conversas.
+- Correções:
+  - ponte `claude/whatsapp-lid-conversations`, `619a121`: o patch da Evolution consulta `getPNsForLIDs` para LID sem número e leva o nome salvo na agenda (`key.lottiContactName`); os caches passaram a ser por instância, porque o mapa global podia expor o número de um contato a outra conta;
+  - ponte, `ddbabd4`: o nome de perfil (`pushName`) deixou de ser usado, e contato não salvo aparece pelo número;
+  - plataforma, `08bbfbb`: número formatado no título;
+  - plataforma, `6107d41`: conversa que recebe histórico vai para atendimento humano, mesmo que uma mensagem ao vivo a tenha criado antes.
+  - A imagem de teste `lotti-evolution:2.3.7-baileys-rc14-lidnames` é separada; a ponte de produção segue na imagem anterior.
+- Verificação: patch 6/6 contra `main.js` e `main.mjs` reais; ponte 72/72; plataforma 83 arquivos/668 testes e build Vite.
+- Pendente: reconectar pelo QR para confirmar números e nomes com o celular real; investigar o 401; mensagens atrasadas entregues ao reconectar ainda criam conversa nova com a IA.
