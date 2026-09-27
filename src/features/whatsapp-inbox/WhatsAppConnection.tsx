@@ -25,7 +25,10 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
  },[connection.data?.qr,connection.data?.qrExpiresAt]);
  const connected=connection.data?.state==='connected';
  const begin=useCallback(async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {data,error}=await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error||!data)throw error??new Error('connection_unavailable');cache.setQueryData(['whatsapp-connection',user?.id],data);setPairing(data.state!=='connected');}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}},[cache,starting,user?.id]);
- useEffect(()=>{if(!autoStart||previewPairing||connection.isPending||connected||autoStarted.current)return;autoStarted.current=true;void begin();},[autoStart,previewPairing,connection.isPending,connected,begin]);
+ // Only a confirmed disconnected session starts pairing. While WhatsApp is reconnecting
+ // a new connect would make the bridge log the paired number out.
+ const reconnecting=connection.data?.state==='connecting'&&!pairing;
+ useEffect(()=>{if(!autoStart||previewPairing||connection.isPending||connection.data?.state!=='disconnected'||autoStarted.current)return;autoStarted.current=true;void begin();},[autoStart,previewPairing,connection.isPending,connection.data?.state,begin]);
  useEffect(()=>{
    if(!pairing||previewPairing)return;
    if(connected){setPairing(false);return;}
@@ -35,7 +38,7 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
  return <section aria-label="Conexão com WhatsApp" className="rounded-xl border bg-card p-5">
    <div className="flex flex-wrap items-center gap-3">{connected?<CheckCircle2 className="h-6 w-6 text-emerald-600"/>:<QrCode className="h-6 w-6 text-primary"/>}
      <div className="mr-auto"><h2 className="font-semibold">{connected?'WhatsApp conectado':'Conecte ao WhatsApp'}</h2>
-     <p className="mt-1 text-sm text-muted-foreground">{connected?(connection.data?.agentEnabled?'O agente está liberado para atender conforme o seu plano.':'Seu número está conectado. O atendimento automático aguarda liberação.'): 'Conecte o número de atendimento para receber as conversas nesta conta.'}</p></div>
+     <p className="mt-1 text-sm text-muted-foreground">{connected?(connection.data?.agentEnabled?'O agente está liberado para atender conforme o seu plano.':'Seu número está conectado. O atendimento automático aguarda liberação.'):reconnecting?'O WhatsApp está reconectando. Não é preciso escanear o QR de novo.':'Conecte o número de atendimento para receber as conversas nesta conta.'}</p></div>
      {!connected&&!pairing&&!autoStart&&<Button disabled={connection.isPending||starting} onClick={begin}>Conectar WhatsApp</Button>}
    </div>
    {(connection.isError||startError)&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível consultar a conexão agora. <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}

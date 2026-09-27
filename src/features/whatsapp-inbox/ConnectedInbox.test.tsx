@@ -373,3 +373,12 @@ it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async 
     expect(term?.nextElementSibling?.textContent).toBe(value);
   }
 });
+
+it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () => {
+  const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, direction: i % 2 ? 'out' : 'in', sender: i % 2 ? 'human' : 'lead', content: `Mensagem ${i}`, media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString() }));
+  mount(true);
+  await screen.findByText('Mensagem 29');
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
+  height.mockRestore();
+});

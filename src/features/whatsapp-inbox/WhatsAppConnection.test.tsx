@@ -71,3 +71,14 @@ it('mantém o último QR válido durante uma consulta temporariamente sem códig
  await advance(2100);
  expect(screen.getByAltText('QR Code atualizado para conectar seu WhatsApp').getAttribute('src')).toBe(qr);
 });
+it('não pede nova conexão enquanto o WhatsApp está reconectando, para não derrubar a sessão',async()=>{
+ invoke.mockResolvedValue({data:{state:'connecting',agentEnabled:false},error:null});
+ mount({autoStart:true});await advance(5000);
+ expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(0);
+ expect(screen.getByText(/reconectando/i)).not.toBeNull();
+});
+it('não pede conexão quando o estado não pôde ser consultado',async()=>{
+ invoke.mockResolvedValue({data:null,error:new Error('indisponível')});
+ mount({autoStart:true});await advance(5000);
+ expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(0);
+});
