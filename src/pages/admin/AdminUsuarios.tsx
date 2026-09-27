@@ -28,17 +28,12 @@ import { dataBR, dataHoraBR, numero } from '@/lib/formato';
 import { montarCsv, baixarCsv, nomeArquivoCsv } from '@/lib/admin/csv';
 import { cn } from '@/lib/utils';
 import type { UsuarioAdmin } from '@/integrations/supabase/admin-types';
+import { rotuloAssinatura, rotuloAtividade, rotuloStatusConta } from '@/lib/admin/saas';
 
 const COR_STATUS: Record<string, string> = {
   ativo: 'bg-success/10 text-success border-success/20',
   suspenso: 'bg-destructive/10 text-destructive border-destructive/20',
   inativo: 'bg-muted text-muted-foreground border-border',
-};
-
-const ROTULO_ATIVIDADE: Record<string, string> = {
-  ativo: 'Ativo',
-  inativo: 'Inativo',
-  sem_dados: 'Sem dados',
 };
 
 const TODOS = 'TODOS';
@@ -76,11 +71,12 @@ export default function AdminUsuarios() {
         { cabecalho: 'E-mail', valor: (u) => u.email },
         { cabecalho: 'Telefone', valor: (u) => u.telefone },
         { cabecalho: 'CRECI', valor: (u) => u.creci },
-        { cabecalho: 'Status', valor: (u) => u.status },
-        { cabecalho: 'Atividade', valor: (u) => ROTULO_ATIVIDADE[u.atividade] ?? u.atividade },
+        { cabecalho: 'Status da conta', valor: (u) => rotuloStatusConta(u.status) },
+        { cabecalho: 'Atividade', valor: (u) => rotuloAtividade(u.atividade) },
         { cabecalho: 'Cadastro', valor: (u) => dataBR(u.criado_em) },
         { cabecalho: 'Último acesso', valor: (u) => dataHoraBR(u.ultimo_acesso_em) },
         { cabecalho: 'Plano', valor: (u) => u.plano_nome },
+        { cabecalho: 'Assinatura', valor: (u) => rotuloAssinatura(u.assinatura_status) },
         { cabecalho: 'Parceiro', valor: (u) => u.parceiro_nome },
         { cabecalho: 'Clientes', valor: (u) => u.total_clientes },
         { cabecalho: 'Imóveis', valor: (u) => u.total_imoveis },
@@ -124,7 +120,7 @@ export default function AdminUsuarios() {
 
         <div className="space-y-1.5">
           <Label htmlFor="filtro-status" className="text-xs text-muted-foreground">
-            Status
+            Conta
           </Label>
           <Select value={status} onValueChange={(v) => aoFiltrar(() => setStatus(v))}>
             <SelectTrigger id="filtro-status" className="w-full sm:w-[150px]">
@@ -132,9 +128,9 @@ export default function AdminUsuarios() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={TODOS}>Todos</SelectItem>
-              <SelectItem value="ativo">Ativo</SelectItem>
-              <SelectItem value="suspenso">Suspenso</SelectItem>
-              <SelectItem value="inativo">Inativo</SelectItem>
+              <SelectItem value="ativo">{rotuloStatusConta('ativo')}</SelectItem>
+              <SelectItem value="suspenso">{rotuloStatusConta('suspenso')}</SelectItem>
+              <SelectItem value="inativo">{rotuloStatusConta('inativo')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -149,9 +145,9 @@ export default function AdminUsuarios() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={TODOS}>Todas</SelectItem>
-              <SelectItem value="ativo">Ativo</SelectItem>
-              <SelectItem value="inativo">Inativo</SelectItem>
-              <SelectItem value="sem_dados">Sem dados</SelectItem>
+              <SelectItem value="ativo">{rotuloAtividade('ativo')}</SelectItem>
+              <SelectItem value="inativo">{rotuloAtividade('inativo')}</SelectItem>
+              <SelectItem value="sem_dados">{rotuloAtividade('sem_dados')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -203,7 +199,8 @@ export default function AdminUsuarios() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead className="hidden md:table-cell">Contato</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Conta</TableHead>
+                    <TableHead className="hidden md:table-cell">Plano</TableHead>
                     <TableHead className="hidden lg:table-cell">Atividade</TableHead>
                     <TableHead className="hidden lg:table-cell">Cadastro</TableHead>
                     <TableHead className="hidden xl:table-cell">Parceiro</TableHead>
@@ -230,8 +227,12 @@ export default function AdminUsuarios() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(COR_STATUS[u.status])}>
-                          {u.status}
+                          {rotuloStatusConta(u.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <p className="text-sm">{u.plano_nome ?? 'Sem plano'}</p>
+                        <p className="text-xs text-muted-foreground">{rotuloAssinatura(u.assinatura_status)}</p>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <span
@@ -240,7 +241,7 @@ export default function AdminUsuarios() {
                             u.atividade === 'sem_dados' && 'text-muted-foreground',
                           )}
                         >
-                          {ROTULO_ATIVIDADE[u.atividade]}
+                          {rotuloAtividade(u.atividade)}
                         </span>
                         {u.ultimo_acesso_em && (
                           <p className="text-xs text-muted-foreground">

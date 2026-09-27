@@ -20,7 +20,7 @@ export type StatusAssinatura =
 export const ROTULO_ASSINATURA: Record<StatusAssinatura, string> = {
   trialing: 'Em teste',
   active: 'Ativa',
-  past_due: 'Vencida',
+  past_due: 'Em atraso',
   canceled: 'Cancelada',
   expired: 'Expirada',
   read_only: 'Somente leitura',
@@ -34,6 +34,35 @@ export const COR_ASSINATURA: Record<StatusAssinatura, string> = {
   expired: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   read_only: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
 };
+
+/** Mesmo nome em todas as telas; valor desconhecido aparece cru em vez de sumir. */
+export function rotuloAssinatura(status: string | null | undefined): string {
+  if (!status) return 'Sem assinatura';
+  return ROTULO_ASSINATURA[status as StatusAssinatura] ?? status;
+}
+
+// ── Conta e atividade ─────────────────────────────────────────────────────
+// Status da conta (`corretores.status`) e atividade de uso são coisas
+// diferentes: "inativo" existe nos dois e precisa de nomes distintos.
+const ROTULO_STATUS_CONTA: Record<string, string> = {
+  ativo: 'Ativa',
+  suspenso: 'Suspensa',
+  inativo: 'Desativada',
+};
+
+const ROTULO_ATIVIDADE: Record<string, string> = {
+  ativo: 'Em uso',
+  inativo: 'Sem uso recente',
+  sem_dados: 'Sem dados',
+};
+
+export function rotuloStatusConta(status: string): string {
+  return ROTULO_STATUS_CONTA[status] ?? status;
+}
+
+export function rotuloAtividade(atividade: string): string {
+  return ROTULO_ATIVIDADE[atividade] ?? atividade;
+}
 
 // ── Pagamentos do checkout ────────────────────────────────────────────────
 export type StatusPagamento =
