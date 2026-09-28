@@ -390,3 +390,27 @@ it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () 
   await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
   height.mockRestore();
 });
+
+it('conversa sem cliente vinculado entra no CRM com um clique', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
+  mount(true);
+  const button = await screen.findByRole('button', { name: 'Adicionar ao CRM' });
+  expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Sem cliente vinculado');
+  fireEvent.click(button);
+  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_add_to_crm', { p_conversation: 'c1' }));
+});
+
+it('número oculto: o botão espera o WhatsApp revelar o número', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ phone: null, lid: '123456789012345', contact_name: 'Paula' })];
+  mount(true);
+  const button = await screen.findByRole('button', { name: 'Adicionar ao CRM' });
+  expect(button.hasAttribute('disabled')).toBe(true);
+  expect(button.getAttribute('title')).toContain('número');
+});
+
+it('conversa que já é cliente não mostra o botão', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Neves/ });
+  expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull();
+});
