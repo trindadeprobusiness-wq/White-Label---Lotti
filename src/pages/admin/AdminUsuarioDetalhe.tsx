@@ -12,6 +12,7 @@ import { useDetalheUsuario, useDefinirStatusCorretor } from '@/hooks/admin/useAd
 import { usePapeis } from '@/hooks/admin/usePapeis';
 import { dataBR, dataHoraBR, numero } from '@/lib/formato';
 import { cn } from '@/lib/utils';
+import { rotuloAssinatura, rotuloStatusConta } from '@/lib/admin/saas';
 
 interface DetalheCorretor {
   corretor_id: string;
@@ -145,7 +146,7 @@ export default function AdminUsuarioDetalhe() {
                 rotulo="Status"
                 valor={
                   <Badge variant="outline" className={cn(COR_STATUS[c.status])}>
-                    {c.status}
+                    {rotuloStatusConta(c.status)}
                   </Badge>
                 }
               />
@@ -229,7 +230,7 @@ export default function AdminUsuarioDetalhe() {
           <CardContent>
             <dl className="grid grid-cols-2 gap-4">
               <Campo rotulo="Plano" valor={detalhe?.assinatura?.plano ?? 'Sem assinatura'} />
-              <Campo rotulo="Status" valor={detalhe?.assinatura?.status} />
+              <Campo rotulo="Situação" valor={detalhe?.assinatura ? rotuloAssinatura(detalhe.assinatura.status) : undefined} />
               <Campo
                 rotulo="Parceiro de origem"
                 valor={

@@ -18,6 +18,9 @@ import {
   MOTIVOS,
   ORIGENS,
   ROTULO_ASSINATURA,
+  rotuloAssinatura,
+  rotuloStatusConta,
+  rotuloAtividade,
   ROTULO_PAGAMENTO,
   type ParceiroElegivel,
 } from './saas';
@@ -166,6 +169,21 @@ describe('rótulos', () => {
   it('devolve a chave crua para valor desconhecido em vez de quebrar', () => {
     expect(rotuloMotivo('motivo_que_nao_existe')).toBe('motivo_que_nao_existe');
     expect(rotuloOrigem('inventado')).toBe('inventado');
+  });
+
+  it('usa o mesmo nome para o mesmo status em todas as telas', () => {
+    expect(rotuloAssinatura('past_due')).toBe('Em atraso');
+    expect(rotuloAssinatura('trialing')).toBe('Em teste');
+    expect(rotuloAssinatura(null)).toBe('Sem assinatura');
+    expect(rotuloAssinatura('status_novo')).toBe('status_novo');
+    expect(rotuloStatusConta('suspenso')).toBe('Suspensa');
+    expect(rotuloStatusConta('inativo')).toBe('Desativada');
+  });
+
+  it('não confunde conta desativada com conta sem uso recente', () => {
+    expect(rotuloAtividade('inativo')).toBe('Sem uso recente');
+    expect(rotuloAtividade('inativo')).not.toBe(rotuloStatusConta('inativo'));
+    expect(rotuloAtividade('sem_dados')).toBe('Sem dados');
   });
 
   it('cobre os seis status de assinatura e os sete de pagamento', () => {

@@ -357,3 +357,19 @@ it('banco sem a coluna de opt-out continua mostrando o nome do contato', async (
   expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
   expect(screen.getByLabelText('Mensagem')).not.toBeNull();
 });
+
+it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({
+    qualification: { stage: 'qualificado_busca', temperature: 'quente', priority: 'alta', reason: 'Quer comprar no Centro com financiamento aprovado.',
+      profile: { budget: 'até 500 mil', timeframe: 'em 3 meses', needs: '2 quartos com garagem', nextStep: 'enviar opções', region: 'Centro' } },
+  })];
+  mount(true);
+  const profile = await screen.findByRole('complementary', { name: 'Perfil do contato' });
+  expect(profile.textContent).toContain('Quer comprar no Centro com financiamento aprovado.');
+  expect(profile.textContent).toContain('Qualificado para busca');
+  expect(profile.textContent).toContain('Prioridade alta');
+  for (const [label, value] of [['Orçamento', 'até 500 mil'], ['Prazo', 'em 3 meses'], ['Essenciais', '2 quartos com garagem'], ['Próximo passo', 'enviar opções'], ['Região', 'Centro']]) {
+    const term = Array.from(profile.querySelectorAll('dt')).find(dt => dt.textContent === label);
+    expect(term?.nextElementSibling?.textContent).toBe(value);
+  }
+});
