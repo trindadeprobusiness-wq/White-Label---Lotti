@@ -12,11 +12,12 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { conversationTitle, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
 import { MessageComposer } from './MessageComposer';
 import { ConversationStatusDialog, NewConversationDialog, RenameContactDialog } from './InboxActionDialogs';
+import { optOutState, type OptOutState } from './optOut';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
 type Qualification = { stage?: string; temperature?: string; priority?: string; reason?: string; profile?: Record<string, string | null> };
-type Conversation = { id: string; phone: string; contact_name?: string | null; clientes?: { nome: string } | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null };
+type Conversation = { id: string; phone: string; contact_name?: string | null; clientes?: { nome: string } | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null; opted_out_at?: string | null };
 const CONVERSATION_FIELDS = 'id,phone,cliente_id,mode,status,updated_at,qualification,last_error,clientes(nome)';
 // Archived conversations belong to a WhatsApp number that is no longer connected.
 async function fetchConversations() {
@@ -25,18 +26,27 @@ async function fetchConversations() {
     if (scoped) query = query.is('archived_at', null);
     return query.order('updated_at', { ascending: false }).limit(100);
   };
-  let { data, error } = await recent(`${CONVERSATION_FIELDS},contact_name`, true);
-  // Until the account-scope migration is applied these columns do not exist.
+  let { data, error } = await recent(`${CONVERSATION_FIELDS},contact_name,opted_out_at`, true);
+  // Each migration adds columns; older databases fall back one step at a time.
+  if (error?.code === '42703') ({ data, error } = await recent(`${CONVERSATION_FIELDS},contact_name`, true));
   if (error?.code === '42703') ({ data, error } = await recent(CONVERSATION_FIELDS, false));
   if (error) throw error;
   return data as unknown as Conversation[];
 }
 type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; media_path: string | null; created_at: string; preview_kind?: 'file' | 'audio' };
-type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
+type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status' | 'consent'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
 function eventText(event: InboxEvent) {
+  if (event.kind === 'consent') return event.to_label === 'Contato liberado' ? `Contato liberado por ${event.actor_label}` : 'Contato pediu para não receber mensagens';
   if (event.kind === 'status') return `Conversa ${event.to_label === 'Fechada' ? 'fechada' : 'reaberta'} por ${event.actor_label}`;
   if (event.kind === 'mode') return `${event.to_label === 'IA' ? 'IA ligada' : event.to_label === 'Pausada' ? 'IA pausada' : 'IA desligada'} por ${event.actor_label}`;
   return `${event.subject_label ? `Negócio ${event.subject_label} movido` : 'Movido'} de ${event.from_label || 'sem etapa'} para ${event.to_label} por ${event.actor_label}`;
+}
+function OptOutNotice({ state, since, pending, failed, onRelease }: { state: Exclude<OptOutState, 'none'>; since: string; pending: boolean; failed: boolean; onRelease: () => void }) {
+  return <div role="status" className="shrink-0 border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+    <p><strong>Contato pediu para não receber mensagens</strong> em {new Date(since).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: inboxTimeZone })}. {state === 'blocked' ? 'Você pode responder quando ele escrever de novo.' : 'Ele voltou a escrever, então você pode responder. A IA continua desligada.'}</p>
+    <p className="mt-1"><button type="button" disabled={pending} onClick={onRelease} className="font-semibold underline disabled:opacity-50">Liberar contato</button> <span className="text-amber-800/80">— use se foi engano ou se ele pediu para voltar a receber.</span></p>
+    {failed && <p role="alert" className="mt-1 text-destructive">Não foi possível liberar o contato. Tente novamente.</p>}
+  </div>;
 }
 function ContactAvatar({ name, className }: { name: string; className: string }) {
   const initial = name.trim().match(/^\p{L}/u)?.[0].toLocaleUpperCase('pt-BR');
@@ -168,6 +178,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     },
     onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
   });
+  const clearOptOut=useMutation({mutationFn:async()=>{const {error}=await db.rpc('lotti_inbox_clear_opt_out',{p_conversation:selected!.id});if(error)throw error},onSuccess:async()=>{await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
   const refreshConversation=async(id?:string)=>{if(id)setSelectedId(id);await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-agent-message-previews',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-client',user?.id]})])};
   const startConversation=useMutation({mutationFn:async(data:{phone:string;name?:string;text:string})=>{const {data:result,error}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'start',...data,request_id:crypto.randomUUID()}});if(error||!result?.conversationId)throw error??new Error('start_failed');if(result.sendStatus!=='sent')throw new Error(result.sendStatus==='uncertain'?'uncertain':'send_failed');return result.conversationId as string},onSuccess:async id=>{setNewOpen(false);await refreshConversation(id)}});
   const renameContact=useMutation({mutationFn:async(contact:{name:string;phone:string})=>{const {data,error}=await db.rpc('lotti_inbox_update_contact',{p_conversation:selected!.id,p_name:contact.name,p_phone:contact.phone});if(error)throw error;return data},onSuccess:async()=>{setRenameOpen(false);await refreshConversation()}});
@@ -193,6 +204,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     setSelectedId(id);setNewOpen(false);
   };
   const q = selected?.qualification;
+  const optOut = preview ? 'none' : optOutState(selected?.opted_out_at, messages.data ?? []);
   const timeline = [...(messages.data ?? []).map(message => ({ type: 'message' as const, value: message })),
     ...(events.data ?? []).map(event => ({ type: 'event' as const, value: event }))]
     .sort((a, b) => new Date(a.value.created_at).getTime() - new Date(b.value.created_at).getTime());
@@ -215,8 +227,8 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           <div className="grid grid-cols-3 gap-1"><Button size="sm" className={`h-7 px-1 text-[11px] ${quick === 'all' ? 'border border-primary bg-primary/10 text-primary hover:bg-primary/15' : 'bg-white text-[#565e76]'}`} variant="outline" onClick={() => setQuick('all')}>Todas</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-amber-700" variant={quick === 'late' ? 'secondary' : 'outline'} onClick={() => setQuick('late')} aria-label={`Atrasando: ${count('late')} conversas`}><Timer className="h-3 w-3" />{count('late')}</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-red-600" variant={quick === 'urgent' ? 'secondary' : 'outline'} onClick={() => setQuick('urgent')} aria-label={`Urgente: ${count('urgent')} conversas`}><AlertTriangle className="h-3 w-3" />{count('urgent')}</Button></div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
-        {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
-          <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
+        {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); clearOptOut.reset(); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
+          <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.opted_out_at ? 'Não quer receber' : c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
         </button>)}
         {!filtered.length && <p className="p-4 text-center text-xs text-muted-foreground">Nenhuma conversa encontrada.</p>}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
@@ -231,18 +243,19 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           <div data-testid="conversation-header-actions" className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
             <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{stages[q?.stage ?? ''] ?? (selected.cliente_id ? 'Em atendimento humano' : 'Sem cliente vinculado')}</span></span>
             <button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button>
-            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{selected.mode==='ai'?'IA ligada':selected.mode==='paused'?'IA pausada':'IA desligada'}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
+            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{optOut!=='none'?'IA bloqueada':selected.mode==='ai'?'IA ligada':selected.mode==='paused'?'IA pausada':'IA desligada'}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
             <Button size="sm" className="h-8 shrink-0 border-primary px-2 text-[11px] text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
           </div>
         </header>
-        {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.</p>}
+        {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
         <div data-testid="message-timeline" className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
           {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>
         {connected === true || preview
-          ? <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />
+          ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}
+            {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
           : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
       {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">

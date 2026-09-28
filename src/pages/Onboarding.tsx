@@ -154,6 +154,23 @@ export default function Onboarding() {
     setInicializado(true);
   }, [contexto, corretor, inicializado]);
 
+  // O corretor pode chegar depois do contexto (o gate redireciona antes do
+  // DataLoader): completa só os campos ainda vazios, sem apagar o que foi digitado.
+  const creciCadastrado = corretor?.creci && corretor.creci !== 'PENDENTE' ? corretor.creci : '';
+  useEffect(() => {
+    if (!inicializado || !corretor) return;
+    setDraft((atual) => {
+      const perfil = {
+        ...atual.perfil,
+        nome: atual.perfil.nome || corretor.nome || '',
+        telefone: atual.perfil.telefone || corretor.telefone || '',
+        creci: atual.perfil.creci || creciCadastrado,
+      };
+      const mudou = perfil.nome !== atual.perfil.nome || perfil.telefone !== atual.perfil.telefone || perfil.creci !== atual.perfil.creci;
+      return mudou ? { ...atual, perfil } : atual;
+    });
+  }, [corretor, creciCadastrado, inicializado]);
+
   // Autosave do rascunho: nenhum campo digitado depende do botão Avançar.
   useEffect(() => {
     if (!inicializado || !disponivel) return;
@@ -247,11 +264,13 @@ export default function Onboarding() {
     if (!draft.perfil.nome.trim() || !draft.perfil.telefone.trim() || !draft.perfil.cidade.trim()) {
       toast.error('Informe nome, telefone e cidade para continuar.'); return;
     }
-    const creciStatus = draft.perfil.creci.trim() ? 'aguardando_validacao' : 'nao_informado';
+    // Sem CRECI digitado, mantém o que já estava no cadastro em vez de gravar 'PENDENTE'.
+    const creci = draft.perfil.creci.trim() || creciCadastrado;
+    const creciStatus = creci ? 'aguardando_validacao' : 'nao_informado';
     await atualizarPerfilProfissional.mutateAsync({
       nome: draft.perfil.nome.trim(), telefone: draft.perfil.telefone.trim(), cidade: draft.perfil.cidade.trim(),
       estado: draft.perfil.estado, tipo_atuacao: draft.perfil.tipoAtuacao || null,
-      creci: draft.perfil.creci.trim() || 'PENDENTE', regioes_atendidas: draft.perfil.regioes.split(',').map((item) => item.trim()).filter(Boolean),
+      creci: creci || 'PENDENTE', regioes_atendidas: draft.perfil.regioes.split(',').map((item) => item.trim()).filter(Boolean),
       especialidade: draft.perfil.especialidade || null, fuso_horario: draft.perfil.fuso, creci_status: creciStatus,
     });
     await salvar.mutateAsync({ profile: { creci_status: creciStatus } });
@@ -385,8 +404,8 @@ export default function Onboarding() {
       <div className="flex min-h-screen items-center justify-center bg-secondary p-5">
         <Card className="max-w-lg"><CardContent className="space-y-4 p-6 text-center">
           <ShieldCheck className="mx-auto h-8 w-8 text-primary" />
-          <h1 className="text-xl font-semibold">Onboarding aguardando ativação</h1>
-          <p className="text-sm text-muted-foreground">A interface está pronta, mas a migration do onboarding ainda precisa ser aplicada no Supabase.</p>
+          <h1 className="text-xl font-semibold">Configuração guiada indisponível</h1>
+          <p className="text-sm text-muted-foreground">O passo a passo de configuração ainda não está liberado na sua conta. Você pode usar o painel normalmente.</p>
           <Button asChild><Link to="/">Continuar para o painel</Link></Button>
         </CardContent></Card>
       </div>
@@ -450,7 +469,7 @@ export default function Onboarding() {
               imoveis={imoveis}
               conviteGerado={conviteGerado}
               processando={processando}
-              onNext={() => void concluirEtapa()}
+              onNext={() => void executar(() => concluirEtapa())}
               onPerfil={salvarPerfil}
               onEmpresa={salvarEmpresa}
               onEntrada={prepararEntrada}
@@ -468,7 +487,7 @@ export default function Onboarding() {
           {etapa !== 'boas_vindas' && etapa !== 'conclusao' && (
             <footer className="flex flex-col-reverse gap-3 border-t border-[#E8ECE6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
               <Button variant="ghost" onClick={voltar}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
-              {podePular && <Button variant="ghost" className="text-muted-foreground" onClick={() => void pularEtapa()}>Pular por agora</Button>}
+              {podePular && <Button variant="ghost" className="text-muted-foreground" onClick={() => void executar(pularEtapa)}>Pular por agora</Button>}
             </footer>
           )}
         </section>

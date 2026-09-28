@@ -20,6 +20,9 @@ describe('contexto do onboarding', () => {
     expect(deveAbrirOnboarding(contexto, '/')).toBe(true);
     expect(deveAbrirOnboarding(contexto, '/onboarding')).toBe(false);
     expect(deveAbrirOnboarding(contexto, '/admin')).toBe(false);
+    expect(deveAbrirOnboarding(contexto, '/rotina')).toBe(false);
+    expect(deveAbrirOnboarding(contexto, '/plano')).toBe(false);
+    expect(deveAbrirOnboarding(contexto, '/planejamento')).toBe(true);
   });
 
   it('não reapresenta wizard concluído ou dispensado', () => {

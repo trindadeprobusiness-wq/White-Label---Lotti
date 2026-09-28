@@ -21,11 +21,14 @@ BEGIN
     (v_outsider, 'onboarding-outsider@teste.local', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated')
   ON CONFLICT (id) DO NOTHING;
 
-  INSERT INTO public.corretores (user_id, nome, email, creci, telefone) VALUES
+  -- corretores não tem UNIQUE(user_id): ON CONFLICT (user_id) abortava o script.
+  INSERT INTO public.corretores (user_id, nome, email, creci, telefone)
+  SELECT v.* FROM (VALUES
     (v_owner, 'Owner Onboarding', 'onboarding-owner@teste.local', 'PENDENTE', '11900000001'),
     (v_invited, 'Convidado Onboarding', 'onboarding-invited@teste.local', 'PENDENTE', '11900000002'),
     (v_outsider, 'Externo Onboarding', 'onboarding-outsider@teste.local', 'PENDENTE', '11900000003')
-  ON CONFLICT (user_id) DO NOTHING;
+  ) AS v(user_id, nome, email, creci, telefone)
+  WHERE NOT EXISTS (SELECT 1 FROM public.corretores c WHERE c.user_id = v.user_id);
 
   SELECT organization_id INTO v_org FROM public.routine_memberships
    WHERE user_id=v_owner AND status='active' LIMIT 1;
