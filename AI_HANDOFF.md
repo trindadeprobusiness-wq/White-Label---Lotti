@@ -1,5 +1,14 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — número, nome e histórico do WhatsApp no teste local (2026-09-28)
+- Produção: as 6 migrations de 2026-09-28 (admin, conversa travada, opt-out, agente IA, follow-up, disparos) estão aplicadas e conferidas. A migration `20260926200000_lotti_whatsapp_lid_conversations` (número oculto) **não** foi aplicada em produção.
+- Causa dos contatos "sem número": o patch da Evolution anotava `remoteJidAlt`/`lottiContactName` na chave protobuf do histórico, cujo `toJSON` descarta campos extras. Corrigido na ponte (anotação em cópia simples da chave). O número de todos os contatos já estava no armazenamento local do Baileys.
+- Branch `claude/whatsapp-nome-perfil` (esta): migration `20260928190000_lotti_whatsapp_profile_names.sql` — sem nome salvo na agenda, o nome de perfil do WhatsApp (`profile`) só preenche nome vazio em `lotti_agent_ingest`/`lotti_agent_import_history`; o salvo continua substituindo; o CRM recebe o nome. Parte da versão da `main` de `import_history`. Teste `lotti-whatsapp-profile-names.test.ts` (6) + `lotti-whatsapp-lid.test.ts` (15) passando. Aplicar **depois** da `20260926200000`.
+- Branch `claude/qr-pendente-conexao` (commit 367a12c): a tela de conexão volta a mostrar um QR ainda válido em vez de "reconectando"; 9 testes passando.
+- Ponte (repo do agente), branch `claude/whatsapp-lid-conversations`: correção da serialização, `key.lottiLid` em mensagens ao vivo (evita conversa duplicada), repasse de contatos marcados (`contacts.upsert` com `lotti:'contact'`) e anúncio dos LIDs ao abrir a conexão, `runtime/contacts.mjs` (completa só conversas existentes), nome de perfil e `HISTORY_IMPORT_MODE=full` importando também as mensagens já guardadas na Evolution. Runtime 83/83 e patch da Evolution 12/12 (build da imagem roda os testes contra o bundle original e o WAProto real). O webhook precisa de `CONTACTS_UPSERT`: canais existentes só o recebem no próximo `connect`.
+- Teste local (Supabase local + ponte `lotti-lidtest`, envio real desligado): 102/102 conversas com número, 54 com nome (as demais sem nenhum nome enviado pelo WhatsApp), 2.186 mensagens individuais importadas. O celular (WhatsApp Business iPhone) enviou só 5 contatos da agenda ao aparelho conectado.
+- Pendências: push/PRs sob autorização; ajuste da `20260926200000` (merge levar `opted_out_at` e entregas de disparo) antes de produção; revisão adversarial em andamento.
+
 ## Codex — evolução do módulo DRE Gerencial (2026-09-26)
 - Tabela `lancamentos_financeiros` estendida com campos essenciais para DRE: `data_competencia`, `status`, `impacta_dre`, `grupo_dre`, `subcategoria`, `source_type` e `source_id`.
 - ENUM `categoria_financeira` evoluído no banco e `src/types/financeiro.ts` para suportar classificações imobiliárias completas (ex: `TAXA_ADMINISTRACAO`, `MARKETING_ANUNCIO`, `COMISSAO_CORRETOR`, `IMPOSTO_FATURAMENTO`).
