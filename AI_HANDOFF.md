@@ -2129,3 +2129,4 @@ credencial); nao foi contornada.
 - Ainda pendentes: validação completa da plataforma (a instalação local falhou por `EPERM` em `node_modules/@esbuild/win32-x64/esbuild.exe`), push/publicação da plataforma, conferência do deploy Vercel e aplicação das migrations em produção. As migrations de onboarding e número oculto permanecem seguradas conforme instrução.
 - Nenhuma ponte foi publicada, mensagem real foi enviada ou campanha foi ativada.
 - Diário — Codex: merges locais concluídos e ponte validada; publicação e Supabase aguardam ferramentas/acesso operacional.
+- Atualização — Codex: a plataforma foi enviada para `origin/main` no commit `8a5df1f`; a ponte permaneceu somente no checkout local.
