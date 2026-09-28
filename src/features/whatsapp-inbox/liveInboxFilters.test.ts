@@ -6,7 +6,17 @@ describe('nome do contato no Inbox real', () => {
   it('prefere o nome editado no CRM, depois o nome do WhatsApp e por fim o número', () => {
     expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Maria Souza')).toBe('Maria Souza');
     expect(conversationTitle({ ...base, contact_name: 'Maria (WhatsApp)' }, 'Contato WhatsApp')).toBe('Maria (WhatsApp)');
-    expect(conversationTitle({ ...base, contact_name: null })).toBe('+5562999999999');
+    expect(conversationTitle({ ...base, contact_name: null })).toBe('+55 (62) 99999-9999');
+    expect(conversationTitle({ ...base, phone: '556233334444', contact_name: null })).toBe('+55 (62) 3333-4444');
+    expect(conversationTitle({ ...base, phone: '14155550100', contact_name: null })).toBe('+14155550100');
+  });
+  it('conversa com número oculto pelo WhatsApp não mostra número inventado', () => {
+    expect(conversationTitle({ ...base, phone: null, contact_name: null })).toBe('Contato sem número');
+    expect(conversationTitle({ ...base, phone: null, contact_name: 'Paula' })).toBe('Paula');
+  });
+  it('busca não quebra em conversa sem número', () => {
+    const options = { query: 'pau', quick: 'all' as const, mode: '', stage: '', period: '', now: Date.parse('2026-09-20T15:00:00Z') };
+    expect(filterLiveConversations([{ ...base, phone: null, contact_name: 'Paula' }, { ...base, id: '10', phone: null }], new Map(), options).map(c => c.id)).toEqual(['9']);
   });
   it('busca também pelo nome do contato', () => {
     const options = { query: 'mari', quick: 'all' as const, mode: '', stage: '', period: '', now: Date.parse('2026-09-20T15:00:00Z') };

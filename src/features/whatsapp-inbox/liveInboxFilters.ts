@@ -1,16 +1,25 @@
 export type LiveConversation = {
   id: string;
-  phone: string;
+  // Null when WhatsApp hides the number (the conversation is kept by its LID).
+  phone: string | null;
   contact_name?: string | null;
   mode: 'ai' | 'human' | 'paused';
   updated_at: string;
   qualification: { priority?: string; stage?: string };
 };
 
-// A name typed in the CRM wins; then the WhatsApp/address-book name; then the number.
+export function formatContactPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 13 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  if (digits.length === 12 && digits.startsWith('55')) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  return digits ? `+${digits}` : value;
+}
+
+// A name typed in the CRM wins; then the name saved in the phone's address book;
+// an unsaved contact is shown by its number, as in WhatsApp.
 export function conversationTitle(conversation: Pick<LiveConversation, 'phone' | 'contact_name'>, clientName?: string | null) {
   if (clientName && clientName !== 'Contato WhatsApp') return clientName;
-  return conversation.contact_name || `+${conversation.phone}`;
+  return conversation.contact_name || (conversation.phone ? formatContactPhone(conversation.phone) : 'Contato sem número');
 }
 
 export type LatestMessage = { conversation_id: string; direction: 'in' | 'out'; created_at: string; content: string };
@@ -38,7 +47,7 @@ export function filterLiveConversations<T extends LiveConversation>(conversation
   const query = options.query.trim().toLocaleLowerCase('pt-BR');
   return conversations.filter(conversation => {
     const message = latest.get(conversation.id);
-    if (query && ![conversation.phone, conversation.contact_name ?? '', message?.content ?? ''].some(value => value.toLocaleLowerCase('pt-BR').includes(query))) return false;
+    if (query && ![conversation.phone ?? '', conversation.contact_name ?? '', message?.content ?? ''].some(value => value.toLocaleLowerCase('pt-BR').includes(query))) return false;
     if (options.quick !== 'all' && liveUrgency(conversation, message, options.now) !== options.quick) return false;
     if (options.mode && conversation.mode !== options.mode) return false;
     if (options.stage && conversation.qualification?.stage !== options.stage) return false;

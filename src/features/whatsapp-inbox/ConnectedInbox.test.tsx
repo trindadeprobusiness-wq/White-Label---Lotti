@@ -148,7 +148,7 @@ it('mostra fechamento como conversa fechada, não IA pausada', async () => {
 
 it('atualiza a conversa aberta sem repetir toda a lista a cada ciclo', async () => {
   mount(true);
-  await screen.findByRole('button', { name: /5511999990000/ });
+  await screen.findByRole('button', { name: /99999-0000/ });
   await waitFor(() => expect(mockDb.reads.lotti_agent_messages).toBeGreaterThan(0));
   const listBefore = mockDb.reads.lotti_agent_conversations;
   const messagesBefore = mockDb.reads.lotti_agent_messages;
@@ -167,6 +167,14 @@ it('mostra o nome do contato do WhatsApp em vez do número cru', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Maria Souza' })];
   mount(true);
   expect(await screen.findByRole('button', { name: /Maria Souza/ })).not.toBeNull();
+});
+
+it('conversa com número oculto pelo WhatsApp avisa em vez de mostrar número vazio', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ phone: null, lid: '123456789012345', contact_name: 'Paula' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Paula/ });
+  expect(screen.getAllByText('Número oculto pelo WhatsApp').length).toBeGreaterThan(0);
+  expect(screen.queryByText('+null')).toBeNull();
 });
 
 it('usa a inicial do nome em todos os avatares, sem mostrar dígitos do telefone', async () => {
@@ -234,14 +242,14 @@ it('mostra mudanças de IA e Funil como avisos internos ordenados no chat', asyn
 
 it('lista só conversas do número conectado, sem as arquivadas', async () => {
   mount(true);
-  await screen.findByRole('button', { name: /5511999990000/ });
+  await screen.findByRole('button', { name: /99999-0000/ });
   expect(mockDb.filters).toContain('lotti_agent_conversations.archived_at is null');
 });
 
 it('banco ainda sem a migration nova continua listando as conversas', async () => {
   mockDb.missingColumns = true;
   mount(true);
-  expect(await screen.findByRole('button', { name: /5511999990000/ })).not.toBeNull();
+  expect(await screen.findByRole('button', { name: /99999-0000/ })).not.toBeNull();
   expect(screen.queryByText(/Não foi possível carregar as conversas/)).toBeNull();
 });
 
@@ -302,7 +310,7 @@ it('mantém a densidade compacta da referência do Clix', async () => {
   expect(shell.className).toContain('p-[10px]');
   expect(screen.getByTestId('conversation-header').className).toContain('min-h-[68px]');
   expect(screen.getByTestId('conversation-stage-pill')).not.toBeNull();
-  expect(screen.getByRole('button', { name: /5511999990000/ }).className).toContain('min-h-[64px]');
+  expect(screen.getByRole('button', { name: /99999-0000/ }).className).toContain('min-h-[64px]');
   expect(screen.getByRole('switch', { name: 'IA' })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Ocultar info' })).not.toBeNull();
   expect(screen.getByRole('complementary', { name: 'Perfil do contato' }).className).toContain('2xl:static');
@@ -332,7 +340,7 @@ it('contato que pediu para sair: sem compositor, IA bloqueada e opção de liber
   const ai = screen.getByRole('switch', { name: 'IA' });
   expect(ai.hasAttribute('disabled')).toBe(true);
   expect(ai.textContent).toContain('IA bloqueada');
-  expect(screen.getByRole('button', { name: /5511999990000/ }).textContent).toContain('Não quer receber');
+  expect(screen.getByRole('button', { name: /99999-0000/ }).textContent).toContain('Não quer receber');
   fireEvent.click(screen.getByRole('button', { name: 'Liberar contato' }));
   await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_clear_opt_out', { p_conversation: 'c1' }));
 });
