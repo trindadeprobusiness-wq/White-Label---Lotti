@@ -34,7 +34,7 @@ function itensMenu(): ItemSheet[] {
     { label: 'Mídias',       href: '/midias',      icone: <Video className={ic} /> },
     { label: 'Fachadas',     href: '/fachadas',    icone: <QrCode className={ic} /> },
     { label: 'Imóveis',      href: '/imoveis',     icone: <Building2 className={ic} /> },
-    { label: 'Rotina',       href: '/rotina',      icone: <CalendarCheck2 className={ic} /> },
+    { label: 'Planejamento', href: '/rotina',      icone: <CalendarCheck2 className={ic} /> },
     { label: 'Conexão WhatsApp', href: '/whatsapp/conexao', icone: <Cable className={ic} /> },
     { label: 'Agente de IA', href: '/whatsapp/agente', icone: <Bot className={ic} /> },
     { label: 'Disparos',     href: '/automacoes',  icone: <Send className={ic} /> },

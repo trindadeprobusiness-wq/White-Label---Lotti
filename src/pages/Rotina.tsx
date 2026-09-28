@@ -94,10 +94,10 @@ export default function Rotina() {
   if (!context) {
     return (
       <div>
-        <PageHeader titulo="Rotina" subtitulo="Agenda, tarefas e próxima melhor ação da operação." comUtilitarios />
+        <PageHeader titulo="Planejamento" subtitulo="Agenda, tarefas e próxima melhor ação da operação." comUtilitarios />
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertTitle>A Central de Rotina precisa da migration do banco</AlertTitle>
+          <AlertTitle>O Planejamento precisa da migration do banco</AlertTitle>
           <AlertDescription className="mt-2 leading-6">
             A interface já está integrada ao produto, mas as tabelas protegidas por RLS ainda não existem neste ambiente.
             Aplique <code>20260821004218_rotina_operacional.sql</code> no Supabase e publique as Edge Functions documentadas.

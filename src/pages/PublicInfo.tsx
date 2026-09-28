@@ -102,7 +102,7 @@ function SyncBoard() {
         <div className="flex items-center justify-between border-b border-[#e2e9e5] px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#62756a]">Hoje</p>
-            <p className="mt-1 font-semibold">Rotina conectada</p>
+            <p className="mt-1 font-semibold">Agenda conectada</p>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f1eb] px-3 py-1 text-xs font-semibold text-[#093323]">
             <span className="h-2 w-2 rounded-full bg-[#1d8a5e]" /> Sincronizada
@@ -428,7 +428,7 @@ export function PoliticaPrivacidade() {
 
       <section>
         <h2>6. Retenção, desconexão e exclusão</h2>
-        <p className="mt-3">Em <strong>Rotina → Google Agenda</strong>, o usuário pode selecionar <strong>Desconectar Google Agenda</strong>. Essa ação revoga a autorização no Google e exclui da Lotti os tokens e metadados técnicos da conexão. Eventos já importados podem permanecer como registros operacionais até que sejam excluídos pelo usuário ou junto com sua conta.</p>
+        <p className="mt-3">Em <strong>Planejamento → Google Agenda</strong>, o usuário pode selecionar <strong>Desconectar Google Agenda</strong>. Essa ação revoga a autorização no Google e exclui da Lotti os tokens e metadados técnicos da conexão. Eventos já importados podem permanecer como registros operacionais até que sejam excluídos pelo usuário ou junto com sua conta.</p>
         <p className="mt-3">Também é possível revogar o acesso diretamente nas configurações de segurança da Conta do Google. Solicitações de acesso, correção ou exclusão podem ser feitas pelo canal de suporte disponível dentro da Lotti.</p>
       </section>
 
