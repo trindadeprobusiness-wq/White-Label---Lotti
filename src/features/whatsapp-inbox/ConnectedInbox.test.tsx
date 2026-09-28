@@ -15,7 +15,7 @@ const dataByTable: Record<string, unknown[]> = {
   lotti_inbox_events: [],
 };
 // missingColumns simulates the production database before the account-scope migration.
-const mockDb = { missingColumns: false, missingOptOut: false, filters: [] as string[], reads: {} as Record<string, number> };
+const mockDb = { missingColumns: false, missingOptOut: false, filters: [] as string[], reads: {} as Record<string, number>, rpcError: null as null | { message: string } };
 function builder(table: string) {
   let columns = '';
   const filters: string[] = [];
@@ -39,7 +39,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } })
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (t: string) => builder(t),
-    rpc: (...args: unknown[]) => { previewRpc(...args); return Promise.resolve({ data: true, error: null }); },
+    rpc: (...args: unknown[]) => { previewRpc(...args); return Promise.resolve(mockDb.rpcError ? { data: null, error: mockDb.rpcError } : { data: true, error: null }); },
     functions: { invoke: (...args: unknown[]) => { previewInvoke(...args); return Promise.resolve({ data: { sendStatus: 'sent' }, error: null }); } },
     storage: { from: () => ({ createSignedUrl: () => Promise.resolve({ data: { signedUrl: 'https://example.invalid/Custos.xlsx' }, error: null }) }) },
   },
@@ -157,7 +157,7 @@ it('atualiza a conversa aberta sem repetir toda a lista a cada ciclo', async () 
   expect(mockDb.reads.lotti_agent_conversations - listBefore).toBeLessThanOrEqual(1);
 });
 
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.missingOptOut = false; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.missingOptOut = false; mockDb.rpcError = null; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
@@ -391,21 +391,36 @@ it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () 
   height.mockRestore();
 });
 
-it('conversa sem cliente vinculado entra no CRM com um clique', async () => {
+it('conversa sem cliente vinculado entra no CRM com um clique e o botão some', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
   mount(true);
   const button = await screen.findByRole('button', { name: 'Adicionar ao CRM' });
   expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Sem cliente vinculado');
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves', cliente_id: 'cliente-1' })];
   fireEvent.click(button);
   await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_add_to_crm', { p_conversation: 'c1' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull());
+  expect(screen.queryByRole('alert')).toBeNull();
 });
 
-it('número oculto: o botão espera o WhatsApp revelar o número', async () => {
+it('explica quando não foi possível adicionar ao CRM', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
+  mockDb.rpcError = { message: 'phone_required' };
+  mount(true);
+  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('ainda não revelou o número');
+  mockDb.rpcError = { message: 'boom' };
+  fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao CRM' }));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Não foi possível adicionar ao CRM'));
+});
+
+it('número oculto: o botão espera o WhatsApp revelar o número e diz isso na tela', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ phone: null, lid: '123456789012345', contact_name: 'Paula' })];
   mount(true);
   const button = await screen.findByRole('button', { name: 'Adicionar ao CRM' });
   expect(button.hasAttribute('disabled')).toBe(true);
-  expect(button.getAttribute('title')).toContain('número');
+  expect(screen.getByText('Aguardando o número do WhatsApp')).not.toBeNull();
+  expect(button.getAttribute('aria-describedby')).toBe('crm-waiting-phone');
 });
 
 it('conversa que já é cliente não mostra o botão', async () => {

@@ -87,12 +87,28 @@ describe('Adicionar ao CRM a partir do Inbox', () => {
     expect(await clients()).toHaveLength(1);
   });
 
-  it('vincula o cliente que já existe com o mesmo telefone, mesmo formatado', async () => {
-    const existing = (await db.query<{ id: string }>(`insert into clientes(corretor_id,nome,telefone) values ('${owner}','Carlos Neves','+55 (62) 91111-0002') returning id`)).rows[0].id;
+  it('vincula o cliente salvo pelo CRM no formato nacional, sem o 55', async () => {
+    const existing = (await db.query<{ id: string }>(`insert into clientes(corretor_id,nome,telefone) values ('${owner}','Carlos Neves','(62) 91111-0002') returning id`)).rows[0].id;
     await importHistory([{ phone: '5562911110002', profile: 'Neves' }]);
     const cv = await conversation(`phone='5562911110002'`);
     expect(await addToCrm(cv.id)).toEqual({ cliente_id: existing, created: false });
     expect(await clients()).toHaveLength(1);
+  });
+
+  it('vincula mesmo quando o WhatsApp manda o celular sem o nono dígito', async () => {
+    const existing = (await db.query<{ id: string }>(`insert into clientes(corretor_id,nome,telefone) values ('${owner}','Ana','(62) 99111-0003') returning id`)).rows[0].id;
+    await importHistory([{ phone: '556291110003' }]);
+    const cv = await conversation(`phone='556291110003'`);
+    expect(await addToCrm(cv.id)).toEqual({ cliente_id: existing, created: false });
+  });
+
+  it('cliente de outra conta com o mesmo telefone não é usado', async () => {
+    await db.exec(`insert into clientes(corretor_id,nome,telefone) values ('${other}','De outra conta','(62) 91111-0007')`);
+    await importHistory([{ phone: '5562911110007' }]);
+    const cv = await conversation(`phone='5562911110007'`);
+    const result = await addToCrm(cv.id);
+    expect(result.created).toBe(true);
+    expect((await clients()).filter((c) => c.corretor_id === owner)).toHaveLength(1);
   });
 
   it('usa "Contato WhatsApp" quando a conversa não tem nome e limpa a pendência de captura', async () => {
@@ -121,5 +137,28 @@ describe('Adicionar ao CRM a partir do Inbox', () => {
     expect(anon).toBe(false);
     expect(logged).toBe(true);
     expect(await clients()).toHaveLength(0);
+  });
+
+  it('captura automática e "Nova conversa" também acham o cliente salvo sem o 55', async () => {
+    const byIngest = (await db.query<{ id: string }>(`insert into clientes(corretor_id,nome,telefone) values ('${owner}','Lead do site','(62) 91111-0008') returning id`)).rows[0].id;
+    await db.query('select public.lotti_agent_ingest($1::jsonb)', [JSON.stringify({ instance: 'lotti-agent', phone: '5562911110008', external_id: 'live-1', text: 'Oi', from_me: false, unsupported: false, account: '5562900000001' })]);
+    expect((await conversation(`phone='5562911110008'`)).cliente_id).toBe(byIngest);
+    const byStart = (await db.query<{ id: string }>(`insert into clientes(corretor_id,nome,telefone) values ('${owner}','Indicação','62911110009') returning id`)).rows[0].id;
+    await db.exec(`SET request.jwt.claim.sub='${user}'; SET ROLE authenticated`);
+    try { await db.query('select public.lotti_inbox_start_conversation($1,$2)', ['(62) 91111-0009', null]); } finally { await db.exec('RESET ROLE; RESET request.jwt.claim.sub'); }
+    expect((await conversation(`phone='5562911110009'`)).cliente_id).toBe(byStart);
+    expect((await clients()).filter((c) => c.corretor_id === owner)).toHaveLength(2);
+  });
+
+  it('a chave de telefone junta os formatos do mesmo número e separa números diferentes', async () => {
+    const key = async (v: string | null) => (await db.query<{ k: string | null }>('select public.lotti_phone_key($1) k', [v])).rows[0].k;
+    expect(await key('5562911110002')).toBe(await key('(62) 91111-0002'));
+    expect(await key('+55 62 9 1111-0002')).toBe(await key('556211110002'));
+    expect(await key('556291110003')).toBe(await key('(62) 99111-0003'));
+    expect(await key('5555991234567')).toBe(await key('55991234567'));
+    expect(await key('5562911110002')).not.toBe(await key('5511911110002'));
+    expect(await key('14155550123')).toBe('1455550123');
+    expect(await key('')).toBeNull();
+    expect(await key(null)).toBeNull();
   });
 });
