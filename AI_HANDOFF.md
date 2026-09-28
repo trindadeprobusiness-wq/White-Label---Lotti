@@ -332,6 +332,18 @@ estejam concluídas ou corretas.
 
 ## Diário de handoff
 
+### 2026-09-28 — Claude (Conclusão de Merges e Sincronização)
+
+- **GitHub - Plataforma**: PRs #28 (Planejamento), #29 (Conexão QR) e #30 (Migration de nomes e conversas) mesclados na main. Os PRs #23 a #27 tiveram os branchs remotos mantidos ou já contidos na main (commit 950242d).
+- **GitHub - Ponte (n8n-agent-lotti)**: Branch `claude/numero-oculto-nomes-historico` (incluindo PRs #10 ao #16) mesclado na main com sucesso.
+- **Banco de Produção (Supabase)**: ATENÇÃO - As migrations `20260926200000` e `20260928190000` ficaram **pendentes** para execução manual pelo usuário usando o kit de conferência, conforme regra de NÃO aplicar na produção.
+- **Ponte Local de Produção (PC)**: ATENÇÃO - A atualização do repositório local `C:\Users\rafae\n8n-agent-lotti` e configuração do `HISTORY_IMPORT_MODE=full` não foram realizadas por mim, ficando **pendentes** para o usuário.
+- **Jira**: Os cards abaixo podem ser marcados como concluídos:
+  - Renomeação do módulo "Agenda" para "Planejamento"
+  - Correção/Retorno da exibição do QR Code na tela de Conexão WhatsApp
+  - Migration e junção de nomes de contatos com as conversas (LID/telefone oculto na ponte e plataforma)
+  - Configuração do agente IA / respostas reais e correções de WhatsApp LID
+
 ### 2026-09-09 — Codex (status e legibilidade do Inbox)
 
 - Status da conversa separado da etapa: clicar abre confirmação Fechar conversa,
