@@ -27,7 +27,12 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
  const begin=useCallback(async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {data,error}=await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error||!data)throw error??new Error('connection_unavailable');cache.setQueryData(['whatsapp-connection',user?.id],data);setPairing(data.state!=='connected');}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}},[cache,starting,user?.id]);
  // Only a confirmed disconnected session starts pairing. While WhatsApp is reconnecting
  // a new connect would make the bridge log the paired number out.
- const reconnecting=connection.data?.state==='connecting'&&!pairing;
+ // A QR already waiting to be scanned (page reopened mid-pairing) is shown again once,
+ // without asking for a new connection; Cancel keeps it closed.
+ const pendingQr=connection.data?.state==='connecting'&&!!connection.data?.qr&&Number(connection.data?.qrExpiresAt)>now;
+ const resumed=useRef(false);
+ useEffect(()=>{if(pendingQr&&!pairing&&!previewPairing&&!resumed.current){resumed.current=true;setPairing(true);}},[pendingQr,pairing,previewPairing]);
+ const reconnecting=connection.data?.state==='connecting'&&!pairing&&!pendingQr;
  useEffect(()=>{if(!autoStart||previewPairing||connection.isPending||connection.data?.state!=='disconnected'||autoStarted.current)return;autoStarted.current=true;void begin();},[autoStart,previewPairing,connection.isPending,connection.data?.state,begin]);
  useEffect(()=>{
    if(!pairing||previewPairing)return;

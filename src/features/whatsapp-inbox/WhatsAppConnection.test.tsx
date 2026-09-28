@@ -27,7 +27,11 @@ it('mantém o QR ilustrativo visível sem aplicar a expiração real',async()=>{
 });
 it('starts once, polls read-only, expires a QR locally and cancels without logout',async()=>{
  const expiresAt=Date.now()+10000;
- invoke.mockResolvedValue({data:{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,test',qrExpiresAt:expiresAt},error:null});
+ let started=false;
+ invoke.mockImplementation((_name,options)=>{
+   if(options.body.action==='connect')started=true;
+   return Promise.resolve({data:started?{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,test',qrExpiresAt:expiresAt}:{state:'disconnected',agentEnabled:false},error:null});
+ });
  mount();await advance();fireEvent.click(screen.getByText('Conectar WhatsApp'));await advance();
  expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).not.toBeNull();
  await advance(11000);
@@ -76,6 +80,15 @@ it('não pede nova conexão enquanto o WhatsApp está reconectando, para não de
  mount({autoStart:true});await advance(5000);
  expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(0);
  expect(screen.getByText(/reconectando/i)).not.toBeNull();
+});
+it('mostra de novo o QR que já espera leitura quando a página abre, sem pedir outra conexão',async()=>{
+ invoke.mockResolvedValue({data:{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,pendente',qrExpiresAt:Date.now()+30000},error:null});
+ mount({autoStart:true});await advance(3000);
+ expect(screen.getByAltText('QR Code atualizado para conectar seu WhatsApp').getAttribute('src')).toBe('data:image/png;base64,pendente');
+ expect(screen.queryByText(/reconectando/i)).toBeNull();
+ expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(0);
+ fireEvent.click(screen.getByText('Cancelar'));await advance(3000);
+ expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).toBeNull();
 });
 it('não pede conexão quando o estado não pôde ser consultado',async()=>{
  invoke.mockResolvedValue({data:null,error:new Error('indisponível')});
