@@ -2122,3 +2122,10 @@ credencial); nao foi contornada.
   - A imagem de teste `lotti-evolution:2.3.7-baileys-rc14-lidnames` é separada; a ponte de produção segue na imagem anterior.
 - Verificação: patch 6/6 contra `main.js` e `main.mjs` reais; ponte 72/72; plataforma 83 arquivos/668 testes e build Vite.
 - Pendente: reconectar pelo QR para confirmar números e nomes com o celular real; investigar o 401; mensagens atrasadas entregues ao reconectar ainda criam conversa nova com a IA.
+
+### 2026-09-28 — Codex (integração do sprint Lotti)
+- Integrados localmente na plataforma, com merge commits e nesta ordem: correção de segurança do `xlsx` (`585dc00`), PRs #22, #23, #24, #25, #27 e #26. O conflito em `AI_HANDOFF.md` foi resolvido preservando as duas entradas.
+- Integrados no repositório da ponte, com merge commits e nesta ordem: PRs #10, #11, #12, #13, #14 e #15. `node --test runtime/*.test.mjs`: 105/105 aprovados.
+- Ainda pendentes: validação completa da plataforma (a instalação local falhou por `EPERM` em `node_modules/@esbuild/win32-x64/esbuild.exe`), push/publicação da plataforma, conferência do deploy Vercel e aplicação das migrations em produção. As migrations de onboarding e número oculto permanecem seguradas conforme instrução.
+- Nenhuma ponte foi publicada, mensagem real foi enviada ou campanha foi ativada.
+- Diário — Codex: merges locais concluídos e ponte validada; publicação e Supabase aguardam ferramentas/acesso operacional.
