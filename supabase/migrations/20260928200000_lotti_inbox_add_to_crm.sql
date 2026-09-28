@@ -2,17 +2,29 @@ begin;
 
 -- The same phone is written in several ways: WhatsApp and the agent use the
 -- country code (5562911110002), the CRM forms save the national format
--- ((62) 91111-0002), and older mobiles may lack the 9th digit (556291110002).
--- lotti_phone_key reduces a Brazilian number to area code + last 8 digits, so
--- all of them find the same client. Other numbers keep their digits.
+-- ((62) 91111-0002), and older mobiles may lack the 9th digit (556291110003
+-- is (62) 99111-0003). lotti_phone_key gives one key per Brazilian line:
+-- area code + 'm' + last 8 digits for mobiles (with or without the 9th digit)
+-- and area code + 'f' + number for landlines, so a landline never matches a
+-- mobile. Numbers that are not plausible Brazilian lines, and numbers written
+-- with another country code (+1, 00351...), keep all their digits.
 create or replace function public.lotti_phone_key(p_value text) returns text
 language sql immutable set search_path='' as $$
   select case
-    when d ~ '^55[0-9]{10,11}$' then substr(d,3,2)||right(d,8)
-    when length(d) in (10,11) then left(d,2)||right(d,8)
-    else nullif(d,'')
+    when n is null then nullif(d,'')
+    when length(n)=11 or substr(n,3,1) between '6' and '9' then left(n,2)||'m'||right(n,8)
+    else left(n,2)||'f'||right(n,8)
   end
-  from (select regexp_replace(coalesce(p_value,''),'[^0-9]','','g') as d) s
+  from (
+    select d, case
+      when d ~ '^55[1-9][1-9](9[0-9]{8}|[2-9][0-9]{7})$' then substr(d,3)
+      when not intl and d ~ '^[1-9][1-9](9[0-9]{8}|[2-9][0-9]{7})$' then d
+    end as n
+    from (
+      select case when v ~ '^\s*00' then substr(digits,3) else digits end as d, v ~ '^\s*(\+|00)' as intl
+      from (select coalesce(p_value,'') as v, regexp_replace(coalesce(p_value,''),'[^0-9]','','g') as digits) raw
+    ) parts
+  ) national
 $$;
 create index if not exists clientes_corretor_phone_key_idx on public.clientes(corretor_id, public.lotti_phone_key(telefone));
 

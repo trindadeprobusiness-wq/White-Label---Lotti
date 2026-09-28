@@ -429,3 +429,30 @@ it('conversa que já é cliente não mostra o botão', async () => {
   await screen.findByRole('button', { name: /Neves/ });
   expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull();
 });
+
+it('depois de adicionar ao CRM, atualiza a lista de clientes do CRM', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
+  mount(true);
+  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
+  await waitFor(() => expect(mockDb.reads.clientes ?? 0).toBeGreaterThan(0));
+});
+
+it('o erro ao adicionar uma conversa não aparece em outra conversa', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' }), conversationFixture({ id: 'c2', phone: '5511888880000', contact_name: 'Ana' })];
+  mockDb.rpcError = { message: 'boom' };
+  mount(true);
+  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: /Ana/ }));
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  expect(screen.getByRole('button', { name: 'Adicionar ao CRM' }).hasAttribute('disabled')).toBe(false);
+});
+
+it('na prévia, adicionar ao CRM não chama o banco nem mostra link de cadastro', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull());
+  expect(previewRpc).not.toHaveBeenCalledWith('lotti_inbox_add_to_crm', expect.anything());
+  expect(screen.queryByText('Abrir cadastro do cliente')).toBeNull();
+});

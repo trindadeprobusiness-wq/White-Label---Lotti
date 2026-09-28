@@ -153,11 +153,20 @@ describe('Adicionar ao CRM a partir do Inbox', () => {
   it('a chave de telefone junta os formatos do mesmo número e separa números diferentes', async () => {
     const key = async (v: string | null) => (await db.query<{ k: string | null }>('select public.lotti_phone_key($1) k', [v])).rows[0].k;
     expect(await key('5562911110002')).toBe(await key('(62) 91111-0002'));
-    expect(await key('+55 62 9 1111-0002')).toBe(await key('556211110002'));
+    expect(await key('+55 (62) 9 1111-0002')).toBe(await key('62911110002'));
+    expect(await key('0055 62 91111-0002')).toBe(await key('5562911110002'));
     expect(await key('556291110003')).toBe(await key('(62) 99111-0003'));
     expect(await key('5555991234567')).toBe(await key('55991234567'));
     expect(await key('5562911110002')).not.toBe(await key('5511911110002'));
-    expect(await key('14155550123')).toBe('1455550123');
+    // Fixo e celular com o mesmo final são linhas diferentes.
+    expect(await key('(11) 3456-7890')).not.toBe(await key('(11) 93456-7890'));
+    expect(await key('551134567890')).not.toBe(await key('5511934567890'));
+    expect(await key('(11) 3456-7890')).toBe(await key('551134567890'));
+    // Número de outro país fica com todos os dígitos.
+    expect(await key('+1 415 555 0123')).toBe('14155550123');
+    expect(await key('+1 415 555 0123')).not.toBe(await key('+1 425 555 0123'));
+    expect(await key('14155550123')).toBe('14155550123');
+    expect(await key('+351 912 345 678')).toBe('351912345678');
     expect(await key('')).toBeNull();
     expect(await key(null)).toBeNull();
   });
