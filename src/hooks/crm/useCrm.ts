@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { mensagemDeErro } from '@/lib/errors';
 import { normalizarLead } from '@/lib/crm/pipeline';
 import { paraRegistro } from '@/lib/crm/historico';
+import { candidatosValidos, codigoDoErro, type CandidatoCliente } from '@/lib/crm/duplicidade';
+import { useCRMStore } from '@/stores/crmStore';
 import type { CrmEtapa, CrmOportunidade, CrmTarefa } from '@/lib/crm/tipos';
 
 /**
@@ -24,6 +26,8 @@ export const crmKeys = {
   oportunidades: () => [...crmKeys.todos, 'oportunidades'] as const,
   tarefas: () => [...crmKeys.todos, 'tarefas'] as const,
   leads: () => [...crmKeys.todos, 'leads'] as const,
+  candidatos: (telefone: string, email: string, cpf: string) =>
+    [...crmKeys.todos, 'candidatos', telefone, email, cpf] as const,
 };
 
 /**
@@ -206,6 +210,39 @@ export function useLeadsPendentes() {
   });
 }
 
+/**
+ * Clientes da conta que podem ser a mesma pessoa: mesmo telefone (em qualquer
+ * grafia, pela chave do banco), mesmo CPF/CNPJ ou mesmo e-mail. A busca é no
+ * servidor porque a lista em memória do CRM pode estar desatualizada e porque
+ * a regra do telefone (9º dígito, código do país) é a do banco.
+ *
+ * Só consulta com dado utilizável, para não disparar uma chamada por tecla.
+ */
+export function useClientesParecidos(
+  dados: { telefone?: string | null; email?: string | null; cpf?: string | null },
+  habilitado = true,
+) {
+  const telefone = (dados.telefone ?? '').replace(/\D/g, '');
+  const email = (dados.email ?? '').trim().toLowerCase();
+  const cpf = (dados.cpf ?? '').replace(/\D/g, '');
+  const chave = {
+    telefone: telefone.length >= 10 ? telefone : '',
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '',
+    cpf: cpf.length === 11 || cpf.length === 14 ? cpf : '',
+  };
+  return useQuery({
+    queryKey: crmKeys.candidatos(chave.telefone, chave.email, chave.cpf),
+    enabled: habilitado && !!(chave.telefone || chave.email || chave.cpf),
+    queryFn: async (): Promise<CandidatoCliente[]> => {
+      const { data, error } = await db().rpc('crm_clientes_por_telefone', {
+        p_telefone: chave.telefone || null, p_email: chave.email || null, p_cpf: chave.cpf || null,
+      });
+      if (error) throw error;
+      return candidatosValidos(data);
+    },
+  });
+}
+
 // ── Mutações ──────────────────────────────────────────────────────────────
 
 /**
@@ -338,61 +375,65 @@ export function useCriarTarefa() {
   });
 }
 
+export type ResultadoConversao =
+  | { status: 'converted'; cliente_id: string; created: boolean; oportunidade_id: string | null }
+  | { status: 'ja_convertido'; cliente_id: string | null }
+  | { status: 'duplicate'; candidatos: CandidatoCliente[] };
+
+const MENSAGENS_CONVERSAO: Record<string, string> = {
+  forbidden: 'Este lead não é de uma fachada sua, ou o cliente escolhido é de outra conta.',
+  invalid_stage: 'A etapa do pipeline não existe mais. Recarregue a página e tente de novo.',
+};
+
 /**
  * Converte um lead da fachada em cliente + oportunidade. É a lacuna que existia:
  * `fachada_leads.convertido` só era exibido como badge e `cliente_id` nunca era
  * preenchido — os leads entravam e ficavam parados.
  *
- * `clienteExistente` vem da tela quando o usuário confirmou que é a mesma
- * pessoa, e aí nenhum cliente novo é criado.
+ * Tudo acontece numa transação no banco (crm_converter_lead): cliente, negócio
+ * e "convertido" entram juntos ou nada entra, e o lead fica travado durante a
+ * conversão, então clique duplo ou outra aba não criam um segundo cliente.
+ * Quando o telefone ou o e-mail já são de um cliente da conta, nada é gravado
+ * e a resposta traz os candidatos para o corretor vincular: não existe "criar
+ * mesmo assim". `clienteExistente` é o cliente escolhido na tela.
+ *
+ * No modo legado não há crm_oportunidades: a etapa vai nula e o cliente entra
+ * no funil pelo status_funil. Um negócio aberto do cliente é reaproveitado.
  */
 export function useConverterLead() {
   const qc = useQueryClient();
+  const { data: modo } = useModoCrm();
   return useMutation({
     mutationFn: async (args: {
       lead: { id: string; nome: string; telefone: string; email?: string | null };
       etapaId: string;
       clienteExistente?: string | null;
-    }) => {
-      const corretor = await corretorId();
-      let clienteId = args.clienteExistente ?? null;
-
-      if (!clienteId) {
-        const limpo = normalizarLead(args.lead);
-        const { data, error } = await db().from('clientes').insert({
-          nome: limpo.nome,
-          telefone: limpo.telefone,
-          email: limpo.email,
-          tipo_interesse: 'COMPRA',
-          status_funil: 'QUALIFICACAO',
-          observacoes: 'Convertido de lead da fachada.',
-          corretor_id: corretor,
-        }).select('id').single();
-        if (error) throw error;
-        clienteId = data.id;
-      }
-
-      const { error: erroOp } = await db().from('crm_oportunidades').insert({
-        corretor_id: corretor,
-        cliente_id: clienteId,
-        etapa_id: args.etapaId,
-        titulo: args.lead.nome,
-        origem: 'fachada',
+    }): Promise<ResultadoConversao> => {
+      const limpo = normalizarLead(args.lead);
+      const { data, error } = await db().rpc('crm_converter_lead', {
+        p_lead: args.lead.id,
+        // No modo legado a "etapa" é o status_funil ('QUALIFICACAO'), não um uuid.
+        p_etapa: modo === 'completo' ? args.etapaId : null,
+        p_dados: { nome: limpo.nome, telefone: limpo.telefone, email: limpo.email },
+        p_cliente: args.clienteExistente ?? null,
       });
-      if (erroOp) throw erroOp;
-
-      const { error: erroLead } = await db().from('fachada_leads')
-        .update({ convertido: true, cliente_id: clienteId })
-        .eq('id', args.lead.id);
-      if (erroLead) throw erroLead;
-
-      return clienteId;
+      if (error) throw error;
+      const resultado = data as ResultadoConversao;
+      return resultado.status === 'duplicate'
+        ? { status: 'duplicate', candidatos: candidatosValidos(resultado.candidatos) }
+        : resultado;
     },
-    onSuccess: () => {
-      toast.success('Lead convertido em cliente e oportunidade.');
-      qc.invalidateQueries({ queryKey: crmKeys.leads() });
-      qc.invalidateQueries({ queryKey: crmKeys.oportunidades() });
+    onSuccess: async (resultado) => {
+      if (resultado.status === 'duplicate') return; // a tela mostra os candidatos
+      if (resultado.status === 'ja_convertido') toast.info('Este lead já tinha sido convertido.');
+      else if (!resultado.created) toast.success('Lead vinculado ao cliente que já existia.');
+      else toast.success(modo === 'completo' ? 'Lead convertido em cliente e oportunidade.' : 'Lead convertido em cliente.');
+      // As telas antigas do CRM leem os clientes do store, não do React Query.
+      await Promise.all([
+        useCRMStore.getState().fetchClientes(),
+        qc.invalidateQueries({ queryKey: crmKeys.todos }),
+      ]);
     },
-    onError: (e) => toast.error(mensagemDeErro(e, 'Não foi possível converter o lead.')),
+    onError: (e) => toast.error(MENSAGENS_CONVERSAO[codigoDoErro(e)] ?? mensagemDeErro(e, 'Não foi possível converter o lead.')),
   });
 }

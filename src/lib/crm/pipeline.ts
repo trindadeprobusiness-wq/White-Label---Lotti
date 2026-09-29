@@ -107,23 +107,6 @@ export function tarefaAtrasada(
   return !Number.isNaN(prazo.getTime()) && prazo < agora;
 }
 
-/**
- * Candidatos a duplicata por telefone. Compara os dígitos NORMALIZADOS, porque
- * o mesmo número está gravado de três jeitos diferentes no banco (com máscara,
- * cru, e com o "55" que o lead-capture põe na frente).
- *
- * Telefone que não normaliza não casa com ninguém: sem isso, todo lead sem
- * telefone válido apareceria como duplicata de todo mundo.
- */
-export function possiveisDuplicados<T extends { telefone?: string | null }>(
-  candidatos: T[],
-  lead: { telefone?: string | null },
-): T[] {
-  const alvo = normalizarTelefoneBR(lead.telefone).digitos;
-  if (!alvo) return [];
-  return candidatos.filter((c) => normalizarTelefoneBR(c.telefone).digitos === alvo);
-}
-
 /** Limpa o lead antes de virar cliente. */
 export function normalizarLead(lead: { nome: string; telefone: string; email?: string | null }) {
   const { digitos, formatado } = normalizarTelefoneBR(lead.telefone);

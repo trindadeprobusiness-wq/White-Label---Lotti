@@ -5,7 +5,6 @@ import {
   totalPorEtapa,
   taxaConversao,
   tarefaAtrasada,
-  possiveisDuplicados,
   normalizarLead,
 } from './pipeline';
 import type { CrmEtapa, CrmOportunidade } from './tipos';
@@ -111,29 +110,6 @@ describe('tarefaAtrasada', () => {
   });
   it('prazo no futuro não está atrasada', () => {
     expect(tarefaAtrasada({ data_prevista: '2026-08-12T12:00:00Z', concluida: false }, agora)).toBe(false);
-  });
-});
-
-describe('possiveisDuplicados', () => {
-  const base = [
-    { id: 'c1', nome: 'Carmem Emilia', telefone: '(62) 99928-3671' },
-    { id: 'c2', nome: 'João Silva', telefone: '5562999998888' },
-  ];
-
-  it('casa telefone com formatação diferente', () => {
-    expect(possiveisDuplicados(base, { telefone: '62999283671' }).map((c) => c.id)).toEqual(['c1']);
-  });
-
-  it('casa mesmo com código do país gravado no cadastro', () => {
-    expect(possiveisDuplicados(base, { telefone: '(62) 99999-8888' }).map((c) => c.id)).toEqual(['c2']);
-  });
-
-  it('telefone inválido não casa com ninguém — senão agruparia tudo', () => {
-    expect(possiveisDuplicados(base, { telefone: 'nao informado' })).toEqual([]);
-  });
-
-  it('telefone diferente não casa', () => {
-    expect(possiveisDuplicados(base, { telefone: '(11) 98765-4321' })).toEqual([]);
   });
 });
 
