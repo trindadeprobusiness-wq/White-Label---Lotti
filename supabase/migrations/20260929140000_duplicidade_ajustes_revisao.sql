@@ -25,7 +25,10 @@ begin
   -- A signed-in user writing a row for another account is refused by RLS,
   -- which runs after this trigger: answering first would tell them whether
   -- that account has the phone.
-  if auth.uid() is not null and new.corretor_id is distinct from public.get_corretor_id() then return new; end if;
+  -- Ingest and the other service paths run without a user.
+  if auth.uid() is not null and not exists(select 1 from public.corretores r where r.id=new.corretor_id and r.user_id=auth.uid()) then
+    return new;
+  end if;
   perform pg_advisory_xact_lock(hashtextextended(new.corretor_id::text||':'||v_key,716));
   select id into v_existing from public.clientes
    where corretor_id=new.corretor_id and public.lotti_phone_key(telefone)=v_key and id<>new.id
