@@ -25,11 +25,21 @@ function novaConversa(outcome?:{requestId:string;status:string}){
 it('tentar de novo a mesma mensagem reaproveita o request_id, para a ponte não enviar duas vezes', () => {
   const {enviar,rerender}=novaConversa();
   const first=enviar('(62) 98123-4567','Olá');
-  rerender({requestId:first,status:'uncertain'});
-  expect(enviar('(62) 98123-4567','Olá')).toBe(first);
   rerender({requestId:first,status:'busy'});
   expect(enviar('(62) 98123-4567','Olá')).toBe(first);
   expect(enviar('(62) 98123-4567','Olá, tudo bem?')).not.toBe(first);
+});
+
+it('depois de um envio sem confirmação, pergunta antes e só reenvia com um request_id novo', () => {
+  const {submit,enviar,rerender}=novaConversa();
+  const first=enviar('(62) 98123-4567','Olá');
+  rerender({requestId:first,status:'uncertain'});
+  fireEvent.click(screen.getByRole('button',{name:'Enviar mensagem'}));
+  expect(submit).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('alert').textContent).toContain('ficou sem confirmação');
+  fireEvent.click(screen.getByRole('button',{name:'Enviar de novo'}));
+  expect(submit).toHaveBeenCalledTimes(2);
+  expect(submit.mock.lastCall![0].request_id).not.toBe(first);
 });
 
 it('depois de enviada ou recusada, a mesma mensagem é um envio novo', () => {
