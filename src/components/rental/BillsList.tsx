@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileDrop } from "@/hooks/useFileDrop";
-import { formatarTelefone } from "@/lib/validators";
+import { primeiroTelefoneBR } from "@/lib/telefone";
+import { clienteDoTelefone } from "@/lib/crm/duplicidade";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -412,15 +413,25 @@ export function BillsList() {
             if (readErr) throw readErr;
 
             const patch: Record<string, unknown> = { cpf: inq.cpf.replace(/\D/g, '') };
-            // O telefone vem da leitura da IA em texto livre; formata antes de gravar
-            // para não plantar número torto logo antes de emitir a cobrança.
-            if (!atual?.telefone && inq.telefone) patch.telefone = formatarTelefone(inq.telefone);
+            // O telefone vem da leitura da IA em texto livre, às vezes com vários
+            // números: só o primeiro válido é gravado, já formatado, para não plantar
+            // número torto logo antes de emitir a cobrança.
+            const telefone = primeiroTelefoneBR(inq.telefone);
+            if (!atual?.telefone && telefone) patch.telefone = telefone;
             if (!atual?.email && inq.email) patch.email = inq.email;
 
-            const { error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId);
+            let { error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId);
+            // O telefone lido pode ser de outro cliente da conta, e o banco não
+            // deixa dois clientes com o mesmo número: grava o resto sem ele.
+            const telefoneDeOutro = !!clienteDoTelefone(error);
+            if (telefoneDeOutro) {
+                delete patch.telefone;
+                ({ error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId));
+            }
             if (error) throw error;
 
             toast.success("CPF preenchido! Agora é possível emitir a cobrança deste inquilino.");
+            if (telefoneDeOutro) toast.warning("O telefone do contrato já é de outro cliente do CRM e não foi copiado para este cadastro.");
             setExtraido(null);
             queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
             queryClient.invalidateQueries({ queryKey: ["active-contracts-for-bills"] });

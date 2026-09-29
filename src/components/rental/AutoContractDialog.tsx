@@ -16,6 +16,11 @@ import { extractContractData, ExtractedContractData } from "@/services/contractE
 import { Database } from "@/integrations/supabase/types";
 import { useCheckLimit } from "@/hooks/useSubscription";
 import { podeCriarRecurso } from "@/lib/planos";
+import { useClientesParecidos } from "@/hooks/crm/useCrm";
+import { MOTIVO_CANDIDATO } from "@/lib/crm/duplicidade";
+import { cadastrarOuReaproveitarCliente, completarCpfDoCliente } from "@/lib/crm/cadastroCliente";
+import { documentoParaSalvar, primeiroTelefoneBR } from "@/lib/telefone";
+import { mensagemDeErro } from "@/lib/errors";
 
 type TipoContrato = Database["public"]["Enums"]["tipo_contrato"];
 
@@ -56,6 +61,10 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
     const [tenantName, setTenantName] = useState("");
     const [tenantPhone, setTenantPhone] = useState("");
     const [tenantEmail, setTenantEmail] = useState("");
+    const [tenantCpf, setTenantCpf] = useState("");
+    // Cliente já cadastrado que recebe o contrato: um dos encontrados pelo
+    // telefone/CPF/e-mail, ou o de nome parecido que o corretor aceitou.
+    const [escolhido, setEscolhido] = useState<string | null>(null);
     const [ownerName, setOwnerName] = useState("");
     const [propertyAddress, setPropertyAddress] = useState("");
     const [propertyCity, setPropertyCity] = useState("");
@@ -83,7 +92,16 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
         enabled: open,
     });
 
-    const matchedClient = clients?.find(c => tenantName && looseMatch(c.nome, tenantName));
+    // O inquilino é procurado pelo que identifica uma pessoa (telefone em
+    // qualquer grafia, CPF, e-mail) antes de qualquer cadastro. Havendo um, o
+    // contrato vai para ele: a conta não pode ter dois clientes com o mesmo
+    // telefone. O nome virou só sugestão, porque homônimos são comuns.
+    const telefoneInquilino = primeiroTelefoneBR(tenantPhone) || tenantPhone.trim();
+    const parecidos = useClientesParecidos({ telefone: telefoneInquilino, email: tenantEmail, cpf: tenantCpf }, open && step === "review");
+    const candidatos = parecidos.data ?? [];
+    const encontrado = candidatos.find(c => c.id === escolhido) ?? candidatos[0];
+    const sugestaoPorNome = candidatos.length || parecidos.isLoading ? undefined : clients?.find(c => tenantName && looseMatch(c.nome, tenantName));
+    const matchedClient = encontrado ?? (sugestaoPorNome && escolhido === sugestaoPorNome.id ? sugestaoPorNome : undefined);
     const matchedProperty = properties?.find(p =>
         (propertyAddress && (looseMatch(p.endereco || "", propertyAddress) || looseMatch(p.titulo, propertyAddress)))
     );
@@ -95,6 +113,8 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
         setTenantName("");
         setTenantPhone("");
         setTenantEmail("");
+        setTenantCpf("");
+        setEscolhido(null);
         setOwnerName("");
         setPropertyAddress("");
         setPropertyCity("");
@@ -118,8 +138,11 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
             setExtracted(dados);
 
             setTenantName(dados.inquilino.nome || "");
-            setTenantPhone(dados.inquilino.telefone || "");
+            // Contratos listam vários números; o primeiro válido é o que casa com o CRM.
+            setTenantPhone(primeiroTelefoneBR(dados.inquilino.telefone) || dados.inquilino.telefone || "");
             setTenantEmail(dados.inquilino.email || "");
+            setTenantCpf(dados.inquilino.cpf || "");
+            setEscolhido(null);
             setOwnerName(dados.proprietario_nome || "");
             setPropertyAddress(dados.imovel.endereco || "");
             setPropertyCity(dados.imovel.cidade || "");
@@ -155,28 +178,28 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
             const feePct = parseFloat(adminFee) || 10;
             const months = parseInt(duration) || 30;
 
-            // 1. Inquilino: usa o cadastrado se casar pelo nome, senão cria
+            // 1. Inquilino: usa o já cadastrado (ou quem tem o mesmo telefone), senão cria.
+            // O CPF vai para a coluna do cadastro, que é onde a cobrança o procura.
             let clienteId = matchedClient?.id;
+            let clienteCriado = false;
             if (!clienteId) {
-                const obs = [
-                    "Cadastrado automaticamente via importação de contrato (IA)",
-                    extracted?.inquilino.cpf ? `CPF: ${extracted.inquilino.cpf}` : null,
-                ].filter(Boolean).join(". ");
-
-                const { data: newClient, error } = await supabase
-                    .from("clientes")
-                    .insert({
+                try {
+                    const cliente = await cadastrarOuReaproveitarCliente({
                         nome: tenantName.trim(),
-                        telefone: tenantPhone.trim(),
+                        telefone: telefoneInquilino,
                         email: tenantEmail.trim() || null,
+                        cpf: documentoParaSalvar(tenantCpf),
                         tipo_interesse: "LOCACAO",
-                        observacoes: obs,
-                        corretor_id: corretorId,
-                    })
-                    .select("id")
-                    .single();
-                if (error) throw new Error("Erro ao criar inquilino: " + error.message);
-                clienteId = newClient.id;
+                        observacoes: "Cadastrado automaticamente via importação de contrato (IA)",
+                    });
+                    clienteId = cliente.id;
+                    clienteCriado = cliente.criado;
+                    if (!cliente.criado) {
+                        toast.info(`O telefone do inquilino já era de ${cliente.nome || "um cliente do CRM"}. O contrato foi vinculado a esse cadastro.`);
+                    }
+                } catch (err) {
+                    throw new Error("Erro ao criar inquilino: " + mensagemDeErro(err));
+                }
             }
 
             // 2. Imóvel: usa o cadastrado se casar pelo endereço, senão cria
@@ -252,6 +275,8 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
                 .select()
                 .single();
             if (contractError) throw new Error("Erro ao criar contrato: " + contractError.message);
+            // Inquilino que já existia só ganha o CPF se ainda não tiver um.
+            if (!clienteCriado) await completarCpfDoCliente(clienteId, tenantCpf);
 
             // 5. Primeira fatura
             const now = new Date();
@@ -355,7 +380,47 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
                                         <Label>Email</Label>
                                         <Input value={tenantEmail} onChange={e => setTenantEmail(e.target.value)} />
                                     </div>
+                                    <div className="space-y-1.5">
+                                        <Label>CPF / CNPJ</Label>
+                                        <Input value={tenantCpf} onChange={e => setTenantCpf(e.target.value)} />
+                                    </div>
                                 </div>
+                                {parecidos.isLoading && (
+                                    <p role="status" className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Procurando o inquilino no CRM...
+                                    </p>
+                                )}
+                                {encontrado && (
+                                    <div className="rounded-lg border border-green-200 bg-green-50/60 p-3 space-y-2 text-sm dark:border-green-900 dark:bg-green-950/20">
+                                        <p>
+                                            Encontrado pelo {MOTIVO_CANDIDATO[encontrado.motivo]}: <span className="font-medium">{encontrado.nome}</span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            O contrato será vinculado a este cadastro. Para cadastrar outra pessoa, corrija o telefone, o e-mail ou o CPF.
+                                        </p>
+                                        {candidatos.length > 1 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {candidatos.map(c => (
+                                                    <Button key={c.id} type="button" size="sm" variant={c.id === encontrado.id ? "secondary" : "outline"} onClick={() => setEscolhido(c.id)}>
+                                                        {c.nome} · {MOTIVO_CANDIDATO[c.motivo]}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {sugestaoPorNome && (
+                                    <div className="rounded-lg border p-3 flex flex-wrap items-center gap-2 text-sm">
+                                        <p className="flex-1 min-w-0">
+                                            Cliente com nome parecido: <span className="font-medium">{sugestaoPorNome.nome}</span>
+                                        </p>
+                                        {escolhido === sugestaoPorNome.id ? (
+                                            <Button type="button" size="sm" variant="outline" onClick={() => setEscolhido(null)}>Criar novo</Button>
+                                        ) : (
+                                            <Button type="button" size="sm" variant="outline" onClick={() => setEscolhido(sugestaoPorNome.id)}>Usar este</Button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <Separator />
@@ -456,7 +521,7 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
                             </Button>
                             <Button
                                 onClick={() => createContractMutation.mutate()}
-                                disabled={!isReviewValid || createContractMutation.isPending}
+                                disabled={!isReviewValid || createContractMutation.isPending || parecidos.isLoading}
                             >
                                 {createContractMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Criar Contrato

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -20,6 +20,10 @@ import type { ExtractedCentralContract, ParteContrato } from '@/services/contrac
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { looseMatch } from '@/lib/matching';
 import { mensagemDeErro } from '@/lib/errors';
+import { useClientesParecidos } from '@/hooks/crm/useCrm';
+import { MOTIVO_CANDIDATO } from '@/lib/crm/duplicidade';
+import { cadastrarOuReaproveitarCliente, completarCpfDoCliente } from '@/lib/crm/cadastroCliente';
+import { documentoParaSalvar, primeiroTelefoneBR } from '@/lib/telefone';
 import { cn } from '@/lib/utils';
 import { TIPO_CONTRATO_LABELS } from '@/types/crm';
 import type { TipoContrato, TipoImovel, TipoInteresse } from '@/types/crm';
@@ -101,6 +105,8 @@ export function AnalisarContratoDialog({
   const [imovelCidade, setImovelCidade] = useState('');
   const [imovelTipo, setImovelTipo] = useState<TipoImovel>('CASA');
   const [proprietarioNome, setProprietarioNome] = useState('');
+  // O corretor mexeu no vínculo: a busca por telefone/CPF não troca mais a escolha.
+  const escolhaManual = useRef(false);
 
   const reset = () => {
     setStep('upload'); setFile(null);
@@ -109,6 +115,7 @@ export function AnalisarContratoDialog({
     setClienteNome(''); setClienteTelefone(''); setClienteDoc(''); setClienteEmail('');
     setImovelEndereco(''); setImovelBairro(''); setImovelCidade('');
     setImovelTipo('CASA'); setProprietarioNome('');
+    escolhaManual.current = false;
   };
 
   const close = (o: boolean) => { if (!o) reset(); onOpenChange(o); };
@@ -126,8 +133,30 @@ export function AnalisarContratoDialog({
     onReject: () => toast.error('Envie PDF ou imagem (JPG, PNG, WEBP).'),
   });
 
+  // A parte do contrato é procurada no CRM pelo que identifica uma pessoa
+  // (telefone em qualquer grafia, CPF/CNPJ, e-mail) e já vem vinculada. Com um
+  // cadastro encontrado não se cria outro: a conta não pode ter dois clientes
+  // com o mesmo telefone. O nome parecido é só sugestão (homônimos existem).
+  const telefoneParte = primeiroTelefoneBR(clienteTelefone) || clienteTelefone.trim();
+  const revisando = step === 'revisao' || step === 'salvando';
+  const parecidos = useClientesParecidos({ telefone: telefoneParte, email: clienteEmail, cpf: clienteDoc }, open && revisando);
+  const candidatos = useMemo(() => parecidos.data ?? [], [parecidos.data]);
+  useEffect(() => {
+    if (!escolhaManual.current && candidatos.length) setClienteId(candidatos[0].id);
+  }, [candidatos]);
+  const encontrado = candidatos.find((c) => c.id === clienteId);
+  const sugestaoPorNome = clienteId === 'NENHUM' && !parecidos.isLoading && !candidatos.length && clienteNome.trim()
+    ? clientes.find((c) => looseMatch(c.nome, clienteNome))
+    : undefined;
+  // A lista da tela pode não ter o cliente encontrado (cadastro recente).
+  const opcoesClientes = useMemo(
+    () => [...candidatos.filter((c) => !clientes.some((x) => x.id === c.id)), ...clientes],
+    [candidatos, clientes],
+  );
+  const escolherCadastro = (id: string) => { escolhaManual.current = true; setClienteId(id); };
+
   // Só criamos registro novo quando o corretor não vinculou um existente no select.
-  const criarCliente = clienteId === 'NENHUM' && !!clienteNome.trim();
+  const criarCliente = clienteId === 'NENHUM' && !!clienteNome.trim() && !candidatos.length;
   const criarImovel = imovelId === 'NENHUM' && !!imovelEndereco.trim();
 
   const nomeImovelVinculado = useMemo(
@@ -135,8 +164,8 @@ export function AnalisarContratoDialog({
     [imoveis, imovelId],
   );
   const nomeClienteVinculado = useMemo(
-    () => clientes.find((c) => c.id === clienteId)?.nome,
-    [clientes, clienteId],
+    () => opcoesClientes.find((c) => c.id === clienteId)?.nome,
+    [opcoesClientes, clienteId],
   );
 
   const analisar = async () => {
@@ -171,13 +200,15 @@ export function AnalisarContratoDialog({
       const parte = escolherCliente(tipoLido ?? tipo, dados.partes);
       const nome = parte?.nome ?? '';
       setClienteNome(nome);
-      setClienteTelefone(parte?.telefone ?? '');
+      // Contratos listam vários números; o primeiro válido é o que casa com o CRM.
+      setClienteTelefone(primeiroTelefoneBR(parte?.telefone) || (parte?.telefone ?? ''));
       setClienteDoc(parte?.cpf_cnpj ?? '');
       setClienteEmail(parte?.email ?? '');
 
-      const achouCliente = nome ? clientes.find((c) => looseMatch(c.nome, nome)) : undefined;
-      setClienteId(achouCliente?.id ?? 'NENHUM');
-      if (!achouCliente && !nome) faltando.push('cliente');
+      // O vínculo vem da busca por telefone/CPF/e-mail (efeito acima), não do nome.
+      escolhaManual.current = false;
+      setClienteId('NENHUM');
+      if (!nome) faltando.push('cliente');
 
       setIaNaoAchou(faltando);
       setStep('revisao');
@@ -201,25 +232,27 @@ export function AnalisarContratoDialog({
       const { data: corretorId, error: corrErr } = await supabase.rpc('get_corretor_id');
       if (corrErr || !corretorId) throw new Error('Não foi possível identificar o corretor.');
 
-      // 1. Cliente: usa o vinculado ou cadastra a parte lida no contrato.
+      // 1. Cliente: usa o vinculado ou cadastra a parte lida no contrato. Se o
+      // telefone já for de um cliente (cadastrado enquanto a tela estava aberta),
+      // o contrato vai para ele, e esse cliente nunca é apagado no desfazer.
       let clienteFinal = clienteId !== 'NENHUM' ? clienteId : null;
       if (criarCliente) {
-        const { data: novo, error } = await supabase
-          .from('clientes')
-          .insert({
+        let cliente: Awaited<ReturnType<typeof cadastrarOuReaproveitarCliente>>;
+        try {
+          cliente = await cadastrarOuReaproveitarCliente({
             nome: clienteNome.trim(),
-            telefone: clienteTelefone.trim(),
+            telefone: telefoneParte,
             email: clienteEmail.trim() || null,
-            cpf: clienteDoc.trim() || null,
+            cpf: documentoParaSalvar(clienteDoc),
             tipo_interesse: interesseDoTipo(tipo),
             observacoes: 'Cadastrado automaticamente pela análise de contrato (IA).',
-            corretor_id: corretorId,
-          })
-          .select('id')
-          .single();
-        if (error) throw new Error('Erro ao cadastrar o cliente: ' + mensagemDeErro(error));
-        clienteFinal = novo.id;
-        novos.cliente = novo.id;
+          });
+        } catch (error) {
+          throw new Error('Erro ao cadastrar o cliente: ' + mensagemDeErro(error));
+        }
+        clienteFinal = cliente.id;
+        if (cliente.criado) novos.cliente = cliente.id;
+        else toast.info(`O telefone já era de ${cliente.nome || 'um cliente do CRM'}. O contrato foi vinculado a esse cadastro.`);
       }
 
       // 2. Imóvel: idem. Sem endereço não criamos nada — evita imóvel fantasma na lista.
@@ -269,6 +302,9 @@ export function AnalisarContratoDialog({
         status: 'VIGENTE',
       });
       if (insErr) throw insErr;
+      // Cadastro que já existia só ganha o CPF/CNPJ se ainda não tiver um, e só
+      // depois que o contrato entrou (o desfazer abaixo não mexe em quem já existia).
+      if (clienteFinal && !novos.cliente) await completarCpfDoCliente(clienteFinal, clienteDoc);
 
       const criados = [novos.cliente && 'cliente', novos.imovel && 'imóvel'].filter(Boolean);
       const extras = criados.length ? ` ${criados.join(' e ')} cadastrado(s) junto.` : '';
@@ -432,15 +468,40 @@ export function AnalisarContratoDialog({
                 ) : null}
               </div>
 
-              <Select value={clienteId} onValueChange={setClienteId}>
+              <Select value={clienteId} onValueChange={escolherCadastro}>
                 <SelectTrigger><SelectValue placeholder="Vincular cliente" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="NENHUM">
-                    {clienteNome.trim() ? `Cadastrar "${clienteNome.trim()}"` : 'Nenhum'}
+                    {clienteNome.trim() && !candidatos.length ? `Cadastrar "${clienteNome.trim()}"` : 'Nenhum'}
                   </SelectItem>
-                  {clientes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                  {opcoesClientes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
+
+              {parecidos.isLoading && (
+                <p role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Procurando a parte no CRM...
+                </p>
+              )}
+              {encontrado && (
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  Encontrado pelo {MOTIVO_CANDIDATO[encontrado.motivo]}: <strong>{encontrado.nome}</strong>.
+                </p>
+              )}
+              {clienteId === 'NENHUM' && candidatos.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  O {MOTIVO_CANDIDATO[candidatos[0].motivo]} desta parte já é de {candidatos[0].nome}. Vincule o cadastro existente
+                  ou corrija os dados abaixo; outro cliente com os mesmos dados não é criado.
+                </p>
+              )}
+              {sugestaoPorNome && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>Cliente com nome parecido: <strong className="text-foreground">{sugestaoPorNome.nome}</strong></span>
+                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => escolherCadastro(sugestaoPorNome.id)}>
+                    Usar este
+                  </Button>
+                </div>
+              )}
 
               {clienteId !== 'NENHUM' ? (
                 <p className="text-xs text-muted-foreground">Vinculado a {nomeClienteVinculado}.</p>
@@ -521,7 +582,7 @@ export function AnalisarContratoDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep('upload')} disabled={step === 'salvando'}>Voltar</Button>
-              <Button onClick={salvar} disabled={step === 'salvando'}>
+              <Button onClick={salvar} disabled={step === 'salvando' || parecidos.isLoading}>
                 {step === 'salvando' ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando...</>
                 ) : 'Salvar Contrato'}
