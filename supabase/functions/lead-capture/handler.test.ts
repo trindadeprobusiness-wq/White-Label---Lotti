@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createLeadHandler } from './handler';
 
-function fixture(options: { existing?: boolean; rate?: boolean; rateError?: boolean; orphanError?: boolean; owners?: number } = {}) {
+function fixture(options: { existing?: boolean; rate?: boolean; rateError?: boolean; orphanError?: boolean; owners?: number; upsertError?: boolean } = {}) {
   const writes: { table: string; data: unknown }[] = [];
   const from = vi.fn((table: string) => {
     let operation = 'read';
     const result = () => {
       if (table === 'corretores') return { data: Array.from({ length: options.owners ?? 1 }, (_, i) => ({ id: `owner-${i}` })), error: null };
       if (table === 'leads_sem_destino') return { error: options.orphanError ? { message: 'private database details' } : null };
-      if (table === 'clientes') return { data: operation === 'insert' || options.existing ? { id: 'private-client-id', tracking_data: {} } : null, error: null };
       return { data: [], error: null };
     };
     const query = {
@@ -20,7 +19,14 @@ function fixture(options: { existing?: boolean; rate?: boolean; rateError?: bool
     };
     return query;
   });
-  const rpc = vi.fn(async (name: string) => name === 'consume_public_lead_limit' ? { data: options.rate ?? true, error: options.rateError ? { message: 'internal' } : null } : { data: { permitido: false, limite: 0 }, error: null });
+  const rpc = vi.fn(async (name: string, _args?: Record<string, unknown>) => {
+    if (name === 'consume_public_lead_limit') return { data: options.rate ?? true, error: options.rateError ? { message: 'internal' } : null };
+    // Busca pela chave do telefone e cadastro na mesma transação, no banco.
+    if (name === 'lead_capture_upsert_cliente') return options.upsertError
+      ? { data: null, error: { message: 'private database details' } }
+      : { data: { cliente_id: 'private-client-id', created: !options.existing }, error: null };
+    return { data: { permitido: false, limite: 0 }, error: null };
+  });
   const client = { from, rpc } as unknown as Parameters<typeof createLeadHandler>[0];
   const handler = createLeadHandler(client, { integrationSecret: 'test-integration-secret', rateSecret: 'test-rate-secret' });
   return { handler, from, rpc, writes };
@@ -75,18 +81,38 @@ describe('handler de captura pública', () => {
   it('não sobrescreve nome ou email de cliente existente por POST anônimo', async () => {
     const f = fixture({ existing: true });
     await f.handler(request({ ...payload, email: 'test@example.test' }));
-    const update = f.writes.find(w => w.table === 'clientes')?.data;
-    expect(update).not.toHaveProperty('email');
-    expect(update).not.toHaveProperty('nome');
+    // O handler não escreve em clientes: a RPC só atualiza ultimo_contato e o
+    // tracking_data de quem já existe (coberto no teste SQL).
+    expect(f.writes.filter(w => w.table === 'clientes')).toEqual([]);
+    expect(f.from).not.toHaveBeenCalledWith('clientes');
+    const alerta = f.writes.find(w => w.table === 'alertas')?.data as { metadata?: { lead_type?: string } };
+    expect(alerta?.metadata?.lead_type).toBe('returning');
+  });
+  it('procura e cadastra o cliente numa chamada só, pela chave do telefone, sem ilike', async () => {
+    const f = fixture();
+    await f.handler(request({ ...payload, email: 'test@example.test' }));
+    const call = f.rpc.mock.calls.find(c => c[0] === 'lead_capture_upsert_cliente');
+    expect(call?.[1]).toMatchObject({ p_corretor: 'owner-0', p_nome: 'Contato teste', p_telefone: '5511999991234', p_email: 'test@example.test' });
+    expect(call?.[1]?.p_tracking).toMatchObject({ origem: 'landing_page' });
+    expect(f.from).not.toHaveBeenCalledWith('clientes');
+    const alerta = f.writes.find(w => w.table === 'alertas')?.data as { cliente_id?: string; metadata?: { lead_type?: string } };
+    expect(alerta).toMatchObject({ cliente_id: 'private-client-id', metadata: { lead_type: 'new' } });
+  });
+  it('não informa sucesso se o cliente não foi salvo', async () => {
+    const f = fixture({ upsertError: true });
+    const r = await f.handler(request());
+    expect(r.status).toBe(500);
+    expect(await r.text()).not.toContain('private database details');
+    expect(f.writes.find(w => w.table === 'alertas')).toBeUndefined();
   });
   it('captura pública não consulta nem consome cota paga de IA', async () => {
     const f = fixture();
     await f.handler(request());
-    expect(f.rpc.mock.calls.map(call => call[0])).toEqual(['consume_public_lead_limit']);
+    expect(f.rpc.mock.calls.map(call => call[0])).toEqual(['consume_public_lead_limit', 'lead_capture_upsert_cliente']);
   });
   it('integração consulta permissão, mas não cobra IA antes da operação', async () => {
     const f = fixture();
     await f.handler(request(payload, { 'x-n8n-secret': 'test-integration-secret' }));
-    expect(f.rpc.mock.calls.map(call => call[0])).toEqual(['consume_public_lead_limit', 'checar_cota']);
+    expect(f.rpc.mock.calls.map(call => call[0])).toEqual(['consume_public_lead_limit', 'lead_capture_upsert_cliente', 'checar_cota']);
   });
 });
