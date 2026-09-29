@@ -14,6 +14,7 @@ import {
 } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { candidatosValidos, clienteDoTelefone, codigoDoErro, type CandidatoCliente } from '@/lib/crm/duplicidade';
 
 // Algumas tabelas ainda estão com os tipos gerados do Supabase defasados em
 // relação às migrations. O cliente sem schema tipado fica concentrado aqui,
@@ -22,12 +23,35 @@ const db = supabase as unknown as SupabaseClient;
 
 // Feedback padrão para falhas de escrita: sem isso o erro morre no console
 // e o usuário assume que os dados foram salvos.
-const toastErro = (titulo: string) =>
+const toastErro = (titulo: string, description = 'Verifique sua conexão e tente novamente.') =>
   toast({
     variant: 'destructive',
     title: titulo,
-    description: 'Verifique sua conexão e tente novamente.',
+    description,
   });
+
+/**
+ * Resultado de cadastrar ou editar um cliente. A conta não pode ter dois
+ * clientes com o mesmo telefone: em vez de gravar, o banco devolve quem já tem
+ * o número, e a tela oferece abrir esse cadastro.
+ */
+export type ResultadoCliente =
+  | { status: 'created' | 'updated'; id: string }
+  | { status: 'duplicate'; candidatos: CandidatoCliente[] }
+  | { status: 'error' };
+
+// Nome de quem já tem o telefone, para a tela dizer "já é do cliente X". Se a
+// busca falhar, o id que veio no erro basta para abrir o cadastro.
+async function donoDoTelefone(telefone: string, existente: string, editando?: string): Promise<CandidatoCliente[]> {
+  const { data } = await db.rpc('crm_clientes_por_telefone', { p_telefone: telefone });
+  const candidatos = candidatosValidos(data).filter((c) => c.motivo === 'telefone' && c.id !== editando);
+  return candidatos.length ? candidatos : [{ id: existente, nome: '', motivo: 'telefone' }];
+}
+
+const MENSAGENS_CADASTRO: Record<string, string> = {
+  forbidden: 'Não foi possível identificar a sua conta. Entre novamente.',
+  invalid_name: 'Informe o nome do cliente.',
+};
 
 interface CRMStore {
   // Data
@@ -54,8 +78,8 @@ interface CRMStore {
   fetchHistorico: (clienteId?: string) => Promise<void>;
 
   // Cliente actions
-  addCliente: (cliente: Omit<Cliente, 'id' | 'created_at' | 'documentos' | 'imoveis_interesse'>) => Promise<string | null>;
-  updateCliente: (id: string, data: Partial<Cliente>) => Promise<boolean>;
+  addCliente: (cliente: Omit<Cliente, 'id' | 'created_at' | 'documentos' | 'imoveis_interesse'>) => Promise<ResultadoCliente>;
+  updateCliente: (id: string, data: Partial<Cliente>) => Promise<ResultadoCliente>;
   updateClienteStatus: (id: string, status: StatusFunil) => Promise<void>;
   removeCliente: (id: string) => Promise<{ success: boolean; error?: unknown }>;
 
@@ -259,28 +283,30 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
     }
   },
 
+  // Só pela RPC: ela procura o telefone em qualquer grafia e cria sob a mesma
+  // trava do WhatsApp e da captura, então dois cadastros simultâneos do mesmo
+  // número viram um. O dono (corretor_id) é resolvido no servidor.
   addCliente: async (cliente) => {
     try {
-      const { data: corretorData } = await supabase.rpc('get_corretor_id');
-      if (!corretorData) throw new Error('Corretor não encontrado');
-
-      const { data, error } = await db
-        .from('clientes')
-        .insert({
-          ...cliente,
-          corretor_id: corretorData,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const { data, error } = await db.rpc('crm_criar_cliente', { p_dados: cliente });
+      if (error) {
+        const existente = clienteDoTelefone(error);
+        if (existente) return { status: 'duplicate', candidatos: await donoDoTelefone(cliente.telefone, existente) };
+        throw error;
+      }
+      const resultado = data as { status: string; cliente_id?: string; candidatos?: unknown };
+      if (resultado.status === 'duplicate') {
+        return { status: 'duplicate', candidatos: candidatosValidos(resultado.candidatos) };
+      }
+      if (!resultado.cliente_id) throw new Error('crm_criar_cliente sem cliente_id');
 
       get().fetchClientes();
-      return data.id;
+      return { status: 'created', id: resultado.cliente_id };
     } catch (error) {
       console.error('Erro ao adicionar cliente:', error);
-      toastErro('Erro ao cadastrar cliente');
-      return null;
+      const mensagem = MENSAGENS_CADASTRO[codigoDoErro(error)];
+      if (mensagem) toastErro('Erro ao cadastrar cliente', mensagem); else toastErro('Erro ao cadastrar cliente');
+      return { status: 'error' };
     }
   },
 
@@ -291,13 +317,18 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
         .update(data)
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        // Trocar o telefone para o de outro cliente é recusado pelo banco.
+        const existente = clienteDoTelefone(error);
+        if (existente) return { status: 'duplicate', candidatos: await donoDoTelefone(data.telefone ?? '', existente, id) };
+        throw error;
+      }
       get().fetchClientes();
-      return true;
+      return { status: 'updated', id };
     } catch (error) {
       console.error('Erro ao atualizar cliente:', error);
       toastErro('Erro ao atualizar cliente');
-      return false;
+      return { status: 'error' };
     }
   },
 

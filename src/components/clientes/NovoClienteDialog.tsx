@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,16 +15,26 @@ import { getTrackingData } from '@/hooks/useUTMTracker';
 // 11 dígitos primeiro e é a mesma usada no resto do app.
 import { formatarTelefone } from '@/lib/validators';
 import { SeletorImovel } from './SeletorImovel';
+import type { CandidatoCliente } from '@/lib/crm/duplicidade';
 
 interface NovoClienteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clienteToEdit?: Cliente | null;
+  /**
+   * Quem abriu o cadastro no meio de outro fluxo (ex.: novo contrato) usa o
+   * cliente que já tem o telefone em vez de sair da tela para abri-lo.
+   */
+  onUsarExistente?: (clienteId: string) => void;
 }
 
-export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoClienteDialogProps) {
+export function NovoClienteDialog({ open, onOpenChange, clienteToEdit, onUsarExistente }: NovoClienteDialogProps) {
   const { addCliente, updateCliente, imoveis, fetchImoveis, vincularClienteImovel } = useCRMStore();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  // A conta não pode ter dois clientes com o mesmo telefone. Quando o banco
+  // recusa, mostramos quem já tem o número; não há "criar mesmo assim".
+  const [duplicados, setDuplicados] = useState<CandidatoCliente[]>([]);
   const [form, setForm] = useState({
     nome: '',
     telefone: '',
@@ -50,6 +61,7 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
         setForm({ nome: '', telefone: '', email: '', tipo_interesse: 'COMPRA', observacoes: '' });
         setSelectedImovel('');
       }
+      setDuplicados([]);
     }
   }, [open, clienteToEdit]);
 
@@ -74,25 +86,27 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
 
     try {
       if (clienteToEdit) {
-        const ok = await updateCliente(clienteToEdit.id, form);
-        if (!ok) return; // o store já exibiu o toast de erro
+        const resultado = await updateCliente(clienteToEdit.id, form);
+        if (resultado.status === 'duplicate') { setDuplicados(resultado.candidatos); return; }
+        if (resultado.status !== 'updated') return; // o store já exibiu o toast de erro
         if (selectedImovel) {
           await vincularClienteImovel(clienteToEdit.id, selectedImovel);
         }
         toast({ title: 'Cliente atualizado com sucesso!' });
       } else {
         const trackingData = getTrackingData();
-        const newId = await addCliente({
+        const resultado = await addCliente({
           ...form,
           status_funil: 'QUALIFICACAO' as StatusFunil,
           ultimo_contato: new Date().toISOString(),
           tracking_data: trackingData || {}
         });
 
-        if (!newId) return; // o store já exibiu o toast de erro
+        if (resultado.status === 'duplicate') { setDuplicados(resultado.candidatos); return; }
+        if (resultado.status !== 'created') return; // o store já exibiu o toast de erro
 
         if (selectedImovel) {
-          await vincularClienteImovel(newId, selectedImovel);
+          await vincularClienteImovel(resultado.id, selectedImovel);
         }
 
         toast({ title: 'Cliente cadastrado com sucesso!' });
@@ -123,7 +137,7 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
             <Input
               required
               value={form.telefone}
-              onChange={(e) => setForm({ ...form, telefone: formatarTelefone(e.target.value) })}
+              onChange={(e) => { setForm({ ...form, telefone: formatarTelefone(e.target.value) }); setDuplicados([]); }}
               placeholder="(00) 00000-0000"
               maxLength={15}
             />
@@ -151,7 +165,32 @@ export function NovoClienteDialog({ open, onOpenChange, clienteToEdit }: NovoCli
           </div>
 
           <div><Label>Observações</Label><Textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} /></div>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+
+          {duplicados.length > 0 && (
+            <div role="alert" className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                {duplicados[0].nome ? `Este telefone já é do cliente ${duplicados[0].nome}` : 'Este telefone já é de outro cliente'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Cada telefone pertence a um único cliente. Abra o cadastro existente ou corrija o número.
+              </p>
+              {duplicados.map((c) => (
+                <div key={c.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">{c.nome || 'Cliente já cadastrado'}</span>
+                  {onUsarExistente && (
+                    <Button type="button" size="sm" onClick={() => { onUsarExistente(c.id); onOpenChange(false); }}>
+                      Usar este cliente
+                    </Button>
+                  )}
+                  <Button type="button" size="sm" variant="outline" onClick={() => { onOpenChange(false); navigate(`/clientes/${c.id}`); }}>
+                    Abrir
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isSubmitting || duplicados.length > 0}>
             {isSubmitting ? 'Salvando...' : (clienteToEdit ? 'Salvar Alterações' : 'Cadastrar')}
           </Button>
         </form>

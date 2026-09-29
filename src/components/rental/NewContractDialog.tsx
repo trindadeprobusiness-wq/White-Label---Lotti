@@ -807,6 +807,7 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             <NovoClienteDialog
                 open={isNovoClienteOpen}
                 onOpenChange={handleNovoClienteClose}
+                onUsarExistente={setClientId}
             />
         </Dialog>
     );
