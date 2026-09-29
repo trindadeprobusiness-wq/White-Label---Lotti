@@ -10,9 +10,14 @@
 -- repetidos...). A correção é manual e revisada, par a par (plano, Parte 3,
 -- passo 2): nada aqui funde, apaga ou religa.
 --
--- Pré-requisito: public.lotti_phone_key (migration 20260928200000). D2 usa a
--- mesma regra de public.lotti_conversation_phone_key (20260929120000), escrita
--- por extenso para rodar antes dela.
+-- Pré-requisitos (rodar depois do passo 1 do deploy, com as migrations antigas
+-- que faltam em produção já aplicadas):
+--   - public.lotti_phone_key (20260928200000);
+--   - lotti_agent_conversations.lid (20260926200000), usado em D2, D7 e D10;
+--   - lotti_agent_conversations.opted_out_at (20260927120100), usado em D9b.
+-- D1b repete por extenso a regra de public.lotti_phone_key_confiavel
+-- (20260929140000) e D2 a de public.lotti_conversation_phone_key
+-- (20260929120000), para rodar antes delas.
 --
 -- Como rodar: o arquivo inteiro fica dentro de uma transação somente leitura
 -- terminada em ROLLBACK. As consultas devolvem só ids, contagens e indicadores,
@@ -46,6 +51,22 @@ select corretor_id, chave, count(*) as qtd,
  group by 1, 2
 having count(*) > 1
  order by qtd desc;
+
+-- D1b. Chaves que não são celular/fixo brasileiro. Depois de 20260929140000,
+--      "estrangeiro" (10 a 15 dígitos, não um dígito repetido) continua bloqueando
+--      duplicado; "nao_confiavel" (placeholder, curto, dígito repetido) deixa de
+--      contar como telefone para a regra. Só contagens, sem as chaves.
+with k as (
+  select corretor_id, public.lotti_phone_key(telefone) as chave
+    from public.clientes
+   where public.lotti_phone_key(telefone) !~ '^[1-9][1-9][mf][0-9]{8}$'
+), g as (
+  select corretor_id, chave, count(*) as qtd,
+         case when chave ~ '^[0-9]{10,15}$' and chave !~ '^([0-9])\1+$' then 'estrangeiro' else 'nao_confiavel' end as classe
+    from k group by 1, 2 having count(*) > 1
+)
+select classe, count(*) as grupos, sum(qtd) as clientes, count(distinct corretor_id) as contas
+  from g group by 1 order by 1;
 
 -- D2. Conversas da mesma linha no mesmo canal ativo. Manter, na revisão, a que tem
 --     LID ou mensagens recebidas (a grafia do JID). Ordem de cada array: com LID
