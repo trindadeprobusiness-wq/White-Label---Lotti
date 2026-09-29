@@ -30,6 +30,7 @@ const migrations = [
   '20260929110000_crm_conversao_e_oportunidade.sql',
   '20260929120000_lotti_conversa_por_chave.sql',
   '20260929130000_lotti_canal_e_optout.sql',
+  '20260929140000_duplicidade_ajustes_revisao.sql',
 ];
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const other = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -574,5 +575,47 @@ describe('número que volta ao canal e opt-out repetido', () => {
     expect((await asUser<{ r: boolean }>(user, 'select public.lotti_inbox_clear_opt_out($1) r', [cv.id])).r).toBe(true);
     await say('sair', 10);
     expect(await events()).toBe(3);
+  });
+});
+
+describe('ajustes da revisão', () => {
+  it('telefone de mentira ou incompleto não junta desconhecidos', async () => {
+    await addClient('(00) 00000-0000', 'A');
+    await addClient('00000000000', 'B');
+    await addClient('1234', 'C');
+    await addClient('1234', 'D');
+    expect(await candidates('(00) 00000-0000')).toEqual([]);
+    expect(await count('clientes where corretor_id=$1', [owner])).toBe(4);
+  });
+
+  it('inserir para outra conta não revela se ela tem o telefone: a RLS recusa antes', async () => {
+    await addClient('(62) 98123-4567', 'Da outra conta', other);
+    await db.exec(`alter table clientes enable row level security;
+      create policy teste_insere on clientes for insert to authenticated with check (corretor_id=public.get_corretor_id());
+      grant insert on clientes to authenticated;`);
+    try {
+      const tentativa = (telefone: string) => asUser(user, 'insert into clientes(corretor_id,nome,telefone) values($1,$2,$3)', [other, 'x', telefone]);
+      await expect(tentativa('5562981234567')).rejects.toThrow(/row-level security/);
+      await expect(tentativa('5562999990000')).rejects.toThrow(/row-level security/);
+    } finally {
+      await db.exec(`revoke insert on clientes from authenticated; drop policy teste_insere on clientes; alter table clientes disable row level security;`);
+    }
+  });
+
+  it('as consultas de detecção (D0-D10) rodam no esquema e não gravam nada', async () => {
+    await addClient('(00) 00000-0000', 'A');
+    await legacyClient('00000000000', 'B');
+    await db.exec(readFileSync(new URL('../deploy-checks/duplicidades-deteccao.sql', import.meta.url), 'utf8'));
+    expect(await count('clientes where corretor_id=$1', [owner])).toBe(2);
+  });
+
+  it('mesma linha ligada a outro LID não recebe a mensagem de um LID que já tem conversa', async () => {
+    const outroLid = '999999999999999';
+    await ingest({ phone: '5562981234567', lid: outroLid });
+    await ingest({ lid });
+    const semTelefone = (await conversations('c.phone is null'))[0];
+    await ingest({ phone: '556281234567', lid });
+    expect(await messagesOf(semTelefone.id)).toHaveLength(2);
+    expect(await conversations()).toHaveLength(2);
   });
 });

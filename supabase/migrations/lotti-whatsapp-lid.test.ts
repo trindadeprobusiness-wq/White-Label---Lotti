@@ -70,6 +70,7 @@ describe('conversas com número oculto pelo WhatsApp (LID)', () => {
       '20260929110000_crm_conversao_e_oportunidade.sql',
       '20260929120000_lotti_conversa_por_chave.sql',
       '20260929130000_lotti_canal_e_optout.sql',
+      '20260929140000_duplicidade_ajustes_revisao.sql',
     ]) await db.exec(migration(name));
     await db.exec(`INSERT INTO lotti_agent_channels(corretor_id,instance,enabled,sandbox) VALUES ('${owner}','lotti-agent',true,false)`);
   }, 60_000);

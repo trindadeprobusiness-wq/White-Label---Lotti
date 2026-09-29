@@ -31,6 +31,7 @@ const migrations = [
   '20260929110000_crm_conversao_e_oportunidade.sql',
   '20260929120000_lotti_conversa_por_chave.sql',
   '20260929130000_lotti_canal_e_optout.sql',
+  '20260929140000_duplicidade_ajustes_revisao.sql',
 ];
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const plan = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
