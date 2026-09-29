@@ -473,8 +473,11 @@ it('telefone de outra conversa: explica e une as duas pelo servidor', async () =
   await screen.findByRole('button', { name: /Neves/ });
   editPhone('(11) 98888-7777');
   expect((await screen.findByRole('alert')).textContent).toContain('Este telefone já está em outra conversa');
+  mockDb.rpcResults.lotti_inbox_update_contact = { data: { name: 'Neves', phone: '5511988887777' }, error: null };
   fireEvent.click(screen.getByRole('button', { name: 'Unir conversas' }));
   await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_merge_conversations', { p_keep: 'c1', p_drop: OTHER }));
+  // The typed name is kept on the conversation that survives the merge.
+  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_update_contact', { p_conversation: OTHER, p_name: 'Neves', p_phone: '5511988887777' }));
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar contato' })).toBeNull());
 });
 
