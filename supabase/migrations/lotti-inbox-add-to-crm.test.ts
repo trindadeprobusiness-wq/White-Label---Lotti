@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 
-// Ordem da produção: as de 2026-09-27, o número oculto, nomes e junção, e esta.
+// Ordem da produção: as de 2026-09-27, o número oculto, nomes e junção, esta e
+// as de 2026-09-29 (um cliente e uma conversa por telefone).
 const migrations = [
   '20260912125137_lotti_agent_runtime.sql',
   '20260912171307_lotti_agent_resume_guard.sql',
@@ -22,6 +23,10 @@ const migrations = [
   '20260926200000_lotti_whatsapp_lid_conversations.sql',
   '20260928190000_lotti_whatsapp_contact_names_and_merge.sql',
   '20260928200000_lotti_inbox_add_to_crm.sql',
+  '20260929100000_crm_cliente_sem_duplicidade.sql',
+  '20260929110000_crm_conversao_e_oportunidade.sql',
+  '20260929120000_lotti_conversa_por_chave.sql',
+  '20260929130000_lotti_canal_e_optout.sql',
 ];
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const other = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -58,7 +63,7 @@ beforeAll(async () => {
     CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, email text, status_funil text, tipo_interesse text, created_at timestamptz default clock_timestamp());
     CREATE TYPE public.direcao_contato AS ENUM ('IN','OUT');
     CREATE TABLE public.historico_contatos(id uuid primary key default gen_random_uuid(), cliente_id uuid, tipo text, direcao public.direcao_contato, conteudo text, metadata jsonb);
-    CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text, entidade_tipo text, entidade_id uuid);
+    CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text, entidade_tipo text, entidade_id uuid, lido boolean default false);
     CREATE TABLE public.plan_entitlements(plan_id uuid, feature_key text, limit_value int, unlimited boolean default false, enabled boolean default true);
     CREATE TABLE public.subscriptions(id uuid primary key default gen_random_uuid(), corretor_id uuid, plan_id uuid, status text, trial_ends_at timestamptz, current_period_end timestamptz, created_at timestamptz default now());
     CREATE TABLE public.usage_counters(corretor_id uuid, feature_key text, used_quantity int, period_start date, period_end date, updated_at timestamptz default now(), unique(corretor_id,feature_key,period_start));

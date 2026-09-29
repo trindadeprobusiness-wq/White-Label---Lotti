@@ -2,6 +2,33 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 
+// Migrations reais, na ordem da produção (inclui as de 2026-09-29, que refazem
+// "Nova conversa" e "Editar contato" pela chave do telefone).
+const migrations = [
+  '20260912125137_lotti_agent_runtime.sql',
+  '20260912171307_lotti_agent_resume_guard.sql',
+  '20260916000100_lotti_manual_inbox.sql',
+  '20260920000100_lotti_history_import.sql',
+  '20260921130000_lotti_inbox_actions.sql',
+  '20260923120000_lotti_whatsapp_account_scope.sql',
+  '20260923220000_lotti_inbox_update_contact.sql',
+  '20260924000100_lotti_channel_company_name.sql',
+  '20260924000200_lotti_inbox_events.sql',
+  '20260925000100_lotti_inbox_status_events.sql',
+  '20260927120000_lotti_agent_stalled_claims.sql',
+  '20260927120100_lotti_agent_opt_out.sql',
+  '20260927130000_lotti_agent_settings.sql',
+  '20260927140000_lotti_agent_follow_up.sql',
+  '20260927150000_lotti_broadcasts.sql',
+  '20260926200000_lotti_whatsapp_lid_conversations.sql',
+  '20260928190000_lotti_whatsapp_contact_names_and_merge.sql',
+  '20260928200000_lotti_inbox_add_to_crm.sql',
+  '20260929100000_crm_cliente_sem_duplicidade.sql',
+  '20260929110000_crm_conversao_e_oportunidade.sql',
+  '20260929120000_lotti_conversa_por_chave.sql',
+  '20260929130000_lotti_canal_e_optout.sql',
+];
+
 describe('ações persistentes do Inbox', () => {
   let db: PGlite;
   const userA = '11111111-1111-4111-8111-111111111111';
@@ -16,19 +43,24 @@ describe('ações persistentes do Inbox', () => {
       CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
       CREATE SCHEMA auth;
       CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
-      CREATE TABLE public.corretores(id uuid primary key, user_id uuid not null);
-      CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, status_funil text, tipo_interesse text, created_at timestamptz default now());
-      CREATE TABLE public.lotti_agent_channels(id uuid primary key, corretor_id uuid not null, instance text not null, enabled boolean not null default true, sandbox boolean not null default false);
-      CREATE TABLE public.lotti_agent_conversations(id uuid primary key default gen_random_uuid(), channel_id uuid not null, corretor_id uuid not null, cliente_id uuid, phone text not null, mode text not null default 'ai', revision bigint not null default 0, lease_token uuid, lease_until timestamptz, updated_at timestamptz default now(), unique(channel_id,phone));
-      CREATE TABLE public.lotti_agent_messages(id uuid primary key default gen_random_uuid(), conversation_id uuid not null, external_id text not null, direction text not null, sender text not null, content text not null, created_at timestamptz default now());
-      CREATE TABLE public.lotti_agent_outbox(id uuid primary key default gen_random_uuid(), conversation_id uuid not null, status text not null);
-      CREATE TABLE public.lotti_manual_sends(id uuid primary key default gen_random_uuid(), conversation_id uuid not null, status text not null);
-      INSERT INTO corretores VALUES ('${ownerA}','${userA}'),('${ownerB}','${userB}');
-      INSERT INTO lotti_agent_channels VALUES ('${channelA}','${ownerA}','a',true,false);
+      CREATE SCHEMA storage;
+      CREATE TABLE storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+      CREATE TABLE storage.objects(id uuid default gen_random_uuid(), bucket_id text, name text);
+      CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
+      CREATE TABLE public.corretores(id uuid primary key, user_id uuid not null, nome text);
+      CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, email text, status_funil text, tipo_interesse text, created_at timestamptz default now());
+      CREATE TYPE public.direcao_contato AS ENUM ('IN','OUT');
+      CREATE TABLE public.historico_contatos(id uuid primary key default gen_random_uuid(), cliente_id uuid, tipo text, direcao public.direcao_contato, conteudo text, metadata jsonb);
+      CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text, entidade_tipo text, entidade_id uuid, lido boolean default false);
+      CREATE TABLE public.plan_entitlements(plan_id uuid, feature_key text, limit_value int, unlimited boolean default false, enabled boolean default true);
+      CREATE TABLE public.subscriptions(id uuid primary key default gen_random_uuid(), corretor_id uuid, plan_id uuid, status text, trial_ends_at timestamptz, current_period_end timestamptz, created_at timestamptz default now());
+      CREATE TABLE public.usage_counters(corretor_id uuid, feature_key text, used_quantity int, period_start date, period_end date, updated_at timestamptz default now(), unique(corretor_id,feature_key,period_start));
+      CREATE TABLE public.crm_etapas(id uuid primary key, corretor_id uuid not null, nome text);
+      CREATE TABLE public.crm_oportunidades(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, cliente_id uuid, etapa_id uuid not null, titulo text not null, origem text, fechada_em timestamptz, updated_at timestamptz not null default now());
+      INSERT INTO corretores VALUES ('${ownerA}','${userA}','A'),('${ownerB}','${userB}','B');
     `);
-    await db.exec(readFileSync(new URL('./20260921130000_lotti_inbox_actions.sql', import.meta.url), 'utf8'));
-    await db.exec('alter table public.lotti_agent_conversations add column contact_name text');
-    await db.exec(readFileSync(new URL('./20260923220000_lotti_inbox_update_contact.sql', import.meta.url), 'utf8'));
+    for (const name of migrations) await db.exec(readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'));
+    await db.exec(`INSERT INTO lotti_agent_channels(id,corretor_id,instance,enabled,sandbox) VALUES ('${channelA}','${ownerA}','a',true,false)`);
   }, 30_000);
   afterAll(async () => db?.close());
   async function asUser(user: string, sql: string) {
@@ -64,7 +96,7 @@ describe('ações persistentes do Inbox', () => {
   it('não troca o destino durante uma entrega e cancela trabalho ainda não enviado', async () => {
     const created = await asUser(userA, "select public.lotti_inbox_start_conversation('5562555555555','Carla') id");
     const id = created.rows[0].id as string;
-    await db.exec(`insert into lotti_agent_outbox(conversation_id,status) values('${id}','sending')`);
+    await db.exec(`insert into lotti_agent_outbox(conversation_id,revision,content,status) values('${id}',1,'Oi','sending')`);
     await expect(asUser(userA, `select public.lotti_inbox_update_contact('${id}','Carla','5562444444444')`)).rejects.toThrow(/delivery_pending/);
     await db.exec(`update lotti_agent_outbox set status='prepared' where conversation_id='${id}'`);
     await asUser(userA, `select public.lotti_inbox_update_contact('${id}','Carla','5562444444444')`);

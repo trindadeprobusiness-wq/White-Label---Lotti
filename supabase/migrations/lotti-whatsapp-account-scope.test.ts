@@ -3,6 +3,32 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 
 const migration = (name: string) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8');
+const before = [
+  '20260912125137_lotti_agent_runtime.sql',
+  '20260912171307_lotti_agent_resume_guard.sql',
+  '20260916000100_lotti_manual_inbox.sql',
+  '20260920000100_lotti_history_import.sql',
+  '20260921130000_lotti_inbox_actions.sql',
+];
+const after = [
+  '20260923120000_lotti_whatsapp_account_scope.sql',
+  '20260923220000_lotti_inbox_update_contact.sql',
+  '20260924000100_lotti_channel_company_name.sql',
+  '20260924000200_lotti_inbox_events.sql',
+  '20260925000100_lotti_inbox_status_events.sql',
+  '20260927120000_lotti_agent_stalled_claims.sql',
+  '20260927120100_lotti_agent_opt_out.sql',
+  '20260927130000_lotti_agent_settings.sql',
+  '20260927140000_lotti_agent_follow_up.sql',
+  '20260927150000_lotti_broadcasts.sql',
+  '20260926200000_lotti_whatsapp_lid_conversations.sql',
+  '20260928190000_lotti_whatsapp_contact_names_and_merge.sql',
+  '20260928200000_lotti_inbox_add_to_crm.sql',
+  '20260929100000_crm_cliente_sem_duplicidade.sql',
+  '20260929110000_crm_conversao_e_oportunidade.sql',
+  '20260929120000_lotti_conversa_por_chave.sql',
+  '20260929130000_lotti_canal_e_optout.sql',
+];
 
 describe('conversas separadas pelo número conectado', () => {
   let db: PGlite;
@@ -21,19 +47,27 @@ describe('conversas separadas pelo número conectado', () => {
       CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
       CREATE SCHEMA auth;
       CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
-      CREATE TABLE public.corretores(id uuid primary key, user_id uuid not null);
-      CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, status_funil text, tipo_interesse text, created_at timestamptz default now());
+      CREATE SCHEMA storage;
+      CREATE TABLE storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+      CREATE TABLE storage.objects(id uuid default gen_random_uuid(), bucket_id text, name text);
+      CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
+      CREATE TABLE public.corretores(id uuid primary key, user_id uuid not null, nome text);
+      CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, email text, status_funil text, tipo_interesse text, created_at timestamptz default now());
       CREATE TYPE public.direcao_contato AS ENUM ('IN','OUT');
       CREATE TABLE public.historico_contatos(id uuid primary key default gen_random_uuid(), cliente_id uuid, tipo text, direcao public.direcao_contato, conteudo text, metadata jsonb);
-      CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text);
-      INSERT INTO corretores VALUES ('${owner}','${user}');
+      CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text, entidade_tipo text, entidade_id uuid, lido boolean default false);
+      CREATE TABLE public.plan_entitlements(plan_id uuid, feature_key text, limit_value int, unlimited boolean default false, enabled boolean default true);
+      CREATE TABLE public.subscriptions(id uuid primary key default gen_random_uuid(), corretor_id uuid, plan_id uuid, status text, trial_ends_at timestamptz, current_period_end timestamptz, created_at timestamptz default now());
+      CREATE TABLE public.usage_counters(corretor_id uuid, feature_key text, used_quantity int, period_start date, period_end date, updated_at timestamptz default now(), unique(corretor_id,feature_key,period_start));
+      CREATE TABLE public.crm_etapas(id uuid primary key, corretor_id uuid not null, nome text);
+      CREATE TABLE public.crm_oportunidades(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, cliente_id uuid, etapa_id uuid not null, titulo text not null, origem text, fechada_em timestamptz, updated_at timestamptz not null default now());
+      INSERT INTO corretores VALUES ('${owner}','${user}','Evandro');
     `);
-    await db.exec(migration('20260912125137_lotti_agent_runtime.sql'));
-    await db.exec(migration('20260920000100_lotti_history_import.sql'));
+    // Ordem da produção. Os dados antigos entram antes de o número conectado ser registrado.
+    for (const name of before) await db.exec(migration(name));
     await db.exec(`INSERT INTO lotti_agent_channels(corretor_id,instance,enabled,sandbox) VALUES ('${owner}','lotti-agent',true,false)`);
-    // Legacy data from before the connected number was recorded.
     await ingest({ phone: '447000000001', external_id: 'legacy-1' });
-    await db.exec(migration('20260923120000_lotti_whatsapp_account_scope.sql'));
+    for (const name of after) await db.exec(migration(name));
   }, 60_000);
   afterAll(async () => db?.close());
 
@@ -51,7 +85,7 @@ describe('conversas separadas pelo número conectado', () => {
       from lotti_agent_conversations c join lotti_agent_channels h on h.id=c.channel_id where h.instance<>'lotti-agent' order by c.phone`);
     expect(archived.rows.map(r => r.phone)).toEqual(['447000000001', '5511000000001']);
     expect(archived.rows.every(r => !r.enabled && r.sandbox && r.archived_at && r.messages === 1)).toBe(true);
-    expect((await db.query(`select account_phone from lotti_agent_channels where instance='lotti-agent'`)).rows[0]).toEqual({ account_phone: numberA });
+    expect((await db.query(`select account_phone,account_bound_at from lotti_agent_channels where instance='lotti-agent'`)).rows[0]).toEqual({ account_phone: numberA, account_bound_at: null });
   });
 
   it('mesmo número não arquiva de novo e guarda o nome do contato', async () => {
@@ -76,6 +110,7 @@ describe('conversas separadas pelo número conectado', () => {
     const conversations = await db.query<{ n: number }>(`select count(*)::int n from lotti_agent_conversations where phone='5511111111111'`);
     expect(conversations.rows[0].n).toBe(2);
     expect((await db.query(`select count(*)::int n from lotti_agent_channels where archived_at is not null`)).rows[0]).toEqual({ n: 2 });
+    expect((await db.query<{ bound: string | null }>(`select account_bound_at bound from lotti_agent_channels where instance='lotti-agent'`)).rows[0].bound).not.toBeNull();
   });
 
   it('histórico usa o número conectado de cada item e guarda nomes', async () => {
@@ -88,10 +123,14 @@ describe('conversas separadas pelo número conectado', () => {
     expect((await live()).find(c => c.phone === '5511333333333')?.contact_name).toBe('Ana');
   });
 
-  it('histórico de outro número arquiva antes de importar', async () => {
+  it('histórico de outro número arquiva antes de importar; o número que volta recupera as conversas dele', async () => {
     const messages = [{ external_id: 'h-a', phone: '5511444444444', from_me: false, text: 'Oi', created_at: '2026-09-02T12:00:00Z', account: numberA }];
     await db.query('select public.lotti_agent_import_history($1,$2::jsonb) r', ['lotti-agent', JSON.stringify(messages)]);
-    expect((await live()).map(c => c.phone)).toEqual(['5511444444444']);
+    expect((await live()).map(c => c.phone)).toEqual(['5511111111111', '5511222222222', '5511444444444']);
+    expect((await live()).find(c => c.phone === '5511111111111')?.contact_name).toBe('Maria Souza');
+    const archivedB = await db.query<{ phone: string }>(`select c.phone from lotti_agent_conversations c join lotti_agent_channels h on h.id=c.channel_id
+      where h.archived_at is not null and h.account_phone='${numberB}' order by c.phone`);
+    expect(archivedB.rows.map(r => r.phone)).toEqual(['5511111111111', '5511333333333']);
   });
 
   it('nome inválido é ignorado sem descartar a mensagem', async () => {
