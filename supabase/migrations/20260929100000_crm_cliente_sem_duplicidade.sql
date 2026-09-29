@@ -81,17 +81,20 @@ declare
 begin
   if length(v_cpf) not in (11,14) then v_cpf:=null; end if;
   if p_owner is null or (v_key is null and v_email is null and v_cpf is null) then return '[]'::jsonb; end if;
+  -- One branch per reason, so the phone lookup uses clientes_corretor_phone_key_idx.
   select coalesce(jsonb_agg(jsonb_build_object('id',t.id,'nome',t.nome,'motivo',t.motivo) order by t.prioridade,t.created_at),'[]'::jsonb)
     into v_result
     from (select * from (
-            select distinct on (k.id) k.id,k.nome,k.created_at,m.prioridade,m.motivo
-              from public.clientes k
-              cross join lateral (values
-                (1,'telefone',v_key is not null and public.lotti_phone_key(k.telefone)=v_key),
-                (2,'cpf',v_cpf is not null and regexp_replace(coalesce(k.cpf,''),'[^0-9]','','g')=v_cpf),
-                (3,'email',v_email is not null and lower(btrim(k.email))=v_email)) m(prioridade,motivo,casou)
-             where k.corretor_id=p_owner and m.casou
-             order by k.id,m.prioridade) d
+            select distinct on (m.id) m.* from (
+              select k.id,k.nome,k.created_at,1 prioridade,'telefone' motivo from public.clientes k
+               where v_key is not null and k.corretor_id=p_owner and public.lotti_phone_key(k.telefone)=v_key
+              union all
+              select k.id,k.nome,k.created_at,2,'cpf' from public.clientes k
+               where v_cpf is not null and k.corretor_id=p_owner and regexp_replace(coalesce(k.cpf,''),'[^0-9]','','g')=v_cpf
+              union all
+              select k.id,k.nome,k.created_at,3,'email' from public.clientes k
+               where v_email is not null and k.corretor_id=p_owner and lower(btrim(k.email))=v_email) m
+             order by m.id,m.prioridade) d
           order by d.prioridade,d.created_at limit 5) t;
   return v_result;
 end $$;

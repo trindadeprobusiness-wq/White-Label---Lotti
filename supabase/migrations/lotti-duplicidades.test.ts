@@ -163,11 +163,12 @@ describe('um cliente por telefone em cada conta', () => {
 
   it('duplicados antigos continuam editáveis; trocar para o número de outro cliente não', async () => {
     const a = await legacyClient('(62) 98123-4567', 'A');
-    await legacyClient('556281234567', 'B');
+    const b = await legacyClient('556281234567', 'B');
     await db.query(`update clientes set nome='A2',telefone='(62) 98123-4567',observacoes='x' where id=$1`, [a]);
     await db.query(`update clientes set telefone='62 98123 4567' where id=$1`, [a]);
     const c = await addClient('(62) 99999-0000', 'C');
-    await expect(db.query(`update clientes set telefone='5562981234567' where id=$1`, [c])).rejects.toMatchObject({ message: 'duplicate_client_phone', detail: a });
+    // O relógio do PGlite tem milissegundos: A e B podem empatar como o mais antigo.
+    await expect(db.query(`update clientes set telefone='5562981234567' where id=$1`, [c])).rejects.toMatchObject({ message: 'duplicate_client_phone', detail: expect.stringMatching(`^(${a}|${b})$`) });
     await db.query(`update clientes set telefone='(62) 99999-1111' where id=$1`, [c]);
   });
 
@@ -494,7 +495,7 @@ describe('uma conversa por linha no canal', () => {
     const [cv] = await conversations();
     expect(await rename(cv.id, 'Bruno Lima', '(62) 97777-0000')).toEqual({ name: 'Bruno Lima', phone: '5562977770000', cliente_id: bruno, relinked: true });
     expect(await conversations()).toEqual([expect.objectContaining({ phone: '5562977770000', cliente_id: bruno, contact_name: 'Bruno Lima' })]);
-    expect((await clients()).map((c) => [c.nome, c.telefone])).toEqual([['Bruno', '(62) 97777-0000'], ['Contato WhatsApp', '(62) 96666-0000'], ['Ana', '5562981234567']]);
+    expect((await clients()).map((c) => [c.nome, c.telefone]).sort()).toEqual([['Ana', '5562981234567'], ['Bruno', '(62) 97777-0000'], ['Contato WhatsApp', '(62) 96666-0000']]);
     expect(await rename(cv.id, 'Carla', '(62) 96666-0000')).toMatchObject({ cliente_id: placeholder, relinked: true });
     expect(await one('select nome from clientes where id=$1', [placeholder])).toEqual({ nome: 'Carla' });
     // Sem outro cliente com o número, o cliente da conversa recebe o número, como antes.
