@@ -28,6 +28,7 @@ const migrations = [
   '20260929120000_lotti_conversa_por_chave.sql',
   '20260929130000_lotti_canal_e_optout.sql',
   '20260929140000_duplicidade_ajustes_revisao.sql',
+  '20260930190000_conversa_sempre_no_crm.sql',
 ];
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const other = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -46,7 +47,7 @@ async function addToCrm(conversationId: string, as = user) {
   try { return (await db.query<{ r: { cliente_id: string; created: boolean } }>('select public.lotti_inbox_add_to_crm($1) r', [conversationId])).rows[0].r; }
   finally { await db.exec('RESET ROLE; RESET request.jwt.claim.sub'); }
 }
-const clients = async () => (await db.query<{ id: string; nome: string; telefone: string; corretor_id: string }>('select id,nome,telefone,corretor_id from clientes order by created_at')).rows;
+const clients = async () => (await db.query<{ id: string; nome: string; telefone: string; corretor_id: string; status_funil: string | null }>('select id,nome,telefone,corretor_id,status_funil from clientes order by created_at')).rows;
 
 beforeAll(async () => {
   db = new PGlite();
@@ -81,15 +82,16 @@ beforeEach(async () => {
 });
 
 describe('Adicionar ao CRM a partir do Inbox', () => {
-  it('cria o cliente com o nome da conversa e vincula; clicar de novo não duplica', async () => {
+  it('a conversa importada já nasce no CRM em qualificação; o botão vira confirmação', async () => {
     await importHistory([{ phone: '5562911110001', profile: 'Neves' }]);
     const cv = await conversation(`phone='5562911110001'`);
-    expect(cv.cliente_id).toBeNull();
-    const first = await addToCrm(cv.id);
-    expect(first.created).toBe(true);
-    expect(await clients()).toMatchObject([{ id: first.cliente_id, nome: 'Neves', telefone: '5562911110001', corretor_id: owner }]);
-    expect((await conversation(`id='${cv.id}'`)).cliente_id).toBe(first.cliente_id);
-    expect(await addToCrm(cv.id)).toEqual({ cliente_id: first.cliente_id, created: false });
+    // Conversa com número não fica mais "Sem cliente vinculado" esperando clique.
+    expect(cv.cliente_id).not.toBeNull();
+    expect(await clients()).toMatchObject([
+      { id: cv.cliente_id, nome: 'Neves', telefone: '5562911110001', corretor_id: owner, status_funil: 'QUALIFICACAO' },
+    ]);
+    // O front publicado ainda tem o botão: apertá-lo confirma, não duplica.
+    expect(await addToCrm(cv.id)).toEqual({ cliente_id: cv.cliente_id, created: false });
     expect(await clients()).toHaveLength(1);
   });
 
@@ -112,18 +114,25 @@ describe('Adicionar ao CRM a partir do Inbox', () => {
     await db.exec(`insert into clientes(corretor_id,nome,telefone) values ('${other}','De outra conta','(62) 91111-0007')`);
     await importHistory([{ phone: '5562911110007' }]);
     const cv = await conversation(`phone='5562911110007'`);
-    const result = await addToCrm(cv.id);
-    expect(result.created).toBe(true);
-    expect((await clients()).filter((c) => c.corretor_id === owner)).toHaveLength(1);
+    const meus = (await clients()).filter((c) => c.corretor_id === owner);
+    expect(meus).toHaveLength(1);
+    expect(cv.cliente_id).toBe(meus[0].id);
+    // Confirmar pelo botão não empresta o cliente da conta vizinha.
+    expect(await addToCrm(cv.id)).toEqual({ cliente_id: meus[0].id, created: false });
   });
 
-  it('usa "Contato WhatsApp" quando a conversa não tem nome e limpa a pendência de captura', async () => {
-    await importHistory([{ phone: '5562911110003' }]);
-    const cv = await conversation(`phone='5562911110003'`);
-    await db.exec(`update lotti_agent_conversations set last_error='crm_capture_pending' where id='${cv.id}'`);
-    await addToCrm(cv.id);
+  it('sem nome usa "Contato WhatsApp", e o número que chega depois limpa a pendência', async () => {
+    // Conversa achada só pelo LID nasce sem telefone, então sem cliente.
+    await importHistory([{ lid: '123456789012399' }]);
+    const semNumero = await conversation(`lid='123456789012399'`);
+    expect(semNumero.cliente_id).toBeNull();
+    await db.exec(`update lotti_agent_conversations set last_error='crm_capture_pending' where id='${semNumero.id}'`);
+    // Quando o WhatsApp revela o número, ela entra no CRM sozinha.
+    await db.exec(`update lotti_agent_conversations set phone='5562911110003' where id='${semNumero.id}'`);
+    const ligada = await conversation(`id='${semNumero.id}'`);
+    expect(ligada.cliente_id).not.toBeNull();
+    expect(ligada.last_error).toBeNull();
     expect((await clients())[0].nome).toBe('Contato WhatsApp');
-    expect((await conversation(`id='${cv.id}'`)).last_error).toBeNull();
   });
 
   it('espera o número quando o WhatsApp esconde o telefone', async () => {
@@ -142,7 +151,8 @@ describe('Adicionar ao CRM a partir do Inbox', () => {
     const logged = (await db.query<{ ok: boolean }>(`select has_function_privilege('authenticated','public.lotti_inbox_add_to_crm(uuid)','execute') ok`)).rows[0].ok;
     expect(anon).toBe(false);
     expect(logged).toBe(true);
-    expect(await clients()).toHaveLength(0);
+    // A importação já criou o cliente do dono; a chamada recusada não cria outro.
+    expect(await clients()).toHaveLength(1);
   });
 
   it('captura automática e "Nova conversa" também acham o cliente salvo sem o 55', async () => {
