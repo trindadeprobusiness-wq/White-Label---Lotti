@@ -22,6 +22,7 @@ import {
 } from '@/components/shell/primitivos';
 import type { TomBadge } from '@/components/shell/primitivos';
 import { useCRMStore } from '@/stores/crmStore';
+import { useFachadas } from '@/hooks/useFachadas';
 import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
 import type { Alerta } from '@/types/crm';
@@ -72,6 +73,10 @@ export default function Dashboard() {
     fetchCorretor, marcarAlertaLido,
   } = useCRMStore();
   const [alertaSelecionado, setAlertaSelecionado] = useState<Alerta | null>(null);
+  // Lead de fachada entra pelo QR do imóvel e não passa pelo funil até virar
+  // cliente. Sem ele aqui, quem escaneou a placa some no meio dos follow-ups.
+  const { leads: leadsFachada, fetchLeads } = useFachadas();
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   const clientesReais = useMemo(() => clientes.filter((item) => !item.is_sample_data), [clientes]);
   const imoveisReais = useMemo(() => imoveis.filter((item) => !item.is_sample_data), [imoveis]);
@@ -131,6 +136,38 @@ export default function Dashboard() {
     if (dias === 0) return { texto: 'Contato hoje', tom: 'warning' };
     return { texto: format(data, "d 'de' MMM", { locale: ptBR }), tom: 'info' };
   };
+
+  // Uma fila só de quem espera resposta: primeiro quem chegou pelo QR e ainda
+  // não virou cliente, depois o follow-up marcado — do mais atrasado ao mais
+  // distante. Eram dois blocos concorrendo pela mesma decisão.
+  const esperandoResposta = useMemo(() => {
+    const doQr = leadsFachada
+      .filter((lead) => !lead.convertido)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map((lead) => ({
+        id: `lead-${lead.id}`,
+        nome: lead.nome,
+        contato: lead.telefone || lead.email || 'Sem contato informado',
+        href: lead.cliente_id ? `/clientes/${lead.cliente_id}` : '/fachadas',
+        selo: { texto: 'Novo pelo QR', tom: 'brand' as TomBadge },
+      }));
+
+    const comFollowup = proximosContatos.map((cliente) => {
+      const prazo = followup(cliente.proximo_followup);
+      return {
+        id: `cliente-${cliente.id}`,
+        nome: cliente.nome,
+        contato: cliente.telefone || cliente.email || 'Sem contato registrado',
+        href: `/clientes/${cliente.id}`,
+        selo: prazo ?? {
+          texto: ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação',
+          tom: 'neutro' as TomBadge,
+        },
+      };
+    });
+
+    return [...doQr, ...comFollowup].slice(0, 5);
+  }, [leadsFachada, proximosContatos]);
 
   return (
     <div className="animate-fade-in">
@@ -277,7 +314,7 @@ export default function Dashboard() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <SectionCard
-          titulo="Próximos contatos"
+          titulo="Quem espera resposta"
           acao={
             <Button variant="ghost" size="sm" asChild>
               <Link to="/clientes">Ver todos</Link>
@@ -285,44 +322,35 @@ export default function Dashboard() {
           }
           semPadding
         >
-          {proximosContatos.length === 0 ? (
+          {esperandoResposta.length === 0 ? (
             <EmptyState
               icone={<Users className="h-6 w-6" />}
-              titulo="Nenhum cliente cadastrado"
-              descricao="Assim que você cadastrar clientes, os próximos contatos aparecem aqui."
+              titulo="Ninguém esperando"
+              descricao="Leads que chegarem pelo QR da fachada e contatos com follow-up marcado aparecem aqui."
               acao={
                 <Button variant="outline" asChild>
-                  <Link to="/clientes">Cadastrar cliente</Link>
+                  <Link to="/fachadas">Criar fachada</Link>
                 </Button>
               }
             />
           ) : (
             <ul className="px-2 pb-3">
-              {proximosContatos.map((cliente) => (
-                <li key={cliente.id}>
+              {esperandoResposta.map((item) => (
+                <li key={item.id}>
                   <Link
-                    to={`/clientes/${cliente.id}`}
+                    to={item.href}
                     className="flex min-w-0 items-center gap-3.5 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-muted focus-ring"
                   >
-                    <Avatar nome={cliente.nome} />
+                    <Avatar nome={item.nome} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-foreground">
-                        {cliente.nome}
+                        {item.nome}
                       </span>
                       <span className="block truncate text-sm text-muted-foreground">
-                        {cliente.telefone || cliente.email || 'Sem contato registrado'}
+                        {item.contato}
                       </span>
                     </span>
-                    {(() => {
-                      const prazo = followup(cliente.proximo_followup);
-                      return prazo ? (
-                        <StatusBadge tom={prazo.tom} comPonto>{prazo.texto}</StatusBadge>
-                      ) : (
-                        <StatusBadge tom="neutro">
-                          {ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação'}
-                        </StatusBadge>
-                      );
-                    })()}
+                    <StatusBadge tom={item.selo.tom} comPonto>{item.selo.texto}</StatusBadge>
                   </Link>
                 </li>
               ))}
