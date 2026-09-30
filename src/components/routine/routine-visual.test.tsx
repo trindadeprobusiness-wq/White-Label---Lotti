@@ -1,11 +1,26 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { addHours, subMinutes } from 'date-fns';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { RoutineEvent, RoutineMember, RoutineTask } from '@/types/routine';
 import { RoutineBriefing } from './RoutineBriefing';
 import { RoutineCalendar } from './RoutineCalendar';
 
-const today = new Date();
+// Relógio congelado às 9h de hoje. O arquivo monta o evento em `agora + 1h`
+// e compara com o que o componente considera "próximo": rodando perto da
+// meia-noite, esse evento caía no dia seguinte e sumia do calendário do dia.
+const today = (() => {
+  const base = new Date();
+  base.setHours(9, 0, 0, 0);
+  return base;
+})();
+
+beforeAll(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(today);
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 const member: RoutineMember = {
   id: 'member-1', organization_id: 'org-1', user_id: 'user-1', role: 'corretor',
   status: 'active', team_name: null, unit_name: null, display_name: 'Gabri Teste',
