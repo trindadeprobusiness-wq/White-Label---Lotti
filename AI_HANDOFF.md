@@ -1,5 +1,14 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — estado real de produção: migrations à frente do código (2026-09-30)
+- Lido direto do projeto `dqlolypbmsjgqrvdesev` com `supabase migration list --linked`. **Corrige o que este arquivo dizia antes**: `20260926200000`, `20260928190000`, `20260928200000` e `20260929100000`–`140000` **já estão aplicadas** em produção. Da cadeia, falta só a `20260929150000`.
+- Produção está no estado intermediário que este arquivo previa: o gatilho `clientes_phone_guard_insert` já recusa telefone repetido, mas as funções que deveriam usar as RPCs não foram publicadas. `lead-capture` em produção é de 2026-09-16 e `crm-upsert-lead` de 2026-07-17, ambas anteriores aos commits `0198209` e `59c4e00` (2026-09-28 21:33–21:35); `ai-action` nunca foi publicada. Resultado ao vivo: lead que volta com telefone já existente falha na captura pública e na qualificação do n8n, e o passo "primeiro cliente" do onboarding falha enquanto a `20260929150000` não entrar.
+- O front não está nesse atraso: o `2461492` (merge do PR #32) subiu às 16:10 com as telas já usando as RPCs.
+- **Não rodar `supabase db push --include-all`.** Dos 95 arquivos locais, 64 não constam no histórico remoto, que só começa em `20260826090000`: as 54 anteriores a essa data foram aplicadas por fora e existem no banco. O `--include-all` tentaria reexecutar as 64 contra o banco vivo, e há duas locais com o mesmo número (`20260519150000`) que sozinhas derrubam o push.
+- Ausentes depois de `20260826090000`, a conferir uma por uma antes de qualquer aplicação: as três de `20260901`, `20260904100000`, as duas de `20260909`, `20260920000100`, `20260926170000` (DRE do Codex), `20260927110000` e `20260929150000`.
+- Sobre a Vercel: os deploys de produção só acontecem quando quem faz o push ou o merge é `trindadeprobusiness-wq`. Disparo de `rportocortes` é recusado, porque esse GitHub não é membro do projeto na Vercel. Está no ar o build do `2461492`; a `main` está no `cbee577`.
+- Não feito: o deploy das três funções e a aplicação da `20260929150000` foram barrados pelo classificador do modo automático, que recusa publicação em produção partindo do agente. Ficam para execução manual.
+
 ## Claude — PR #34 na main e pendências revisadas (2026-09-30)
 - PR #34 (`feat/design-lotti` → `main`) mergeado em `a30160c`, com os dois runs `verify` verdes. O único vermelho era `Vercel — Deployment was blocked`, o bloqueio de acesso do autor ao projeto na Vercel, que não é teste.
 - Não há mais nenhum PR aberto: nem na plataforma nem na ponte (`n8n-agent-lotti`, onde o #19 versionou a stack de produção da VPS).
