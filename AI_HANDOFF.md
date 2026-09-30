@@ -2196,3 +2196,13 @@ credencial); nao foi contornada.
 - Nenhuma ponte foi publicada, mensagem real foi enviada ou campanha foi ativada.
 - Diário — Codex: merges locais concluídos e ponte validada; publicação e Supabase aguardam ferramentas/acesso operacional.
 - Atualização — Codex: a plataforma foi enviada para `origin/main` no commit `8a5df1f`; a ponte permaneceu somente no checkout local.
+
+### 2026-09-30 - Codex (diagnóstico comercial público)
+- Branch `codex/commercial-diagnostic`: rota pública `/diagnostico`, perguntas condicionais, classificação e conclusão contextual; back office em `/admin/diagnosticos` para leitura e status.
+- Migration `20260930180000_commercial_diagnostic.sql` cria respostas, scores, atribuição e eventos com leitura restrita a admin; Edge Function `commercial-diagnostic` valida respostas e recalcula os scores no servidor.
+- Verificações: build de produção, ESLint direcionado, `git diff --check`, 9 testes de jornada/função e 1 teste da migration passaram. Smoke no navegador cobriu 375, 390, 430 e 1440 px, validação, voltar, jornada completa, UTM e ausência de overflow/erro de página.
+- Migration `20260930180000` aplicada no projeto Supabase `dqlolypbmsjgqrvdesev` após dry run isolado que listou somente esse arquivo; tabelas e registro da migration conferidos. Edge Function `commercial-diagnostic` publicada com JWT desativado conforme a validação no handler; OPTIONS retornou HTTP 200 com CORS. Nenhum dado real de lead foi enviado.
+- PR #35 integrado na main (`0440a00`); Vercel publicou `dpl_Hbk1Yd13EubWTzreXsg2j4aHaJic` como Ready nos aliases `app.plataformalotti.com.br` e `olivercrm.vercel.app`. `/diagnostico` respondeu HTTP 200 e foi inspecionado em 390 e 1440 px sem overflow, erro de página ou console.
+- Envio sintético em produção confirmou resposta HTTP 200, problema dominante DEMANDA, UTM, score e evento `diagnostic_completed` persistidos. O registro e seus eventos de teste foram removidos; consulta confirmou 0 registros remanescentes para a sessão de teste.
+- Pendente: validar a triagem autenticada em `/admin/diagnosticos` com uma conta admin e observar respostas reais após a divulgação da rota. O diretório de migrations da main continua divergente do histórico remoto; não usar `db push` geral sem reconciliação.
+- Diário - Codex: implementação isolada sobre a main; alterações locais de WhatsApp e demais arquivos não foram incorporadas.

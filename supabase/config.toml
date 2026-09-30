@@ -16,6 +16,9 @@ verify_jwt = false
 [functions.lead-capture]
 verify_jwt = false
 
+[functions.commercial-diagnostic]
+verify_jwt = false
+
 # Landing page pública da fachada (destino do QR). Sem login; usa service_role
 # in-code e devolve só campos seguros (sem PII de proprietário).
 [functions.fachada-publica]
