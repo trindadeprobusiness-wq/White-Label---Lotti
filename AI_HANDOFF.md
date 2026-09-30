@@ -1,5 +1,12 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — PR #34 na main e pendências revisadas (2026-09-30)
+- PR #34 (`feat/design-lotti` → `main`) mergeado em `a30160c`, com os dois runs `verify` verdes. O único vermelho era `Vercel — Deployment was blocked`, o bloqueio de acesso do autor ao projeto na Vercel, que não é teste.
+- Não há mais nenhum PR aberto: nem na plataforma nem na ponte (`n8n-agent-lotti`, onde o #19 versionou a stack de produção da VPS).
+- O `infra/vps-setup.sh` que saiu do #34 não precisa de PR próprio: `compose.prod.yaml`, `deploy/Caddyfile` e as units de backup já estão versionadas na ponte. O conteúdo do script segue recuperável em `git show bda2219:infra/vps-setup.sh`.
+- Este arquivo tem 269 bytes nulos e 1451 linhas com CRLF herdados de merges antigos, por isso o Git o trata como binário. Entradas novas devem ser escritas só com LF para o `git diff --check` não falhar.
+- Pendências: aplicar em produção `20260926200000` e `20260928190000` (conferindo a `20260928200000`) e depois a série `20260929100000–150000` junto com as Edge Functions; ligar `HISTORY_IMPORT_MODE=full` na ponte de produção; o lote de design do #34 nunca foi aberto com login real nem usado em celular de verdade.
+
 ## Claude — lote de design sobre a main atual (2026-09-30)
 - Branch `feat/design-lotti`, criada a partir de `origin/main` em `2461492`, com os 20 commits de design transplantados da `feat/form-imovel-inteligente`. As duas correções do Inbox que faltavam já haviam entrado pelo PR #31.
 - Conflitos resolvidos contra o que os PRs #31, #32 e #33 trouxeram hoje: em `ConnectedInbox.tsx` o código novo de opt-out, duplicidade e `Adicionar ao CRM` foi mantido e a gaveta do celular reaplicada por cima; em `ConnectedInbox.test.tsx` os testes dos dois lados foram somados; em `AppSidebar.tsx` o import de `ChevronsUpDown` saiu junto com o dropdown que o usava.
