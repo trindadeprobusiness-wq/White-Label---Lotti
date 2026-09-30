@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { latestByConversation, liveUrgency, type LatestMessage } from '@/features/whatsapp-inbox/liveInboxFilters';
+import { esperaResposta, latestByConversation, liveUrgency, type LatestMessage } from '@/features/whatsapp-inbox/liveInboxFilters';
 
 /**
  * Quantas conversas estão esperando resposta agora.
@@ -47,13 +47,16 @@ export function useConversasEsperando() {
       let esperando = 0;
       let urgentes = 0;
       for (const conversa of (conversas.data ?? []) as ConversaEspera[]) {
+        const ultima = ultimas.get(conversa.id);
+        // Esperar e estar atrasada são perguntas diferentes: quem escreveu há
+        // cinco minutos espera resposta e ainda não está atrasada.
+        if (!esperaResposta(conversa, ultima)) continue;
+        esperando += 1;
         const urgencia = liveUrgency(
           { mode: conversa.mode, qualification: conversa.qualification ?? undefined },
-          ultimas.get(conversa.id),
+          ultima,
           agora,
         );
-        if (urgencia === 'all') continue;
-        esperando += 1;
         if (urgencia === 'urgent') urgentes += 1;
       }
       return { esperando, urgentes };

@@ -35,6 +35,22 @@ export function latestByConversation(messages: LatestMessage[]) {
 
 // Pede só o que lê, para a tela inicial poder reusar a mesma conta de espera
 // sem carregar telefone, nome e data de uma conversa inteira.
+/**
+ * Alguém do outro lado espera resposta: a última mensagem é do cliente e o
+ * atendimento não está com a IA.
+ *
+ * Separado de `liveUrgency` de propósito. Aquele responde "está atrasada?", e
+ * devolve `all` tanto para quem não precisa de resposta quanto para quem chegou
+ * agora — usar ele para contar espera some com quem escreveu há cinco minutos,
+ * justamente quem ainda dá para atender a tempo.
+ */
+export function esperaResposta(
+  conversation: Pick<LiveConversation, 'mode'>,
+  latest: LatestMessage | undefined,
+): boolean {
+  return !!latest && latest.direction === 'in' && conversation.mode !== 'ai';
+}
+
 export function liveUrgency(conversation: Pick<LiveConversation, 'mode' | 'qualification'>, latest: LatestMessage | undefined, now: number): QuickFilter {
   if (!latest || latest.direction !== 'in' || conversation.mode === 'ai') return 'all';
   const minutes = (now - new Date(latest.created_at).getTime()) / 60000;
