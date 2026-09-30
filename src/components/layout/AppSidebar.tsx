@@ -130,12 +130,12 @@ function ItemMenu({
         'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
-        // Mesmo verde da coluna de destino do funil: o verde da marca com
-        // opacidade. O bloco sólido competia com os botões de ação da página
-        // e o #F6FFE7 era claro demais para marcar onde se está.
+        // Mesmo verde dos blocos de ícone (--surface-brand), agora que ele é
+        // um tom claro do esmeralda da marca e não mais o limão de matiz 82.
+        // A barra à esquerda continua marcando onde se está.
         ativo
           ? cn(
-              'relative bg-primary/20 font-semibold text-foreground',
+              'relative bg-surface-brand font-semibold text-primary',
               'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
               'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
             )
