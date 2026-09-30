@@ -157,7 +157,7 @@ function ItemMenu({
   );
 }
 
-function Conteudo({
+export function ConteudoDaSidebar({
   recolhida, alternarRecolhida, aoNavegar, emDrawer = false,
 }: {
   recolhida: boolean;
@@ -328,7 +328,7 @@ export function AppSidebar() {
 
   return (
     /* Desktop: sidebar fixa em coluna lateral. Mobile: hidden — navegação
-       fica com MobileTopBar (topo) + MobileBottomNav (rodapé). */
+       fica com MobileTopBar, cujo hambúrguer abre este mesmo conteúdo. */
     <aside
       className={cn(
         'group/sidebar relative hidden shrink-0 border-r border-sidebar-border md:block',
@@ -341,7 +341,7 @@ export function AppSidebar() {
           rodapé, com as ações da conta. */}
       <div className="sticky top-0 h-screen">
         <div className="relative h-full">
-          <Conteudo recolhida={recolhida} />
+          <ConteudoDaSidebar recolhida={recolhida} />
           <button
             type="button"
             onClick={alternar}
