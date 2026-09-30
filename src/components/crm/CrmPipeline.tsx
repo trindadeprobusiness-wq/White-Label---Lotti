@@ -166,7 +166,7 @@ function Coluna({
       ref={setNodeRef}
       className={cn(
         'min-w-[260px] flex-1 rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
-        isOver && 'border-primary/40 outline outline-2 -outline-offset-2 outline-primary/40',
+        isOver && 'border-border-strong outline outline-2 -outline-offset-2 outline-border-strong',
       )}
     >
       <div className="px-3 pt-3 pb-2">
@@ -193,7 +193,7 @@ function Coluna({
 
       <div className={cn('h-[2px] w-full opacity-70', cor.barra)} aria-hidden="true" />
 
-      <div className={cn('flex-1 space-y-2 overflow-y-auto p-3', modoSelecao && 'pb-24', isOver && 'bg-surface-brand')}>
+      <div className={cn('flex-1 space-y-2 overflow-y-auto p-3', modoSelecao && 'pb-24', isOver && 'bg-muted')}>
         {coluna.oportunidades.map((o) => (
           <Card key={o.id} oportunidade={o} onWhatsApp={onWhatsApp} modoSelecao={modoSelecao} selecionado={selecionados.has(o.id)} onSelecionar={onSelecionar} />
         ))}
@@ -201,7 +201,7 @@ function Coluna({
         {coluna.oportunidades.length === 0 && (
           <div className={cn(
             'flex items-center justify-center rounded-lg py-10 text-center text-xs italic text-muted-foreground',
-            isOver && 'border-2 border-dashed border-primary/30 not-italic',
+            isOver && 'border-2 border-dashed border-border-strong not-italic',
           )}>
             {isOver ? 'Solte aqui' : 'Vazio. Arraste cards pra cá.'}
           </div>

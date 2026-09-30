@@ -67,7 +67,7 @@ function montarGrupos(): GrupoNav[] {
     {
       titulo: 'WhatsApp',
       itens: [
-        { label: 'Inbox', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
+        { label: 'Conversas', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
         // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
         FLAGS.crm
           ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
