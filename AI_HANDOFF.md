@@ -2187,3 +2187,11 @@ credencial); nao foi contornada.
 - Nenhuma ponte foi publicada, mensagem real foi enviada ou campanha foi ativada.
 - Diário — Codex: merges locais concluídos e ponte validada; publicação e Supabase aguardam ferramentas/acesso operacional.
 - Atualização — Codex: a plataforma foi enviada para `origin/main` no commit `8a5df1f`; a ponte permaneceu somente no checkout local.
+
+### 2026-09-30 - Codex (diagnóstico comercial público)
+- Branch `codex/commercial-diagnostic`: rota pública `/diagnostico`, perguntas condicionais, classificação e conclusão contextual; back office em `/admin/diagnosticos` para leitura e status.
+- Migration `20260930180000_commercial_diagnostic.sql` cria respostas, scores, atribuição e eventos com leitura restrita a admin; Edge Function `commercial-diagnostic` valida respostas e recalcula os scores no servidor.
+- Verificações: build de produção, ESLint direcionado, `git diff --check`, 9 testes de jornada/função e 1 teste da migration passaram. Smoke no navegador cobriu 375, 390, 430 e 1440 px, validação, voltar, jornada completa, UTM e ausência de overflow/erro de página.
+- Migration `20260930180000` aplicada no projeto Supabase `dqlolypbmsjgqrvdesev` após dry run isolado que listou somente esse arquivo; tabelas e registro da migration conferidos. Edge Function `commercial-diagnostic` publicada com JWT desativado conforme a validação no handler; OPTIONS retornou HTTP 200 com CORS. Nenhum dado real de lead foi enviado.
+- Pendente: publicar o frontend via merge/deploy e validar o fluxo de persistência de ponta a ponta em produção. O diretório de migrations da main continua divergente do histórico remoto; não usar `db push` geral sem reconciliação.
+- Diário - Codex: implementação isolada sobre a main; alterações locais de WhatsApp e demais arquivos não foram incorporadas.
