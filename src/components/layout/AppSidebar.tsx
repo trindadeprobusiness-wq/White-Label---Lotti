@@ -130,12 +130,12 @@ function ItemMenu({
         'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
-        // O ativo se marca pela barra verde e pelo peso do texto, sem tingir
-        // o fundo: o bloco verde sólido competia com os botões de ação da
-        // página, e o verde claro sujava a coluna inteira.
+        // Mesmo verde da coluna de destino do funil: o verde da marca com
+        // opacidade. O bloco sólido competia com os botões de ação da página
+        // e o #F6FFE7 era claro demais para marcar onde se está.
         ativo
           ? cn(
-              'relative bg-sidebar-accent font-semibold text-foreground',
+              'relative bg-primary/20 font-semibold text-foreground',
               'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
               'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
             )
