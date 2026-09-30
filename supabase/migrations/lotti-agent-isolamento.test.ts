@@ -15,6 +15,19 @@ const migrations = [
   '20260924000100_lotti_channel_company_name.sql',
   '20260924000200_lotti_inbox_events.sql',
   '20260925000100_lotti_inbox_status_events.sql',
+  '20260927120000_lotti_agent_stalled_claims.sql',
+  '20260927120100_lotti_agent_opt_out.sql',
+  '20260927130000_lotti_agent_settings.sql',
+  '20260927140000_lotti_agent_follow_up.sql',
+  '20260927150000_lotti_broadcasts.sql',
+  '20260926200000_lotti_whatsapp_lid_conversations.sql',
+  '20260928190000_lotti_whatsapp_contact_names_and_merge.sql',
+  '20260928200000_lotti_inbox_add_to_crm.sql',
+  '20260929100000_crm_cliente_sem_duplicidade.sql',
+  '20260929110000_crm_conversao_e_oportunidade.sql',
+  '20260929120000_lotti_conversa_por_chave.sql',
+  '20260929130000_lotti_canal_e_optout.sql',
+  '20260929140000_duplicidade_ajustes_revisao.sql',
 ];
 const accountA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const accountB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -51,12 +64,12 @@ beforeAll(async () => {
     CREATE TABLE public.clientes(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, nome text not null, telefone text not null, email text, status_funil text, tipo_interesse text, created_at timestamptz default now());
     CREATE TYPE public.direcao_contato AS ENUM ('IN','OUT');
     CREATE TABLE public.historico_contatos(id uuid primary key default gen_random_uuid(), cliente_id uuid, tipo text, direcao public.direcao_contato, conteudo text, metadata jsonb);
-    CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text, entidade_tipo text, entidade_id uuid);
+    CREATE TABLE public.alertas(id uuid primary key default gen_random_uuid(), corretor_id uuid, cliente_id uuid, tipo text, mensagem text, metadata jsonb, origem text, entidade_tipo text, entidade_id uuid, lido boolean default false);
     CREATE TABLE public.plan_entitlements(plan_id uuid, feature_key text, limit_value int, unlimited boolean default false, enabled boolean default true);
     CREATE TABLE public.subscriptions(id uuid primary key default gen_random_uuid(), corretor_id uuid, plan_id uuid, status text, trial_ends_at timestamptz, current_period_end timestamptz, created_at timestamptz default now());
     CREATE TABLE public.usage_counters(corretor_id uuid, feature_key text, used_quantity int, period_start date, period_end date, updated_at timestamptz default now(), unique(corretor_id,feature_key,period_start));
-    CREATE TABLE public.crm_etapas(id uuid primary key, nome text);
-    CREATE TABLE public.crm_oportunidades(id uuid primary key, corretor_id uuid, cliente_id uuid, etapa_id uuid, titulo text);
+    CREATE TABLE public.crm_etapas(id uuid primary key, corretor_id uuid not null, nome text);
+    CREATE TABLE public.crm_oportunidades(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, cliente_id uuid, etapa_id uuid not null, titulo text not null, origem text, fechada_em timestamptz, updated_at timestamptz not null default now());
     INSERT INTO corretores VALUES ('${accountA}','${userA}','Imobiliária A'),('${accountB}','${userB}','Imobiliária B');
     INSERT INTO plan_entitlements VALUES ('${plan}','leads_qualificados_monthly',100,false,true);
     INSERT INTO subscriptions(corretor_id,plan_id,status,current_period_end) VALUES ('${accountA}','${plan}','active',now()+interval '30 days'),('${accountB}','${plan}','active',now()+interval '30 days');
@@ -137,7 +150,8 @@ describe('SCRUM-40 — isolamento do envio manual', () => {
 
   it('o destino e a instância vêm da conversa e do canal da própria conta', async () => {
     const [{ r }] = await begin(accountB, conversationB);
-    expect(r).toEqual({ status: 'ready', instance: 'lotti-b', phone });
+    // Desde 20260926200000 o LID também vai para a ponte (nulo quando o número é conhecido).
+    expect(r).toEqual({ status: 'ready', instance: 'lotti-b', phone, lid: null });
   });
 
   it('as funções de envio não podem ser chamadas pelo navegador', async () => {

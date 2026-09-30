@@ -40,3 +40,33 @@ export function normalizarTelefoneBR(bruto: string | null | undefined): Telefone
   }
   return { digitos: d, formatado: formatarTelefone(d) };
 }
+
+// Um número por vez: DDD (com ou sem parênteses e +55) seguido de 8 ou 9 dígitos.
+const TRECHO_TELEFONE = /(?:\+?\s*55[\s.-]*)?(?:\(\s*\d{2}\s*\)|\d{2})[\s.-]*\d{4,5}[\s.-]*\d{4}(?!\d)/g;
+
+/**
+ * Primeiro telefone brasileiro válido de um texto livre, já formatado.
+ *
+ * Contratos lidos pela IA trazem "(62) 91111-0002 / (62) 3333-4444" no campo de
+ * telefone. Juntar todos os dígitos formava um número que não existe, e o
+ * cadastro não casava com o cliente que já tinha o celular. '' quando não há.
+ */
+export function primeiroTelefoneBR(texto: string | null | undefined): string {
+  for (const trecho of (texto ?? '').match(TRECHO_TELEFONE) ?? []) {
+    const { formatado } = normalizarTelefoneBR(trecho);
+    if (formatado) return formatado;
+  }
+  return '';
+}
+
+/**
+ * CPF/CNPJ como o cadastro guarda: só dígitos quando o documento está completo
+ * (é o formato que o Asaas e a busca de clientes usam). Qualquer outra coisa é
+ * mantida como foi digitada, para o corretor corrigir depois.
+ */
+export function documentoParaSalvar(texto: string | null | undefined): string | null {
+  const bruto = (texto ?? '').trim();
+  const digitos = bruto.replace(/\D/g, '');
+  if (digitos.length === 11 || digitos.length === 14) return digitos;
+  return bruto || null;
+}

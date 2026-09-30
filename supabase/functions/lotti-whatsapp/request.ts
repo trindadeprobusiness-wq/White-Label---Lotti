@@ -48,3 +48,20 @@ export function resolveBridgeUrl(secretUrl:string|undefined,registeredHost:unkno
  try{if(secretUrl)path=new URL(secretUrl).pathname||DEFAULT_BRIDGE_PATH;}catch{/* keep default path */}
  return `https://${registeredHost}${path}`;
 }
+
+// After lotti_inbox_start_conversation the conversation exists and the bridge may
+// have delivered the message even when its answer never came back (timeout, dropped
+// tunnel). Answering 503 made "Nova conversa" look failed and invited a resend;
+// 'uncertain' opens the conversation and the screen keeps the same request_id.
+export function bridgeUnreachable(action:unknown,conversationId?:string):{status:number;body:Record<string,unknown>}{
+ if(action==='start'&&conversationId)return {status:200,body:{sendStatus:'uncertain',conversationId}};
+ return {status:503,body:{error:'connection_service_unavailable'}};
+}
+
+// Refusals of lotti_inbox_start_conversation the screen can explain; anything else
+// (database details) stays behind the generic conversation_unavailable.
+const START_REFUSALS=['invalid_phone','forbidden','channel_unavailable','duplicate_conversation_phone'];
+export function startRefusal(error:unknown){
+ const message=(error as {message?:unknown}|null)?.message;
+ return typeof message==='string'&&START_REFUSALS.includes(message)?message:undefined;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, resolveBridgeUrl, sanitizeConnectionPhone, sanitizeConnectionTimestamp } from './request';
+import { bridgeUnreachable, buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, resolveBridgeUrl, sanitizeConnectionPhone, sanitizeConnectionTimestamp, startRefusal } from './request';
 
 describe('endereço da ponte do WhatsApp', () => {
   const secret = 'https://antigo-tunel.trycloudflare.com/webhook/lotti-whatsapp-connect';
@@ -33,6 +33,26 @@ describe('contrato de nova conversa', () => {
   it('reutiliza o envio manual com o id e request id resolvidos', () => {
     const parsed = parseLottiRequest({ action: 'start', phone: '5562999999999', text: 'Olá', request_id: requestId });
     expect(buildStartBridgeRequest(parsed, 'owner', 'conversation')).toEqual({ action: 'send', corretor_id: 'owner', conversation_id: 'conversation', request_id: requestId, kind: 'text', text: 'Olá' });
+  });
+});
+
+describe('ponte sem resposta', () => {
+  it('em nova conversa, a conversa já existe e o envio fica incerto, não falho', () => {
+    expect(bridgeUnreachable('start', 'conversation-1')).toEqual({ status: 200, body: { sendStatus: 'uncertain', conversationId: 'conversation-1' } });
+  });
+  it('nas demais ações, e em start sem conversa, continua indisponível', () => {
+    for (const action of ['send', 'status', 'connect'])
+      expect(bridgeUnreachable(action, 'conversation-1')).toEqual({ status: 503, body: { error: 'connection_service_unavailable' } });
+    expect(bridgeUnreachable('start')).toEqual({ status: 503, body: { error: 'connection_service_unavailable' } });
+  });
+});
+
+describe('recusa ao iniciar conversa', () => {
+  it('repassa só os motivos que a tela explica', () => {
+    expect(startRefusal({ message: 'channel_unavailable' })).toBe('channel_unavailable');
+    expect(startRefusal({ message: 'duplicate_conversation_phone', details: 'id' })).toBe('duplicate_conversation_phone');
+    expect(startRefusal({ message: 'relation "x" does not exist' })).toBeUndefined();
+    expect(startRefusal(null)).toBeUndefined();
   });
 });
 

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, resolveBridgeUrl, sanitizeConnectionPhone, sanitizeConnectionTimestamp, type StartRequest, type UploadRequest } from './request.ts';
+import { bridgeUnreachable, buildAttachmentPath, buildStartBridgeRequest, parseLottiRequest, resolveBridgeUrl, sanitizeConnectionPhone, sanitizeConnectionTimestamp, startRefusal, type StartRequest, type UploadRequest } from './request.ts';
 const cors={ 'Access-Control-Allow-Origin':'https://app.plataformalotti.com.br', 'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods':'POST, OPTIONS', 'Cache-Control':'no-store' };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
@@ -33,10 +33,12 @@ Deno.serve(async req=>{
     const start=body as StartRequest;
     const userDb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
     const {data,error:startError}=await userDb.rpc('lotti_inbox_start_conversation',{p_phone:start.phone,p_name:start.name??null});
-    if(startError||typeof data!=='string')return json({error:'conversation_unavailable'},409);
+    if(startError||typeof data!=='string'){const reason=startRefusal(startError);return json({error:'conversation_unavailable',...(reason?{reason}:{})},409);}
     conversationId=data;bridgeBody=buildStartBridgeRequest(start,owner.id,conversationId);
    }
-   const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-lotti-connect':secret,'ngrok-skip-browser-warning':'1'},body:JSON.stringify(bridgeBody),signal:AbortSignal.timeout(25000)});
+   let response:Response;
+   try{response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-lotti-connect':secret,'ngrok-skip-browser-warning':'1'},body:JSON.stringify(bridgeBody),signal:AbortSignal.timeout(25000)});}
+   catch{const failure=bridgeUnreachable(body.action,conversationId);return json(failure.body,failure.status);}
    if(!response.ok)return json({error:'connection_service_unavailable'},503);
    const result=await response.json();
    if(body.action==='send'||body.action==='start')return ['sent','sending','uncertain','failed','busy'].includes(result.sendStatus)?json({sendStatus:result.sendStatus,...(conversationId?{conversationId}:{})}):json({error:'send_unavailable'},503);

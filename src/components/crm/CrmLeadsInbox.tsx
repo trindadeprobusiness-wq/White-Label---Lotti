@@ -2,15 +2,14 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { Inbox, UserPlus, Link2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { useCRMStore } from '@/stores/crmStore';
-import { possiveisDuplicados, normalizarLead } from '@/lib/crm/pipeline';
-import { useLeadsPendentes, useEtapas, useConverterLead } from '@/hooks/crm/useCrm';
+import { normalizarLead } from '@/lib/crm/pipeline';
+import { MOTIVO_CANDIDATO, type CandidatoCliente } from '@/lib/crm/duplicidade';
+import { useLeadsPendentes, useEtapas, useConverterLead, useClientesParecidos } from '@/hooks/crm/useCrm';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 type Lead = { id: string; nome: string; telefone: string; email?: string | null; created_at: string };
@@ -20,23 +19,31 @@ type Lead = { id: string; nome: string; telefone: string; email?: string | null;
  *
  * Os leads das fachadas eram gravados em `fachada_leads` e ficavam parados:
  * `convertido` só aparecia como badge e `cliente_id` nunca era preenchido.
- * Aqui eles viram cliente + oportunidade, com checagem de duplicidade antes.
+ * Aqui eles viram cliente + oportunidade. Antes, o servidor procura o cliente
+ * que já tem o mesmo telefone (em qualquer grafia) ou e-mail; havendo um, o
+ * lead só pode ser vinculado a ele, porque a conta não pode ter dois clientes
+ * com o mesmo telefone.
  */
 export function CrmLeadsInbox() {
   const { data: leads, isLoading } = useLeadsPendentes();
   const { data: etapas } = useEtapas();
   const converter = useConverterLead();
-  const { clientes } = useCRMStore();
   const [emAnalise, setEmAnalise] = useState<Lead | null>(null);
+  // O que o servidor recusou na conversão vale mais que a consulta da tela:
+  // outro cadastro pode ter entrado entre abrir o diálogo e clicar.
+  const [recusados, setRecusados] = useState<CandidatoCliente[] | null>(null);
+  const parecidos = useClientesParecidos({ telefone: emAnalise?.telefone, email: emAnalise?.email }, !!emAnalise);
 
   const primeiraEtapa = etapas?.[0];
-  const duplicados = emAnalise ? possiveisDuplicados(clientes, emAnalise) : [];
+  const candidatos = recusados ?? parecidos.data ?? [];
+
+  const fechar = () => { setEmAnalise(null); setRecusados(null); converter.reset(); };
 
   const converterAgora = (clienteExistente?: string | null) => {
     if (!emAnalise || !primeiraEtapa) return;
     converter.mutate(
       { lead: emAnalise, etapaId: primeiraEtapa.id, clienteExistente },
-      { onSuccess: () => setEmAnalise(null) },
+      { onSuccess: (resultado) => (resultado.status === 'duplicate' ? setRecusados(resultado.candidatos) : fechar()) },
     );
   };
 
@@ -82,7 +89,7 @@ export function CrmLeadsInbox() {
         ))}
       </div>
 
-      <Dialog open={!!emAnalise} onOpenChange={(o) => !o && setEmAnalise(null)}>
+      <Dialog open={!!emAnalise} onOpenChange={(o) => !o && fechar()}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>Converter lead em cliente</DialogTitle>
@@ -98,15 +105,23 @@ export function CrmLeadsInbox() {
                 <DadoSensivel valor={normalizarLead(emAnalise).telefone} tipo="telefone" className="text-muted-foreground" />
               </div>
 
-              {duplicados.length > 0 && (
+              {parecidos.isLoading && !recusados && (
+                <p role="status" className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Procurando cliente com este telefone ou e-mail...
+                </p>
+              )}
+
+              {candidatos.length > 0 && (
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
                   <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-                    Este telefone já está cadastrado
+                    {candidatos.length === 1
+                      ? `Este lead já é o cliente ${candidatos[0].nome}`
+                      : 'Este lead já está no CRM'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Vincule ao cliente existente para não criar um duplicado.
+                    Vincule ao cadastro existente. A conta não pode ter dois clientes com o mesmo telefone.
                   </p>
-                  {duplicados.map((c) => (
+                  {candidatos.map((c) => (
                     <Button
                       key={c.id}
                       variant="outline"
@@ -116,6 +131,7 @@ export function CrmLeadsInbox() {
                       onClick={() => converterAgora(c.id)}
                     >
                       <Link2 className="h-4 w-4 mr-1.5" /> Vincular a {c.nome}
+                      <span className="ml-auto text-xs text-muted-foreground">mesmo {MOTIVO_CANDIDATO[c.motivo]}</span>
                     </Button>
                   ))}
                 </div>
@@ -124,14 +140,16 @@ export function CrmLeadsInbox() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEmAnalise(null)} disabled={converter.isPending}>
+            <Button variant="outline" onClick={fechar} disabled={converter.isPending}>
               Cancelar
             </Button>
-            <Button onClick={() => converterAgora(null)} disabled={converter.isPending}>
-              {converter.isPending
-                ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Convertendo...</>
-                : duplicados.length > 0 ? 'Criar mesmo assim' : 'Converter'}
-            </Button>
+            {candidatos.length === 0 && (
+              <Button onClick={() => converterAgora(null)} disabled={converter.isPending || (parecidos.isLoading && !recusados)}>
+                {converter.isPending
+                  ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Convertendo...</>
+                  : 'Converter'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

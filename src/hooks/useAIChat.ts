@@ -304,15 +304,18 @@ export function useAIChat(): UseAIChatReturn {
           body: JSON.stringify({ proposal_id: action.id, decision: 'confirm' }),
         },
       );
+      const body = await response.json().catch(() => null);
       if (!response.ok) {
-        const body = await response.json().catch(() => null);
         throw new Error(body?.error || 'Não foi possível executar a ação.');
       }
 
       setPendingActions(prev =>
         prev.map(a => (a.id === action.id ? { ...a, status: 'confirmed' as const } : a))
       );
-      toast.success('Ação executada com sucesso.');
+      // "Cadastrar cliente" com um telefone que já é cliente não cria outro.
+      toast.success(body?.existing
+        ? 'Este cliente já estava cadastrado. Nenhum cadastro novo foi criado.'
+        : 'Ação executada com sucesso.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao executar ação';
       setError(msg);

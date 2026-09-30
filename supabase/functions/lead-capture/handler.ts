@@ -14,8 +14,8 @@ const corsHeaders = {
  * Edge Function: lead-capture (captar-lead)
  *
  * Recebe POST com dados do lead vindo da landing page ou campanhas.
- * - Verifica duplicata por telefone (atualiza ultimo_contato se já existe)
- * - Se novo, insere na tabela "clientes" com status_funil = QUALIFICACAO
+ * - Procura o cliente pelo telefone em qualquer grafia (atualiza ultimo_contato se já existe)
+ * - Se novo, cadastra em "clientes" com status_funil = QUALIFICACAO (RPC lead_capture_upsert_cliente)
  * - Cria alerta LEAD_QUENTE para o corretor
  * - Se imovel_interesse_id fornecido, vincula na tabela cliente_imovel
  *
@@ -96,65 +96,24 @@ export function createLeadHandler(supabaseClient: Pick<SupabaseClient, 'from' | 
         corretor_id = corretores[0].id
       }
 
-      // --- Verificar duplicata por telefone ---
-      // SEGURANÇA: este endpoint é PÚBLICO e roda com service_role. O match usava só os
-      // 8 últimos dígitos, o que é facilmente colidível/adivinhável — um terceiro acertava
-      // o sufixo e caía no registro de um cliente real. Agora casa pelo número local
-      // completo (DDD + número = 11 dígitos), reduzindo drasticamente colisão e chute.
-      const phoneLookup = clienteTelefone.replace(/\D/g, '')
-      const { data: existingCliente } = await supabaseClient
-        .from('clientes')
-        .select('id, nome, tracking_data')
-        .eq('corretor_id', corretor_id)
-        .ilike('telefone', `%${phoneLookup.slice(-11)}%`)
-        .limit(1)
-        .maybeSingle()
-
-      let clienteId: string
-      let isNew = false
-
-      if (existingCliente) {
-        // Atualizar cliente existente
-        const mergedTracking = {
-          ...(existingCliente.tracking_data || {}),
-          ultimo_retorno: { ...trackingData, email_informado: clienteEmail || undefined },
-        }
-
-        // SEGURANÇA: nunca sobrescrever PII de um cliente já existente por via anônima.
-        // Antes, um POST público conseguia trocar o e-mail de um cliente real. O e-mail
-        // enviado fica registrado apenas dentro de tracking_data (append), para o corretor
-        // revisar manualmente, sem adulterar o cadastro.
-        const { error: updateError } = await supabaseClient
-          .from('clientes')
-          .update({
-            ultimo_contato: new Date().toISOString(),
-            tracking_data: mergedTracking,
-          })
-          .eq('id', existingCliente.id)
-
-        if (updateError) throw updateError
-        clienteId = existingCliente.id
-      } else {
-        // Criar novo cliente
-        isNew = true
-        const { data: novoCliente, error: clienteError } = await supabaseClient
-          .from('clientes')
-          .insert({
-            nome: clienteNome,
-            telefone: clienteTelefone,
-            email: clienteEmail,
-            tipo_interesse: 'AMBOS',
-            status_funil: 'QUALIFICACAO',
-            corretor_id,
-            tracking_data: trackingData,
-            ultimo_contato: new Date().toISOString(),
-          })
-          .select('id')
-          .single()
-
-        if (clienteError) throw clienteError
-        clienteId = novoCliente.id
-      }
+      // --- Cliente: um por telefone na conta ---
+      // Busca e cadastro acontecem numa transação só, no banco, sob a mesma trava
+      // do WhatsApp e do CRM: um POST duplo cria um cliente, e o telefone casa em
+      // qualquer grafia (máscara, 55 na frente, com ou sem o 9) pela chave
+      // DDD + tipo + 8 dígitos, que continua difícil de chutar.
+      // SEGURANÇA: este endpoint é PÚBLICO. Um cliente que já existe nunca tem
+      // nome ou e-mail trocados por via anônima: a RPC só atualiza ultimo_contato
+      // e guarda o que chegou em tracking_data.ultimo_retorno para o corretor revisar.
+      const { data: cliente, error: clienteError } = await supabaseClient.rpc('lead_capture_upsert_cliente', {
+        p_corretor: corretor_id,
+        p_nome: clienteNome,
+        p_telefone: clienteTelefone,
+        p_email: clienteEmail ?? null,
+        p_tracking: trackingData,
+      })
+      if (clienteError || !cliente?.cliente_id) throw clienteError ?? new Error('lead_capture_upsert_cliente sem cliente')
+      const clienteId: string = cliente.cliente_id
+      const isNew = cliente.created === true
 
       // --- Vincular imóvel (se fornecido) ---
       if (target_imovel_id) {

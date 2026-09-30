@@ -1,10 +1,12 @@
 // Edge Function: crm-upsert-lead
-// Recebe payload do n8n (Gemini slot filling) e faz upsert em `clientes` usando `telefone` como chave natural.
+// Recebe payload do n8n (Gemini slot filling) e faz upsert em `clientes`: um cliente por telefone na conta,
+// casado em qualquer grafia pela chave do banco (lotti_find_or_create_cliente).
 // Auth: header x-n8n-secret
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders, assertN8nSecret, json } from '../_shared/auth.ts'
+import { salvarClienteDoLead } from './cliente.ts'
 
 interface LeadPayload {
   telefone: string
@@ -90,36 +92,17 @@ serve(async (req) => {
 
     // Dedupe SEMPRE dentro do corretor. Sem o filtro por corretor_id, um lead
     // com telefone repetido em outra imobiliária era lido e SOBRESCRITO — este
-    // endpoint roda com service_role, então a RLS não segura nada aqui.
-    const { data: existing } = await supabase
-      .from('clientes')
-      .select('id, tracking_data')
-      .eq('corretor_id', corretor_id)
-      .eq('telefone', payload.telefone)
-      .maybeSingle()
-
-    const registro = {
-      nome: payload.nome ?? 'Lead WhatsApp',
+    // endpoint roda com service_role, então a RLS não segura nada aqui. O
+    // helper recebe o corretor explícito e procura só nos clientes dele.
+    const { cliente_id: clienteId } = await salvarClienteDoLead(supabase, corretor_id, {
+      nome: payload.nome,
       telefone: payload.telefone,
       email: payload.email,
       tipo_interesse: tipoInteresse,
       status_funil: statusFunil,
       observacoes: payload.observacoes,
-      corretor_id,
-      ultimo_contato: new Date().toISOString(),
-      tracking_data: { ...(existing?.tracking_data ?? {}), ...tracking },
-    }
-
-    let clienteId: string
-    if (existing) {
-      const { error } = await supabase.from('clientes').update(registro).eq('id', existing.id)
-      if (error) throw error
-      clienteId = existing.id
-    } else {
-      const { data, error } = await supabase.from('clientes').insert(registro).select('id').single()
-      if (error) throw error
-      clienteId = data.id
-    }
+      tracking,
+    })
 
     // Vincula ao imóvel se informado
     if (payload.imovel_interesse) {
@@ -141,7 +124,7 @@ serve(async (req) => {
         // `prioridade` NÃO é enviado de propósito: o schema_probe de produção
         // mostra `alertas` sem essa coluna, enquanto a migration base a cria com
         // default. Omitir funciona nos dois casos; enviar quebra num deles.
-        mensagem: `Lead quente via WhatsApp: ${registro.nome} (${payload.telefone})`,
+        mensagem: `Lead quente via WhatsApp: ${payload.nome ?? 'Lead WhatsApp'} (${payload.telefone})`,
         lido: false,
       })
       if (error) console.error('Falha ao criar alerta do lead quente:', error)
