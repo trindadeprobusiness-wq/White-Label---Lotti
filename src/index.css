@@ -92,12 +92,13 @@
     --brand-700: 157 60% 20%;
     --brand-600: 157 52% 27%;
     --brand-100: 150 24% 90%;
-    --brand-50: 82 100% 95%;
+    --brand-50: 157 38% 93%;
 
-    /* Superfícies. --surface-brand é o #F6FFE7 que a sidebar já usa
-       como hover, reaproveitado nos blocos de ícone dos indicadores. */
+    /* Superfícies. --surface-brand era #F6FFE7, matiz 82 — limão, não o
+       esmeralda 157 do --primary. Eram dois verdes de famílias diferentes
+       brigando na mesma tela. Agora é o mesmo verde da marca, mais claro. */
     --surface: 80 14% 97%;
-    --surface-brand: 82 100% 95%;
+    --surface-brand: 157 38% 93%;
 
     /* Degraus que faltavam entre --muted-foreground e --foreground. */
     --muted-strong: 220 10% 62%;

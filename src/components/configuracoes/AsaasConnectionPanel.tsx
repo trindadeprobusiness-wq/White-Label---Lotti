@@ -122,31 +122,33 @@ export function AsaasConnectionPanel({ compacto = false, onStatusChange }: Props
 
   return (
     <div className="space-y-5">
+      {/* Cartão neutro de propósito: tingir o bloco inteiro de verde não
+          acrescenta informação — quem diz "conectado" é o ícone e o selo. */}
       {conectada && (
-        <Card className="border-emerald-200 bg-emerald-50/40">
+        <Card>
           <CardHeader className={compacto ? 'pb-3' : undefined}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  <CheckCircle2 className="h-5 w-5 text-success" />
                   {conexao?.conta_nome || 'Conta Asaas conectada'}
                 </CardTitle>
                 <CardDescription className="mt-1">
                   {conexao?.herdada_do_ambiente ? 'Conta principal preservada na migração segura.' : 'Credencial própria desta operação.'}
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="w-fit border-emerald-300 bg-white text-emerald-800">
+              <Badge variant="outline" className="w-fit border-success/30 bg-success-surface text-success">
                 {conexao?.ambiente === 'sandbox' ? 'Sandbox' : 'Produção'}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <div className="rounded-lg border bg-white/80 p-3">
+              <div className="rounded-lg border bg-muted/40 p-3">
                 <p className="text-xs text-muted-foreground">Chave armazenada</p>
                 <p className="mt-1 font-medium">•••• {conexao?.chave_final || 'protegida no servidor'}</p>
               </div>
-              <div className="rounded-lg border bg-white/80 p-3">
+              <div className="rounded-lg border bg-muted/40 p-3">
                 <p className="text-xs text-muted-foreground">Webhook</p>
                 <p className="mt-1 font-medium">{conexao?.webhook_configurado_em ? 'Configurado automaticamente' : 'Aguardando configuração'}</p>
               </div>

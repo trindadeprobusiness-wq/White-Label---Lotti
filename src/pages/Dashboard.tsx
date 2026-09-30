@@ -4,27 +4,26 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Users, Building2, UserPlus, AlertTriangle, X, Eye,
-  FileText, QrCode, Sparkles, ArrowRight, ExternalLink, MapPin, Scale,
+  FileText, QrCode, Sparkles, ArrowRight, MapPin, Scale, MessageCircle,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { DashboardHero } from '@/components/dashboard/DashboardHero';
-import { GlobalSearch } from '@/components/shell/GlobalSearch';
-import { BotaoPrivacidade } from '@/components/shell/BotaoPrivacidade';
-import { PainelNotificacoes } from '@/components/shell/PainelNotificacoes';
-import { PainelAjuda } from '@/components/shell/PainelAjuda';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import { mascararValoresNoTexto } from '@/lib/privacidade';
 import { usePrivacidade } from '@/stores/privacidadeStore';
 import {
   SectionCard, QuickActionRow, StatusBadge, Avatar, EmptyState,
 } from '@/components/shell/primitivos';
+import type { TomBadge } from '@/components/shell/primitivos';
 import { useCRMStore } from '@/stores/crmStore';
+import { useFachadas } from '@/hooks/useFachadas';
+import { linkDoInbox } from '@/features/whatsapp-inbox/deepLink';
+import { useConversasEsperando } from '@/hooks/useConversasEsperando';
+import { contratosVencendo, tempoDeEspera } from '@/lib/inicio';
 import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
-import { cn } from '@/lib/utils';
 import type { Alerta } from '@/types/crm';
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
@@ -69,10 +68,15 @@ const ETAPAS = [
 
 export default function Dashboard() {
   const {
-    clientes, alertas, imoveis, corretor, loading,
+    clientes, alertas, imoveis, contratos, corretor, loading,
     fetchCorretor, marcarAlertaLido,
   } = useCRMStore();
   const [alertaSelecionado, setAlertaSelecionado] = useState<Alerta | null>(null);
+  // Lead de fachada entra pelo QR do imóvel e não passa pelo funil até virar
+  // cliente. Sem ele aqui, quem escaneou a placa some no meio dos follow-ups.
+  const { leads: leadsFachada, fachadas, fetchLeads, fetchFachadas } = useFachadas();
+  useEffect(() => { fetchLeads(); fetchFachadas(); }, [fetchLeads, fetchFachadas]);
+  const { data: espera } = useConversasEsperando();
 
   const clientesReais = useMemo(() => clientes.filter((item) => !item.is_sample_data), [clientes]);
   const imoveisReais = useMemo(() => imoveis.filter((item) => !item.is_sample_data), [imoveis]);
@@ -95,6 +99,17 @@ export default function Dashboard() {
   }, [clientesReais]);
 
   const incompletos = useMemo(() => imoveisReais.filter(cadastroIncompleto), [imoveisReais]);
+  const vencendo = useMemo(() => contratosVencendo(contratos), [contratos]);
+  // De qual imóvel veio cada lead: "chegou pela fachada da Santos Dumont"
+  // decide a ação; "Novo pelo QR" sozinho não diz nada.
+  const imovelDaFachada = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const fachada of fachadas) {
+      const nome = fachada.imovel?.titulo;
+      if (nome) mapa.set(fachada.id, nome);
+    }
+    return mapa;
+  }, [fachadas]);
 
   const proximosContatos = useMemo(
     () =>
@@ -114,33 +129,75 @@ export default function Dashboard() {
     [clientesReais],
   );
 
-  const imoveisAtencao = useMemo(
-    () => [...incompletos, ...imoveisReais.filter((i) => !cadastroIncompleto(i))].slice(0, 3),
-    [incompletos, imoveisReais],
-  );
+  // Só entra quem tem pendência. Completar a lista com cadastro completo fazia
+  // o bloco exibir "Cadastro completo" sob o título "pedem atenção".
+  const imoveisAtencao = useMemo(() => incompletos.slice(0, 3), [incompletos]);
 
   const hoje = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
 
+  // A lista já ordenava pelo follow-up sem nunca mostrá-lo: não dava para saber
+  // se o contato estava atrasado, que é justamente o que decide a ação.
+  const followup = (iso?: string | null): { texto: string; tom: TomBadge } | null => {
+    if (!iso) return null;
+    const data = new Date(iso);
+    if (Number.isNaN(data.getTime())) return null;
+    const zerar = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dias = Math.round((zerar(data) - zerar(new Date())) / 86_400_000);
+    if (dias < 0) return { texto: `Atrasado ${Math.abs(dias)}d`, tom: 'destructive' };
+    if (dias === 0) return { texto: 'Contato hoje', tom: 'warning' };
+    return { texto: format(data, "d 'de' MMM", { locale: ptBR }), tom: 'info' };
+  };
+
+  // Uma fila só de quem espera resposta: primeiro quem chegou pelo QR e ainda
+  // não virou cliente, depois o follow-up marcado — do mais atrasado ao mais
+  // distante. Eram dois blocos concorrendo pela mesma decisão.
+  const esperandoResposta = useMemo(() => {
+    const doQr = leadsFachada
+      .filter((lead) => !lead.convertido)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map((lead) => {
+        const origem = imovelDaFachada.get(lead.fachada_id);
+        const espera = tempoDeEspera(lead.created_at);
+        return {
+          id: `lead-${lead.id}`,
+          nome: lead.nome,
+          contato: [origem ? `QR · ${origem}` : 'QR da fachada', lead.telefone].filter(Boolean).join(' · '),
+          href: linkDoInbox(lead.telefone),
+          selo: { texto: espera ? `Espera ${espera}` : 'Novo pelo QR', tom: 'brand' as TomBadge },
+        };
+      });
+
+    const comFollowup = proximosContatos.map((cliente) => {
+      const prazo = followup(cliente.proximo_followup);
+      return {
+        id: `cliente-${cliente.id}`,
+        nome: cliente.nome,
+        contato: cliente.telefone || cliente.email || 'Sem contato registrado',
+        href: linkDoInbox(cliente.telefone),
+        selo: prazo ?? {
+          texto: ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação',
+          tom: 'neutro' as TomBadge,
+        },
+      };
+    });
+
+    return [...doQr, ...comFollowup].slice(0, 5);
+  }, [leadsFachada, proximosContatos, imovelDaFachada]);
+
   return (
     <div className="animate-fade-in">
-      <DashboardHero
-        saudacao={`${saudacao()}, ${primeiroNome(corretor?.nome)}`}
-        data={hoje.charAt(0).toUpperCase() + hoje.slice(1)}
-        clientes={loading ? '—' : numero(clientesReais.length)}
-        imoveis={loading ? '—' : numero(imoveisReais.length)}
-        leads={loading ? '—' : numero(contagemEtapas.QUALIFICACAO ?? 0)}
-        vendas={loading ? '—' : numero(contagemEtapas.FECHADO_GANHO ?? 0)}
-        ferramentas={
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-end">
-            <GlobalSearch className="w-full sm:max-w-md sm:flex-1" />
-            <div className="ml-auto flex w-fit shrink-0 items-center rounded-lg border border-white/10 bg-card p-0.5 shadow-sm">
-              <BotaoPrivacidade />
-              <PainelNotificacoes />
-              <PainelAjuda />
-            </div>
-          </div>
-        }
-      />
+      {/* Cabeçalho de verdade no lugar da antiga barra de ferramentas, que
+          só levava três ícones e deixava o topo parecendo vazio. A saudação e
+          a data já existiam no código e nunca chegavam à tela. */}
+      <header className="mb-5">
+        <p className="text-group uppercase text-muted-strong">Hoje</p>
+        <h1 className="mt-1 text-2xl font-semibold text-foreground">
+          {saudacao()}, {primeiroNome(corretor?.nome)}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {hoje.charAt(0).toUpperCase() + hoje.slice(1)} · o que precisa de você agora.
+        </p>
+      </header>
 
       <OnboardingChecklist />
 
@@ -195,6 +252,28 @@ export default function Dashboard() {
       <div id="prioridades-do-dia" className="mb-5 grid scroll-mt-5 gap-5 lg:grid-cols-[1.35fr_1fr]">
         <SectionCard titulo="Prioridades de hoje" semPadding>
           <div className="px-2 pb-3">
+            {/* Atendimento vem primeiro: é o que tem alguém do outro lado
+                esperando agora. A conta é a mesma do Inbox. */}
+            {!!espera?.esperando && (
+              <QuickActionRow
+                tom="warning"
+                icone={<MessageCircle className="h-[18px] w-[18px]" />}
+                titulo="Conversas esperando resposta"
+                descricao={
+                  espera.urgentes
+                    ? `${numero(espera.esperando)} sem resposta · ${numero(espera.urgentes)} há mais de 1 h`
+                    : `${numero(espera.esperando)} sem resposta`
+                }
+                acao={
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/whatsapp">
+                      Responder
+                      <ArrowRight className="ml-1.5 h-4 w-4" />
+                    </Link>
+                  </Button>
+                }
+              />
+            )}
             <QuickActionRow
               tom="brand"
               icone={<Users className="h-[18px] w-[18px]" />}
@@ -213,6 +292,22 @@ export default function Dashboard() {
                 </Button>
               }
             />
+            {!!vencendo.length && (
+              <QuickActionRow
+                tom="doc"
+                icone={<Scale className="h-[18px] w-[18px]" />}
+                titulo="Contratos perto do fim da vigência"
+                descricao={`${numero(vencendo.length)} nos próximos 60 dias`}
+                acao={
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/juridico">
+                      Revisar
+                      <ArrowRight className="ml-1.5 h-4 w-4" />
+                    </Link>
+                  </Button>
+                }
+              />
+            )}
             <QuickActionRow
               tom="warning"
               icone={<FileText className="h-[18px] w-[18px]" />}
@@ -226,20 +321,6 @@ export default function Dashboard() {
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/imoveis">
                     Completar cadastros
-                    <ArrowRight className="ml-1.5 h-4 w-4" />
-                  </Link>
-                </Button>
-              }
-            />
-            <QuickActionRow
-              tom="doc"
-              icone={<Scale className="h-[18px] w-[18px]" />}
-              titulo="Documentos e contratos para revisar"
-              descricao="Revise pendências e prazos importantes"
-              acao={
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/juridico">
-                    Revisar
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Link>
                 </Button>
@@ -270,58 +351,18 @@ export default function Dashboard() {
               titulo="Gerar contrato com IA"
               href="/juridico"
             />
+            <QuickActionRow
+              icone={<Scale className="h-[18px] w-[18px]" />}
+              titulo="Revisar documentos e contratos"
+              href="/juridico"
+            />
           </div>
         </SectionCard>
       </div>
 
-      <SectionCard
-        className="mb-5"
-        titulo="Funil de vendas"
-        acao={
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={ROTA_FUNIL}>
-              Abrir funil
-              <ExternalLink className="ml-1.5 h-4 w-4" />
-            </Link>
-          </Button>
-        }
-      >
-        <div className="grid grid-cols-2 gap-y-6 sm:grid-cols-4">
-          {ETAPAS.map((etapa, i) => (
-            <div key={etapa.chave} className="relative flex flex-col items-center text-center">
-              {/* Conector pontilhado entre as etapas. Fica atrás do círculo e
-                  some na última — e some também na coluna par do mobile, onde
-                  a linha cairia no vazio da quebra. */}
-              {i < ETAPAS.length - 1 && (
-                <span
-                  className={cn(
-                    'absolute left-1/2 top-4 hidden h-px w-full border-t border-dashed border-border sm:block',
-                    i % 2 === 1 && 'max-sm:hidden',
-                  )}
-                  aria-hidden="true"
-                />
-              )}
-              <span
-                className={cn(
-                  'relative z-10 flex h-8 w-8 items-center justify-center rounded-full',
-                  'text-xs font-semibold text-primary-foreground',
-                  etapa.cor,
-                )}
-              >
-                {i + 1}
-              </span>
-              <p className="mt-2 text-sm text-muted-foreground">{etapa.label}</p>
-              <p className="mt-1 text-kpi tabular text-foreground">
-                {numero(contagemEtapas[etapa.chave] ?? 0)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-
       <div className="grid gap-5 lg:grid-cols-2">
         <SectionCard
-          titulo="Próximos contatos"
+          titulo="Quem espera resposta"
           acao={
             <Button variant="ghost" size="sm" asChild>
               <Link to="/clientes">Ver todos</Link>
@@ -329,37 +370,35 @@ export default function Dashboard() {
           }
           semPadding
         >
-          {proximosContatos.length === 0 ? (
+          {esperandoResposta.length === 0 ? (
             <EmptyState
               icone={<Users className="h-6 w-6" />}
-              titulo="Nenhum cliente cadastrado"
-              descricao="Assim que você cadastrar clientes, os próximos contatos aparecem aqui."
+              titulo="Ninguém esperando"
+              descricao="Leads que chegarem pelo QR da fachada e contatos com follow-up marcado aparecem aqui."
               acao={
                 <Button variant="outline" asChild>
-                  <Link to="/clientes">Cadastrar cliente</Link>
+                  <Link to="/fachadas">Criar fachada</Link>
                 </Button>
               }
             />
           ) : (
             <ul className="px-2 pb-3">
-              {proximosContatos.map((cliente) => (
-                <li key={cliente.id}>
+              {esperandoResposta.map((item) => (
+                <li key={item.id}>
                   <Link
-                    to={`/clientes/${cliente.id}`}
+                    to={item.href}
                     className="flex min-w-0 items-center gap-3.5 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-muted focus-ring"
                   >
-                    <Avatar nome={cliente.nome} />
+                    <Avatar nome={item.nome} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-foreground">
-                        {cliente.nome}
+                        {item.nome}
                       </span>
                       <span className="block truncate text-sm text-muted-foreground">
-                        {cliente.telefone || cliente.email || 'Sem contato registrado'}
+                        {item.contato}
                       </span>
                     </span>
-                    <StatusBadge tom="info">
-                      {ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação'}
-                    </StatusBadge>
+                    <StatusBadge tom={item.selo.tom} comPonto>{item.selo.texto}</StatusBadge>
                   </Link>
                 </li>
               ))}

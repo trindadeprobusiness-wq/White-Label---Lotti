@@ -276,7 +276,23 @@ export function useMoverOportunidade() {
       if (!data?.length) throw new Error('CONFLITO');
       return data[0];
     },
-    onError: (e: unknown) => {
+    // O card muda de coluna na hora. Antes ele só se mexia depois da ida ao
+    // servidor e de recarregar a lista inteira: com dezenas de negócios, o
+    // funil parecia travado no instante em que se solta o card.
+    onMutate: async (args) => {
+      await qc.cancelQueries({ queryKey: crmKeys.oportunidades() });
+      const anteriores = qc.getQueriesData<CrmOportunidade[]>({ queryKey: crmKeys.oportunidades() });
+      qc.setQueriesData<CrmOportunidade[]>(
+        { queryKey: crmKeys.oportunidades() },
+        (lista) => (lista ?? []).map((o) => (
+          o.id === args.id ? { ...o, etapa_id: args.etapaId, ordem: args.ordem } : o
+        )),
+      );
+      return { anteriores };
+    },
+    onError: (e: unknown, _args, contexto) => {
+      // Desfaz o movimento otimista: o card volta para onde estava.
+      contexto?.anteriores.forEach(([chave, valor]) => qc.setQueryData(chave, valor));
       if (e instanceof Error && e.message === 'CONFLITO') {
         toast.warning('Este negócio foi movido em outro lugar. Recarreguei para você ver a posição atual.');
       } else {
@@ -284,7 +300,7 @@ export function useMoverOportunidade() {
       }
       qc.invalidateQueries({ queryKey: crmKeys.oportunidades() });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: crmKeys.oportunidades() }),
+    onSettled: () => qc.invalidateQueries({ queryKey: crmKeys.oportunidades() }),
   });
 }
 

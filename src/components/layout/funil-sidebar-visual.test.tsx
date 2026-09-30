@@ -83,11 +83,11 @@ describe('acabamento visual do funil e da sidebar', () => {
     );
 
     expect(html).toContain('aria-label="Seção WhatsApp"');
-    expect(html).toContain('>Inbox<');
+    expect(html).toContain('>Conversas<');
     expect(html).toContain('>Funil de Vendas<');
     expect(html).toContain('>Conexão<');
-    expect(html.indexOf('>WhatsApp<')).toBeLessThan(html.indexOf('>Inbox<'));
-    expect(html.indexOf('>Inbox<')).toBeLessThan(html.indexOf('>Funil de Vendas<'));
+    expect(html.indexOf('>WhatsApp<')).toBeLessThan(html.indexOf('>Conversas<'));
+    expect(html.indexOf('>Conversas<')).toBeLessThan(html.indexOf('>Funil de Vendas<'));
     expect(html.indexOf('>Funil de Vendas<')).toBeLessThan(html.indexOf('>Conexão<'));
     expect(html.indexOf('>Conexão<')).toBeLessThan(html.indexOf('>Clientes<'));
   });

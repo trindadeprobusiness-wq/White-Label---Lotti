@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
-  Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
+  Sparkles, Settings, ChevronLeft, ChevronRight,
   LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Bot, Send,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
@@ -11,6 +11,7 @@ import { FLAGS } from '@/lib/flags';
 import { LottiLogo, LottiMark } from '@/components/brand/LottiLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRMStore } from '@/stores/crmStore';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -66,7 +67,7 @@ function montarGrupos(): GrupoNav[] {
     {
       titulo: 'WhatsApp',
       itens: [
-        { label: 'Inbox', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
+        { label: 'Conversas', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
         // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
         FLAGS.crm
           ? { label: 'Funil de Vendas', href: '/crm', icone: <KanbanSquare className={ic} /> }
@@ -129,8 +130,15 @@ function ItemMenu({
         'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
+        // Mesmo verde dos blocos de ícone (--surface-brand), agora que ele é
+        // um tom claro do esmeralda da marca e não mais o limão de matiz 82.
+        // A barra à esquerda continua marcando onde se está.
         ativo
-          ? 'bg-primary text-primary-foreground'
+          ? cn(
+              'relative bg-surface-brand font-semibold text-primary',
+              'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
+              'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
+            )
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
     >
@@ -149,7 +157,7 @@ function ItemMenu({
   );
 }
 
-function Conteudo({
+export function ConteudoDaSidebar({
   recolhida, alternarRecolhida, aoNavegar, emDrawer = false,
 }: {
   recolhida: boolean;
@@ -158,11 +166,12 @@ function Conteudo({
   emDrawer?: boolean;
 }) {
   const { pathname } = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { corretor } = useCRMStore();
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
+
   const itemAtivo = grupos
     .flatMap(grupo => grupo.itens)
     .filter(item => item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -217,83 +226,81 @@ function Conteudo({
         ))}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                'flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left',
-                'transition-colors duration-150 hover:bg-sidebar-accent focus-ring',
-                recolhida && 'justify-center border-0 p-1',
-              )}
-              aria-label="Menu do usuário"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+      <div className="border-t border-sidebar-border p-2.5">
+        {recolhida ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center rounded-lg p-1 transition-colors duration-150 hover:bg-sidebar-accent focus-ring"
+                aria-label="Menu do usuário"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {iniciais(corretor?.nome)}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link to="/configuracoes">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configurações
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                {theme === 'dark' ? (
+                  <><Sun className="mr-2 h-4 w-4" />Tema claro</>
+                ) : (
+                  <><Moon className="mr-2 h-4 w-4" />Tema escuro</>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void signOut()}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          /* Expandido, a conta fica aberta: sair e tema eram duas ações de uso
+             diário escondidas atrás de um menu que ninguém abria. */
+          /* Compacto de propósito: o cartão é rodapé, não conteúdo. Avatar e
+             botões menores, e o papel some — quem está logado já sabe o que é. */
+          <div className="rounded-lg border border-border p-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                 {iniciais(corretor?.nome)}
               </span>
-              {!recolhida && (
-                <>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">
-                      {corretor?.nome ?? 'Minha conta'}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      Corretor
-                    </span>
-                  </span>
-                  <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="w-56">
-            <DropdownMenuItem asChild>
-              <Link to="/configuracoes">
-                <Settings className="mr-2 h-4 w-4" />
-                Configurações
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? (
-                <><Sun className="mr-2 h-4 w-4" />Tema claro</>
-              ) : (
-                <><Moon className="mr-2 h-4 w-4" />Tema escuro</>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => void signOut()}
-              className="text-destructive focus:text-destructive"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {!emDrawer && alternarRecolhida && (
-          <button
-            type="button"
-            onClick={alternarRecolhida}
-            className={cn(
-              'mt-2 flex h-nav-item w-full items-center gap-3 rounded-lg px-3 text-sm',
-              'text-muted-foreground transition-colors duration-150',
-              'hover:bg-sidebar-accent hover:text-foreground focus-ring',
-              recolhida && 'justify-center px-0',
-            )}
-            aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
-          >
-            {recolhida ? (
-              <ChevronRight className={ic} />
-            ) : (
-              <>
-                <ChevronLeft className={ic} />
-                <span>Recolher menu</span>
-              </>
-            )}
-          </button>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block truncate text-xs font-medium text-foreground">
+                  {corretor?.nome ?? 'Minha conta'}
+                </span>
+                {user?.email && (
+                  <span className="block truncate text-[11px] text-muted-foreground">{user.email}</span>
+                )}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => void signOut()}>
+                <LogOut className="mr-1 h-3.5 w-3.5" />
+                Sair
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                aria-label={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              >
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          </div>
         )}
+
       </div>
     </div>
   );
@@ -321,16 +328,39 @@ export function AppSidebar() {
 
   return (
     /* Desktop: sidebar fixa em coluna lateral. Mobile: hidden — navegação
-       fica com MobileTopBar (topo) + MobileBottomNav (rodapé). */
+       fica com MobileTopBar, cujo hambúrguer abre este mesmo conteúdo. */
     <aside
       className={cn(
-        'hidden shrink-0 border-r border-sidebar-border md:block',
+        'group/sidebar relative hidden shrink-0 border-r border-sidebar-border md:block',
         'transition-[width] duration-200',
         recolhida ? 'w-[4.5rem]' : 'w-sidebar-sm xl:w-sidebar',
       )}
     >
+      {/* A alça vive na borda da coluna, no meio da altura: é o gesto de
+          empurrar a própria divisória. No topo disputava com a marca e no
+          rodapé, com as ações da conta. */}
       <div className="sticky top-0 h-screen">
-        <Conteudo recolhida={recolhida} alternarRecolhida={alternar} />
+        <div className="relative h-full">
+          <ConteudoDaSidebar recolhida={recolhida} />
+          <button
+            type="button"
+            onClick={alternar}
+            className={cn(
+              'group absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2',
+              'items-center justify-center rounded-full border border-sidebar-border',
+              'bg-background text-muted-foreground shadow-sm',
+              // Invisível no repouso: um botão solto no meio da borda não se
+              // explica sozinho. Aparece quando o ponteiro entra no menu, que
+              // é quando alguém está mexendo nele, e no foco por teclado.
+              'opacity-0 transition-opacity duration-150 focus-ring',
+              'hover:text-foreground focus-visible:opacity-100',
+              'group-hover/sidebar:opacity-100',
+            )}
+            aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
+          >
+            {recolhida ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
     </aside>
   );

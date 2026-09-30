@@ -6,7 +6,6 @@ import { AppLayout } from './AppLayout';
 
 vi.mock('./AppSidebar', () => ({ AppSidebar: () => null }));
 vi.mock('./MobileTopBar', () => ({ MobileTopBar: () => null }));
-vi.mock('./MobileBottomNav', () => ({ MobileBottomNav: () => null }));
 vi.mock('../onboarding/OnboardingTour', () => ({ OnboardingTour: () => null }));
 vi.mock('@/hooks/routine/useGoogleCalendarReturn', () => ({ useGoogleCalendarReturn: () => undefined }));
 vi.mock('../ai/AIChatWidget', () => ({ AIChatWidget: () => <div>Assistente flutuante</div> }));

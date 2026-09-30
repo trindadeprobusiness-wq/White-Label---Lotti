@@ -68,8 +68,25 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
     banheiros: ''
   });
 
-  // Proprietário só é obrigatório quando envolve locação (aluguel). Em venda pura é opcional.
+  // Proprietário sai do cadastro rápido e só aparece na edição, onde o registro
+  // é completado com calma. Continua obrigatório em locação porque contrato e
+  // repasse leem `proprietario_nome` do imóvel.
   const proprietarioObrigatorio = form.finalidade !== 'VENDA';
+
+  // Cômodo não existe em todo imóvel: terreno não tem nenhum, e galpão ou sala
+  // comercial não tem dormitório nem suíte. Além de poluir o cadastro, o campo
+  // escondido guardaria número velho se o tipo mudasse depois de preenchido —
+  // por isso o que não se aplica também é zerado no envio.
+  const CAMPOS_POR_TIPO: Record<TipoImovel, {
+    dormitorios: boolean; suites: boolean; banheiros: boolean; garagem: boolean;
+  }> = {
+    APARTAMENTO: { dormitorios: true, suites: true, banheiros: true, garagem: true },
+    CASA: { dormitorios: true, suites: true, banheiros: true, garagem: true },
+    COMERCIAL: { dormitorios: false, suites: false, banheiros: true, garagem: true },
+    TERRENO: { dormitorios: false, suites: false, banheiros: false, garagem: false },
+  };
+  const camposAplicaveis = CAMPOS_POR_TIPO[form.tipo];
+  const numeroSeAplicavel = (aplica: boolean, valor: string) => (aplica ? Number(valor) || 0 : 0);
 
   const resetForm = () => {
     setForm({
@@ -164,15 +181,15 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
             finalidade: form.finalidade,
             valor: Number(form.valor.toString().replace(/\./g, '').replace(',', '.')) || 0,
             area_m2: Number(form.area_m2) || 0,
-            dormitorios: Number(form.dormitorios) || 0,
-            garagem: Number(form.garagem) || 0,
+            dormitorios: numeroSeAplicavel(camposAplicaveis.dormitorios, form.dormitorios),
+            garagem: numeroSeAplicavel(camposAplicaveis.garagem, form.garagem),
             endereco: form.endereco,
             bairro: form.bairro,
             cidade: form.cidade,
             proprietario_nome: form.proprietario_nome,
             corretor_id: corretorId,
-            suites: Number(form.suites) || 0,
-            banheiros: Number(form.banheiros) || 0,
+            suites: numeroSeAplicavel(camposAplicaveis.suites, form.suites),
+            banheiros: numeroSeAplicavel(camposAplicaveis.banheiros, form.banheiros),
           })
           .select()
           .single();
@@ -190,14 +207,14 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
             finalidade: form.finalidade,
             valor: Number(form.valor.toString().replace(/\./g, '').replace(',', '.')) || 0,
             area_m2: Number(form.area_m2) || 0,
-            dormitorios: Number(form.dormitorios) || 0,
-            garagem: Number(form.garagem) || 0,
+            dormitorios: numeroSeAplicavel(camposAplicaveis.dormitorios, form.dormitorios),
+            garagem: numeroSeAplicavel(camposAplicaveis.garagem, form.garagem),
             endereco: form.endereco,
             bairro: form.bairro,
             cidade: form.cidade,
             proprietario_nome: form.proprietario_nome,
-            suites: Number(form.suites) || 0,
-            banheiros: Number(form.banheiros) || 0,
+            suites: numeroSeAplicavel(camposAplicaveis.suites, form.suites),
+            banheiros: numeroSeAplicavel(camposAplicaveis.banheiros, form.banheiros),
           })
           .eq('id', imovelToEdit.id)
           .select()
@@ -284,30 +301,40 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div><Label>Área (m²)</Label><Input type="number" value={form.area_m2} onChange={(e) => setForm({ ...form, area_m2: e.target.value })} /></div>
-            <div><Label>Dorms</Label><Input type="number" value={form.dormitorios} onChange={(e) => setForm({ ...form, dormitorios: e.target.value })} /></div>
-            <div><Label>Suítes</Label><Input type="number" value={form.suites} onChange={(e) => setForm({ ...form, suites: e.target.value })} /></div>
-            <div><Label>Banheiros</Label><Input type="number" value={form.banheiros} onChange={(e) => setForm({ ...form, banheiros: e.target.value })} /></div>
-            <div><Label>Vagas</Label><Input type="number" value={form.garagem} onChange={(e) => setForm({ ...form, garagem: e.target.value })} /></div>
+            {camposAplicaveis.dormitorios && (
+              <div><Label>Dorms</Label><Input type="number" value={form.dormitorios} onChange={(e) => setForm({ ...form, dormitorios: e.target.value })} /></div>
+            )}
+            {camposAplicaveis.suites && (
+              <div><Label>Suítes</Label><Input type="number" value={form.suites} onChange={(e) => setForm({ ...form, suites: e.target.value })} /></div>
+            )}
+            {camposAplicaveis.banheiros && (
+              <div><Label>Banheiros</Label><Input type="number" value={form.banheiros} onChange={(e) => setForm({ ...form, banheiros: e.target.value })} /></div>
+            )}
+            {camposAplicaveis.garagem && (
+              <div><Label>Vagas</Label><Input type="number" value={form.garagem} onChange={(e) => setForm({ ...form, garagem: e.target.value })} /></div>
+            )}
           </div>
           <div><Label>Endereço *</Label><Input required value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Bairro *</Label><Input required value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} /></div>
             <div><Label>Cidade</Label><Input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} /></div>
           </div>
-          <div>
-            <Label>
-              Proprietário{' '}
-              {proprietarioObrigatorio
-                ? <span className="text-destructive">*</span>
-                : <span className="text-muted-foreground font-normal">(opcional)</span>}
-            </Label>
-            <Input
-              required={proprietarioObrigatorio}
-              value={form.proprietario_nome}
-              onChange={(e) => setForm({ ...form, proprietario_nome: e.target.value })}
-              placeholder={proprietarioObrigatorio ? 'Nome do proprietário' : 'Opcional para venda'}
-            />
-          </div>
+          {isEditing && (
+            <div>
+              <Label>
+                Proprietário{' '}
+                {proprietarioObrigatorio
+                  ? <span className="text-destructive">*</span>
+                  : <span className="text-muted-foreground font-normal">(opcional)</span>}
+              </Label>
+              <Input
+                required={proprietarioObrigatorio}
+                value={form.proprietario_nome}
+                onChange={(e) => setForm({ ...form, proprietario_nome: e.target.value })}
+                placeholder={proprietarioObrigatorio ? 'Nome do proprietário' : 'Opcional para venda'}
+              />
+            </div>
+          )}
 
           <Separator />
 
