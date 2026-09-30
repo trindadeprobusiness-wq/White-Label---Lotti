@@ -74,6 +74,10 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
     :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
   </div>
   {notice&&<p role="status" className="px-1 text-[11px] text-muted-foreground">{notice}</p>}
+  {/* Sem esta saída o atendimento trava: o envio sem confirmação mantém o mesmo
+      request_id, e reenviá-lo só devolve o status guardado. Depois de conferir
+      no WhatsApp, o corretor precisa poder escrever de novo sem recarregar. */}
+  {!!pending.current&&!busy&&<button type="button" className="px-1 text-left text-[11px] font-medium text-primary underline underline-offset-2" onClick={()=>{pending.current=undefined;setNotice('Mensagem pendente descartada. O que você escrever agora é um envio novo.')}}>Já conferi no WhatsApp: escrever outra mensagem</button>}
  </footer>;
 }
 export function AudioMessage({path}:{path:string}){

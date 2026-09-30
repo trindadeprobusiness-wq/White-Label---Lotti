@@ -15,6 +15,19 @@ it('reuses the same request after timeout rather than sending a duplicate',async
  render(<MessageComposer conversationId="conversation-b" onSent={()=>{}}/>);fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Teste'}});fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
  await screen.findByRole('button',{name:'Verificar envio'});fireEvent.click(screen.getByRole('button',{name:'Verificar envio'}));await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect(invoke.mock.calls[0][1].body.request_id).toBe(invoke.mock.calls[1][1].body.request_id);
 });
+it('depois de conferir no WhatsApp, o corretor escreve de novo com um request novo',async()=>{
+ invoke.mockResolvedValueOnce({data:{sendStatus:'uncertain'}}).mockResolvedValueOnce({data:{sendStatus:'sent'}});
+ render(<MessageComposer conversationId="conversation-c" onSent={()=>{}}/>);
+ fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Primeira'}});fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
+ // Sem esta saída o campo fica travado até recarregar a página.
+ const sair=await screen.findByRole('button',{name:/Já conferi no WhatsApp/});
+ expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).disabled).toBe(true);
+ fireEvent.click(sair);
+ expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).disabled).toBe(false);
+ fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Segunda'}});fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
+ await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));
+ expect(invoke.mock.calls[0][1].body.request_id).not.toBe(invoke.mock.calls[1][1].body.request_id);
+});
 it('renders the compact chat bar without native file controls',()=>{
  render(<MessageComposer conversationId="conversation-c" onSent={()=>{}}/>);
  expect(screen.getByPlaceholderText('Digite uma mensagem')).toBeTruthy();
