@@ -34,9 +34,6 @@ interface ItemNav {
   icone: React.ReactNode;
 }
 
-/** Grupos abertos ficam guardados para o menu voltar como o usuário deixou. */
-const CHAVE_GRUPOS = 'lotti:sidebar:grupos-abertos';
-
 interface GrupoNav {
   titulo: string;
   itens: ItemNav[];
@@ -175,24 +172,6 @@ function Conteudo({
 
   const grupos = montarGrupos();
 
-  // Grupos abertos por padrão: fechados, o menu vira seis títulos e um vazio,
-  // e cada ida a outra área custa um clique a mais. Quem quiser enxugar fecha
-  // o que não usa, e a escolha fica guardada.
-  const [abertos, setAbertos] = useState<Record<string, boolean>>(() => {
-    try {
-      const salvo = localStorage.getItem(CHAVE_GRUPOS);
-      if (salvo) return JSON.parse(salvo) as Record<string, boolean>;
-    } catch { /* armazenamento indisponível: cai no padrão */ }
-    return {};
-  });
-  const aberto = (grupo: GrupoNav) => abertos[grupo.titulo] ?? true;
-  const alternarGrupo = (titulo: string) => {
-    setAbertos((atuais) => {
-      const proximo = { ...atuais, [titulo]: !(atuais[titulo] ?? true) };
-      try { localStorage.setItem(CHAVE_GRUPOS, JSON.stringify(proximo)); } catch { /* idem */ }
-      return proximo;
-    });
-  };
   const itemAtivo = grupos
     .flatMap(grupo => grupo.itens)
     .filter(item => item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -216,8 +195,8 @@ function Conteudo({
 
       <nav
         className={cn(
-          'flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2',
-          recolhida && 'space-y-6 px-2 pt-0',
+          'flex-1 space-y-6 overflow-y-auto px-3 pb-4 pt-2',
+          recolhida && 'px-2 pt-0',
         )}
         aria-label="Navegação principal"
       >
@@ -228,36 +207,21 @@ function Conteudo({
             {recolhida ? (
               <div className="mx-2 mb-2 border-t border-sidebar-border" />
             ) : (
-              <button
-                type="button"
-                onClick={() => alternarGrupo(grupo.titulo)}
-                aria-expanded={aberto(grupo)}
-                className={cn(
-                  'mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-1 text-group uppercase',
-                  'text-muted-strong transition-colors duration-150',
-                  'hover:bg-sidebar-accent hover:text-foreground focus-ring',
-                )}
-              >
-                <span className="flex-1 text-left">{grupo.titulo}</span>
-                <ChevronRight
-                  className={cn('h-3.5 w-3.5 shrink-0 transition-transform duration-150', aberto(grupo) && 'rotate-90')}
-                  aria-hidden="true"
+              <p className="mb-2 px-3 text-group uppercase text-muted-strong">
+                {grupo.titulo}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {grupo.itens.map((item) => (
+                <ItemMenu
+                  key={item.href}
+                  item={item}
+                  ativo={item.href === itemAtivo}
+                  recolhida={recolhida}
+                  aoNavegar={aoNavegar}
                 />
-              </button>
-            )}
-            {(recolhida || aberto(grupo)) && (
-              <div className="space-y-0.5">
-                {grupo.itens.map((item) => (
-                  <ItemMenu
-                    key={item.href}
-                    item={item}
-                    ativo={item.href === itemAtivo}
-                    recolhida={recolhida}
-                    aoNavegar={aoNavegar}
-                  />
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         ))}
       </nav>
