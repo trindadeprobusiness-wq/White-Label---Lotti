@@ -4,14 +4,13 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Users, Building2, UserPlus, AlertTriangle, X, Eye,
-  FileText, QrCode, Sparkles, ArrowRight, ExternalLink, MapPin, Scale,
+  FileText, QrCode, Sparkles, ArrowRight, MapPin, Scale,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DashboardHero } from '@/components/dashboard/DashboardHero';
-import { GlobalSearch } from '@/components/shell/GlobalSearch';
 import { BotaoPrivacidade } from '@/components/shell/BotaoPrivacidade';
 import { PainelNotificacoes } from '@/components/shell/PainelNotificacoes';
 import { PainelAjuda } from '@/components/shell/PainelAjuda';
@@ -21,10 +20,10 @@ import { usePrivacidade } from '@/stores/privacidadeStore';
 import {
   SectionCard, QuickActionRow, StatusBadge, Avatar, EmptyState,
 } from '@/components/shell/primitivos';
+import type { TomBadge } from '@/components/shell/primitivos';
 import { useCRMStore } from '@/stores/crmStore';
 import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
-import { cn } from '@/lib/utils';
 import type { Alerta } from '@/types/crm';
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
@@ -114,12 +113,24 @@ export default function Dashboard() {
     [clientesReais],
   );
 
-  const imoveisAtencao = useMemo(
-    () => [...incompletos, ...imoveisReais.filter((i) => !cadastroIncompleto(i))].slice(0, 3),
-    [incompletos, imoveisReais],
-  );
+  // Só entra quem tem pendência. Completar a lista com cadastro completo fazia
+  // o bloco exibir "Cadastro completo" sob o título "pedem atenção".
+  const imoveisAtencao = useMemo(() => incompletos.slice(0, 3), [incompletos]);
 
   const hoje = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+
+  // A lista já ordenava pelo follow-up sem nunca mostrá-lo: não dava para saber
+  // se o contato estava atrasado, que é justamente o que decide a ação.
+  const followup = (iso?: string | null): { texto: string; tom: TomBadge } | null => {
+    if (!iso) return null;
+    const data = new Date(iso);
+    if (Number.isNaN(data.getTime())) return null;
+    const zerar = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dias = Math.round((zerar(data) - zerar(new Date())) / 86_400_000);
+    if (dias < 0) return { texto: `Atrasado ${Math.abs(dias)}d`, tom: 'destructive' };
+    if (dias === 0) return { texto: 'Contato hoje', tom: 'warning' };
+    return { texto: format(data, "d 'de' MMM", { locale: ptBR }), tom: 'info' };
+  };
 
   return (
     <div className="animate-fade-in">
@@ -132,7 +143,6 @@ export default function Dashboard() {
         vendas={loading ? '—' : numero(contagemEtapas.FECHADO_GANHO ?? 0)}
         ferramentas={
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-end">
-            <GlobalSearch className="w-full sm:max-w-md sm:flex-1" />
             <div className="ml-auto flex w-fit shrink-0 items-center rounded-lg border border-white/10 bg-card p-0.5 shadow-sm">
               <BotaoPrivacidade />
               <PainelNotificacoes />
@@ -231,20 +241,6 @@ export default function Dashboard() {
                 </Button>
               }
             />
-            <QuickActionRow
-              tom="doc"
-              icone={<Scale className="h-[18px] w-[18px]" />}
-              titulo="Documentos e contratos para revisar"
-              descricao="Revise pendências e prazos importantes"
-              acao={
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/juridico">
-                    Revisar
-                    <ArrowRight className="ml-1.5 h-4 w-4" />
-                  </Link>
-                </Button>
-              }
-            />
           </div>
         </SectionCard>
 
@@ -270,54 +266,14 @@ export default function Dashboard() {
               titulo="Gerar contrato com IA"
               href="/juridico"
             />
+            <QuickActionRow
+              icone={<Scale className="h-[18px] w-[18px]" />}
+              titulo="Revisar documentos e contratos"
+              href="/juridico"
+            />
           </div>
         </SectionCard>
       </div>
-
-      <SectionCard
-        className="mb-5"
-        titulo="Funil de vendas"
-        acao={
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={ROTA_FUNIL}>
-              Abrir funil
-              <ExternalLink className="ml-1.5 h-4 w-4" />
-            </Link>
-          </Button>
-        }
-      >
-        <div className="grid grid-cols-2 gap-y-6 sm:grid-cols-4">
-          {ETAPAS.map((etapa, i) => (
-            <div key={etapa.chave} className="relative flex flex-col items-center text-center">
-              {/* Conector pontilhado entre as etapas. Fica atrás do círculo e
-                  some na última — e some também na coluna par do mobile, onde
-                  a linha cairia no vazio da quebra. */}
-              {i < ETAPAS.length - 1 && (
-                <span
-                  className={cn(
-                    'absolute left-1/2 top-4 hidden h-px w-full border-t border-dashed border-border sm:block',
-                    i % 2 === 1 && 'max-sm:hidden',
-                  )}
-                  aria-hidden="true"
-                />
-              )}
-              <span
-                className={cn(
-                  'relative z-10 flex h-8 w-8 items-center justify-center rounded-full',
-                  'text-xs font-semibold text-primary-foreground',
-                  etapa.cor,
-                )}
-              >
-                {i + 1}
-              </span>
-              <p className="mt-2 text-sm text-muted-foreground">{etapa.label}</p>
-              <p className="mt-1 text-kpi tabular text-foreground">
-                {numero(contagemEtapas[etapa.chave] ?? 0)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <SectionCard
@@ -357,9 +313,16 @@ export default function Dashboard() {
                         {cliente.telefone || cliente.email || 'Sem contato registrado'}
                       </span>
                     </span>
-                    <StatusBadge tom="info">
-                      {ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação'}
-                    </StatusBadge>
+                    {(() => {
+                      const prazo = followup(cliente.proximo_followup);
+                      return prazo ? (
+                        <StatusBadge tom={prazo.tom} comPonto>{prazo.texto}</StatusBadge>
+                      ) : (
+                        <StatusBadge tom="neutro">
+                          {ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação'}
+                        </StatusBadge>
+                      );
+                    })()}
                   </Link>
                 </li>
               ))}
