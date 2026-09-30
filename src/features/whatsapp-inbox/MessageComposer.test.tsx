@@ -88,9 +88,20 @@ it('preserves typed text after sending a file because file captions are not supp
  fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Segue o recibo'}});fireEvent.keyDown(screen.getByLabelText('Mensagem'),{key:'Enter',code:'Enter'});
  await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).value).toBe('Segue o recibo');
 });
-it('explains how to release microphone access when Chrome blocks recording',async()=>{
- Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:vi.fn().mockRejectedValue(new DOMException('denied','NotAllowedError'))}});
+it('offers a retry instead of a reload when the browser blocks the microphone',async()=>{
+ const getUserMedia=vi.fn().mockRejectedValue(new DOMException('denied','NotAllowedError'));
+ Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia}});
  vi.stubGlobal('MediaRecorder',class FakeMediaRecorder{static isTypeSupported(){return true}});
  render(<MessageComposer conversationId="conversation-audio" onSent={()=>{}}/>);fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
- expect(await screen.findByText(/controles.*Microfone.*Permitir.*recarregue/i)).not.toBeNull();
+ expect(await screen.findByText(/bloqueou o microfone/i)).not.toBeNull();
+ // Liberar a permissão no navegador não pode custar um recarregamento.
+ fireEvent.click(screen.getByRole('button',{name:'Tentar de novo'}));
+ await waitFor(()=>expect(getUserMedia).toHaveBeenCalledTimes(2));
+});
+it('aponta o endereço, e não o microfone, quando a página não é segura',async()=>{
+ vi.stubGlobal('isSecureContext',false);
+ Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:vi.fn()}});
+ vi.stubGlobal('MediaRecorder',class FakeMediaRecorder{static isTypeSupported(){return true}});
+ render(<MessageComposer conversationId="conversation-http" onSent={()=>{}}/>);fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
+ expect(await screen.findByText(/endereço seguro \(https\)/i)).not.toBeNull();
 });

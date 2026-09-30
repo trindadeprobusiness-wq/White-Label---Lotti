@@ -71,7 +71,7 @@ it('prévia permite ligar/desligar IA sem consultar nem alterar o backend', asyn
   expect(previewInvoke).not.toHaveBeenCalled();
 });
 
-it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só na tela', async () => {
+it('prévia permite editar contato e fechar só na tela', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Editar nome' }));
@@ -82,14 +82,6 @@ it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só n
   fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
   expect(await screen.findByRole('button', { name: 'Fechada' })).not.toBeNull();
   expect(await screen.findByText(/Conversa fechada por Corretor/)).not.toBeNull();
-  fireEvent.change(screen.getByLabelText('Atribuição'), { target: { value: 'Equipe' } });
-  expect((screen.getByLabelText('Atribuição') as HTMLSelectElement).value).toBe('Equipe');
-  fireEvent.change(screen.getByLabelText('Adicionar tag'), { target: { value: 'Comprador' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Salvar tag' }));
-  expect(screen.getByText('Comprador')).not.toBeNull();
-  fireEvent.change(screen.getByLabelText('Nota interna'), { target: { value: 'Prefere imóvel no Centro.' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Adicionar nota' }));
-  expect(screen.getByText('Prefere imóvel no Centro.')).not.toBeNull();
   expect(mockDb.reads).toEqual({});
   expect(previewRpc).not.toHaveBeenCalled();
   expect(previewInvoke).not.toHaveBeenCalled();
@@ -302,9 +294,11 @@ it('reproduz a hierarquia do Clix com cabeçalho compacto e painel de perfil', a
   expect(screen.getByTestId('conversation-header')).not.toBeNull();
   expect(screen.getByTestId('conversation-stage-pill')).not.toBeNull();
   expect(screen.getByRole('heading', { name: /Resumo do caso/ })).not.toBeNull();
-  expect(screen.getByRole('heading', { name: 'Atribuição' })).not.toBeNull();
-  expect(screen.getByRole('heading', { name: 'Tags' })).not.toBeNull();
-  expect(screen.getByRole('heading', { name: 'Notas internas' })).not.toBeNull();
+  // Atribuição, Tags e Notas internas saíram do perfil: só respondiam na
+  // demonstração e ficavam inertes no uso real, prometendo o que não faziam.
+  expect(screen.queryByRole('heading', { name: 'Atribuição' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Tags' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Notas internas' })).toBeNull();
 });
 
 it('mantém a densidade compacta da referência do Clix', async () => {
@@ -397,15 +391,23 @@ it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () 
   height.mockRestore();
 });
 
-it('não deixa entrar em filtro vazio, e oferece saída quando a lista fica sem nada', async () => {
-  // Com uma conversa recente, Atrasando e Urgente contam zero. Clicar neles
-  // levava a uma lista vazia com "Selecione uma conversa" ao lado — sem volta.
+it('deixa entrar em filtro vazio, sempre com a saída à vista', async () => {
+  // Com uma conversa recente, Atrasando e Urgente contam zero. Desabilitá-los
+  // aí fazia o corretor ler defeito onde só havia fila vazia. Clicar é
+  // permitido; o que não pode é ficar sem volta, e a saída já existe.
   mountConectado();
 
   const atrasando = await screen.findByRole('button', { name: /Atrasando: 0 conversas/ });
   const urgente = screen.getByRole('button', { name: /Urgente: 0 conversas/ });
-  expect(atrasando.hasAttribute('disabled')).toBe(true);
-  expect(urgente.hasAttribute('disabled')).toBe(true);
+  expect(atrasando.hasAttribute('disabled')).toBe(false);
+  expect(urgente.hasAttribute('disabled')).toBe(false);
+
+  fireEvent.click(atrasando);
+  const doAtalho = await screen.findAllByRole('button', { name: 'Ver todas as conversas' });
+  expect(doAtalho.length).toBeGreaterThan(0);
+  expect(screen.queryByText('Selecione uma conversa')).toBeNull();
+  fireEvent.click(doAtalho[0]);
+  await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
 
   // Pela busca ainda é possível zerar a lista; aí precisa existir a saída.
   fireEvent.change(screen.getByRole('textbox', { name: 'Buscar conversas' }), {

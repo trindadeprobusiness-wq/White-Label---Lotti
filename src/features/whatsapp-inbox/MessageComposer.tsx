@@ -9,6 +9,7 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  const [text,setText]=useState(''),[audio,setAudio]=useState<Blob>(),[attachment,setAttachment]=useState<File>(),[preview,setPreview]=useState('');
  const [demoAudioReady,setDemoAudioReady]=useState(false);
  const [recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ const [micBlocked,setMicBlocked]=useState(false);
  const recorder=useRef<MediaRecorder>(),stream=useRef<MediaStream>(),timer=useRef<ReturnType<typeof setTimeout>>(),alive=useRef(true);
  const fileInput=useRef<HTMLInputElement>(null);
  const messageInput=useRef<HTMLTextAreaElement>(null);
@@ -18,7 +19,10 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  const stop=()=>{if(previewMode){setRecording(false);setDemoAudioReady(true);setNotice('Áudio de demonstração pronto para enviar.');return;}clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());};
  async function record(){
   if(previewMode){setRecording(true);setDemoAudioReady(false);setNotice('Gravação simulada: clique novamente para finalizar.');return;}
-  setNotice('');try{
+  setNotice('');setMicBlocked(false);try{
+   // Fora de contexto seguro o navegador nem expõe mediaDevices. Dizer apenas
+   // "não foi possível" esconderia que o problema é o endereço, não o aparelho.
+   if(typeof window!=='undefined'&&window.isSecureContext===false)throw Error('insecure');
    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined')throw Error('unsupported');
    const input=await navigator.mediaDevices.getUserMedia({audio:true});if(!alive.current){input.getTracks().forEach(t=>t.stop());return;}
    stream.current=input;const mime=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'].find(m=>MediaRecorder.isTypeSupported(m));
@@ -28,7 +32,10 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
    r.onstop=()=>{input.getTracks().forEach(t=>t.stop());if(alive.current){setRecording(false);setAudio(new Blob(chunks,{type:mime.split(';')[0]}));}};
    r.onerror=()=>{stop();if(alive.current)setNotice('Não foi possível gravar. Verifique o microfone.');};
    r.start();setRecording(true);timer.current=setTimeout(stop,90000);
-  }catch(error){stream.current?.getTracks().forEach(t=>t.stop());if(alive.current)setNotice(error instanceof DOMException&&['NotAllowedError','SecurityError'].includes(error.name)?'No Chrome, clique no ícone de controles à esquerda do endereço, escolha Microfone → Permitir e recarregue a página.':'Não foi possível iniciar a gravação. Você também pode anexar um arquivo de áudio.');}
+  }catch(error){stream.current?.getTracks().forEach(t=>t.stop());if(!alive.current)return;
+   const negado=error instanceof DOMException&&['NotAllowedError','SecurityError'].includes(error.name);
+   setMicBlocked(negado);
+   setNotice(negado?'O navegador bloqueou o microfone para este site. Libere o acesso e toque em Tentar de novo — não precisa recarregar.':error instanceof Error&&error.message==='insecure'?'Gravar áudio exige endereço seguro (https). Aqui o navegador não libera o microfone; dá para anexar um arquivo de áudio.':'Não foi possível iniciar a gravação. Você também pode anexar um arquivo de áudio.');}
  }
  async function send(){
   if(previewMode){
@@ -74,6 +81,9 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
     :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
   </div>
   {notice&&<p role="status" className="px-1 text-[11px] text-muted-foreground">{notice}</p>}
+  {/* Depois de liberar o microfone no navegador, gravar de novo é uma chamada
+      nova a getUserMedia — recarregar a página nunca foi necessário. */}
+  {micBlocked&&!recording&&<button type="button" className="px-1 text-left text-[11px] font-medium text-primary underline underline-offset-2" onClick={()=>{void record()}}>Tentar de novo</button>}
   {/* Sem esta saída o atendimento trava: o envio sem confirmação mantém o mesmo
       request_id, e reenviá-lo só devolve o status guardado. Depois de conferir
       no WhatsApp, o corretor precisa poder escrever de novo sem recarregar. */}
