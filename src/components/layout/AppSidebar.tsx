@@ -349,8 +349,11 @@ export function AppSidebar() {
               'group absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2',
               'items-center justify-center rounded-full border border-sidebar-border',
               'bg-background text-muted-foreground shadow-sm',
-              'opacity-60 transition-opacity duration-150 focus-ring',
-              'hover:text-foreground hover:opacity-100 focus-visible:opacity-100',
+              // Invisível no repouso: um botão solto no meio da borda não se
+              // explica sozinho. Aparece quando o ponteiro entra no menu, que
+              // é quando alguém está mexendo nele, e no foco por teclado.
+              'opacity-0 transition-opacity duration-150 focus-ring',
+              'hover:text-foreground focus-visible:opacity-100',
               'group-hover/sidebar:opacity-100',
             )}
             aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
