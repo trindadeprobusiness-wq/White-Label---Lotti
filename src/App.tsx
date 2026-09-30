@@ -72,6 +72,8 @@ const Onboarding = lazy(() => import("@/pages/Onboarding"));
 // o cadastro. Fica fora do ProtectedRoute porque acontece antes de existir conta.
 const RedirectParceiro = lazy(() => import("@/pages/RedirectParceiro"));
 const PaginaInicialPublica = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PaginaInicialPublica })));
+const CommercialDiagnostic = lazy(() => import('@/pages/CommercialDiagnostic'));
+const AdminDiagnosticos = lazy(() => import('@/pages/admin/AdminDiagnosticos'));
 const PoliticaPrivacidade = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PoliticaPrivacidade })));
 const TermosUso = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.TermosUso })));
 
@@ -131,6 +133,7 @@ const App = () => (
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
           <Route path="/sobre" element={<PaginaInicialPublica />} />
+          <Route path="/diagnostico" element={<CommercialDiagnostic />} />
           <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
           <Route path="/termos-de-uso" element={<TermosUso />} />
 
@@ -203,6 +206,7 @@ const App = () => (
             }
           >
             <Route path="/admin" element={<AdminVisaoGeral />} />
+            <Route path="/admin/diagnosticos" element={<AdminDiagnosticos />} />
             <Route path="/admin/usuarios" element={<AdminUsuarios />} />
             <Route path="/admin/usuarios/:id" element={<AdminUsuarioDetalhe />} />
             <Route path="/admin/onboarding" element={<AdminOnboarding />} />
