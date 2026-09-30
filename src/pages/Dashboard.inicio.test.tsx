@@ -32,13 +32,7 @@ vi.mock('@/stores/privacidadeStore', () => ({
   usePrivacidade: (seletor: (s: { valoresOcultos: boolean }) => unknown) =>
     seletor({ valoresOcultos: false }),
 }));
-vi.mock('@/components/dashboard/DashboardHero', () => ({
-  DashboardHero: ({ ferramentas }: { ferramentas?: React.ReactNode }) => <div>{ferramentas}</div>,
-}));
 vi.mock('@/components/onboarding/OnboardingChecklist', () => ({ OnboardingChecklist: () => null }));
-vi.mock('@/components/shell/PainelNotificacoes', () => ({ PainelNotificacoes: () => null }));
-vi.mock('@/components/shell/PainelAjuda', () => ({ PainelAjuda: () => null }));
-vi.mock('@/components/shell/BotaoPrivacidade', () => ({ BotaoPrivacidade: () => null }));
 vi.mock('@/components/shell/GlobalSearch', () => ({
   GlobalSearch: () => <input aria-label="busca-global-renderizada" />,
 }));
@@ -69,6 +63,14 @@ describe('Tela inicial — só o que pede ação', () => {
 
     expect(screen.queryByLabelText('busca-global-renderizada')).toBeNull();
     expect(screen.queryByText('Funil de vendas')).toBeNull();
+  });
+
+  it('abre com um cabeçalho que diz o dia, no lugar da antiga fila de ícones', () => {
+    abrir();
+
+    expect(screen.getByText('Hoje')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Rafael');
+    expect(screen.getByText(/o que precisa de você agora/)).toBeTruthy();
   });
 
   it('em "Imóveis que pedem atenção" não entra cadastro completo', () => {

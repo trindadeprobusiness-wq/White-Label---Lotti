@@ -10,10 +10,6 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { DashboardHero } from '@/components/dashboard/DashboardHero';
-import { BotaoPrivacidade } from '@/components/shell/BotaoPrivacidade';
-import { PainelNotificacoes } from '@/components/shell/PainelNotificacoes';
-import { PainelAjuda } from '@/components/shell/PainelAjuda';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import { mascararValoresNoTexto } from '@/lib/privacidade';
 import { usePrivacidade } from '@/stores/privacidadeStore';
@@ -190,23 +186,18 @@ export default function Dashboard() {
 
   return (
     <div className="animate-fade-in">
-      <DashboardHero
-        saudacao={`${saudacao()}, ${primeiroNome(corretor?.nome)}`}
-        data={hoje.charAt(0).toUpperCase() + hoje.slice(1)}
-        clientes={loading ? '—' : numero(clientesReais.length)}
-        imoveis={loading ? '—' : numero(imoveisReais.length)}
-        leads={loading ? '—' : numero(contagemEtapas.QUALIFICACAO ?? 0)}
-        vendas={loading ? '—' : numero(contagemEtapas.FECHADO_GANHO ?? 0)}
-        ferramentas={
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-end">
-            <div className="ml-auto flex w-fit shrink-0 items-center rounded-lg border border-white/10 bg-card p-0.5 shadow-sm">
-              <BotaoPrivacidade />
-              <PainelNotificacoes />
-              <PainelAjuda />
-            </div>
-          </div>
-        }
-      />
+      {/* Cabeçalho de verdade no lugar da antiga barra de ferramentas, que
+          só levava três ícones e deixava o topo parecendo vazio. A saudação e
+          a data já existiam no código e nunca chegavam à tela. */}
+      <header className="mb-5">
+        <p className="text-group uppercase text-muted-strong">Hoje</p>
+        <h1 className="mt-1 text-2xl font-semibold text-foreground">
+          {saudacao()}, {primeiroNome(corretor?.nome)}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {hoje.charAt(0).toUpperCase() + hoje.slice(1)} · o que precisa de você agora.
+        </p>
+      </header>
 
       <OnboardingChecklist />
 
