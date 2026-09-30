@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
-  Sparkles, Settings, ChevronLeft, ChevronRight, ChevronsUpDown,
+  Sparkles, Settings, ChevronLeft, ChevronRight,
   LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Bot, Send,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
@@ -11,6 +11,7 @@ import { FLAGS } from '@/lib/flags';
 import { LottiLogo, LottiMark } from '@/components/brand/LottiLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRMStore } from '@/stores/crmStore';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -129,8 +130,15 @@ function ItemMenu({
         'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
+        // Ativo como pastilha clara com barra à esquerda, em vez do bloco
+        // verde sólido: o verde cheio competia com os botões de ação da
+        // página e escurecia o ícone, que é o que se procura ao varrer o menu.
         ativo
-          ? 'bg-primary text-primary-foreground'
+          ? cn(
+              'relative bg-surface-brand font-semibold text-primary',
+              'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
+              'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
+            )
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
       )}
     >
@@ -158,7 +166,7 @@ function Conteudo({
   emDrawer?: boolean;
 }) {
   const { pathname } = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { corretor } = useCRMStore();
   const { theme, setTheme } = useTheme();
 
@@ -218,59 +226,83 @@ function Conteudo({
       </nav>
 
       <div className="border-t border-sidebar-border p-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                'flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left',
-                'transition-colors duration-150 hover:bg-sidebar-accent focus-ring',
-                recolhida && 'justify-center border-0 p-1',
-              )}
-              aria-label="Menu do usuário"
-            >
+        {recolhida ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center rounded-lg p-1 transition-colors duration-150 hover:bg-sidebar-accent focus-ring"
+                aria-label="Menu do usuário"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {iniciais(corretor?.nome)}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link to="/configuracoes">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configurações
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                {theme === 'dark' ? (
+                  <><Sun className="mr-2 h-4 w-4" />Tema claro</>
+                ) : (
+                  <><Moon className="mr-2 h-4 w-4" />Tema escuro</>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void signOut()}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          /* Expandido, a conta fica aberta: sair e tema eram duas ações de uso
+             diário escondidas atrás de um menu que ninguém abria. */
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                 {iniciais(corretor?.nome)}
               </span>
-              {!recolhida && (
-                <>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">
-                      {corretor?.nome ?? 'Minha conta'}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      Corretor
-                    </span>
-                  </span>
-                  <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="w-56">
-            <DropdownMenuItem asChild>
-              <Link to="/configuracoes">
-                <Settings className="mr-2 h-4 w-4" />
-                Configurações
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? (
-                <><Sun className="mr-2 h-4 w-4" />Tema claro</>
-              ) : (
-                <><Moon className="mr-2 h-4 w-4" />Tema escuro</>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => void signOut()}
-              className="text-destructive focus:text-destructive"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {corretor?.nome ?? 'Minha conta'}
+                </span>
+                {user?.email && (
+                  <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+                )}
+                <span className="block truncate text-xs text-muted-foreground">Corretor</span>
+              </span>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => void signOut()}>
+                <LogOut className="mr-1.5 h-4 w-4" />
+                Sair
+              </Button>
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" asChild>
+                <Link to="/configuracoes" aria-label="Configurações">
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                aria-label={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {!emDrawer && alternarRecolhida && (
           <button

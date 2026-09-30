@@ -23,6 +23,7 @@ import {
 import type { TomBadge } from '@/components/shell/primitivos';
 import { useCRMStore } from '@/stores/crmStore';
 import { useFachadas } from '@/hooks/useFachadas';
+import { linkDoInbox } from '@/features/whatsapp-inbox/deepLink';
 import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
 import type { Alerta } from '@/types/crm';
@@ -148,7 +149,7 @@ export default function Dashboard() {
         id: `lead-${lead.id}`,
         nome: lead.nome,
         contato: lead.telefone || lead.email || 'Sem contato informado',
-        href: lead.cliente_id ? `/clientes/${lead.cliente_id}` : '/fachadas',
+        href: linkDoInbox(lead.telefone),
         selo: { texto: 'Novo pelo QR', tom: 'brand' as TomBadge },
       }));
 
@@ -158,7 +159,7 @@ export default function Dashboard() {
         id: `cliente-${cliente.id}`,
         nome: cliente.nome,
         contato: cliente.telefone || cliente.email || 'Sem contato registrado',
-        href: `/clientes/${cliente.id}`,
+        href: linkDoInbox(cliente.telefone),
         selo: prazo ?? {
           texto: ETAPAS.find((e) => e.chave === cliente.status_funil)?.label ?? 'Qualificação',
           tom: 'neutro' as TomBadge,

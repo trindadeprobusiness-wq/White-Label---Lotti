@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,7 @@ import { useCRMStore } from '@/stores/crmStore';
 import { crmKeys } from '@/hooks/crm/useCrm';
 import { codigoDoErro, registroDoErro } from '@/lib/crm/duplicidade';
 import { functionErrorCode, mergeErrorText, renameErrorText, startErrorText } from './inboxRequests';
+import { mesmoTelefone } from './deepLink';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -110,6 +111,9 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
   const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); };
+  // /whatsapp?telefone=... abre direto no chat de quem veio da tela inicial.
+  // Só vale enquanto ninguém escolheu outra conversa na lista.
+  const telefoneAlvo = new URLSearchParams(useLocation().search).get('telefone');
   const [query, setQuery] = useState('');
   const [quick, setQuick] = useState<QuickFilter>('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -144,7 +148,9 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const latest = latestByConversation(previews.data ?? []);
   const now = Date.now();
   const filtered = filterLiveConversations(list.data ?? [], latest, { query, quick, mode: modeFilter, stage: stageFilter, period: periodFilter, now });
-  const selected = filtered.find(c => c.id === selectedId) ?? filtered[0];
+  const selected = filtered.find(c => c.id === selectedId)
+    ?? (telefoneAlvo ? filtered.find(c => mesmoTelefone(c.phone, telefoneAlvo)) : undefined)
+    ?? filtered[0];
   const count = (kind: QuickFilter) => (list.data ?? []).filter(c => liveUrgency(c, latest.get(c.id), now) === kind).length;
   const messages = useQuery({
     queryKey: ['lotti-agent-messages', user?.id, selected?.id, preview], enabled: !!user && !!selected && !preview, refetchInterval: preview ? false : 1500,
