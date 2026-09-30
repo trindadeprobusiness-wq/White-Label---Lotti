@@ -130,12 +130,12 @@ function ItemMenu({
         'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
-        // Ativo como pastilha clara com barra à esquerda, em vez do bloco
-        // verde sólido: o verde cheio competia com os botões de ação da
-        // página e escurecia o ícone, que é o que se procura ao varrer o menu.
+        // O ativo se marca pela barra verde e pelo peso do texto, sem tingir
+        // o fundo: o bloco verde sólido competia com os botões de ação da
+        // página, e o verde claro sujava a coluna inteira.
         ativo
           ? cn(
-              'relative bg-surface-brand font-semibold text-primary',
+              'relative bg-sidebar-accent font-semibold text-foreground',
               'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
               'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
             )
@@ -186,7 +186,40 @@ function Conteudo({
             <LottiLogo variant="full" className="text-[1.65rem] text-primary" />
           )}
         </Link>
+        {/* Recolher fica junto da logo, não no rodapé: é ajuste da própria
+            coluna, e lá embaixo disputava espaço com as ações da conta. */}
+        {!emDrawer && alternarRecolhida && !recolhida && (
+          <button
+            type="button"
+            onClick={alternarRecolhida}
+            className={cn(
+              'ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+              'text-muted-foreground transition-colors duration-150',
+              'hover:bg-sidebar-accent hover:text-foreground focus-ring',
+            )}
+            aria-label="Recolher menu"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
       </div>
+
+      {!emDrawer && alternarRecolhida && recolhida && (
+        <div className="flex justify-center pb-1">
+          <button
+            type="button"
+            onClick={alternarRecolhida}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg',
+              'text-muted-foreground transition-colors duration-150',
+              'hover:bg-sidebar-accent hover:text-foreground focus-ring',
+            )}
+            aria-label="Expandir menu"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {!recolhida && (
         <div role="separator" className="mx-5 border-t border-sidebar-border" />
@@ -286,11 +319,6 @@ function Conteudo({
                 <LogOut className="mr-1.5 h-4 w-4" />
                 Sair
               </Button>
-              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" asChild>
-                <Link to="/configuracoes" aria-label="Configurações">
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
               <Button
                 variant="outline"
                 size="icon"
@@ -304,28 +332,6 @@ function Conteudo({
           </div>
         )}
 
-        {!emDrawer && alternarRecolhida && (
-          <button
-            type="button"
-            onClick={alternarRecolhida}
-            className={cn(
-              'mt-2 flex h-nav-item w-full items-center gap-3 rounded-lg px-3 text-sm',
-              'text-muted-foreground transition-colors duration-150',
-              'hover:bg-sidebar-accent hover:text-foreground focus-ring',
-              recolhida && 'justify-center px-0',
-            )}
-            aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
-          >
-            {recolhida ? (
-              <ChevronRight className={ic} />
-            ) : (
-              <>
-                <ChevronLeft className={ic} />
-                <span>Recolher menu</span>
-              </>
-            )}
-          </button>
-        )}
       </div>
     </div>
   );
