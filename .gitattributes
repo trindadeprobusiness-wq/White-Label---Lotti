@@ -1,0 +1,2 @@
+# Script roda em Linux: quebra de linha do Windows faz o bash falhar.
+*.sh text eol=lf
