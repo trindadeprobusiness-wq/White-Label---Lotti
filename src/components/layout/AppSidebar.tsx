@@ -34,6 +34,9 @@ interface ItemNav {
   icone: React.ReactNode;
 }
 
+/** Grupos abertos ficam guardados para o menu voltar como o usuário deixou. */
+const CHAVE_GRUPOS = 'lotti:sidebar:grupos-abertos';
+
 interface GrupoNav {
   titulo: string;
   itens: ItemNav[];
@@ -171,6 +174,26 @@ function Conteudo({
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
+
+  // Grupo fechado por padrão, aberto ao clicar. São seis seções e vinte itens:
+  // com tudo aberto a coluna rola, e o que importa agora fica fora da vista.
+  // O grupo da página atual abre sozinho, senão o menu esconde onde se está.
+  const [abertos, setAbertos] = useState<Record<string, boolean>>(() => {
+    try {
+      const salvo = localStorage.getItem(CHAVE_GRUPOS);
+      if (salvo) return JSON.parse(salvo) as Record<string, boolean>;
+    } catch { /* armazenamento indisponível: cai no padrão */ }
+    return {};
+  });
+  const aberto = (grupo: GrupoNav) =>
+    abertos[grupo.titulo] ?? grupo.itens.some((item) => item.href === itemAtivo);
+  const alternarGrupo = (titulo: string) => {
+    setAbertos((atuais) => {
+      const proximo = { ...atuais, [titulo]: !(atuais[titulo] ?? false) };
+      try { localStorage.setItem(CHAVE_GRUPOS, JSON.stringify(proximo)); } catch { /* idem */ }
+      return proximo;
+    });
+  };
   const itemAtivo = grupos
     .flatMap(grupo => grupo.itens)
     .filter(item => item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -194,8 +217,8 @@ function Conteudo({
 
       <nav
         className={cn(
-          'flex-1 space-y-6 overflow-y-auto px-3 pb-4 pt-2',
-          recolhida && 'px-2 pt-0',
+          'flex-1 space-y-2 overflow-y-auto px-3 pb-4 pt-2',
+          recolhida && 'space-y-6 px-2 pt-0',
         )}
         aria-label="Navegação principal"
       >
@@ -206,26 +229,41 @@ function Conteudo({
             {recolhida ? (
               <div className="mx-2 mb-2 border-t border-sidebar-border" />
             ) : (
-              <p className="mb-2 px-3 text-group uppercase text-muted-strong">
-                {grupo.titulo}
-              </p>
-            )}
-            <div className="space-y-0.5">
-              {grupo.itens.map((item) => (
-                <ItemMenu
-                  key={item.href}
-                  item={item}
-                  ativo={item.href === itemAtivo}
-                  recolhida={recolhida}
-                  aoNavegar={aoNavegar}
+              <button
+                type="button"
+                onClick={() => alternarGrupo(grupo.titulo)}
+                aria-expanded={aberto(grupo)}
+                className={cn(
+                  'mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-1 text-group uppercase',
+                  'text-muted-strong transition-colors duration-150',
+                  'hover:bg-sidebar-accent hover:text-foreground focus-ring',
+                )}
+              >
+                <span className="flex-1 text-left">{grupo.titulo}</span>
+                <ChevronRight
+                  className={cn('h-3.5 w-3.5 shrink-0 transition-transform duration-150', aberto(grupo) && 'rotate-90')}
+                  aria-hidden="true"
                 />
-              ))}
-            </div>
+              </button>
+            )}
+            {(recolhida || aberto(grupo)) && (
+              <div className="space-y-0.5">
+                {grupo.itens.map((item) => (
+                  <ItemMenu
+                    key={item.href}
+                    item={item}
+                    ativo={item.href === itemAtivo}
+                    recolhida={recolhida}
+                    aoNavegar={aoNavegar}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-sidebar-border p-2.5">
         {recolhida ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -266,34 +304,35 @@ function Conteudo({
         ) : (
           /* Expandido, a conta fica aberta: sair e tema eram duas ações de uso
              diário escondidas atrás de um menu que ninguém abria. */
-          <div className="rounded-lg border border-border p-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          /* Compacto de propósito: o cartão é rodapé, não conteúdo. Avatar e
+             botões menores, e o papel some — quem está logado já sabe o que é. */
+          <div className="rounded-lg border border-border p-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                 {iniciais(corretor?.nome)}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-foreground">
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block truncate text-xs font-medium text-foreground">
                   {corretor?.nome ?? 'Minha conta'}
                 </span>
                 {user?.email && (
-                  <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{user.email}</span>
                 )}
-                <span className="block truncate text-xs text-muted-foreground">Corretor</span>
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => void signOut()}>
-                <LogOut className="mr-1.5 h-4 w-4" />
+            <div className="mt-2 flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => void signOut()}>
+                <LogOut className="mr-1 h-3.5 w-3.5" />
                 Sair
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 shrink-0"
+                className="h-7 w-7 shrink-0"
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 aria-label={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
               >
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
               </Button>
             </div>
           </div>
