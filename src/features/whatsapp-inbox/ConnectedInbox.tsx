@@ -105,6 +105,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const demoConversation: Conversation = { id: 'preview-conversation', phone: '5511999990000', contact_name: 'Rafael', cliente_id: null, mode: 'ai', status: 'open', updated_at: demoTime, qualification: { stage: 'qualificando', reason: 'Cliente procura um imóvel para comprar.' }, last_error: null };
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
+  const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); };
   const [query, setQuery] = useState('');
   const [quick, setQuick] = useState<QuickFilter>('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -227,14 +228,23 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         <div className="space-y-2 border-b border-[#e9ebf3] bg-gradient-to-b from-white to-[#fbfcfe] px-[14px] pb-[13px] pt-[15px]">
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 bg-primary px-2.5 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
-          <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground">{filtered.length} de {list.data.length}</span><button className="text-[11px] text-destructive" onClick={() => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); }}>Limpar</button></div>
-          <div className="grid grid-cols-3 gap-1"><Button size="sm" className={`h-7 px-1 text-[11px] ${quick === 'all' ? 'border border-primary bg-primary/10 text-primary hover:bg-primary/15' : 'bg-white text-[#565e76]'}`} variant="outline" onClick={() => setQuick('all')}>Todas</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-amber-700" variant={quick === 'late' ? 'secondary' : 'outline'} onClick={() => setQuick('late')} aria-label={`Atrasando: ${count('late')} conversas`}><Timer className="h-3 w-3" />{count('late')}</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-red-600" variant={quick === 'urgent' ? 'secondary' : 'outline'} onClick={() => setQuick('urgent')} aria-label={`Urgente: ${count('urgent')} conversas`}><AlertTriangle className="h-3 w-3" />{count('urgent')}</Button></div>
+          <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground">{filtered.length} de {list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
+          <div className="grid grid-cols-3 gap-1"><Button size="sm" className={`h-7 px-1 text-[11px] ${quick === 'all' ? 'border border-primary bg-primary/10 text-primary hover:bg-primary/15' : 'bg-white text-[#565e76]'}`} variant="outline" onClick={() => setQuick('all')}>Todas</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-amber-700" variant={quick === 'late' ? 'secondary' : 'outline'} onClick={() => setQuick('late')} disabled={count('late') === 0 && quick !== 'late'} aria-label={`Atrasando: ${count('late')} conversas`}><Timer className="h-3 w-3" />{count('late')}</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-red-600" variant={quick === 'urgent' ? 'secondary' : 'outline'} onClick={() => setQuick('urgent')} disabled={count('urgent') === 0 && quick !== 'urgent'} aria-label={`Urgente: ${count('urgent')} conversas`}><AlertTriangle className="h-3 w-3" />{count('urgent')}</Button></div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
         {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); clearOptOut.reset(); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
           <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.opted_out_at ? 'Não quer receber' : c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
         </button>)}
-        {!filtered.length && <p className="p-4 text-center text-xs text-muted-foreground">Nenhuma conversa encontrada.</p>}
+        {!filtered.length && (
+          <div className="p-4 text-center text-xs text-muted-foreground">
+            {list.data.length
+              ? <>
+                  <p>Nenhuma conversa neste filtro.</p>
+                  <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={limparFiltros}>Ver todas as conversas</Button>
+                </>
+              : <p>Nenhuma conversa ainda.</p>}
+          </div>
+        )}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
         </div>
       </nav>
@@ -261,7 +271,16 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}
             {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
           : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
-      </section> : <div className="grid place-items-center rounded-xl border bg-card text-sm text-muted-foreground">Selecione uma conversa</div>}
+      </section> : <div className="grid place-items-center rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
+        {filtered.length
+          ? <p>Selecione uma conversa</p>
+          : list.data.length
+            ? <div>
+                <p>Nenhuma conversa neste filtro.</p>
+                <Button size="sm" variant="outline" className="mt-3" onClick={limparFiltros}>Ver todas as conversas</Button>
+              </div>
+            : <p>Nenhuma conversa ainda.</p>}
+      </div>}
       {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
         <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>

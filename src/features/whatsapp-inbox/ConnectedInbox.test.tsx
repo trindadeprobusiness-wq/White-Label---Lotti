@@ -45,6 +45,11 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
+function mountConectado() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected /></QueryClientProvider></MemoryRouter>);
+}
+
 function mount(connected: boolean | 'unknown') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={connected} /></QueryClientProvider></MemoryRouter>);
@@ -389,4 +394,27 @@ it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () 
   await screen.findByText('Mensagem 29');
   await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
   height.mockRestore();
+});
+
+it('não deixa entrar em filtro vazio, e oferece saída quando a lista fica sem nada', async () => {
+  // Com uma conversa recente, Atrasando e Urgente contam zero. Clicar neles
+  // levava a uma lista vazia com "Selecione uma conversa" ao lado — sem volta.
+  mountConectado();
+
+  const atrasando = await screen.findByRole('button', { name: /Atrasando: 0 conversas/ });
+  const urgente = screen.getByRole('button', { name: /Urgente: 0 conversas/ });
+  expect(atrasando.hasAttribute('disabled')).toBe(true);
+  expect(urgente.hasAttribute('disabled')).toBe(true);
+
+  // Pela busca ainda é possível zerar a lista; aí precisa existir a saída.
+  fireEvent.change(screen.getByRole('textbox', { name: 'Buscar conversas' }), {
+    target: { value: 'contato-que-nao-existe' },
+  });
+
+  const saidas = await screen.findAllByRole('button', { name: 'Ver todas as conversas' });
+  expect(saidas.length).toBeGreaterThan(0);
+  expect(screen.queryByText('Selecione uma conversa')).toBeNull();
+
+  fireEvent.click(saidas[0]);
+  await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
 });
