@@ -554,3 +554,20 @@ it('nova conversa recusada mostra o motivo que veio da Edge Function', async () 
   fireEvent.click(screen.getByRole('button', { name: 'Enviar mensagem' }));
   expect((await screen.findByRole('alert')).textContent).toBe('Conecte o WhatsApp antes de iniciar uma conversa.');
 });
+
+it('no celular a lista vira gaveta: abre pelo cabeçalho e fecha ao escolher', async () => {
+  // Empilhada, a lista ficava inteira acima do chat e era preciso rolar dezenas
+  // de conversas para alcançar a mensagem. Agora ela desliza por cima.
+  mountConectado();
+
+  const lista = await screen.findByRole('navigation', { name: 'Conversas conectadas' });
+  expect(lista.className).toContain('max-lg:-translate-x-[104%]');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Ver conversas' }));
+  await waitFor(() => expect(lista.className).toContain('max-lg:translate-x-0'));
+  expect(screen.getByRole('button', { name: 'Fechar lista de conversas' })).not.toBeNull();
+
+  // Tocar fora fecha, que é o gesto de quem abriu a gaveta sem querer.
+  fireEvent.click(screen.getByRole('button', { name: 'Fechar lista de conversas' }));
+  await waitFor(() => expect(lista.className).toContain('max-lg:-translate-x-[104%]'));
+});

@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, FileText, Filter, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
+import { AlertTriangle, FileText, Filter, Menu, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { conversationTitle, formatContactPhone, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
@@ -110,6 +110,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const demoConversation: Conversation = { id: 'preview-conversation', phone: '5511999990000', contact_name: 'Rafael', cliente_id: null, mode: 'ai', status: 'open', updated_at: demoTime, qualification: { stage: 'qualificando', reason: 'Cliente procura um imóvel para comprar.' }, last_error: null };
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
+  // No celular a lista vira gaveta, como no Clix: a conversa ocupa a tela e a
+  // lista desliza por cima. Empilhada, era preciso rolar dezenas de conversas
+  // para alcançar a mensagem.
+  const [listaAberta, setListaAberta] = useState(false);
   const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); };
   // /whatsapp?telefone=... abre direto no chat de quem veio da tela inicial.
   // Só vale enquanto ninguém escolheu outra conversa na lista.
@@ -251,8 +255,21 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>
       <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste depois de conectar. Conversas antigas do celular não são importadas automaticamente.</p>
     </div>}
-    {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[230px_minmax(0,1fr)] ${infoVisible ? '2xl:grid-cols-[306px_minmax(0,1fr)_330px]' : '2xl:grid-cols-[306px_minmax(0,1fr)]'}`}>
-      <nav aria-label="Conversas conectadas" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e9ebf3] bg-white shadow-sm">
+    {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[230px_minmax(0,1fr)] max-lg:grid-cols-1 ${infoVisible ? '2xl:grid-cols-[306px_minmax(0,1fr)_330px]' : '2xl:grid-cols-[306px_minmax(0,1fr)]'}`}>
+      {/* Sobreposição só existe com a gaveta aberta; fechar tocando fora é o
+          gesto esperado de quem abriu. */}
+      {listaAberta && (
+        <button
+          type="button"
+          aria-label="Fechar lista de conversas"
+          onClick={() => setListaAberta(false)}
+          className="fixed inset-0 z-40 bg-foreground/40 lg:hidden"
+        />
+      )}
+      <nav
+        aria-label="Conversas conectadas"
+        className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e9ebf3] bg-white shadow-sm max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[86vw] max-lg:max-w-[310px] max-lg:rounded-none max-lg:transition-transform max-lg:duration-200 ${listaAberta ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-[104%]'}`}
+      >
         <div className="space-y-2 border-b border-[#e9ebf3] bg-gradient-to-b from-white to-[#fbfcfe] px-[14px] pb-[13px] pt-[15px]">
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 bg-primary px-2.5 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
@@ -260,7 +277,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           <div className="grid grid-cols-3 gap-1"><Button size="sm" className={`h-7 px-1 text-[11px] ${quick === 'all' ? 'border border-primary bg-primary/10 text-primary hover:bg-primary/15' : 'bg-white text-[#565e76]'}`} variant="outline" onClick={() => setQuick('all')}>Todas</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-amber-700" variant={quick === 'late' ? 'secondary' : 'outline'} onClick={() => setQuick('late')} disabled={count('late') === 0 && quick !== 'late'} aria-label={`Atrasando: ${count('late')} conversas`}><Timer className="h-3 w-3" />{count('late')}</Button><Button size="sm" className="h-7 gap-1 px-1 text-[11px] text-red-600" variant={quick === 'urgent' ? 'secondary' : 'outline'} onClick={() => setQuick('urgent')} disabled={count('urgent') === 0 && quick !== 'urgent'} aria-label={`Urgente: ${count('urgent')} conversas`}><AlertTriangle className="h-3 w-3" />{count('urgent')}</Button></div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
-        {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); clearOptOut.reset(); addToCrm.reset(); if (notice?.id !== c.id) setNotice(undefined); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
+        {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); clearOptOut.reset(); addToCrm.reset(); setListaAberta(false); if (notice?.id !== c.id) setNotice(undefined); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
           <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.opted_out_at ? 'Não quer receber' : c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
         </button>)}
         {!filtered.length && (
@@ -278,6 +295,18 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       </nav>
       {selected ? <section aria-label="Histórico conectado" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e9ebf3] bg-white shadow-sm">
         <header data-testid="conversation-header" className="flex min-h-[68px] flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2">
+          {/* Só no celular: é o único caminho de volta para a lista quando ela
+              vira gaveta. Alvo de 44px, que é o mínimo confortável no toque. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 shrink-0 lg:hidden"
+            aria-label="Ver conversas"
+            onClick={() => setListaAberta(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
           <div className="flex min-w-[210px] flex-1 items-center gap-2">
             <ContactAvatar name={conversationTitle(selected, client.data?.nome || selected.clientes?.nome)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" />
             <div className="min-w-0"><div className="flex items-center gap-1"><strong className="block truncate text-sm">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();mergeConversations.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3" /></button></div><p className="whitespace-nowrap text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p></div>
