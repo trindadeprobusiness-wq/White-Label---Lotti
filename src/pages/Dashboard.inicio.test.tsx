@@ -7,10 +7,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // A tela inicial puxa hero, onboarding, notificações e privacidade. Nada disso
 // muda o que está em teste — quais blocos sobraram e o que cada lista mostra.
 let leadsQr: Record<string, unknown>[] = [];
+let fachadasQr: Record<string, unknown>[] = [];
+let espera: { esperando: number; urgentes: number } | undefined;
 
 const estado = {
   clientes: [] as Record<string, unknown>[],
   imoveis: [] as Record<string, unknown>[],
+  contratos: [] as Record<string, unknown>[],
   alertas: [],
   corretor: { nome: 'Rafael' },
   loading: false,
@@ -20,7 +23,10 @@ const estado = {
 
 vi.mock('@/stores/crmStore', () => ({ useCRMStore: () => estado }));
 vi.mock('@/hooks/useFachadas', () => ({
-  useFachadas: () => ({ leads: leadsQr, fetchLeads: vi.fn() }),
+  useFachadas: () => ({ leads: leadsQr, fachadas: fachadasQr, fetchLeads: vi.fn(), fetchFachadas: vi.fn() }),
+}));
+vi.mock('@/hooks/useConversasEsperando', () => ({
+  useConversasEsperando: () => ({ data: espera }),
 }));
 vi.mock('@/stores/privacidadeStore', () => ({
   usePrivacidade: (seletor: (s: { valoresOcultos: boolean }) => unknown) =>
@@ -53,6 +59,9 @@ describe('Tela inicial — só o que pede ação', () => {
     estado.clientes = [];
     estado.imoveis = [];
     leadsQr = [];
+    fachadasQr = [];
+    espera = undefined;
+    estado.contratos = [];
   });
 
   it('não exibe a busca global nem o funil, que repetiam dado já mostrado', () => {
@@ -88,9 +97,53 @@ describe('Tela inicial — só o que pede ação', () => {
 
     const nomes = screen.getAllByText(/Quem escaneou|Marlene/).map((n) => n.textContent);
     expect(nomes).toEqual(['Quem escaneou', 'Marlene']);
-    expect(screen.getByText('Novo pelo QR')).toBeTruthy();
+    expect(screen.getByText('Espera agora')).toBeTruthy();
     // Lead já convertido não volta para a fila.
     expect(screen.queryByText('Já virou cliente')).toBeNull();
+  });
+
+  it('mostra as conversas esperando resposta, que não apareciam em lugar nenhum', () => {
+    espera = { esperando: 7, urgentes: 3 };
+
+    abrir();
+
+    expect(screen.getByText('Conversas esperando resposta')).toBeTruthy();
+    expect(screen.getByText('7 sem resposta · 3 há mais de 1 h')).toBeTruthy();
+  });
+
+  it('sem ninguém esperando, a linha não ocupa espaço', () => {
+    espera = { esperando: 0, urgentes: 0 };
+
+    abrir();
+
+    expect(screen.queryByText('Conversas esperando resposta')).toBeNull();
+  });
+
+  it('diz de qual imóvel o lead veio, não só que veio pelo QR', () => {
+    fachadasQr = [{ id: 'f1', imovel: { titulo: 'Galpão Santos Dumont' } }];
+    leadsQr = [{
+      id: 'l1', nome: 'Quem escaneou', telefone: '(62) 98888-0000', fachada_id: 'f1',
+      convertido: false, created_at: new Date(Date.now() - 12 * 60_000).toISOString(),
+    }];
+
+    abrir();
+
+    expect(screen.getByText(/QR · Galpão Santos Dumont/)).toBeTruthy();
+    expect(screen.getByText('Espera há 12 min')).toBeTruthy();
+  });
+
+  it('conta contrato perto do fim da vigência, e ignora rascunho', () => {
+    const inicio = new Date();
+    inicio.setMonth(inicio.getMonth() - 11);
+    estado.contratos = [
+      { id: 'c1', status: 'FINALIZADO', data_inicio: inicio.toISOString(), prazo_meses: 12 },
+      { id: 'c2', status: 'RASCUNHO', data_inicio: inicio.toISOString(), prazo_meses: 12 },
+    ];
+
+    abrir();
+
+    expect(screen.getByText('Contratos perto do fim da vigência')).toBeTruthy();
+    expect(screen.getByText('1 nos próximos 60 dias')).toBeTruthy();
   });
 
   it('marca o follow-up atrasado, que era ordenado sem nunca aparecer', () => {

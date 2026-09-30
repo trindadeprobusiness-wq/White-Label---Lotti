@@ -33,7 +33,9 @@ export function latestByConversation(messages: LatestMessage[]) {
   return latest;
 }
 
-export function liveUrgency(conversation: LiveConversation, latest: LatestMessage | undefined, now: number): QuickFilter {
+// Pede só o que lê, para a tela inicial poder reusar a mesma conta de espera
+// sem carregar telefone, nome e data de uma conversa inteira.
+export function liveUrgency(conversation: Pick<LiveConversation, 'mode' | 'qualification'>, latest: LatestMessage | undefined, now: number): QuickFilter {
   if (!latest || latest.direction !== 'in' || conversation.mode === 'ai') return 'all';
   const minutes = (now - new Date(latest.created_at).getTime()) / 60000;
   if (!Number.isFinite(minutes) || minutes < 0) return 'all';

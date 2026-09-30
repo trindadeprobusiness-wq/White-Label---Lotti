@@ -89,9 +89,7 @@ describe('acabamento visual do funil e da sidebar', () => {
     expect(html.indexOf('>WhatsApp<')).toBeLessThan(html.indexOf('>Conversas<'));
     expect(html.indexOf('>Conversas<')).toBeLessThan(html.indexOf('>Funil de Vendas<'));
     expect(html.indexOf('>Funil de Vendas<')).toBeLessThan(html.indexOf('>Conexão<'));
-    // Grupos nascem fechados; só o da rota atual abre. Por isso a ordem se
-    // confere contra o título da seção seguinte, não contra um item dela.
-    expect(html.indexOf('>Conexão<')).toBeLessThan(html.indexOf('aria-label="Seção Cadastros"'));
+    expect(html.indexOf('>Conexão<')).toBeLessThan(html.indexOf('>Clientes<'));
   });
 
   it('marca somente Conexão como ativa na rota de conexão', () => {

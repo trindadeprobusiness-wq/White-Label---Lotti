@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Users, Building2, UserPlus, AlertTriangle, X, Eye,
-  FileText, QrCode, Sparkles, ArrowRight, MapPin, Scale,
+  FileText, QrCode, Sparkles, ArrowRight, MapPin, Scale, MessageCircle,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -24,6 +24,8 @@ import type { TomBadge } from '@/components/shell/primitivos';
 import { useCRMStore } from '@/stores/crmStore';
 import { useFachadas } from '@/hooks/useFachadas';
 import { linkDoInbox } from '@/features/whatsapp-inbox/deepLink';
+import { useConversasEsperando } from '@/hooks/useConversasEsperando';
+import { contratosVencendo, tempoDeEspera } from '@/lib/inicio';
 import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
 import type { Alerta } from '@/types/crm';
@@ -70,14 +72,15 @@ const ETAPAS = [
 
 export default function Dashboard() {
   const {
-    clientes, alertas, imoveis, corretor, loading,
+    clientes, alertas, imoveis, contratos, corretor, loading,
     fetchCorretor, marcarAlertaLido,
   } = useCRMStore();
   const [alertaSelecionado, setAlertaSelecionado] = useState<Alerta | null>(null);
   // Lead de fachada entra pelo QR do imóvel e não passa pelo funil até virar
   // cliente. Sem ele aqui, quem escaneou a placa some no meio dos follow-ups.
-  const { leads: leadsFachada, fetchLeads } = useFachadas();
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+  const { leads: leadsFachada, fachadas, fetchLeads, fetchFachadas } = useFachadas();
+  useEffect(() => { fetchLeads(); fetchFachadas(); }, [fetchLeads, fetchFachadas]);
+  const { data: espera } = useConversasEsperando();
 
   const clientesReais = useMemo(() => clientes.filter((item) => !item.is_sample_data), [clientes]);
   const imoveisReais = useMemo(() => imoveis.filter((item) => !item.is_sample_data), [imoveis]);
@@ -100,6 +103,17 @@ export default function Dashboard() {
   }, [clientesReais]);
 
   const incompletos = useMemo(() => imoveisReais.filter(cadastroIncompleto), [imoveisReais]);
+  const vencendo = useMemo(() => contratosVencendo(contratos), [contratos]);
+  // De qual imóvel veio cada lead: "chegou pela fachada da Santos Dumont"
+  // decide a ação; "Novo pelo QR" sozinho não diz nada.
+  const imovelDaFachada = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const fachada of fachadas) {
+      const nome = fachada.imovel?.titulo;
+      if (nome) mapa.set(fachada.id, nome);
+    }
+    return mapa;
+  }, [fachadas]);
 
   const proximosContatos = useMemo(
     () =>
@@ -145,13 +159,17 @@ export default function Dashboard() {
     const doQr = leadsFachada
       .filter((lead) => !lead.convertido)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .map((lead) => ({
-        id: `lead-${lead.id}`,
-        nome: lead.nome,
-        contato: lead.telefone || lead.email || 'Sem contato informado',
-        href: linkDoInbox(lead.telefone),
-        selo: { texto: 'Novo pelo QR', tom: 'brand' as TomBadge },
-      }));
+      .map((lead) => {
+        const origem = imovelDaFachada.get(lead.fachada_id);
+        const espera = tempoDeEspera(lead.created_at);
+        return {
+          id: `lead-${lead.id}`,
+          nome: lead.nome,
+          contato: [origem ? `QR · ${origem}` : 'QR da fachada', lead.telefone].filter(Boolean).join(' · '),
+          href: linkDoInbox(lead.telefone),
+          selo: { texto: espera ? `Espera ${espera}` : 'Novo pelo QR', tom: 'brand' as TomBadge },
+        };
+      });
 
     const comFollowup = proximosContatos.map((cliente) => {
       const prazo = followup(cliente.proximo_followup);
@@ -168,7 +186,7 @@ export default function Dashboard() {
     });
 
     return [...doQr, ...comFollowup].slice(0, 5);
-  }, [leadsFachada, proximosContatos]);
+  }, [leadsFachada, proximosContatos, imovelDaFachada]);
 
   return (
     <div className="animate-fade-in">
@@ -243,6 +261,28 @@ export default function Dashboard() {
       <div id="prioridades-do-dia" className="mb-5 grid scroll-mt-5 gap-5 lg:grid-cols-[1.35fr_1fr]">
         <SectionCard titulo="Prioridades de hoje" semPadding>
           <div className="px-2 pb-3">
+            {/* Atendimento vem primeiro: é o que tem alguém do outro lado
+                esperando agora. A conta é a mesma do Inbox. */}
+            {!!espera?.esperando && (
+              <QuickActionRow
+                tom="warning"
+                icone={<MessageCircle className="h-[18px] w-[18px]" />}
+                titulo="Conversas esperando resposta"
+                descricao={
+                  espera.urgentes
+                    ? `${numero(espera.esperando)} sem resposta · ${numero(espera.urgentes)} há mais de 1 h`
+                    : `${numero(espera.esperando)} sem resposta`
+                }
+                acao={
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/whatsapp">
+                      Responder
+                      <ArrowRight className="ml-1.5 h-4 w-4" />
+                    </Link>
+                  </Button>
+                }
+              />
+            )}
             <QuickActionRow
               tom="brand"
               icone={<Users className="h-[18px] w-[18px]" />}
@@ -261,6 +301,22 @@ export default function Dashboard() {
                 </Button>
               }
             />
+            {!!vencendo.length && (
+              <QuickActionRow
+                tom="doc"
+                icone={<Scale className="h-[18px] w-[18px]" />}
+                titulo="Contratos perto do fim da vigência"
+                descricao={`${numero(vencendo.length)} nos próximos 60 dias`}
+                acao={
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/juridico">
+                      Revisar
+                      <ArrowRight className="ml-1.5 h-4 w-4" />
+                    </Link>
+                  </Button>
+                }
+              />
+            )}
             <QuickActionRow
               tom="warning"
               icone={<FileText className="h-[18px] w-[18px]" />}

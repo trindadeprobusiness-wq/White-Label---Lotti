@@ -175,9 +175,9 @@ function Conteudo({
 
   const grupos = montarGrupos();
 
-  // Grupo fechado por padrão, aberto ao clicar. São seis seções e vinte itens:
-  // com tudo aberto a coluna rola, e o que importa agora fica fora da vista.
-  // O grupo da página atual abre sozinho, senão o menu esconde onde se está.
+  // Grupos abertos por padrão: fechados, o menu vira seis títulos e um vazio,
+  // e cada ida a outra área custa um clique a mais. Quem quiser enxugar fecha
+  // o que não usa, e a escolha fica guardada.
   const [abertos, setAbertos] = useState<Record<string, boolean>>(() => {
     try {
       const salvo = localStorage.getItem(CHAVE_GRUPOS);
@@ -185,11 +185,10 @@ function Conteudo({
     } catch { /* armazenamento indisponível: cai no padrão */ }
     return {};
   });
-  const aberto = (grupo: GrupoNav) =>
-    abertos[grupo.titulo] ?? grupo.itens.some((item) => item.href === itemAtivo);
+  const aberto = (grupo: GrupoNav) => abertos[grupo.titulo] ?? true;
   const alternarGrupo = (titulo: string) => {
     setAbertos((atuais) => {
-      const proximo = { ...atuais, [titulo]: !(atuais[titulo] ?? false) };
+      const proximo = { ...atuais, [titulo]: !(atuais[titulo] ?? true) };
       try { localStorage.setItem(CHAVE_GRUPOS, JSON.stringify(proximo)); } catch { /* idem */ }
       return proximo;
     });
@@ -217,7 +216,7 @@ function Conteudo({
 
       <nav
         className={cn(
-          'flex-1 space-y-2 overflow-y-auto px-3 pb-4 pt-2',
+          'flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2',
           recolhida && 'space-y-6 px-2 pt-0',
         )}
         aria-label="Navegação principal"
