@@ -186,40 +186,7 @@ function Conteudo({
             <LottiLogo variant="full" className="text-[1.65rem] text-primary" />
           )}
         </Link>
-        {/* Recolher fica junto da logo, não no rodapé: é ajuste da própria
-            coluna, e lá embaixo disputava espaço com as ações da conta. */}
-        {!emDrawer && alternarRecolhida && !recolhida && (
-          <button
-            type="button"
-            onClick={alternarRecolhida}
-            className={cn(
-              'ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-              'text-muted-foreground transition-colors duration-150',
-              'hover:bg-sidebar-accent hover:text-foreground focus-ring',
-            )}
-            aria-label="Recolher menu"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-        )}
       </div>
-
-      {!emDrawer && alternarRecolhida && recolhida && (
-        <div className="flex justify-center pb-1">
-          <button
-            type="button"
-            onClick={alternarRecolhida}
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg',
-              'text-muted-foreground transition-colors duration-150',
-              'hover:bg-sidebar-accent hover:text-foreground focus-ring',
-            )}
-            aria-label="Expandir menu"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {!recolhida && (
         <div role="separator" className="mx-5 border-t border-sidebar-border" />
@@ -362,13 +329,33 @@ export function AppSidebar() {
        fica com MobileTopBar (topo) + MobileBottomNav (rodapé). */
     <aside
       className={cn(
-        'hidden shrink-0 border-r border-sidebar-border md:block',
+        'group/sidebar relative hidden shrink-0 border-r border-sidebar-border md:block',
         'transition-[width] duration-200',
         recolhida ? 'w-[4.5rem]' : 'w-sidebar-sm xl:w-sidebar',
       )}
     >
+      {/* A alça vive na borda da coluna, no meio da altura: é o gesto de
+          empurrar a própria divisória. No topo disputava com a marca e no
+          rodapé, com as ações da conta. */}
       <div className="sticky top-0 h-screen">
-        <Conteudo recolhida={recolhida} alternarRecolhida={alternar} />
+        <div className="relative h-full">
+          <Conteudo recolhida={recolhida} />
+          <button
+            type="button"
+            onClick={alternar}
+            className={cn(
+              'group absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2',
+              'items-center justify-center rounded-full border border-sidebar-border',
+              'bg-background text-muted-foreground shadow-sm',
+              'opacity-60 transition-opacity duration-150 focus-ring',
+              'hover:text-foreground hover:opacity-100 focus-visible:opacity-100',
+              'group-hover/sidebar:opacity-100',
+            )}
+            aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
+          >
+            {recolhida ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
     </aside>
   );
