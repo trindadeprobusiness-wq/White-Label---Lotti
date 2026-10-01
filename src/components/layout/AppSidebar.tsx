@@ -209,7 +209,7 @@ export function ConteudoDaSidebar({
 
       <nav
         className={cn(
-          'flex-1 space-y-6 overflow-y-auto px-3 pb-4 pt-2',
+          'flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 pt-2',
           recolhida && 'px-2 pt-0',
         )}
         aria-label="Navegação principal"
@@ -228,19 +228,19 @@ export function ConteudoDaSidebar({
                 type="button"
                 onClick={() => setGruposAbertos((atual) => ({ ...atual, [grupo.titulo]: !aberto }))}
                 aria-expanded={aberto}
-                className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent focus-ring"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-sidebar-accent focus-ring"
               >
-                <span className="shrink-0 text-muted-strong">{grupo.icone}</span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide text-muted-strong">
+                <span className="shrink-0 text-muted-strong [&>svg]:h-4 [&>svg]:w-4">{grupo.icone}</span>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-strong">
                   {grupo.titulo}
                 </span>
                 <ChevronRight
                   aria-hidden="true"
-                  className={cn('h-3.5 w-3.5 shrink-0 text-muted-strong transition-transform duration-150', aberto && 'rotate-90')}
+                  className={cn('h-3 w-3 shrink-0 text-muted-strong transition-transform duration-150', aberto && 'rotate-90')}
                 />
               </button>
             )}
-            <div className={cn('space-y-0.5', !recolhida && !aberto && 'hidden')}>
+            <div className={cn('space-y-0.5', !recolhida && (aberto ? 'mb-2 mt-0.5' : 'hidden'))}>
               {grupo.itens.map((item) => (
                 <ItemMenu
                   key={item.href}

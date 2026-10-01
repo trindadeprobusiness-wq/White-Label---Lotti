@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { StaticRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { filtrarOportunidades } from '@/lib/crm/pipeline';
 import { CrmPipeline } from './CrmPipeline';
@@ -41,7 +42,7 @@ describe('CrmPipeline', () => {
   });
 
   it('mostra contorno interno uniforme na coluna de destino e monta o overlay de arraste', () => {
-    const html = renderToStaticMarkup(<CrmPipeline />);
+    const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).toContain('outline-2');
     expect(html).toContain('-outline-offset-2');
@@ -49,14 +50,14 @@ describe('CrmPipeline', () => {
   });
 
   it('substitui o filtro pelo menu de ações do funil', () => {
-    const html = renderToStaticMarkup(<CrmPipeline />);
+    const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).toContain('Mais opções do funil');
     expect(html).not.toContain('>Filtros<');
   });
 
   it('prepara a barra de ações em lote sem exibir um aviso no quadro', () => {
-    const html = renderToStaticMarkup(<CrmPipeline />);
+    const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).not.toContain('Seleção ativada');
     expect(html).not.toContain('Selecionar cards no quadro');

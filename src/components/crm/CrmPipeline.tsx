@@ -19,6 +19,7 @@ import { WhatsAppDialog } from './WhatsAppDialog';
 import { moeda as moedaBR } from '@/lib/formato';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import FunilVendas from '@/pages/FunilVendas';
+import { useNavigate } from 'react-router-dom';
 
 /** Sem centavos no Kanban: o valor é referência de negócio, não extrato. */
 const moeda = (v: number) => moedaBR(v, true);
@@ -221,6 +222,17 @@ export function CrmPipeline() {
   const excluir = useExcluirOportunidades();
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [conversa, setConversa] = useState<CardOportunidade | null>(null);
+  const navegar = useNavigate();
+  // O ícone abria um compositor solto, fora da conversa. Quem clica ali quer
+  // ler o que já foi dito antes de responder — então vai para o Inbox, já na
+  // conversa daquele contato.
+  const abrirConversa = (o: CardOportunidade) => {
+    const telefone = (o.clientes?.telefone ?? '').replace(/\D/g, '');
+    const destino = o.cliente_id
+      ? `/whatsapp?cliente=${encodeURIComponent(o.cliente_id)}`
+      : telefone ? `/whatsapp?telefone=${telefone}` : '/whatsapp';
+    navegar(destino);
+  };
   const [busca, setBusca] = useState('');
   const [modoSelecao, setModoSelecao] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -369,7 +381,7 @@ export function CrmPipeline() {
             <Coluna
               key={c.etapa.id}
               coluna={c}
-              onWhatsApp={setConversa}
+              onWhatsApp={abrirConversa}
               modoSelecao={modoSelecao}
               selecionados={selecionados}
               onSelecionar={alternarSelecao}
