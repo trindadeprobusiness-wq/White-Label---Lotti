@@ -236,10 +236,14 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const timelineRef = useRef<HTMLDivElement>(null);
   const followLatest = useRef(true);
   useEffect(() => { followLatest.current = true; }, [selected?.id]);
+  // Pelo comprimento não serve: a consulta devolve no máximo 200 mensagens, e no
+  // teto a mensagem nova entra enquanto a antiga sai. A identidade do último
+  // item muda sempre que chega algo, com ou sem corte.
+  const ultimoDaLista = timeline.length ? timeline[timeline.length - 1].value.id : '';
   useLayoutEffect(() => {
     const el = timelineRef.current;
     if (el && followLatest.current) el.scrollTop = el.scrollHeight;
-  }, [selected?.id, timeline.length]);
+  }, [selected?.id, ultimoDaLista]);
   return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
     <h1 className="sr-only">Inbox</h1>
     {preview && <p className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">Prévia interativa com dados fictícios. Nada é enviado ou salvo; recarregar desfaz as mudanças.</p>}
@@ -319,8 +323,11 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
         <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
+          {/* O aviso fala do histórico cortado, que fica no começo da lista.
+              No fim, junto da mensagem mais nova, ele não descrevia nada e
+              ainda disputava espaço com o compositor. */}
+          {messages.data?.length === 200 && <p className="pb-2 text-center text-[11px] text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
           {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
-          {messages.data?.length === 200 && <p className="text-xs text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
         </div>
         {connected === true || preview
           ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}

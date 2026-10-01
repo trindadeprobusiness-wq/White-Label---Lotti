@@ -382,6 +382,29 @@ it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async 
   }
 });
 
+it('desce quando a última mensagem muda, com a conversa no teto de 200', async () => {
+  // Cobertura parcial: o jsdom não reproduz de forma confiável a janela que
+  // desliza sem mudar de tamanho, então este teste não distingue o gatilho por
+  // comprimento do gatilho por identidade. Fica como proteção do caminho feliz.
+  const base = Date.parse('2026-09-27T12:00:00Z');
+  const janela = (desloc: number) => Array.from({ length: 200 }, (_, i) => ({
+    id: `m${i + desloc}`, direction: 'in', sender: 'lead', content: `Mensagem ${i + desloc}`,
+    media_path: null, created_at: new Date(base + (i + desloc) * 60000).toISOString(),
+  }));
+  const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  dataByTable.lotti_agent_messages = janela(0);
+  mount(true);
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
+
+  // Zerar a rolagem é o que torna o teste honesto: sem isso o valor antigo
+  // continua lá e passa por certo mesmo quando o efeito não roda.
+  screen.getByTestId('message-timeline').scrollTop = 0;
+  height.mockReturnValue(3000);
+  dataByTable.lotti_agent_messages = janela(1);
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(3000), { timeout: 5000 });
+  height.mockRestore();
+});
+
 it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () => {
   const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
   dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, direction: i % 2 ? 'out' : 'in', sender: i % 2 ? 'human' : 'lead', content: `Mensagem ${i}`, media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString() }));
