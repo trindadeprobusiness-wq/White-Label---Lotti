@@ -256,8 +256,12 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // Open each conversation at the latest message and follow new ones while the
   // reader is at the bottom; scrolling up to read history is not interrupted.
   const timelineRef = useRef<HTMLDivElement>(null);
-  const followLatest = useRef(true);
-  useEffect(() => { followLatest.current = true; }, [selected?.id]);
+ const followLatest = useRef(true);
+  // Mensagens já enviadas e ainda sem confirmação da ponte. Aparecem na conversa
+  // na hora: esperar três segundos olhando a tela parada era o custo de uma
+  // garantia que vem do request_id, não da espera.
+  const [pendentes, setPendentes] = useState<{ key: string; kind: 'text' | 'file' | 'audio'; content: string; incerto?: boolean }[]>([]);
+  useEffect(() => { followLatest.current = true; setPendentes([]); }, [selected?.id]);
   // Pelo comprimento não serve: a consulta devolve no máximo 200 mensagens, e no
   // teto a mensagem nova entra enquanto a antiga sai. A identidade do último
   // item muda sempre que chega algo, com ou sem corte.
@@ -265,7 +269,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   useLayoutEffect(() => {
     const el = timelineRef.current;
     if (el && followLatest.current) el.scrollTop = el.scrollHeight;
-  }, [selected?.id, ultimoDaLista]);
+  }, [selected?.id, ultimoDaLista, pendentes.length]);
   return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
     <h1 className="sr-only">Inbox</h1>
     {preview && <p className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">Prévia interativa com dados fictícios. Nada é enviado ou salvo; recarregar desfaz as mudanças.</p>}
@@ -351,10 +355,17 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
               ainda disputava espaço com o compositor. */}
           {messages.data?.length === 200 && <p className="pb-2 text-center text-[11px] text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
           {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
+          {pendentes.map(pendente => <article key={pendente.key} data-testid="mensagem-pendente" className="ml-auto w-fit max-w-[78%] rounded-[15px] rounded-tr-[4px] border border-primary/40 bg-primary/10 px-3 py-1.5 text-[14px] leading-[1.4] text-[#10131f]">
+            <p className="mb-1 text-[11px] font-medium text-muted-foreground">Corretor</p>
+            <p className="whitespace-pre-wrap break-words">{pendente.kind === 'audio' ? '🎤 Áudio' : pendente.content}</p>
+            <p className="mt-1 text-right text-[10px] text-muted-foreground">{pendente.incerto ? 'sem confirmação' : 'enviando…'}</p>
+          </article>)}
         </div>
         {connected === true || preview
           ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}
-            {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
+            {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onPending={entrada => setPendentes(atual => [...atual, entrada])}
+              onPendingEnd={(chave, estado) => setPendentes(atual => estado === 'incerto' ? atual.map(item => item.key === chave ? { ...item, incerto: true } : item) : atual.filter(item => item.key !== chave))}
+              onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
           : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
         {filtered.length

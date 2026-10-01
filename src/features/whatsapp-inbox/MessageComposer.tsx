@@ -13,8 +13,10 @@ async function codigoDoErro(error:unknown){
  try{return ((await contexto.json()) as {error?:string})?.error}catch{return undefined}
 }
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
-type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void};
-export function MessageComposer({conversationId,onSent,preview:previewMode=false,onPreviewSend}:Props){
+export type EnvioPendente={key:string;kind:'text'|'file'|'audio';content:string};
+type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void;
+ onPending?:(entry:EnvioPendente)=>void;onPendingEnd?:(key:string,estado:'enviado'|'falhou'|'incerto')=>void};
+export function MessageComposer({conversationId,onSent,preview:previewMode=false,onPreviewSend,onPending,onPendingEnd}:Props){
  const [text,setText]=useState(''),[audio,setAudio]=useState<Blob>(),[attachment,setAttachment]=useState<File>(),[preview,setPreview]=useState('');
  const [demoAudioReady,setDemoAudioReady]=useState(false);
  const [recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
@@ -23,6 +25,10 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  const fileInput=useRef<HTMLInputElement>(null);
  const messageInput=useRef<HTMLTextAreaElement>(null);
  const pending=useRef<Record<string,unknown>>();
+ // A chave do envio em curso e o texto que foi limpo na hora. O texto volta se o
+ // envio falhar de forma certa — perder o que se digitou é pior que esperar.
+ const chaveEmCurso=useRef<string>();
+ const textoLimpo=useRef<string>();
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());}},[]);
  useEffect(()=>{if(!audio){setPreview('');return;}const url=URL.createObjectURL(audio);setPreview(url);return()=>URL.revokeObjectURL(url)},[audio]);
  const stop=()=>{if(previewMode){setRecording(false);setDemoAudioReady(true);setNotice('Áudio de demonstração pronto para enviar.');return;}clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());};
@@ -46,6 +52,8 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
    setMicBlocked(negado);
    setNotice(negado?'O navegador bloqueou o microfone para este site. Libere o acesso e toque em Tentar de novo — não precisa recarregar.':error instanceof Error&&error.message==='insecure'?'Gravar áudio exige endereço seguro (https). Aqui o navegador não libera o microfone; dá para anexar um arquivo de áudio.':'Não foi possível iniciar a gravação. Você também pode anexar um arquivo de áudio.');}
  }
+ const terminaPendente=(estado:'enviado'|'falhou'|'incerto')=>{if(chaveEmCurso.current){onPendingEnd?.(chaveEmCurso.current,estado);if(estado!=='incerto')chaveEmCurso.current=undefined;}};
+ const restauraTexto=()=>{if(textoLimpo.current!==undefined){setText(textoLimpo.current);textoLimpo.current=undefined;}};
  async function send(){
   if(previewMode){
    if(attachment)onPreviewSend?.({kind:'file',content:attachment.name});
@@ -68,20 +76,29 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
      const {error:uploadError}=await supabase.storage.from('lotti-inbox-files').uploadToSignedUrl(prepared.path,prepared.token,attachment,{contentType:meta.mime});if(uploadError)throw Error('upload_failed');
      pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:'file',name:attachment.name,mime:meta.mime,size:attachment.size,storage_path:prepared.path};
     }else pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:audio?'audio':'text',...(audio?{audio:encoded,mime:audio.type.split(';')[0]}:{text:text.trim()})};
+    // A mensagem aparece na conversa agora, não daqui a três segundos. A
+    // proteção contra duplicado é do request_id, não da espera.
+    chaveEmCurso.current=requestId;
+    onPending?.({key:requestId,kind:attachment?'file':audio?'audio':'text',content:attachment?attachment.name:audio?'Áudio':text.trim()});
+    // Legenda de arquivo não é suportada: com anexo, o texto fica para a
+    // próxima mensagem e não pode ser limpo aqui.
+    if(!attachment){textoLimpo.current=text;setText('');}
    }
    const {data,error}=await supabase.functions.invoke('lotti-whatsapp',{body:pending.current});
    if(!alive.current)return;
    if(error||!data)throw error??Error('unknown');
-   if(data.sendStatus==='sent'){pending.current=undefined;if(!attachment)setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');onSent();}
-   else if(['failed','busy'].includes(data.sendStatus)){pending.current=undefined;setNotice(data.sendStatus==='busy'?'Há uma entrega em andamento. Aguarde antes de enviar.':'Não foi enviado. Verifique a conexão e tente novamente.');}
-   else setNotice('Envio sem confirmação. Confira no WhatsApp antes de tentar uma nova mensagem.');
+   if(data.sendStatus==='sent'){pending.current=undefined;textoLimpo.current=undefined;if(!attachment)setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');terminaPendente('enviado');onSent();}
+   else if(['failed','busy'].includes(data.sendStatus)){pending.current=undefined;restauraTexto();setNotice(data.sendStatus==='busy'?'Há uma entrega em andamento. Aguarde antes de enviar.':'Não foi enviado. Verifique a conexão e tente novamente.');terminaPendente('falhou');}
+   else {setNotice('Envio sem confirmação. Confira no WhatsApp antes de tentar uma nova mensagem.');terminaPendente('incerto');}
   }catch(error){
    if(!alive.current)return;
    if(FALHA_CERTA.includes(await codigoDoErro(error)??'')){
     // Não saiu: não deixar a mensagem pendurada em "Verificar envio".
     pending.current=undefined;
+    restauraTexto();
     setNotice('Não foi enviado: a conexão com o WhatsApp está com problema. Veja a página de Conexão e tente de novo.');
-   } else setNotice('A confirmação demorou. Use Verificar envio para consultar sem duplicar a mensagem.');
+    terminaPendente('falhou');
+   } else {setNotice('A confirmação demorou. Use Verificar envio para consultar sem duplicar a mensagem.');terminaPendente('incerto');}
   }
   finally{if(alive.current)setBusy(false);}
  }
