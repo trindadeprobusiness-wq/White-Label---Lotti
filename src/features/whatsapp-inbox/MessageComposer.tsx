@@ -3,15 +3,7 @@ import {supabase} from '@/integrations/supabase/client';
 import {Button} from '@/components/ui/button';
 import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
 import {safeAttachmentName,validateAttachment} from './attachments';
-// A função distingue ponte inalcançável de ponte que recusou. O primeiro caso é
-// incerto e pede conferência antes de reenviar; o segundo não saiu, e insistir
-// que "a confirmação demorou" faz o corretor temer duplicar o que nunca foi.
-const FALHA_CERTA=['bridge_rejected','bridge_not_configured','bridge_bad_state'];
-async function codigoDoErro(error:unknown){
- const contexto=(error as {context?:{json?:()=>Promise<unknown>}})?.context;
- if(typeof contexto?.json!=='function')return undefined;
- try{return ((await contexto.json()) as {error?:string})?.error}catch{return undefined}
-}
+import {FALHA_CERTA,codigoDoErro} from './bridgeError';
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
 export type EnvioPendente={key:string;kind:'text'|'file'|'audio';content:string};
 type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void;

@@ -2,6 +2,22 @@
 
 Levantado em 2026-10-01, durante o uso real. Cada item traz a causa já diagnosticada, para a correção não precisar redescobrir.
 
+## Situação
+
+| # | Item | Estado |
+|---|---|---|
+| 1 | Envio demora ~3 s | corrigido (envio otimista) |
+| 2 | Painel do perfil desequilibrado | corrigido |
+| 3 | Aviso das 200 mensagens no lugar errado | corrigido |
+| 4 | Pilula "ETAPA" com rótulo inventado | corrigido |
+| 5 | Imagem recebida não aparece como imagem | **parcial** — imagem guardada aparece inline; falta a ponte baixar a mídia recebida |
+| 6 | Quatro causas num 503 só | corrigido |
+| 7 | Token em dois lugares sem conferência | corrigido na leitura: a divergência agora é nomeada na tela |
+| 8 | "IA desligada" sem motivo | corrigido |
+| 9 | Conversa não desce sozinha | corrigido |
+
+O item 5 é o único que depende de trabalho fora desta base: enquanto a ponte não guardar a mídia recebida, não existe arquivo para exibir. O lado da tela já está pronto e passa a funcionar sozinho quando o arquivo aparecer no bucket.
+
 ---
 
 ## 1. Enviar mensagem demora ~3 segundos

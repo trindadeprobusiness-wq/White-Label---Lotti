@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppConnectionQuery, type WhatsAppConnectionState } from '@/features/whatsapp-inbox/useWhatsAppConnection';
 import { WhatsAppConnection } from '@/features/whatsapp-inbox/WhatsAppConnection';
+import { MENSAGEM_DA_PONTE } from '@/features/whatsapp-inbox/bridgeError';
 
 export default function WhatsAppConnectionPage() {
   const { user } = useAuth();
@@ -88,7 +89,7 @@ export default function WhatsAppConnectionPage() {
         <div data-testid="status-details" className="mt-5 space-y-4 text-sm">
           {connected && <><p><strong>Número:</strong> {formatPhone(phone)}</p><div><strong>Empresa:</strong> {editingCompany ? <div className="mt-2 flex max-w-md gap-2"><label className="sr-only" htmlFor="company-name">Nome da empresa</label><Input id="company-name" value={companyDraft} maxLength={80} onChange={event => setCompanyDraft(event.target.value)} /><Button type="button" disabled={!companyDraft.trim() || saveCompany.isPending} onClick={() => saveCompany.mutate()}>Salvar empresa</Button><Button type="button" variant="outline" onClick={() => setEditingCompany(false)}>Cancelar</Button></div> : <>{companyName} <Button type="button" variant="ghost" size="sm" onClick={() => { setCompanyDraft(companyName); setEditingCompany(true); }}>Editar empresa</Button></>}</div>{saveCompany.isError && <p role="alert" className="text-destructive">Não foi possível salvar a empresa.</p>}{connectedAt&&<p className="text-muted-foreground"><strong>Conectado em:</strong> {connectedAt}</p>}</>}
           {connected ? <p className="text-muted-foreground">As mensagens novas aparecem no Inbox após serem recebidas.</p>
-            : <p className="text-muted-foreground">{connectionError ? 'Não foi possível consultar o WhatsApp agora. O estado anterior não foi confirmado.' : state === 'connecting' ? 'Aguardando a confirmação do WhatsApp no celular.' : 'Nenhum dispositivo conectado no momento.'}</p>}
+            : <p className="text-muted-foreground">{connectionError ? (MENSAGEM_DA_PONTE[(connection.error as { codigo?: string } | null)?.codigo ?? ''] ?? 'Não foi possível consultar o WhatsApp agora. O estado anterior não foi confirmado.') : state === 'connecting' ? 'Aguardando a confirmação do WhatsApp no celular.' : 'Nenhum dispositivo conectado no momento.'}</p>}
         </div>
         {connectionError && <Button variant="outline" className="mt-4" onClick={() => void connection.refetch()}>Tentar novamente</Button>}
         {connected && <Button type="button" variant="outline" className="mt-4 border-destructive text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => setConfirmDisconnect(true)}>Desconectar</Button>}

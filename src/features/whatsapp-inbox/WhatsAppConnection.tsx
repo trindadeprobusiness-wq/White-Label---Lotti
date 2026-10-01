@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 import { useWhatsAppConnectionQuery, type WhatsAppConnectionState } from './useWhatsAppConnection';
+import {MENSAGEM_DA_PONTE} from './bridgeError';
 type WhatsAppConnectionProps={autoStart?:boolean;previewPairing?:boolean};
 const previewQr=`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="white"/><path fill="#111827" d="M1 1h7v7H1zm2 2v3h3V3zm10-2h7v7h-7zm2 2v3h3V3zM1 13h7v7H1zm2 2v3h3v-3zm7-14h2v2h-2zm0 4h2v4h-2zm0 6h3v2h-3zm5-1h2v3h-2zm3 1h2v2h-2zm-8 4h2v5h-2zm4 0h2v2h-2zm4 0h2v5h-4v-2h2z"/></svg>')}`;
 export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsAppConnectionProps={}){
@@ -53,7 +54,7 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
        o QR. Tentar de novo precisa refazer o que falhou — repetir o status
        depois de um connect recusado não muda nada e parece defeito. */}
    {startError&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível gerar o QR Code agora. <button className="underline" disabled={starting} onClick={()=>void begin()}>Tentar de novo</button></p>}
-   {connection.isError&&!startError&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível consultar a conexão agora. <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
+   {connection.isError&&!startError&&<p role="alert" className="mt-3 text-sm text-destructive">{MENSAGEM_DA_PONTE[(connection.error as {codigo?:string}|null)?.codigo??'']??'Não foi possível consultar a conexão agora.'} <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
    {expired&&!connected&&<p role="alert" className="mt-3 text-sm text-destructive">O WhatsApp não confirmou a conexão em dois minutos. A tentativa nesta tela foi encerrada. Clique em Conectar WhatsApp para iniciar outra tentativa.</p>}
    {pairing&&!connected&&<div className="mt-5 grid gap-4 sm:grid-cols-[280px_1fr]">
      <div className="grid min-h-56 place-items-center rounded-xl bg-white p-4">{previewPairing?<img className="w-64 max-w-full" src={previewQr} alt="QR Code de demonstração para conectar seu WhatsApp"/>:visibleQr&&visibleQr.expiresAt>now?<img className="w-64 max-w-full" src={visibleQr.src} alt="QR Code atualizado para conectar seu WhatsApp"/>:<p role="status" className="text-center text-sm text-slate-600">{connection.isError?'Código indisponível no momento.':'Preparando QR Code…'}</p>}</div>

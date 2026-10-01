@@ -104,6 +104,14 @@ it('mostra de novo o QR que já espera leitura quando a página abre, sem pedir 
  fireEvent.click(screen.getByText('Cancelar'));await advance(3000);
  expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).toBeNull();
 });
+it('token divergente deixa de ser "indisponível" e passa a dizer o que é',async()=>{
+ // Os dois lados guardam o mesmo segredo e nada os compara. Quando divergem, a
+ // ponte recusa — e a tela dizia apenas que não foi possível consultar.
+ const recusa=Object.assign(new Error('http'),{context:{json:async()=>({error:'bridge_rejected'})}});
+ invoke.mockResolvedValue({data:null,error:recusa});
+ mount();await advance(5000);
+ expect(screen.getByRole('alert').textContent).toContain('credenciais diferentes');
+});
 it('não pede conexão quando o estado não pôde ser consultado',async()=>{
  invoke.mockResolvedValue({data:null,error:new Error('indisponível')});
  mount({autoStart:true});await advance(5000);

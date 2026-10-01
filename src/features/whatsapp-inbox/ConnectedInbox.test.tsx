@@ -455,6 +455,13 @@ it('diz por que a IA parou, em vez de "revisão operacional"', async () => {
   expect(aviso.textContent).not.toContain('revisão operacional');
 });
 
+it('foto aparece como imagem na conversa, não como cartão de arquivo', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm1', direction: 'out', sender: 'human', content: 'fachada.jpg', media_path: 'owner-1/pedido/fachada.jpg', created_at: '2026-10-01T12:00:00Z' }];
+  mount(true);
+  const imagem = await screen.findByAltText('fachada.jpg');
+  expect(imagem.getAttribute('src')).toContain('https://');
+});
+
 it('a pilula ETAPA mostra a etapa do funil do cliente, não um rótulo inventado', async () => {
   // Ela dizia "Em atendimento humano", que não existe em funil nenhum: era só
   // o texto que sobrava quando a IA ainda não tinha qualificado o contato.

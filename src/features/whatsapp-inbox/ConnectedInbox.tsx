@@ -77,6 +77,13 @@ function MessageBody({ message }: { message: Message }) {
   if (message.preview_kind === 'audio') return <p className="text-sm">🎤 {message.content}</p>;
   if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]">{message.content}</p>;
   const extension = message.content.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase();
+  // Foto virava cartão de arquivo, como se fosse planilha: para ver, era preciso
+  // baixar. Com a URL assinada em mãos, ela aparece na conversa.
+  if (url && ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(extension ?? '')) {
+    return <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+      <img src={url} alt={message.content} loading="lazy" className="max-h-72 w-full max-w-[280px] rounded-lg object-cover" />
+    </a>;
+  }
   return <div className="flex min-w-[180px] max-w-full items-center gap-2.5 rounded-lg border border-current/20 bg-white/10 px-3 py-2.5 text-sm">
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/15"><FileText className="h-5 w-5" /></span>
     <span className="min-w-0 flex-1"><span className="block text-[10px] font-medium opacity-75">Arquivo{extension ? ` ${extension}` : ''}</span>
