@@ -132,6 +132,41 @@ export default function Rotina() {
         )}
       />
 
+
+      <RoutineCommandBar
+        userId={user!.id}
+        timezone={context.organization.timezone}
+        clients={clientes.map((client) => ({ id: client.id, label: client.nome }))}
+        properties={imoveis.map((property) => ({ id: property.id, label: property.titulo, location: property.endereco }))}
+        checkConflicts={actions.checkConflicts}
+        onConfirm={(draft) => actions.create.mutateAsync(draft)}
+        onEdit={(draft) => openCreate(draft)}
+      />
+
+      {(briefingEvents.isLoading || tasks.isLoading) ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Skeleton className="h-56 rounded-2xl" />
+          <Skeleton className="h-56 rounded-2xl" />
+          <Skeleton className="h-56 rounded-2xl" />
+        </div>
+      ) : (
+        <RoutineBriefing
+          currentUserName={corretor?.nome}
+          currentUserId={user!.id}
+          events={allEvents}
+          tasks={taskList}
+          members={visibleMembers}
+          clients={clientes}
+          alerts={alertas}
+          inbox={inbox.query.data ?? []}
+          onOpen={openItem}
+          onComplete={(item) => actions.complete.mutateAsync(item)}
+          onCreate={openCreate}
+          onAddInbox={(content) => inbox.add.mutateAsync({ content })}
+          onArchiveInbox={(id) => inbox.archive.mutateAsync(id)}
+        />
+      )}
+
       {calendarEvents.isLoading ? (
         <Skeleton className="h-[620px] rounded-2xl" />
       ) : calendarEvents.isError ? (
@@ -169,40 +204,6 @@ export default function Rotina() {
               patch: { start_at: start.toISOString(), end_at: end.toISOString() },
             });
           }}
-        />
-      )}
-
-      <RoutineCommandBar
-        userId={user!.id}
-        timezone={context.organization.timezone}
-        clients={clientes.map((client) => ({ id: client.id, label: client.nome }))}
-        properties={imoveis.map((property) => ({ id: property.id, label: property.titulo, location: property.endereco }))}
-        checkConflicts={actions.checkConflicts}
-        onConfirm={(draft) => actions.create.mutateAsync(draft)}
-        onEdit={(draft) => openCreate(draft)}
-      />
-
-      {(briefingEvents.isLoading || tasks.isLoading) ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Skeleton className="h-56 rounded-2xl" />
-          <Skeleton className="h-56 rounded-2xl" />
-          <Skeleton className="h-56 rounded-2xl" />
-        </div>
-      ) : (
-        <RoutineBriefing
-          currentUserName={corretor?.nome}
-          currentUserId={user!.id}
-          events={allEvents}
-          tasks={taskList}
-          members={visibleMembers}
-          clients={clientes}
-          alerts={alertas}
-          inbox={inbox.query.data ?? []}
-          onOpen={openItem}
-          onComplete={(item) => actions.complete.mutateAsync(item)}
-          onCreate={openCreate}
-          onAddInbox={(content) => inbox.add.mutateAsync({ content })}
-          onArchiveInbox={(id) => inbox.archive.mutateAsync(id)}
         />
       )}
 
