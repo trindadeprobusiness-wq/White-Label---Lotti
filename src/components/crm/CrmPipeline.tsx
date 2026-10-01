@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   DndContext, DragEndEvent, MouseSensor, TouchSensor,
   DragOverlay, useDraggable, useDroppable, useSensor, useSensors,
@@ -214,7 +214,9 @@ function Coluna({
   );
 }
 
-export function CrmPipeline() {
+/** `extrasDoMenu`: itens que a página acrescenta ao menu do quadro. O quadro
+ *  não conhece as outras seções do funil — quem as conhece é quem o monta. */
+export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {}) {
   const { data: modo } = useModoCrm();
   const { data: etapas, isLoading: carregandoEtapas, refetch: recarregarEtapas } = useEtapas();
   const { data: oportunidades, isLoading: carregandoOps, refetch: recarregarOportunidades } = useOportunidades();
@@ -362,6 +364,7 @@ export function CrmPipeline() {
               <Settings2 className="mr-2 h-4 w-4" />
               Gerenciar etapas
             </DropdownMenuItem>
+            {extrasDoMenu}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
