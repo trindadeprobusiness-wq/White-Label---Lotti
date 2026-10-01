@@ -187,7 +187,7 @@ export function RoutineCommandBar({
       </div>
       <p className="mt-2 px-1 text-[11px] text-muted-foreground">
         Com data, vira compromisso; sem data, fica guardado aqui embaixo. A Lotti
-        sempre mostra uma prévia — nada é criado sem a sua confirmação.
+        sempre mostra uma prévia. Nada é criado sem a sua confirmação.
       </p>
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
 

@@ -81,7 +81,7 @@ const Configuracoes = () => {
   const secaoAberta = SECOES.flatMap((secao) => secao.itens).find((item) => item.valor === abaAtiva);
 
   useEffect(() => {
-    if (abaSolicitada === 'agenda') navigate('/rotina#google-agenda', { replace: true });
+    if (abaSolicitada === 'agenda') navigate('/planejamento#google-agenda', { replace: true });
   }, [abaSolicitada, navigate]);
 
   // React Hook Form with Zod validation

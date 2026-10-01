@@ -37,7 +37,7 @@ const TOURS: TourConfig[] = [
   },
   {
     key: 'rotina',
-    rotas: ['/rotina'],
+    rotas: ['/planejamento'],
     passos: [
       { titulo: 'Seu dia começa pela próxima ação', texto: 'Compromissos, tarefas e follow-ups ficam juntos, com responsável e prazo.' },
       { titulo: 'Google Agenda sem duplicidade', texto: 'Conecte o calendário no fim da página e escolha quais agendas e sentidos deseja sincronizar.' },

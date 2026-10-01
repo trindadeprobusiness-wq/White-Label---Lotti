@@ -21,7 +21,7 @@ afterEach(cleanup);
 
 describe('OnboardingGate — destinos oferecidos pelo próprio onboarding', () => {
   it.each([
-    ['/rotina', 'Conectar Google Agenda (Onboarding.tsx:557)'],
+    ['/planejamento', 'Conectar Google Agenda (Onboarding.tsx:557)'],
     ['/plano', 'Gerenciar assinatura (Onboarding.tsx:589)'],
   ])('%s é alcançável durante o onboarding — %s', (rota) => {
     onboarding.atual = {

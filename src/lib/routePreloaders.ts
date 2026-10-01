@@ -18,7 +18,7 @@ export const crmLoader = () => import('@/pages/CRM');
 
 export const SIDEBAR_ROUTE_LOADERS: Record<string, RouteLoader> = {
   '/': dashboardLoader,
-  '/rotina': rotinaLoader,
+  '/planejamento': rotinaLoader,
   '/whatsapp/conexao': whatsappConnectionLoader,
   '/whatsapp': whatsappLoader,
   '/clientes': clientesLoader,

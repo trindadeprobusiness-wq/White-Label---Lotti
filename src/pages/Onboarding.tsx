@@ -573,7 +573,7 @@ function EtapaConteudo(props: EtapaProps) {
     </div>
     <div className="mt-4 flex flex-col gap-3 rounded-lg border bg-secondary/60 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
       <div><p className="font-medium">Google Agenda é opcional</p><p className="mt-1 text-muted-foreground">Salve primeiro na Lotti e conecte quando quiser sincronizar calendários.</p></div>
-      <Button variant="outline" asChild><Link to="/rotina#google-agenda">Conectar Google Agenda</Link></Button>
+      <Button variant="outline" asChild><Link to="/planejamento#google-agenda">Conectar Google Agenda</Link></Button>
     </div>
     <div className="mt-7 flex justify-end">{botao('Agendar próxima ação', props.onTarefa, !draft.tarefa.titulo.trim() || !draft.tarefa.data)}</div>
   </>;

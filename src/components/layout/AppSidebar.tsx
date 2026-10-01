@@ -61,7 +61,7 @@ function montarGrupos(): GrupoNav[] {
       titulo: 'Operação',
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
-        { label: 'Planejamento', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
+        { label: 'Planejamento', href: '/planejamento', icone: <CalendarCheck2 className={ic} /> },
       ],
     },
     {

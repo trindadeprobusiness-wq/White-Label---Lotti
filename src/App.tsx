@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { destinoDoDesvioDaAgenda } from '@/lib/rotaPlanejamento';
 import { FLAGS } from "@/lib/flags";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Suspense, lazy } from "react";
@@ -38,6 +39,7 @@ import {
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
 const FunilPreview = lazy(() => import('@/pages/dev/FunilPreview'));
+const PlanejamentoPreview = lazy(() => import('@/pages/dev/PlanejamentoPreview'));
 const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
@@ -115,6 +117,12 @@ const PageLoader = () => (
   </div>
 );
 
+/** Desvio do endereço antigo da agenda. A regra está em `lib/rotaPlanejamento`. */
+function RedirecionaParaPlanejamento() {
+  const { search, hash } = useLocation();
+  return <Navigate to={destinoDoDesvioDaAgenda(search, hash)} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -138,10 +146,13 @@ const App = () => (
           <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
           <Route path="/termos-de-uso" element={<TermosUso />} />
 
-          {/* Prévia do funil sem login, só em desenvolvimento: revisar o
-              visual do quadro não pode depender de uma sessão real. */}
+          {/* Prévias sem login, só em desenvolvimento: revisar o visual e medir
+              o desempenho destas telas não pode depender de uma sessão real. */}
           {import.meta.env.DEV && (
-            <Route path="/__previa/funil" element={<FunilPreview />} />
+            <Route path="/__previa">
+              <Route path="funil" element={<FunilPreview />} />
+              <Route path="planejamento" element={<PlanejamentoPreview />} />
+            </Route>
           )}
 
           {/* Experiência protegida em tela própria: não carrega sidebar nem os
@@ -166,7 +177,8 @@ const App = () => (
             </ProtectedRoute>
           }>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/rotina" element={<Rotina />} />
+            <Route path="/planejamento" element={<Rotina />} />
+            <Route path="/rotina" element={<RedirecionaParaPlanejamento />} />
             <Route path="/whatsapp" element={<LiveAgentInbox />} />
             <Route path="/whatsapp/conexao" element={<WhatsAppConnectionPage />} />
             <Route path="/whatsapp/demo" element={<WhatsAppInbox />} />
