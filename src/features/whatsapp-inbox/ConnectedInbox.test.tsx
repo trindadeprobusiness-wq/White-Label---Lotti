@@ -23,7 +23,9 @@ function builder(table: string) {
   const b: Record<string, unknown> = {
     select: (cols: string) => { columns = cols ?? ''; return b; }, order: () => b, limit: () => b, eq: () => b,
     is: (column: string, value: unknown) => { filters.push(column); mockDb.filters.push(`${table}.${column} is ${value}`); return b; },
-    single: () => Promise.resolve({ data: null, error: null }),
+    // Devolvia null sempre, então nenhuma consulta com .single() (a do cliente,
+    // por exemplo) conseguia ser testada com dados.
+    single: () => Promise.resolve({ data: (dataByTable[table] ?? [])[0] ?? null, error: null }),
     then: (resolve: (v: { data: unknown[] | null; error: { code: string } | null }) => unknown) => {
       mockDb.reads[table] = (mockDb.reads[table] ?? 0) + 1;
       const usesNewColumns = columns.includes('contact_name') || filters.length > 0;
@@ -120,7 +122,7 @@ it('organiza nome, telefone, etapa, status e IA no mesmo cabeçalho', async () =
   const header = await screen.findByTestId('conversation-header');
   expect(header.textContent).toContain('Rafael');
   expect(header.textContent).toContain('+55 (11) 99999-0000');
-  expect(header.textContent).toContain('Em qualificação');
+  expect(header.textContent).toContain('Qualificação');
   expect(header.textContent).toContain('Aberta');
   expect(header.textContent).toContain('IA ligada');
   expect(screen.queryByTestId('conversation-stage-bar')).toBeNull();
@@ -443,6 +445,17 @@ it('deixa entrar em filtro vazio, sempre com a saída à vista', async () => {
 
   fireEvent.click(saidas[0]);
   await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
+});
+
+it('a pilula ETAPA mostra a etapa do funil do cliente, não um rótulo inventado', async () => {
+  // Ela dizia "Em atendimento humano", que não existe em funil nenhum: era só
+  // o texto que sobrava quando a IA ainda não tinha qualificado o contato.
+  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
+  dataByTable.clientes = [{ id: 'cliente-1', nome: 'Neves', email: null, telefone: '5511999990000', created_at: '2026-09-20T12:00:00Z', status_funil: 'VISITA_PROPOSTA', tipo_interesse: 'AMBOS' }];
+  mount(true);
+  await screen.findByRole('button', { name: /Neves/ });
+  await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Visita/Proposta'));
+  expect(screen.getByTestId('conversation-stage-pill').textContent).not.toContain('Em atendimento humano');
 });
 
 it('o botão de adicionar ao CRM não existe mais: a conversa já entra sozinha', async () => {
