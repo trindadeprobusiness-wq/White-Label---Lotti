@@ -419,7 +419,6 @@ export function CrmPipeline() {
           >
             {excluir.isPending ? 'Excluindo…' : 'Excluir'}
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setSelecionados(new Set())} className="h-8 px-2.5 text-xs border-primary-foreground/50 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">Limpar seleção</Button>
           <Button type="button" size="icon" variant="ghost" onClick={sairDaSelecao} className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground" aria-label="Cancelar seleção"><X className="h-3.5 w-3.5" /></Button>
         </div>
       )}

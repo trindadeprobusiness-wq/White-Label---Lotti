@@ -644,18 +644,9 @@ export default function FunilVendas({ embedded = false }: { embedded?: boolean }
             </Button>
             <Button
               type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setSelecionados(new Set())}
-              className="h-8 border-primary-foreground/50 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
-            >
-              Limpar seleção
-            </Button>
-            <Button
-              type="button"
               size="icon"
               variant="ghost"
-              onClick={() => setModoSelecao(false)}
+              onClick={() => { setSelecionados(new Set()); setModoSelecao(false); }}
               className="ml-auto h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
               aria-label="Cancelar seleção"
               title="Cancelar seleção"

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
@@ -36,14 +36,11 @@ interface ItemNav {
 
 interface GrupoNav {
   titulo: string;
-  // O grupo é uma linha clicável, não um rótulo miúdo: sem ícone ele não se
-  // lê como algo que se abre, e a lista perde o ritmo dos itens.
-  icone: ReactNode;
   itens: ItemNav[];
 }
 
 const CHAVE_RECOLHIDA = 'lotti:sidebar-recolhida';
-const ic = 'h-4 w-4 shrink-0';
+const ic = 'h-[18px] w-[18px] shrink-0';
 
 /**
  * O back office NÃO aparece aqui, nem para quem é admin.
@@ -62,7 +59,6 @@ function montarGrupos(): GrupoNav[] {
   return [
     {
       titulo: 'Operação',
-      icone: <Home className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
         { label: 'Planejamento', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
@@ -70,7 +66,6 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'WhatsApp',
-      icone: <MessageCircle className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Conversas', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
         // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
@@ -82,14 +77,12 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'Automações',
-      icone: <Send className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Disparos', href: '/automacoes', icone: <Send className={ic} /> },
       ],
     },
     {
       titulo: 'Cadastros',
-      icone: <Users className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
         { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
@@ -98,7 +91,6 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'Gestão',
-      icone: <Wallet className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Financeiro', href: '/financeiro', icone: <Wallet className={ic} /> },
         { label: 'Jurídico', href: '/juridico', icone: <Scale className={ic} /> },
@@ -108,7 +100,6 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'Sistema',
-      icone: <Settings className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Assistente IA', href: '/assistente', icone: <Sparkles className={ic} /> },
         { label: 'Configurações', href: '/configuracoes', icone: <Settings className={ic} /> },
@@ -135,7 +126,7 @@ function ItemMenu({
       onClick={aoNavegar}
       aria-current={ativo ? 'page' : undefined}
       className={cn(
-        'group flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium',
+        'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
         // Mesmo verde dos blocos de ícone (--surface-brand), agora que ele é
@@ -144,7 +135,7 @@ function ItemMenu({
         ativo
           ? cn(
               'relative bg-surface-brand font-semibold text-primary',
-              'before:absolute before:left-0 before:top-1/2 before:h-4 before:w-1',
+              'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
               'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
             )
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -179,12 +170,6 @@ export function ConteudoDaSidebar({
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
-  // Recolhível já foi tentado aqui e revertido, com razão na época: seis
-  // seções curtas que se varrem de relance, e esconder só somava um clique.
-  // O menu cresceu e deixou de caber — passou a ter barra de rolagem própria.
-  // Com os grupos fechados, tudo volta a caber de uma vez, e só o grupo da
-  // rota atual precisa estar aberto.
-  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({});
 
   const itemAtivo = grupos
     .flatMap(grupo => grupo.itens)
@@ -209,38 +194,23 @@ export function ConteudoDaSidebar({
 
       <nav
         className={cn(
-          'flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 pt-2',
+          'flex-1 space-y-6 overflow-y-auto px-3 pb-4 pt-2',
           recolhida && 'px-2 pt-0',
         )}
         aria-label="Navegação principal"
       >
-        {grupos.map((grupo) => {
-          const temAtivo = grupo.itens.some((item) => item.href === itemAtivo);
-          const aberto = gruposAbertos[grupo.titulo] ?? temAtivo;
-          return (
+        {grupos.map((grupo) => (
           <div key={grupo.titulo} role="group" aria-label={`Seção ${grupo.titulo}`}>
             {/* No modo recolhido o rótulo do grupo vira um divisor: o texto
                 não caberia e cortá-lo em "OPE..." não comunica nada. */}
             {recolhida ? (
               <div className="mx-2 mb-2 border-t border-sidebar-border" />
             ) : (
-              <button
-                type="button"
-                onClick={() => setGruposAbertos((atual) => ({ ...atual, [grupo.titulo]: !aberto }))}
-                aria-expanded={aberto}
-                className="flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-left transition-colors hover:bg-sidebar-accent focus-ring"
-              >
-                <span className="shrink-0 text-muted-strong">{grupo.icone}</span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide text-muted-strong">
-                  {grupo.titulo}
-                </span>
-                <ChevronRight
-                  aria-hidden="true"
-                  className={cn('h-4 w-4 shrink-0 text-muted-strong transition-transform duration-150', aberto && 'rotate-90')}
-                />
-              </button>
+              <p className="mb-2 px-3 text-group uppercase text-muted-strong">
+                {grupo.titulo}
+              </p>
             )}
-            <div className={cn('space-y-0.5', !recolhida && (aberto ? 'mb-2 mt-0.5 pl-3' : 'hidden'))}>
+            <div className="space-y-0.5">
               {grupo.itens.map((item) => (
                 <ItemMenu
                   key={item.href}
@@ -252,8 +222,7 @@ export function ConteudoDaSidebar({
               ))}
             </div>
           </div>
-          );
-        })}
+        ))}
       </nav>
 
       <div className="border-t border-sidebar-border p-2.5">
