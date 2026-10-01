@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { addDays, addHours, startOfDay } from 'date-fns';
 import { RoutineCalendar } from '@/components/routine/RoutineCalendar';
+import { RoutineBriefing } from '@/components/routine/RoutineBriefing';
+import { RoutineCommandBar } from '@/components/routine/RoutineCommandBar';
 import type { RoutineEvent, RoutineMember, RoutineScope, RoutineTask, RoutineView } from '@/types/routine';
 
 /**
@@ -49,7 +51,32 @@ export default function PlanejamentoPreview() {
 
   return (
     <div className="min-h-screen bg-secondary">
-      <div className="mx-auto w-full max-w-[1600px] px-5 pb-16 pt-8 md:px-8">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 px-5 pb-16 pt-8 md:px-8">
+        <RoutineBriefing
+          currentUserName="Evandro Lopes"
+          currentUserId="u1"
+          events={[]}
+          tasks={[]}
+          members={[membro]}
+          onOpen={() => {}}
+          onComplete={async () => {}}
+          onCreate={() => {}}
+          comando={(
+            <RoutineCommandBar
+              userId="u1"
+              timezone="America/Sao_Paulo"
+              clients={[]}
+              properties={[]}
+              checkConflicts={async () => []}
+              onConfirm={async () => undefined}
+              onEdit={() => {}}
+              inbox={[]}
+              onAddInbox={async () => undefined}
+              onArchiveInbox={async () => undefined}
+            />
+          )}
+        />
+
         <RoutineCalendar
           view={view}
           onViewChange={setView}

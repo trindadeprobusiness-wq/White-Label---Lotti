@@ -102,7 +102,7 @@ export function RoutineBriefing({
         </span>
       </button>
 
-      {comando && <div className="xl:col-span-2">{comando}</div>}
+      {comando && <div className="xl:col-span-2 [&>*]:h-full">{comando}</div>}
 
       {temTarefas && (
       <Card className="shadow-sm">

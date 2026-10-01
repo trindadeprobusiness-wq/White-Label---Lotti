@@ -155,14 +155,14 @@ export function RoutineCommandBar({
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card className="flex flex-col shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Sparkles className="h-4 w-4 text-primary" />
           Comando da Lotti
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-1 flex-col">
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Bot className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -185,10 +185,6 @@ export function RoutineCommandBar({
           Interpretar
         </Button>
       </div>
-      <p className="mt-2 px-1 text-[11px] text-muted-foreground">
-        Com data, vira compromisso; sem data, fica guardado aqui embaixo. A Lotti
-        sempre mostra uma prévia. Nada é criado sem a sua confirmação.
-      </p>
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
 
       {proposal && (
@@ -305,6 +301,10 @@ export function RoutineCommandBar({
           </div>
         </div>
       )}
+      <p className="mt-auto px-1 pt-3 text-[11px] text-muted-foreground">
+        Com data, vira compromisso; sem data, fica guardado aqui embaixo. A Lotti
+        sempre mostra uma prévia. Nada é criado sem a sua confirmação.
+      </p>
       </CardContent>
     </Card>
   );
