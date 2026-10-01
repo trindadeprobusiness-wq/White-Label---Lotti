@@ -77,6 +77,13 @@ function MessageBody({ message }: { message: Message }) {
   if (message.preview_kind === 'audio') return <p className="text-sm">🎤 {message.content}</p>;
   if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]">{message.content}</p>;
   const extension = message.content.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase();
+  // Foto virava cartão de arquivo, como se fosse planilha: para ver, era preciso
+  // baixar. Com a URL assinada em mãos, ela aparece na conversa.
+  if (url && ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(extension ?? '')) {
+    return <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+      <img src={url} alt={message.content} loading="lazy" className="max-h-72 w-full max-w-[280px] rounded-lg object-cover" />
+    </a>;
+  }
   return <div className="flex min-w-[180px] max-w-full items-center gap-2.5 rounded-lg border border-current/20 bg-white/10 px-3 py-2.5 text-sm">
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/15"><FileText className="h-5 w-5" /></span>
     <span className="min-w-0 flex-1"><span className="block text-[10px] font-medium opacity-75">Arquivo{extension ? ` ${extension}` : ''}</span>
@@ -84,6 +91,16 @@ function MessageBody({ message }: { message: Message }) {
     </span>
   </div>;
 }
+// Cada bloco do painel inventava o seu espaçamento (mt-2.5, mt-4, mt-5) e o seu
+// tamanho de título. Com a remoção dos campos que não funcionavam, o que sobrou
+// ficou sem ritmo. Uma seção só, usada por todos.
+function SecaoPerfil({ titulo, acessorio, children }: { titulo: string; acessorio?: React.ReactNode; children: React.ReactNode }) {
+  return <section className="mt-5 first:mt-0">
+    <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}{acessorio && <span className="ml-auto">{acessorio}</span>}</h3>
+    <div className="mt-2 space-y-2">{children}</div>
+  </section>;
+}
+
 function MessageBubble({ message }: { message: Message }) {
   const outbound = message.direction === 'out';
   return <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-1.5 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'ml-auto rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
@@ -246,8 +263,12 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // Open each conversation at the latest message and follow new ones while the
   // reader is at the bottom; scrolling up to read history is not interrupted.
   const timelineRef = useRef<HTMLDivElement>(null);
-  const followLatest = useRef(true);
-  useEffect(() => { followLatest.current = true; }, [selected?.id]);
+ const followLatest = useRef(true);
+  // Mensagens já enviadas e ainda sem confirmação da ponte. Aparecem na conversa
+  // na hora: esperar três segundos olhando a tela parada era o custo de uma
+  // garantia que vem do request_id, não da espera.
+  const [pendentes, setPendentes] = useState<{ key: string; kind: 'text' | 'file' | 'audio'; content: string; incerto?: boolean }[]>([]);
+  useEffect(() => { followLatest.current = true; setPendentes([]); }, [selected?.id]);
   // Pelo comprimento não serve: a consulta devolve no máximo 200 mensagens, e no
   // teto a mensagem nova entra enquanto a antiga sai. A identidade do último
   // item muda sempre que chega algo, com ou sem corte.
@@ -255,7 +276,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   useLayoutEffect(() => {
     const el = timelineRef.current;
     if (el && followLatest.current) el.scrollTop = el.scrollHeight;
-  }, [selected?.id, ultimoDaLista]);
+  }, [selected?.id, ultimoDaLista, pendentes.length]);
   return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
     <h1 className="sr-only">Inbox</h1>
     {preview && <p className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">Prévia interativa com dados fictícios. Nada é enviado ou salvo; recarregar desfaz as mudanças.</p>}
@@ -341,10 +362,17 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
               ainda disputava espaço com o compositor. */}
           {messages.data?.length === 200 && <p className="pb-2 text-center text-[11px] text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
           {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
+          {pendentes.map(pendente => <article key={pendente.key} data-testid="mensagem-pendente" className="ml-auto w-fit max-w-[78%] rounded-[15px] rounded-tr-[4px] border border-primary/40 bg-primary/10 px-3 py-1.5 text-[14px] leading-[1.4] text-[#10131f]">
+            <p className="mb-1 text-[11px] font-medium text-muted-foreground">Corretor</p>
+            <p className="whitespace-pre-wrap break-words">{pendente.kind === 'audio' ? '🎤 Áudio' : pendente.content}</p>
+            <p className="mt-1 text-right text-[10px] text-muted-foreground">{pendente.incerto ? 'sem confirmação' : 'enviando…'}</p>
+          </article>)}
         </div>
         {connected === true || preview
           ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}
-            {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
+            {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onPending={entrada => setPendentes(atual => [...atual, entrada])}
+              onPendingEnd={(chave, estado) => setPendentes(atual => estado === 'incerto' ? atual.map(item => item.key === chave ? { ...item, incerto: true } : item) : atual.filter(item => item.key !== chave))}
+              onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
           : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
         {filtered.length
@@ -359,12 +387,46 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
         <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
-        <div className="mt-2.5 rounded-xl border bg-secondary/30 p-3"><p className="text-xs font-semibold">{conversationTitle(selected, client.data?.nome)}</p><p className="text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p>{client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}<h3 className="mt-4 flex items-center text-[10px] font-semibold uppercase text-muted-foreground">Resumo do caso <Badge variant="secondary" className="ml-auto gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge></h3><p className="mt-2 rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p></div>
-        <div className="mt-4 space-y-3"><h3 className="text-xs font-semibold uppercase text-muted-foreground">Linha do tempo</h3><p className="text-xs text-primary">Conversou no WhatsApp <span className="block text-muted-foreground">Última atividade: {new Date(selected.updated_at).toLocaleString('pt-BR')}</span></p>{client.data?.created_at && <p className="text-xs text-primary">Lead criado <span className="block text-muted-foreground">{new Date(client.data.created_at).toLocaleString('pt-BR')}</span></p>}</div>
-        <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Qualificação comercial</h3>
-        <div className="flex flex-wrap gap-2"><Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>{q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}{q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}</div>
-        <dl className="space-y-3">{Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="break-words text-sm">{q?.profile?.[key]}</dd></div>)}</dl>
-        {selected?.cliente_id && !preview && <Link className="inline-block text-sm text-primary underline" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
+
+        <div className="mt-3 rounded-xl border bg-secondary/30 p-3">
+          <p className="text-sm font-semibold leading-tight">{conversationTitle(selected, client.data?.nome)}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p>
+          {client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}
+        </div>
+
+        <SecaoPerfil titulo="Resumo do caso" acessorio={<Badge variant="secondary" className="gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge>}>
+          <p className="rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p>
+        </SecaoPerfil>
+
+        <SecaoPerfil titulo="Linha do tempo">
+          {[
+            { titulo: 'Conversou no WhatsApp', quando: selected.updated_at },
+            ...(client.data?.created_at ? [{ titulo: 'Lead criado', quando: client.data.created_at }] : []),
+          ].map((evento, indice, lista) => <div key={evento.titulo} className="relative flex gap-2.5 pb-3 last:pb-0">
+            {indice < lista.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[3px] top-3 w-px bg-border" />}
+            <span aria-hidden="true" className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-primary" />
+            <div className="min-w-0">
+              <strong className="block text-[11px] font-medium leading-tight text-foreground">{evento.titulo}</strong>
+              <time className="text-[11px] text-muted-foreground">{new Date(evento.quando).toLocaleString('pt-BR')}</time>
+            </div>
+          </div>)}
+        </SecaoPerfil>
+
+        <SecaoPerfil titulo="Qualificação comercial">
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>
+            {q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}
+            {q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}
+          </div>
+          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="space-y-2 pt-1">
+            {Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key}>
+              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+              <dd className="break-words text-[13px] leading-snug">{q?.profile?.[key]}</dd>
+            </div>)}
+          </dl>}
+        </SecaoPerfil>
+
+        {selected?.cliente_id && !preview && <Link className="mt-5 flex h-9 w-full items-center justify-center rounded-lg border border-primary text-[12px] font-medium text-primary transition-colors hover:bg-primary/10" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
       </aside>}
     </div>}
     <NewConversationDialog open={newOpen} onOpenChange={setNewOpen} onSubmit={data=>preview?demoStart(data):startConversation.mutate(data)} pending={!preview&&startConversation.isPending} outcome={startOutcome} error={!preview&&startConversation.isError?startErrorText(startConversation.error instanceof Error?startConversation.error.message:''):undefined} />

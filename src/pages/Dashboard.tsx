@@ -89,6 +89,18 @@ export default function Dashboard() {
   // numero do cartao e o deixaria exposto na frase logo ao lado.
   const valoresOcultos = usePrivacidade((s) => s.valoresOcultos);
   const textoAlerta = (m: string) => (valoresOcultos ? mascararValoresNoTexto(m) : m);
+  // Quatro contatos esbarrando no mesmo plano viravam quatro linhas idênticas,
+  // e a tela parecia quatro problemas. É um só, com quatro afetados.
+  const gruposDeAlerta = useMemo(() => {
+    const porTexto = new Map<string, { texto: string; alertas: typeof alertasNaoLidos }>();
+    for (const alerta of alertasNaoLidos) {
+      const texto = textoAlerta(alerta.mensagem);
+      const grupo = porTexto.get(texto) ?? { texto, alertas: [] };
+      grupo.alertas.push(alerta);
+      porTexto.set(texto, grupo);
+    }
+    return [...porTexto.values()];
+  }, [alertasNaoLidos, valoresOcultos]);
 
   const contagemEtapas = useMemo(() => {
     const mapa: Record<string, number> = {};
@@ -203,7 +215,7 @@ export default function Dashboard() {
 
       {alertasNaoLidos.length > 0 && (
         <SectionCard
-          className="mb-5 border-destructive/40 bg-destructive-surface"
+          className="mb-5 border-destructive/25"
           titulo={
             <h2 className="flex items-center gap-2 text-section text-destructive">
               <AlertTriangle className="h-[18px] w-[18px]" />
@@ -211,41 +223,29 @@ export default function Dashboard() {
             </h2>
           }
         >
-          <div className="space-y-2">
-            {alertasNaoLidos.slice(0, 4).map((alerta) => (
-              <div
-                key={alerta.id}
-                className="group flex flex-col gap-2 rounded-lg border border-destructive/20 bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-              >
-                {/* Sem truncate no mobile: numa linha só, a mensagem virava
-                    "Contrato de loc..." e deixava de dizer o que é. Com a
-                    ação embaixo, cabe em duas linhas. */}
-                <p className="min-w-0 flex-1 text-sm font-medium sm:truncate">
-                  {textoAlerta(alerta.mensagem)}
+          <ul className="-my-1">
+            {gruposDeAlerta.slice(0, 4).map((grupo) => {
+              const primeiro = grupo.alertas[0];
+              // Só faz sentido abrir um cliente quando o grupo tem um só.
+              const clienteUnico = grupo.alertas.length === 1 ? primeiro.cliente_id : undefined;
+              return <li key={grupo.texto} className="flex items-center gap-3 border-b border-border/60 py-2 last:border-0">
+                <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" />
+                <p className="min-w-0 flex-1 truncate text-sm">
+                  {grupo.texto}
+                  {grupo.alertas.length > 1 && <span className="ml-2 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">{grupo.alertas.length}</span>}
                 </p>
-                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                  <Button variant="ghost" size="sm" onClick={() => setAlertaSelecionado(alerta)}>
-                    <Eye className="mr-1.5 h-4 w-4" />
-                    Detalhes
+                <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" onClick={() => setAlertaSelecionado(primeiro)}>
+                  <Eye className="mr-1.5 h-4 w-4" />
+                  Detalhes
+                </Button>
+                {clienteUnico && (
+                  <Button variant="ghost" size="sm" className="shrink-0 text-primary" asChild>
+                    <Link to={`/clientes/${clienteUnico}`}>Ver cliente</Link>
                   </Button>
-                  {alerta.cliente_id && (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/clientes/${alerta.cliente_id}`}>Ver cliente</Link>
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                    onClick={() => marcarAlertaLido(alerta.id)}
-                    aria-label={`Dispensar alerta: ${textoAlerta(alerta.mensagem)}`}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+                )}
+              </li>;
+            })}
+          </ul>
         </SectionCard>
       )}
 
