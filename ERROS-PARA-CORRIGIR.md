@@ -2,6 +2,23 @@
 
 Levantado em 2026-10-01, durante o uso real. Cada item traz a causa já diagnosticada, para a correção não precisar redescobrir.
 
+## Situação
+
+| # | Item | Estado |
+|---|---|---|
+| 1 | Envio demora ~3 s | corrigido (envio otimista) |
+| 2 | Painel do perfil desequilibrado | corrigido |
+| 3 | Aviso das 200 mensagens no lugar errado | corrigido |
+| 4 | Pilula "ETAPA" com rótulo inventado | corrigido |
+| 5 | Imagem recebida não aparece como imagem | **parcial** — imagem guardada aparece inline; falta a ponte baixar a mídia recebida |
+| 6 | Quatro causas num 503 só | corrigido |
+| 7 | Token em dois lugares sem conferência | corrigido na leitura: a divergência agora é nomeada na tela |
+| 8 | "IA desligada" sem motivo | corrigido |
+| 9 | Conversa não desce sozinha | corrigido |
+| 10 | "Ações críticas" repetindo a mesma linha, em bloco pesado | corrigido |
+
+O item 5 é o único que depende de trabalho fora desta base: enquanto a ponte não guardar a mídia recebida, não existe arquivo para exibir. O lado da tela já está pronto e passa a funcionar sozinho quando o arquivo aparecer no bucket.
+
 ---
 
 ## 1. Enviar mensagem demora ~3 segundos
@@ -131,3 +148,13 @@ Ele depende do **comprimento** da lista. A consulta devolve no máximo 200 mensa
 - O funil real da conta: Novo lead, Primeiro contato, Em qualificação, Qualificado, Visita agendada, Proposta enviada.
 - Conversa com número passou a entrar no CRM automaticamente em `QUALIFICACAO` (migration `20260930190000`, aplicada em produção).
 - A conta de teste não tem assinatura, o que bloqueia o agente de IA independentemente de configuração.
+
+---
+
+## 10. "Ações críticas" repetia a mesma linha num bloco pesado
+
+**Causa.** Cada contato que esbarra no mesmo problema gera o seu alerta, e a tela listava um por um. Quatro contatos travados pelo mesmo plano viravam quatro linhas idênticas dentro de um painel vermelho preenchido, e a tela passava a impressão de quatro problemas distintos quando era um só, com quatro afetados.
+
+**Conserto.** Alertas com a mesma mensagem passam a ocupar uma linha, com a contagem ao lado. O bloco perde o fundo vermelho e vira lista discreta, com marcador fino e ações sem peso. "Ver cliente" só aparece quando o grupo tem um único cliente — com vários, não há um para abrir.
+
+**Arquivo.** `src/pages/Dashboard.tsx`.

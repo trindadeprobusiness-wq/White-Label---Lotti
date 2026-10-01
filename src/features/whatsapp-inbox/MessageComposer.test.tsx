@@ -88,6 +88,21 @@ it('preserves typed text after sending a file because file captions are not supp
  fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Segue o recibo'}});fireEvent.keyDown(screen.getByLabelText('Mensagem'),{key:'Enter',code:'Enter'});
  await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).value).toBe('Segue o recibo');
 });
+it('anuncia a mensagem como pendente antes de a ponte confirmar',async()=>{
+ let liberar!:(v:unknown)=>void;
+ invoke.mockReturnValue(new Promise(resolve=>{liberar=resolve}));
+ const pendentes:{key:string}[]=[];const encerrados:[string,string][]=[];
+ render(<MessageComposer conversationId="conversation-otimista" onSent={()=>{}}
+   onPending={e=>pendentes.push(e)} onPendingEnd={(k,estado)=>encerrados.push([k,estado])}/>);
+ fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Oi'}});
+ fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
+ // Antes de a ponte responder: já anunciada e o campo já livre para a próxima.
+ await waitFor(()=>expect(pendentes).toHaveLength(1));
+ expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).value).toBe('');
+ expect(encerrados).toHaveLength(0);
+ liberar({data:{sendStatus:'sent'},error:null});
+ await waitFor(()=>expect(encerrados).toEqual([[pendentes[0].key,'enviado']]));
+});
 it('ponte que recusa é falha certa: não vira "confirmação demorou" nem fica pendente',async()=>{
  const recusa=Object.assign(new Error('http'),{context:{json:async()=>({error:'bridge_rejected'})}});
  invoke.mockResolvedValue({data:null,error:recusa});
