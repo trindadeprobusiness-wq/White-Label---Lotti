@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, MoreVertical, Pencil, Trash, Upload, Filter,
-  MessageCircle, Users, ExternalLink, LayoutGrid, List,
+  MessageCircle, Users, ExternalLink, List, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,7 +65,7 @@ function semRetorno(cliente: Cliente, agora = new Date()): boolean {
 }
 
 export default function Clientes() {
-  const { clientes, removeCliente, fetchImoveis } = useCRMStore();
+  const { clientes, removeCliente, updateClienteStatus, fetchImoveis } = useCRMStore();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
@@ -75,6 +75,9 @@ export default function Clientes() {
   const [pagina, setPagina] = useState(1);
   const [visao, setVisao] = useState<'lista' | 'grade'>('lista');
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  // Selecionar não levava a nada: marcava a linha e acabava ali.
+  const [confirmarLote, setConfirmarLote] = useState(false);
+  const [emLote, setEmLote] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clienteToEdit, setClienteToEdit] = useState<Cliente | null>(null);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
@@ -137,6 +140,30 @@ export default function Clientes() {
       });
     }
     setClienteToDelete(null);
+  };
+
+  const moverSelecionados = async (status: StatusFunil) => {
+    setEmLote(true);
+    for (const id of selecionados) await updateClienteStatus(id, status);
+    setEmLote(false);
+    setSelecionados(new Set());
+    toast({ title: `Etapa alterada para ${STATUS_FUNIL_LABELS[status]}.` });
+  };
+
+  const excluirSelecionados = async () => {
+    setEmLote(true);
+    let falhas = 0;
+    // Um a um, para que um cliente com histórico vinculado não derrube o resto.
+    for (const id of selecionados) {
+      const { success } = await removeCliente(id);
+      if (!success) falhas += 1;
+    }
+    setEmLote(false);
+    setConfirmarLote(false);
+    setSelecionados(new Set());
+    toast(falhas
+      ? { variant: 'destructive', title: `${falhas} cliente(s) não puderam ser excluídos.`, description: 'Clientes com histórico ou contratos vinculados são preservados.' }
+      : { title: 'Clientes excluídos.' });
   };
 
   const abas: { valor: AbaCliente; label: string; contagem: number }[] = [
@@ -234,24 +261,6 @@ export default function Clientes() {
           </SelectContent>
         </Select>
 
-        <div className="flex shrink-0 gap-1 rounded-lg border border-border p-1">
-          <Button
-            variant={visao === 'lista' ? 'default' : 'ghost'}
-            size="icon" className="h-9 w-9"
-            onClick={() => setVisao('lista')}
-            aria-label="Ver em lista" aria-pressed={visao === 'lista'}
-          >
-            <List className="h-[18px] w-[18px]" />
-          </Button>
-          <Button
-            variant={visao === 'grade' ? 'default' : 'ghost'}
-            size="icon" className="h-9 w-9"
-            onClick={() => setVisao('grade')}
-            aria-label="Ver em grade" aria-pressed={visao === 'grade'}
-          >
-            <LayoutGrid className="h-[18px] w-[18px]" />
-          </Button>
-        </div>
       </div>
 
       {/* Aviso de concentração: o mesmo número já aparece na aba, mas aqui ele
@@ -270,6 +279,35 @@ export default function Clientes() {
               <ExternalLink className="ml-1.5 h-4 w-4" />
             </Link>
           </Button>
+        </div>
+      )}
+
+      {/* Marcar linhas não levava a nada. Com seleção, aparecem as ações que
+          só fazem sentido em conjunto: mover de etapa e excluir. */}
+      {selecionados.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2">
+          <span className="text-sm font-medium">
+            {selecionados.size} selecionado{selecionados.size > 1 ? 's' : ''}
+          </span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Select disabled={emLote} onValueChange={(v) => void moverSelecionados(v as StatusFunil)}>
+              <SelectTrigger className="h-9 w-[190px]">
+                <SelectValue placeholder="Mover para etapa..." />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_FUNIL_LABELS).map(([valor, rotulo]) => (
+                  <SelectItem key={valor} value={valor}>{rotulo}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" disabled={emLote} className="text-destructive" onClick={() => setConfirmarLote(true)}>
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Excluir
+            </Button>
+            <Button variant="ghost" size="sm" disabled={emLote} onClick={() => setSelecionados(new Set())}>
+              Limpar
+            </Button>
+          </div>
         </div>
       )}
 
@@ -480,6 +518,23 @@ export default function Clientes() {
         onOpenChange={(aberto) => !aberto && setClienteToDelete(null)}
       >
         <AlertDialogContent>
+      <AlertDialog open={confirmarLote} onOpenChange={setConfirmarLote}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selecionados.size} cliente(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Quem tiver histórico ou contratos vinculados é preservado, e você verá quantos ficaram. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={emLote}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={emLote} onClick={(e) => { e.preventDefault(); void excluirSelecionados(); }}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>

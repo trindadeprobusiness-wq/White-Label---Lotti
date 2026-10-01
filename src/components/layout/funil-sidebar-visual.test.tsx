@@ -92,6 +92,18 @@ describe('acabamento visual do funil e da sidebar', () => {
     expect(html.indexOf('>Conexão<')).toBeLessThan(html.indexOf('>Clientes<'));
   });
 
+  it('o Agente de IA não ocupa o menu: é configuração, não operação', () => {
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/whatsapp">
+        <AppSidebar />
+      </StaticRouter>,
+    );
+
+    // Vive em Configurações, junto do que se ajusta uma vez — como no Clix.
+    expect(html).not.toContain('>Agente de IA<');
+    expect(html).toContain('>Disparos<');
+  });
+
   it('marca somente Conexão como ativa na rota de conexão', () => {
     const html = renderToStaticMarkup(
       <StaticRouter location="/whatsapp/conexao">

@@ -18,8 +18,10 @@ import {
   Building2,
   Landmark,
   CreditCard,
+  Bot,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AgentSettingsPage from '@/features/ai-agent/AgentSettingsPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -165,7 +167,7 @@ const Configuracoes = () => {
       </div>
 
       <Tabs defaultValue={abaInicial} className="space-y-6">
-        <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-5">
+        <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-6">
           <TabsTrigger value="perfil" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Perfil
@@ -182,11 +184,21 @@ const Configuracoes = () => {
             <Landmark className="h-4 w-4" />
             Asaas
           </TabsTrigger>
+          <TabsTrigger value="agente" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Agente de IA
+          </TabsTrigger>
           <TabsTrigger value="assinatura" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             Assinatura
           </TabsTrigger>
         </TabsList>
+
+        {/* O agente é configuração, não operação do dia a dia: sai do menu
+            lateral e passa a viver junto do resto que se ajusta uma vez. */}
+        <TabsContent value="agente" className="space-y-6">
+          <AgentSettingsPage embutido />
+        </TabsContent>
 
         {/* Tab Perfil */}
         <TabsContent value="perfil" className="space-y-6">

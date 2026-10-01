@@ -29,6 +29,7 @@ const anteriores = [
   '20260929120000_lotti_conversa_por_chave.sql',
   '20260929130000_lotti_canal_e_optout.sql',
   '20260929140000_duplicidade_ajustes_revisao.sql',
+  '20260930190000_conversa_sempre_no_crm.sql',
 ];
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const user = '11111111-1111-4111-8111-111111111111';
@@ -61,7 +62,7 @@ beforeAll(async () => {
     CREATE TABLE public.plan_entitlements(plan_id uuid, feature_key text, limit_value int, unlimited boolean default false, enabled boolean default true);
     CREATE TABLE public.subscriptions(id uuid primary key default gen_random_uuid(), corretor_id uuid, plan_id uuid, status text, trial_ends_at timestamptz, current_period_end timestamptz, created_at timestamptz default now());
     CREATE TABLE public.usage_counters(corretor_id uuid, feature_key text, used_quantity int, period_start date, period_end date, updated_at timestamptz default now(), unique(corretor_id,feature_key,period_start));
-    CREATE TABLE public.crm_etapas(id uuid primary key, corretor_id uuid not null, nome text);
+    CREATE TABLE public.crm_etapas(id uuid primary key, corretor_id uuid not null, nome text, ordem int not null default 0, tipo text not null default 'ABERTA', ativo boolean not null default true);
     CREATE TABLE public.crm_oportunidades(id uuid primary key default gen_random_uuid(), corretor_id uuid not null, cliente_id uuid, etapa_id uuid not null, titulo text not null, origem text, fechada_em timestamptz, updated_at timestamptz not null default now());
     INSERT INTO corretores VALUES ('${owner}','${user}','Evandro');
   `);
@@ -77,9 +78,13 @@ beforeAll(async () => {
              ('${canalTeste}','${owner}','5562911110013','De teste','ai','open');
     INSERT INTO lotti_agent_conversations(channel_id,corretor_id,phone,lid,contact_name,mode,status)
       VALUES ('${canal}','${owner}',null,'123456789012345','Sem numero','human','open');
+    INSERT INTO crm_etapas(id,corretor_id,nome,ordem,tipo,ativo) VALUES
+      ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1','${owner}','Novo lead',1,'ABERTA',true),
+      ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2','${owner}','Em qualificacao',3,'ABERTA',true),
+      ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3','${owner}','Ganho',9,'GANHO',true);
   `);
   // Só agora a regra nova entra, como entrará em produção.
-  await db.exec(readFileSync(new URL('./20260930190000_conversa_sempre_no_crm.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('./20261001160000_conversa_abre_negocio_em_novo_lead.sql', import.meta.url), 'utf8'));
 }, 60_000);
 afterAll(async () => db?.close());
 
@@ -106,6 +111,33 @@ describe('conversa sempre no CRM', () => {
     const depois = await conversa(`id='${antes.id}'`);
     expect(depois.cliente_id).not.toBeNull();
     expect(await clienteDe(depois.cliente_id)).toMatchObject({ nome: 'Sem numero', status_funil: 'QUALIFICACAO' });
+  });
+
+  it('abre negócio na primeira etapa do funil, que é onde o corretor enxerga', async () => {
+    // O funil lista crm_oportunidades, não clientes: sem negócio, o contato
+    // existia no CRM e o Kanban continuava vazio.
+    const cv = await conversa(`phone='5562911110011'`);
+    const negocio = (await db.query<{ nome: string; titulo: string }>(
+      `select e.nome, o.titulo from crm_oportunidades o join crm_etapas e on e.id=o.etapa_id where o.cliente_id=$1`, [cv.cliente_id])).rows;
+    expect(negocio).toHaveLength(1);
+    expect(negocio[0]).toMatchObject({ nome: 'Novo lead', titulo: 'Felipe' });
+  });
+
+  it('quem já está sendo trabalhado no funil não volta para o começo', async () => {
+    const cv = await conversa(`phone='5562911110011'`);
+    await db.exec(`update crm_oportunidades set etapa_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2' where cliente_id='${cv.cliente_id}'`);
+    // Uma conversa nova do mesmo contato não pode criar um segundo card.
+    await db.exec(`update lotti_agent_conversations set contact_name='Felipe de novo' where id='${cv.id}'`);
+    const negocios = (await db.query<{ nome: string }>(
+      `select e.nome from crm_oportunidades o join crm_etapas e on e.id=o.etapa_id where o.cliente_id=$1`, [cv.cliente_id])).rows;
+    expect(negocios).toHaveLength(1);
+    expect(negocios[0].nome).toBe('Em qualificacao');
+  });
+
+  it('canal de teste não abre negócio nenhum', async () => {
+    const cv = await conversa(`phone='5562911110013'`);
+    expect(cv.cliente_id).toBeNull();
+    expect((await db.query('select 1 from crm_oportunidades')).rows.length).toBeGreaterThan(0);
   });
 
   it('não duplica, nem rebaixa, o cliente que o CRM já tinha com o mesmo telefone', async () => {
