@@ -170,6 +170,12 @@ export function ConteudoDaSidebar({
   const { theme, setTheme } = useTheme();
 
   const grupos = montarGrupos();
+  // Recolhível já foi tentado aqui e revertido, com razão na época: seis
+  // seções curtas que se varrem de relance, e esconder só somava um clique.
+  // O menu cresceu e deixou de caber — passou a ter barra de rolagem própria.
+  // Com os grupos fechados, tudo volta a caber de uma vez, e só o grupo da
+  // rota atual precisa estar aberto.
+  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({});
 
   const itemAtivo = grupos
     .flatMap(grupo => grupo.itens)
@@ -199,18 +205,30 @@ export function ConteudoDaSidebar({
         )}
         aria-label="Navegação principal"
       >
-        {grupos.map((grupo) => (
+        {grupos.map((grupo) => {
+          const temAtivo = grupo.itens.some((item) => item.href === itemAtivo);
+          const aberto = gruposAbertos[grupo.titulo] ?? temAtivo;
+          return (
           <div key={grupo.titulo} role="group" aria-label={`Seção ${grupo.titulo}`}>
             {/* No modo recolhido o rótulo do grupo vira um divisor: o texto
                 não caberia e cortá-lo em "OPE..." não comunica nada. */}
             {recolhida ? (
               <div className="mx-2 mb-2 border-t border-sidebar-border" />
             ) : (
-              <p className="mb-2 px-3 text-group uppercase text-muted-strong">
+              <button
+                type="button"
+                onClick={() => setGruposAbertos((atual) => ({ ...atual, [grupo.titulo]: !aberto }))}
+                aria-expanded={aberto}
+                className="mb-2 flex w-full items-center gap-1.5 rounded-md px-3 py-1 text-group uppercase text-muted-strong transition-colors hover:bg-sidebar-accent focus-ring"
+              >
                 {grupo.titulo}
-              </p>
+                <ChevronRight
+                  aria-hidden="true"
+                  className={cn('ml-auto h-3.5 w-3.5 transition-transform duration-150', aberto && 'rotate-90')}
+                />
+              </button>
             )}
-            <div className="space-y-0.5">
+            <div className={cn('space-y-0.5', !recolhida && !aberto && 'hidden')}>
               {grupo.itens.map((item) => (
                 <ItemMenu
                   key={item.href}
@@ -222,7 +240,8 @@ export function ConteudoDaSidebar({
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="border-t border-sidebar-border p-2.5">

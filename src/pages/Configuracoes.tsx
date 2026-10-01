@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from 'next-themes';
@@ -19,6 +19,8 @@ import {
   Landmark,
   CreditCard,
   Bot,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AgentSettingsPage from '@/features/ai-agent/AgentSettingsPage';
@@ -55,6 +57,24 @@ const Configuracoes = () => {
   const abaSolicitada = searchParams.get('tab');
   const destino = resolverDestinoConfiguracoes(abaSolicitada);
   const abaInicial = destino.tipo === 'aba' ? destino.aba : 'perfil';
+  // Sem seção pedida, a tela abre como índice: cartões agrupados por assunto,
+  // em vez de despejar o formulário de perfil em cima de quem só queria achar
+  // uma coisa. Com ?tab= na URL, vai direto para a seção, como antes.
+  const [abaAtiva, setAbaAtiva] = useState(abaSolicitada ? abaInicial : '');
+  const SECOES = [
+    { grupo: 'Conta', itens: [
+      { valor: 'perfil', icone: User, titulo: 'Perfil', descricao: 'Seus dados, CRECI e endereço comercial.' },
+      { valor: 'assinatura', icone: CreditCard, titulo: 'Assinatura', descricao: 'Plano, cobrança e limites de uso.' },
+    ] },
+    { grupo: 'Preferências', itens: [
+      { valor: 'notificacoes', icone: Bell, titulo: 'Notificações', descricao: 'O que avisa, por onde e quando.' },
+      { valor: 'aparencia', icone: Palette, titulo: 'Aparência', descricao: 'Tema claro, escuro e densidade.' },
+    ] },
+    { grupo: 'Atendimento e integrações', itens: [
+      { valor: 'agente', icone: Bot, titulo: 'Agente de IA', descricao: 'Como a IA atende, qualifica e passa os leads.' },
+      { valor: 'asaas', icone: Landmark, titulo: 'Asaas', descricao: 'Conexão de cobrança e recebimentos.' },
+    ] },
+  ];
 
   useEffect(() => {
     if (abaSolicitada === 'agenda') navigate('/rotina#google-agenda', { replace: true });
@@ -166,7 +186,47 @@ const Configuracoes = () => {
         </p>
       </div>
 
-      <Tabs defaultValue={abaInicial} className="space-y-6">
+      {abaAtiva === '' && (
+        <div className="space-y-6">
+          {SECOES.map((secao) => (
+            <section key={secao.grupo}>
+              <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{secao.grupo}</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {secao.itens.map((item) => (
+                  <button
+                    key={item.valor}
+                    type="button"
+                    onClick={() => setAbaAtiva(item.valor)}
+                    className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                      <item.icone className="h-5 w-5 text-primary" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{item.titulo}</span>
+                      <span className="block text-sm text-muted-foreground">{item.descricao}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {abaAtiva !== '' && (
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('')}
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Todas as configurações
+        </button>
+      )}
+
+      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className={abaAtiva === '' ? 'hidden' : 'space-y-6'}>
         <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-6">
           <TabsTrigger value="perfil" className="flex items-center gap-2">
             <User className="h-4 w-4" />
