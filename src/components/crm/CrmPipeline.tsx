@@ -36,20 +36,7 @@ const moeda = (v: number) => moedaBR(v, true);
  * `ponto` é a bolinha do cabeçalho — o status não pode depender só de cor, e o
  * nome da etapa fica sempre ao lado.
  */
-const CORES: Record<string, { ponto: string; barra: string }> = {
-  slate: { ponto: 'bg-muted-foreground', barra: 'bg-muted-foreground' },
-  sky: { ponto: 'bg-info', barra: 'bg-info' },
-  blue: { ponto: 'bg-info', barra: 'bg-info' },
-  indigo: { ponto: 'bg-info', barra: 'bg-info' },
-  amber: { ponto: 'bg-warning', barra: 'bg-warning' },
-  orange: { ponto: 'bg-doc', barra: 'bg-doc' },
-  violet: { ponto: 'bg-doc', barra: 'bg-doc' },
-  green: { ponto: 'bg-primary', barra: 'bg-primary' },
-  red: { ponto: 'bg-destructive', barra: 'bg-destructive' },
-};
-
-const corDaEtapa = (cor?: string) => CORES[cor ?? 'slate'] ?? CORES.slate;
-const PALETA_HEX: Record<string, string> = { blue: '#2563eb', amber: '#f59e0b', orange: '#f97316', green: '#16a34a', red: '#dc2626', violet: '#7c3aed', slate: '#64748b' };
+const PALETA_HEX: Record<string, string> = { blue: '#2563eb', sky: '#0284c7', indigo: '#4f46e5', amber: '#f59e0b', orange: '#f97316', green: '#16a34a', red: '#dc2626', violet: '#7c3aed', slate: '#64748b' };
 const corParaHex = (cor: string) => PALETA_HEX[cor] ?? PALETA_HEX.slate;
 const hexParaCor = (hex: string) => Object.entries(PALETA_HEX).reduce((melhor, atual) => {
   const distancia = (valor: string) => Math.abs(parseInt(valor.slice(1, 3), 16) - parseInt(hex.slice(1, 3), 16)) + Math.abs(parseInt(valor.slice(3, 5), 16) - parseInt(hex.slice(3, 5), 16)) + Math.abs(parseInt(valor.slice(5, 7), 16) - parseInt(hex.slice(5, 7), 16));
@@ -160,7 +147,7 @@ function Coluna({
   onSelecionarColuna: (ids: string[]) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.etapa.id });
-  const cor = corDaEtapa(coluna.etapa.cor);
+  const cor = corParaHex(coluna.etapa.cor ?? 'slate');
 
   return (
     <div
@@ -185,7 +172,7 @@ function Coluna({
                 {coluna.oportunidades.length > 0 && coluna.oportunidades.every((o) => selecionados.has(o.id)) && <Check className="h-3 w-3" strokeWidth={3} />}
               </button>
             )}
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', cor.ponto)} aria-hidden="true" />
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cor }} aria-hidden="true" />
             <h3 className="truncate text-sm font-semibold text-foreground">{coluna.etapa.nome}</h3>
           </div>
           <Badge variant="secondary" className="h-5 min-w-[2rem] shrink-0 justify-center rounded-full px-2 text-[11px] font-semibold tabular">
@@ -194,9 +181,10 @@ function Coluna({
         </div>
       </div>
 
-      <div className={cn('h-[3px] w-full', cor.barra)} aria-hidden="true" />
+      <div className="h-[3px] w-full" style={{ background: cor }} aria-hidden="true" />
 
-      <div className={cn('flex-1 space-y-2 overflow-y-auto p-2.5', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
+      <div className={cn('flex-1 space-y-2 overflow-y-auto p-2.5',
+            '[scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
         {coluna.oportunidades.map((o) => (
           <Card key={o.id} oportunidade={o} onWhatsApp={onWhatsApp} modoSelecao={modoSelecao} selecionado={selecionados.has(o.id)} onSelecionar={onSelecionar} />
         ))}
@@ -340,7 +328,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar lead, cliente ou imóvel..."
             aria-label="Buscar no pipeline"
-            className="h-9 pl-9 pr-9 text-[13.5px]"
+            className="h-[34px] pl-9 pr-9 text-[13.5px]"
           />
           {busca && (
             <button type="button" onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Limpar busca">
@@ -351,7 +339,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
         {buscaAtiva && <span className="text-xs text-muted-foreground">{oportunidadesVisiveis.length} negócio{ oportunidadesVisiveis.length === 1 ? '' : 's' }</span>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="icon" className="ml-auto h-9 w-9" aria-label="Mais opções do funil">
+            <Button type="button" variant="outline" size="icon" className="ml-auto h-[34px] w-[34px]" aria-label="Mais opções do funil">
               <MoreHorizontal className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -379,7 +367,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
         onDragEnd={aoSoltar}
         onDragCancel={() => setArrastando(null)}
       >
-        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-3 [scrollbar-width:thin]">
+        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-3 [scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]">
           {colunas.map((c) => (
             <Coluna
               key={c.etapa.id}

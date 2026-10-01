@@ -37,6 +37,7 @@ import {
 
 // Páginas carregadas sob demanda (code-splitting por rota): libs pesadas
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
+const FunilPreview = lazy(() => import('@/pages/dev/FunilPreview'));
 const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
@@ -136,6 +137,12 @@ const App = () => (
           <Route path="/diagnostico" element={<CommercialDiagnostic />} />
           <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
           <Route path="/termos-de-uso" element={<TermosUso />} />
+
+          {/* Prévia do funil sem login, só em desenvolvimento: revisar o
+              visual do quadro não pode depender de uma sessão real. */}
+          {import.meta.env.DEV && (
+            <Route path="/__previa/funil" element={<FunilPreview />} />
+          )}
 
           {/* Experiência protegida em tela própria: não carrega sidebar nem os
               dados operacionais antes de a pessoa escolher seu caminho. */}
