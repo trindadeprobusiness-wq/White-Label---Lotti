@@ -49,11 +49,16 @@ describe('CrmPipeline', () => {
     expect(html).toContain('data-drag-overlay');
   });
 
-  it('substitui o filtro pelo menu de ações do funil', () => {
+  // O filtro já tinha sido removido em favor do menu de ações; voltou a pedido
+  // do dono do produto, e agora os dois convivem: o menu é o que se faz com o
+  // quadro, o filtro é o que se enxerga dele.
+  it('traz o filtro de volta, ao lado do menu de ações do funil', () => {
     const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).toContain('Mais opções do funil');
-    expect(html).not.toContain('>Filtros<');
+    expect(html).toContain('Filtros');
+    // Sem nada ligado o botão não anuncia contagem nenhuma.
+    expect(html).not.toContain('aria-label="Filtros ativos"');
   });
 
   it('prepara a barra de ações em lote sem exibir um aviso no quadro', () => {

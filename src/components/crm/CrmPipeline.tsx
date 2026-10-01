@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext, DragEndEvent, MouseSensor, TouchSensor,
   DragOverlay, useDraggable, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
-import { Building2, CalendarClock, Check, Loader2, MessageCircle, MoreHorizontal, RefreshCw, Search, Settings2, SquareCheckBig, Trash2, X } from 'lucide-react';
+import { Building2, CalendarClock, Check, Loader2, MessageCircle, MoreHorizontal, RefreshCw, Search, Settings2, SlidersHorizontal, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,8 +11,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { agruparPorEtapa, filtrarOportunidades } from '@/lib/crm/pipeline';
+import { FILTROS_VAZIOS, PERIODO_LABEL, aplicarFiltros, contarFiltros, type FiltrosFunil, type PeriodoFiltro } from '@/lib/crm/filtros';
 import { useEtapas, useOportunidades, useMoverOportunidade, useExcluirOportunidades, useModoCrm } from '@/hooks/crm/useCrm';
 import type { CrmEtapa, CrmOportunidade, ColunaPipeline } from '@/lib/crm/tipos';
 import { WhatsAppDialog } from './WhatsAppDialog';
@@ -202,9 +206,7 @@ function Coluna({
   );
 }
 
-/** `extrasDoMenu`: itens que a página acrescenta ao menu do quadro. O quadro
- *  não conhece as outras seções do funil — quem as conhece é quem o monta. */
-export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {}) {
+export function CrmPipeline() {
   const { data: modo } = useModoCrm();
   const { data: etapas, isLoading: carregandoEtapas, refetch: recarregarEtapas } = useEtapas();
   const { data: oportunidades, isLoading: carregandoOps, refetch: recarregarOportunidades } = useOportunidades();
@@ -224,6 +226,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
     navegar(destino);
   };
   const [busca, setBusca] = useState('');
+  const [filtros, setFiltros] = useState<FiltrosFunil>(FILTROS_VAZIOS);
   const [modoSelecao, setModoSelecao] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [gerenciarOpen, setGerenciarOpen] = useState(false);
@@ -243,8 +246,10 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
   );
   const oportunidadesVisiveis = useMemo(() => {
     const encontradas = filtrarOportunidades((oportunidades ?? []) as CardOportunidade[], busca);
-    return encontradas;
-  }, [busca, oportunidades]);
+    // A busca corta por texto; o filtro corta por situação. São perguntas
+    // diferentes e se somam.
+    return aplicarFiltros(encontradas, filtros);
+  }, [busca, filtros, oportunidades]);
   const colunas = useMemo(
     () => agruparPorEtapa(etapas ?? [], oportunidadesVisiveis),
     [etapas, oportunidadesVisiveis],
@@ -317,6 +322,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
   if (modo === 'legado') return <FunilVendas embedded />;
 
   const buscaAtiva = busca.trim().length > 0;
+  const filtrosLigados = contarFiltros(filtros);
 
   return (
     <div className="relative flex h-full min-h-[440px] flex-col gap-4">
@@ -336,7 +342,55 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
             </button>
           )}
         </div>
-        {buscaAtiva && <span className="text-xs text-muted-foreground">{oportunidadesVisiveis.length} negócio{ oportunidadesVisiveis.length === 1 ? '' : 's' }</span>}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant={filtrosLigados ? 'default' : 'outline'} className="h-[34px] shrink-0 gap-1.5 px-3.5 text-[13px] font-semibold">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtros
+              {filtrosLigados > 0 && (
+                <span className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary-foreground px-1.5 text-[11px] font-bold tabular text-primary">
+                  {filtrosLigados}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movimentação</Label>
+              <Select value={filtros.periodo} onValueChange={(v) => setFiltros((f) => ({ ...f, periodo: v as PeriodoFiltro }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PERIODO_LABEL) as PeriodoFiltro[]).map((p) => (
+                    <SelectItem key={p} value={p}>{PERIODO_LABEL[p]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {([
+              ['atrasados', 'Só os atrasados', 'Passaram da data prevista e seguem abertos.'],
+              ['comValor', 'Só os com valor', 'Negócio com valor estimado preenchido.'],
+              ['comImovel', 'Só os com imóvel', 'Negócio já ligado a um imóvel.'],
+            ] as const).map(([chave, titulo, ajuda]) => (
+              <div key={chave} className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor={`filtro-${chave}`} className="text-sm font-medium">{titulo}</Label>
+                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{ajuda}</p>
+                </div>
+                <Switch
+                  id={`filtro-${chave}`}
+                  checked={filtros[chave]}
+                  onCheckedChange={(v) => setFiltros((f) => ({ ...f, [chave]: v }))}
+                />
+              </div>
+            ))}
+            {filtrosLigados > 0 && (
+              <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                Limpar filtros
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+        {(buscaAtiva || filtrosLigados > 0) && <span className="text-xs text-muted-foreground">{oportunidadesVisiveis.length} negócio{ oportunidadesVisiveis.length === 1 ? '' : 's' }</span>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="icon" className="ml-auto h-[34px] w-[34px]" aria-label="Mais opções do funil">
@@ -352,7 +406,6 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
               <Settings2 className="mr-2 h-4 w-4" />
               Gerenciar etapas
             </DropdownMenuItem>
-            {extrasDoMenu}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -367,7 +420,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
         onDragEnd={aoSoltar}
         onDragCancel={() => setArrastando(null)}
       >
-        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-3 [scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]">
+        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-2 [scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]">
           {colunas.map((c) => (
             <Coluna
               key={c.etapa.id}
@@ -390,7 +443,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
       {arrastando && <span className="sr-only">Movendo negócio</span>}
 
       {modoSelecao && (
-        <div className="absolute -bottom-14 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-1.5 rounded-xl bg-[#151824] px-2.5 py-1.5 text-xs text-white shadow-xl">
+        <div className="absolute bottom-3 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-1.5 rounded-xl bg-[#151824] px-2.5 py-1.5 text-xs text-white shadow-xl">
           <span className="whitespace-nowrap font-semibold">{selecionados.size} selecionado(s)</span>
           <Select value="" onValueChange={moverSelecionados}>
             <SelectTrigger className="h-8 w-[154px] border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground [&_svg]:text-primary-foreground">
