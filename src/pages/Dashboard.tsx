@@ -83,7 +83,14 @@ export default function Dashboard() {
 
   useEffect(() => { fetchCorretor(); }, [fetchCorretor]);
 
-  const alertasNaoLidos = useMemo(() => alertas.filter((a) => !a.lido), [alertas]);
+  // A tabela alertas tem prioridade, e os alertas do agente entram sem
+  // informá-la — ou seja, BAIXA. A tela mostrava todos como "Ações críticas",
+  // e "contato aguardando porque o plano de IA está indisponível" não é
+  // urgência: é informação. Crítico é o que o corretor perde se não olhar hoje.
+  const alertasNaoLidos = useMemo(
+    () => alertas.filter((a) => !a.lido && (a.prioridade === 'ALTA' || a.prioridade === 'URGENTE')),
+    [alertas],
+  );
   // As acoes criticas repetem a mensagem do alerta, que ja vem do webhook
   // com o valor embutido no texto. Sem isto, o modo privado esconderia o
   // numero do cartao e o deixaria exposto na frase logo ao lado.

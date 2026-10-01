@@ -52,7 +52,7 @@ it('junta alertas repetidos numa linha só, com a contagem', () => {
   // e a tela parecia quatro problemas distintos.
   estado.alertas = Array.from({ length: 4 }, (_, i) => ({
     id: `a${i}`, mensagem: 'Novo contato aguardando atendimento: plano de IA indisponível',
-    lido: false, cliente_id: `cliente-${i}`, created_at: '2026-10-01T12:00:00Z',
+    lido: false, prioridade: 'ALTA', cliente_id: `cliente-${i}`, created_at: '2026-10-01T12:00:00Z',
   })) as never;
   render(<MemoryRouter><Dashboard /></MemoryRouter>);
   expect(screen.getAllByText(/plano de IA indispon/)).toHaveLength(1);

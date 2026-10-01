@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, MoreVertical, Pencil, Trash, Upload, Filter,
-  MessageCircle, Users, ExternalLink, List, Trash2,
+  MessageCircle, Users, ExternalLink, List, Trash2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -305,7 +305,8 @@ export default function Clientes() {
               Excluir
             </Button>
             <Button variant="ghost" size="sm" disabled={emLote} onClick={() => setSelecionados(new Set())}>
-              Limpar
+              <X className="mr-1.5 h-4 w-4" />
+              Cancelar
             </Button>
           </div>
         </div>
