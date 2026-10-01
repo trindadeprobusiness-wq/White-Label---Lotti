@@ -77,4 +77,62 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     expect(html).toContain('Visita no Jardim América');
     expect(html).toContain('Enviar documentos');
   });
+
+  // A tela abria com seis cartões e cinco deles anunciando que não havia nada:
+  // "Tudo em dia", "0 compromissos · 0 tarefas", "Tudo organizado". Uma tela
+  // inteira para dizer que o dia está vazio, com o calendário abaixo da dobra.
+  it('sem nada a dizer, não gasta um cartão para dizer que não há nada', () => {
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
+        members={[member]} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+      />,
+    );
+
+    expect(html).not.toContain('Tarefas que pedem ação');
+    expect(html).not.toContain('Sinais da operação');
+    expect(html).not.toContain('Carga da equipe');
+    // Sobram os dois que servem para agir, não para informar.
+    expect(html).toContain('Próxima ação · Gabri');
+    expect(html).toContain('Caixa de entrada');
+  });
+
+  it('a sugestão vive dentro dos sinais, e não num cartão só dela', () => {
+    const atrasado = { ...task, id: 'task-2' };
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[atrasado]}
+        members={[member]}
+        clients={[{ id: 'c1', nome: 'Anadiana', ultimo_contato: '2026-09-01' } as never]}
+        alerts={[]} inbox={[]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+      />,
+    );
+
+    // Eram dois cartões para o mesmo dado: a sugestão saía de staleClients[0]
+    // e a lista ao lado começava pelo mesmo contato.
+    expect(html).not.toContain('Próxima melhor ação');
+    const sinais = html.indexOf('Sinais da operação');
+    expect(sinais).toBeGreaterThan(-1);
+    expect(html.indexOf('Anadiana', sinais)).toBeGreaterThan(sinais);
+  });
+
+  it('carga da equipe só aparece quando existe equipe', () => {
+    const sozinho = { members: [member], esperado: false };
+    const acompanhado = {
+      members: [member, { ...member, id: 'member-2', user_id: 'user-2', display_name: 'Outra pessoa' }],
+      esperado: true,
+    };
+    for (const { members, esperado } of [sozinho, acompanhado]) {
+      const html = renderToStaticMarkup(
+        <RoutineBriefing
+          currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
+          members={members} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
+          onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+        />,
+      );
+      expect(html.includes('Carga da equipe')).toBe(esperado);
+    }
+  });
 });

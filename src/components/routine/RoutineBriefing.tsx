@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { differenceInDays, format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  AlertCircle, ArrowUpRight, BrainCircuit, CheckCircle2, Circle, Inbox,
+  AlertCircle, ArrowUpRight, BrainCircuit, Circle, Inbox,
   MapPin, MessageSquarePlus, Plus, Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -87,6 +87,9 @@ export function RoutineBriefing({
   }).sort((a, b) => b.total - a.total), [members, tasks, events, now]);
   const maxLoad = Math.max(1, ...teamLoad.map((item) => item.total));
 
+  const temTarefas = overdue.length > 0 || todayTasks.length > 0;
+  const temSinais = importantAlerts.length > 0 || staleClients.length > 0;
+
   const suggestion = overdue.length > 0
     ? `Reorganize ${overdue.length} ${overdue.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'} antes do próximo compromisso.`
     : staleClients.length > 0
@@ -96,11 +99,11 @@ export function RoutineBriefing({
         : 'Sua agenda está leve. Use o bloco livre para prospecção ou organização do funil.';
 
   return (
-    <div className="grid gap-4 xl:grid-cols-12">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <button
         type="button"
         onClick={() => nextEvent ? onOpen(nextEvent) : onCreate()}
-        className="group relative overflow-hidden rounded-2xl bg-[#093323] p-5 text-left text-white shadow-sm outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 xl:col-span-5"
+        className="group relative overflow-hidden rounded-2xl bg-[#093323] p-5 text-left text-white shadow-sm outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <div className="absolute bottom-0 left-6 top-0 w-px bg-white/15" aria-hidden />
         <span className="relative flex items-center justify-between pl-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/65">
@@ -135,7 +138,8 @@ export function RoutineBriefing({
         </span>
       </button>
 
-      <Card className="shadow-sm xl:col-span-4">
+      {temTarefas && (
+      <Card className="shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-sm">
             Tarefas que pedem ação
@@ -160,32 +164,23 @@ export function RoutineBriefing({
               <RoutineCategoryIcon categoryId={task.activity_type} />
             </div>
           ))}
-          {overdue.length === 0 && todayTasks.length === 0 && (
-            <div className="flex flex-col items-center py-6 text-center">
-              <CheckCircle2 className="h-7 w-7 text-primary/35" />
-              <p className="mt-2 text-sm font-medium">Tudo em dia</p>
-              <p className="mt-1 text-xs text-muted-foreground">Nenhuma tarefa vencida ou prevista para hoje.</p>
-            </div>
-          )}
         </CardContent>
       </Card>
+      )}
 
-      <Card className="border-primary/15 bg-surface-brand/40 shadow-sm xl:col-span-3">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm"><BrainCircuit className="h-4 w-4 text-primary" />Próxima melhor ação</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm leading-6">{suggestion}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {overdue.length > 0 && <Badge variant="outline" className="bg-card">{overdue.length} atrasada{overdue.length > 1 ? 's' : ''}</Badge>}
-            {staleClients.length > 0 && <Badge variant="outline" className="bg-card">{staleClients.length} sem retorno</Badge>}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm xl:col-span-4">
+      {temSinais && (
+      <Card className="shadow-sm">
         <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><AlertCircle className="h-4 w-4" />Sinais da operação</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          <div className="rounded-lg border border-primary/15 bg-surface-brand/40 px-3 py-2.5">
+            <p className="flex gap-2 text-xs leading-5"><BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{suggestion}</p>
+            {(overdue.length > 0 || staleClients.length > 0) && (
+              <div className="mt-2 flex flex-wrap gap-2 pl-6">
+                {overdue.length > 0 && <Badge variant="outline" className="bg-card">{overdue.length} atrasada{overdue.length > 1 ? 's' : ''}</Badge>}
+                {staleClients.length > 0 && <Badge variant="outline" className="bg-card">{staleClients.length} sem retorno</Badge>}
+              </div>
+            )}
+          </div>
           {importantAlerts.map((alert) => (
             <div key={alert.id} className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">{alert.mensagem}</div>
           ))}
@@ -195,11 +190,12 @@ export function RoutineBriefing({
               <Badge variant="outline" className="shrink-0">{client.ultimo_contato ? `${differenceInDays(now, new Date(client.ultimo_contato))} dias` : 'sem contato'}</Badge>
             </div>
           ))}
-          {importantAlerts.length === 0 && staleClients.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nenhum alerta crítico agora.</p>}
         </CardContent>
       </Card>
+      )}
 
-      <Card className="shadow-sm xl:col-span-4">
+      {members.length > 1 && (
+      <Card className="shadow-sm">
         <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><Users className="h-4 w-4" />Carga da equipe</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {teamLoad.slice(0, 5).map(({ member, total, openTasks, todayEvents }) => (
@@ -211,11 +207,11 @@ export function RoutineBriefing({
               <Progress value={total / maxLoad * 100} className="h-1.5" />
             </div>
           ))}
-          {members.length === 1 && <p className="py-3 text-xs leading-5 text-muted-foreground">Quando novos membros entrarem na organização, a distribuição de trabalho aparecerá aqui sem expor compromissos privados.</p>}
         </CardContent>
       </Card>
+      )}
 
-      <Card className="shadow-sm xl:col-span-4">
+      <Card className="shadow-sm">
         <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><Inbox className="h-4 w-4" />Caixa de entrada</CardTitle></CardHeader>
         <CardContent>
           <form className="flex gap-2" onSubmit={async (event) => {
