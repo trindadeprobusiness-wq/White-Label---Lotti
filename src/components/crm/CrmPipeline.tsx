@@ -110,9 +110,9 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
           title="Falar no WhatsApp"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onWhatsApp(oportunidade); }}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-opacity hover:opacity-90 focus-ring"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#25D366] text-white transition-opacity hover:opacity-90 focus-ring"
         >
-          <MessageCircle className="h-3 w-3" />
+          <MessageCircle className="h-3.5 w-3.5" />
         </button>
       </div>
       {oportunidade.clientes?.telefone && (

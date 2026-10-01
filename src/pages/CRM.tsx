@@ -50,6 +50,7 @@ export default function CRM() {
     >
       <PageHeader
         titulo="Funil de Vendas"
+        subtitulo="Leads, negócios e follow-up do primeiro contato ao fechamento."
         comBusca={!!aberta}
         className="mb-5 shrink-0"
       />
