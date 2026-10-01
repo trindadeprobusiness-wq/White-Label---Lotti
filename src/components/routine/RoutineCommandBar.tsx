@@ -208,7 +208,7 @@ export function RoutineCommandBar({
             </Button>
           </div>
 
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs text-muted-foreground">Quando</dt>
               <dd className="mt-0.5 font-medium">

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -28,6 +28,7 @@ export function RoutineBriefing({
   onOpen,
   onComplete,
   onCreate,
+  comando,
 }: {
   currentUserName?: string | null;
   currentUserId: string;
@@ -37,6 +38,8 @@ export function RoutineBriefing({
   onOpen: (item: RoutineEvent | RoutineTask) => void;
   onComplete: (item: RoutineEvent | RoutineTask) => Promise<unknown>;
   onCreate: (draft?: Partial<RoutineDraft>) => void;
+  /** Cartão do comando da Lotti, renderizado ao lado da próxima ação. */
+  comando?: ReactNode;
 }) {
   const now = useMemo(() => new Date(), []);
   const myEvents = events.filter((event) => event.assigned_to === currentUserId && event.status !== 'cancelled');
@@ -98,6 +101,8 @@ export function RoutineBriefing({
           <span><strong className="text-white">{visitsToday}</strong> visitas hoje</span>
         </span>
       </button>
+
+      {comando && <div className="xl:col-span-2">{comando}</div>}
 
       {temTarefas && (
       <Card className="shadow-sm">

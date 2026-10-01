@@ -133,19 +133,6 @@ export default function Rotina() {
       />
 
 
-      <RoutineCommandBar
-        userId={user!.id}
-        timezone={context.organization.timezone}
-        clients={clientes.map((client) => ({ id: client.id, label: client.nome }))}
-        properties={imoveis.map((property) => ({ id: property.id, label: property.titulo, location: property.endereco }))}
-        checkConflicts={actions.checkConflicts}
-        onConfirm={(draft) => actions.create.mutateAsync(draft)}
-        onEdit={(draft) => openCreate(draft)}
-        inbox={inbox.query.data ?? []}
-        onAddInbox={(content) => inbox.add.mutateAsync({ content })}
-        onArchiveInbox={(id) => inbox.archive.mutateAsync(id)}
-      />
-
       {(briefingEvents.isLoading || tasks.isLoading) ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Skeleton className="h-56 rounded-2xl" />
@@ -162,11 +149,25 @@ export default function Rotina() {
           onOpen={openItem}
           onComplete={(item) => actions.complete.mutateAsync(item)}
           onCreate={openCreate}
+          comando={(
+            <RoutineCommandBar
+              userId={user!.id}
+              timezone={context.organization.timezone}
+              clients={clientes.map((client) => ({ id: client.id, label: client.nome }))}
+              properties={imoveis.map((property) => ({ id: property.id, label: property.titulo, location: property.endereco }))}
+              checkConflicts={actions.checkConflicts}
+              onConfirm={(draft) => actions.create.mutateAsync(draft)}
+              onEdit={(draft) => openCreate(draft)}
+              inbox={inbox.query.data ?? []}
+              onAddInbox={(content) => inbox.add.mutateAsync({ content })}
+              onArchiveInbox={(id) => inbox.archive.mutateAsync(id)}
+            />
+          )}
         />
       )}
 
       {calendarEvents.isLoading ? (
-        <Skeleton className="h-[620px] rounded-2xl" />
+        <Skeleton className="h-[460px] rounded-2xl" />
       ) : calendarEvents.isError ? (
         <Alert variant="destructive">
           <AlertTitle>Não foi possível carregar a agenda</AlertTitle>

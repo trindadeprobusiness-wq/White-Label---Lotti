@@ -133,4 +133,23 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
       expect(html.includes('Carga da equipe')).toBe(esperado);
     }
   });
+
+  it('o comando entra como cartão ao lado da próxima ação', () => {
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()}
+        comando={<div>CARTAO-DO-COMANDO</div>}
+      />,
+    );
+
+    // Entre o cartão verde e as tarefas: como faixa de largura inteira acima da
+    // grade, ele empurrava para baixo tudo o que interessa.
+    const verde = html.indexOf('Próxima ação · Gabri');
+    const comando = html.indexOf('CARTAO-DO-COMANDO');
+    const tarefas = html.indexOf('Tarefas que pedem ação');
+    expect(verde).toBeLessThan(comando);
+    expect(comando).toBeLessThan(tarefas);
+  });
 });

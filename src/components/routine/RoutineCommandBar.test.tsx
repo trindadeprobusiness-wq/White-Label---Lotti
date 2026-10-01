@@ -23,9 +23,11 @@ const padrao = {
 };
 
 const anotacao = (id: string, content: string): RoutineInboxItem => ({
-  id, content, organization_id: 'org-1', created_by: 'user-1',
-  status: 'open', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-} as RoutineInboxItem);
+  id, content, organization_id: 'org-1', user_id: 'user-1', kind: 'note',
+  attachment_url: null, status: 'unprocessed', extracted_data: {},
+  converted_event_id: null, converted_task_id: null,
+  created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+});
 
 describe('comando da Lotti', () => {
   // A caixa de entrada mudou de componente e a lista chegou aqui como `inbox`.

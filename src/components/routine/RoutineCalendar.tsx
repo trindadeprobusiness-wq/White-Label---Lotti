@@ -20,7 +20,7 @@ import { RoutineCategoryIcon } from './RoutineCategoryIcon';
 
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 21;
-const HOUR_HEIGHT = 72;
+const HOUR_HEIGHT = 48;
 const SNAP_MINUTES = 15;
 
 type RoutineItem = RoutineEvent | RoutineTask;
