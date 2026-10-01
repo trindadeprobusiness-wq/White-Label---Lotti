@@ -22,7 +22,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import AgentSettingsPage from '@/features/ai-agent/AgentSettingsPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -77,6 +77,8 @@ const Configuracoes = () => {
       { valor: 'agente', icone: Bot, titulo: 'Agente de IA', descricao: 'Como a IA atende, qualifica e passa os leads.' },
     ] },
   ];
+
+  const secaoAberta = SECOES.flatMap((secao) => secao.itens).find((item) => item.valor === abaAtiva);
 
   useEffect(() => {
     if (abaSolicitada === 'agenda') navigate('/rotina#google-agenda', { replace: true });
@@ -182,10 +184,27 @@ const Configuracoes = () => {
   return (
     <div className="space-y-6">
       <div>
-        <PageTitle>Configurações</PageTitle>
-        <p className="text-muted-foreground mt-1">
-          Gerencie seu perfil, preferências e integrações da sua operação
-        </p>
+        {secaoAberta ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setAbaAtiva('')}
+              className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Configurações
+            </button>
+            <PageTitle>{secaoAberta.titulo}</PageTitle>
+            <p className="text-muted-foreground mt-1">{secaoAberta.descricao}</p>
+          </>
+        ) : (
+          <>
+            <PageTitle>Configurações</PageTitle>
+            <p className="text-muted-foreground mt-1">
+              Gerencie seu perfil, preferências e integrações da sua operação
+            </p>
+          </>
+        )}
       </div>
 
       {abaAtiva === '' && (
@@ -217,44 +236,8 @@ const Configuracoes = () => {
         </div>
       )}
 
-      {abaAtiva !== '' && (
-        <button
-          type="button"
-          onClick={() => setAbaAtiva('')}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Todas as configurações
-        </button>
-      )}
 
       <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className={abaAtiva === '' ? 'hidden' : 'space-y-6'}>
-        <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-6">
-          <TabsTrigger value="perfil" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Perfil
-          </TabsTrigger>
-          <TabsTrigger value="notificacoes" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notificações
-          </TabsTrigger>
-          <TabsTrigger value="aparencia" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            Aparência
-          </TabsTrigger>
-          <TabsTrigger value="asaas" className="flex items-center gap-2">
-            <Landmark className="h-4 w-4" />
-            Asaas
-          </TabsTrigger>
-          <TabsTrigger value="agente" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Agente de IA
-          </TabsTrigger>
-          <TabsTrigger value="assinatura" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Assinatura
-          </TabsTrigger>
-        </TabsList>
 
         {/* O agente é configuração, não operação do dia a dia: sai do menu
             lateral e passa a viver junto do resto que se ajusta uma vez. */}
