@@ -141,6 +141,9 @@ export default function Rotina() {
         checkConflicts={actions.checkConflicts}
         onConfirm={(draft) => actions.create.mutateAsync(draft)}
         onEdit={(draft) => openCreate(draft)}
+        inbox={inbox.query.data ?? []}
+        onAddInbox={(content) => inbox.add.mutateAsync({ content })}
+        onArchiveInbox={(id) => inbox.archive.mutateAsync(id)}
       />
 
       {(briefingEvents.isLoading || tasks.isLoading) ? (
@@ -156,12 +159,9 @@ export default function Rotina() {
           events={allEvents}
           tasks={taskList}
           members={visibleMembers}
-          inbox={inbox.query.data ?? []}
           onOpen={openItem}
           onComplete={(item) => actions.complete.mutateAsync(item)}
           onCreate={openCreate}
-          onAddInbox={(content) => inbox.add.mutateAsync({ content })}
-          onArchiveInbox={(id) => inbox.archive.mutateAsync(id)}
         />
       )}
 

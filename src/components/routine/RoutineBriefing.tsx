@@ -1,19 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   ArrowUpRight, Circle, Inbox,
-  MapPin, MessageSquarePlus, Plus, Users,
+  MapPin, Plus, Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { getRoutineCategory } from '@/lib/routine/categories';
 import { taskIsOverdue } from '@/lib/routine/calendar';
-import type { RoutineDraft, RoutineEvent, RoutineInboxItem, RoutineMember, RoutineTask } from '@/types/routine';
+import type { RoutineDraft, RoutineEvent, RoutineMember, RoutineTask } from '@/types/routine';
 import { RoutineCategoryIcon } from './RoutineCategoryIcon';
 
 function firstName(name?: string | null) {
@@ -26,27 +25,20 @@ export function RoutineBriefing({
   events,
   tasks,
   members,
-  inbox,
   onOpen,
   onComplete,
   onCreate,
-  onAddInbox,
-  onArchiveInbox,
 }: {
   currentUserName?: string | null;
   currentUserId: string;
   events: RoutineEvent[];
   tasks: RoutineTask[];
   members: RoutineMember[];
-  inbox: RoutineInboxItem[];
   onOpen: (item: RoutineEvent | RoutineTask) => void;
   onComplete: (item: RoutineEvent | RoutineTask) => Promise<unknown>;
   onCreate: (draft?: Partial<RoutineDraft>) => void;
-  onAddInbox: (content: string) => Promise<unknown>;
-  onArchiveInbox: (id: string) => Promise<unknown>;
 }) {
   const now = useMemo(() => new Date(), []);
-  const [note, setNote] = useState('');
   const myEvents = events.filter((event) => event.assigned_to === currentUserId && event.status !== 'cancelled');
   const todayEvents = myEvents.filter((event) => isSameDay(new Date(event.start_at), now));
   const confirmedToday = todayEvents.filter((event) => event.status === 'confirmed').length;
@@ -153,34 +145,6 @@ export function RoutineBriefing({
         </CardContent>
       </Card>
       )}
-
-      <Card className="shadow-sm">
-        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><Inbox className="h-4 w-4" />Caixa de entrada</CardTitle></CardHeader>
-        <CardContent>
-          <form className="flex gap-2" onSubmit={async (event) => {
-            event.preventDefault();
-            if (!note.trim()) return;
-            await onAddInbox(note.trim());
-            setNote('');
-          }}>
-            <Input value={note} onChange={(event) => setNote(event.target.value)} className="h-9 text-xs" placeholder="Ideia, pedido ou tarefa ainda sem data" />
-            <Button size="icon" className="h-9 w-9 shrink-0" disabled={!note.trim()} aria-label="Guardar na caixa de entrada"><MessageSquarePlus className="h-4 w-4" /></Button>
-          </form>
-          <div className="mt-3 space-y-1">
-            {inbox.slice(0, 3).map((item) => (
-              <div key={item.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-accent/60">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                <p className="line-clamp-2 min-w-0 flex-1 text-xs leading-5">{item.content}</p>
-                <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[10px]" onClick={async () => {
-                  onCreate({ kind: 'task', title: item.content, source: 'lotti' });
-                  await onArchiveInbox(item.id);
-                }}>Organizar</Button>
-              </div>
-            ))}
-            {inbox.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">Tudo organizado. Anotações soltas entram aqui.</p>}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

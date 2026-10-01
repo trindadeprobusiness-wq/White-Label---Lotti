@@ -63,17 +63,16 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     expect(html).toContain('aria-label="Visita no Jardim América,');
   });
 
-  it('prioriza próxima ação, tarefas e captura rápida nessa ordem', () => {
+  it('prioriza próxima ação e depois as tarefas do dia', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
         currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
-        members={[member]} inbox={[]} onOpen={vi.fn()}
-        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()} 
       />,
     );
 
     expect(html.indexOf('Próxima ação · Gabri')).toBeLessThan(html.indexOf('Tarefas que pedem ação'));
-    expect(html.indexOf('Tarefas que pedem ação')).toBeLessThan(html.indexOf('Caixa de entrada'));
     expect(html).toContain('Visita no Jardim América');
     expect(html).toContain('Enviar documentos');
   });
@@ -85,17 +84,16 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
         currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
-        members={[member]} inbox={[]} onOpen={vi.fn()}
-        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()} 
       />,
     );
 
     expect(html).not.toContain('Tarefas que pedem ação');
     expect(html).not.toContain('Sinais da operação');
     expect(html).not.toContain('Carga da equipe');
-    // Sobram os dois que servem para agir, não para informar.
+    // Sobra o único que serve para agir, e não para informar.
     expect(html).toContain('Próxima ação · Gabri');
-    expect(html).toContain('Caixa de entrada');
   });
 
   // Quem está sem retorno é pergunta do funil, não da agenda — e o Início já
@@ -105,8 +103,8 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
         currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
-        members={[member]} inbox={[]} onOpen={vi.fn()}
-        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()} 
       />,
     );
 
@@ -128,8 +126,8 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
       const html = renderToStaticMarkup(
         <RoutineBriefing
           currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
-          members={members} inbox={[]} onOpen={vi.fn()}
-          onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+          members={members} onOpen={vi.fn()}
+          onComplete={vi.fn()} onCreate={vi.fn()} 
         />,
       );
       expect(html.includes('Carga da equipe')).toBe(esperado);
