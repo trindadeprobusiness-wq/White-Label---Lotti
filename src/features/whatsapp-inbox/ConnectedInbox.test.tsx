@@ -23,7 +23,9 @@ function builder(table: string) {
   const b: Record<string, unknown> = {
     select: (cols: string) => { columns = cols ?? ''; return b; }, order: () => b, limit: () => b, eq: () => b,
     is: (column: string, value: unknown) => { filters.push(column); mockDb.filters.push(`${table}.${column} is ${value}`); return b; },
-    single: () => Promise.resolve({ data: null, error: null }),
+    // Devolvia null sempre, então nenhuma consulta com .single() (a do cliente,
+    // por exemplo) conseguia ser testada com dados.
+    single: () => Promise.resolve({ data: (dataByTable[table] ?? [])[0] ?? null, error: null }),
     then: (resolve: (v: { data: unknown[] | null; error: { code: string } | null }) => unknown) => {
       mockDb.reads[table] = (mockDb.reads[table] ?? 0) + 1;
       const usesNewColumns = columns.includes('contact_name') || filters.length > 0;
@@ -120,7 +122,7 @@ it('organiza nome, telefone, etapa, status e IA no mesmo cabeçalho', async () =
   const header = await screen.findByTestId('conversation-header');
   expect(header.textContent).toContain('Rafael');
   expect(header.textContent).toContain('+55 (11) 99999-0000');
-  expect(header.textContent).toContain('Em qualificação');
+  expect(header.textContent).toContain('Qualificação');
   expect(header.textContent).toContain('Aberta');
   expect(header.textContent).toContain('IA ligada');
   expect(screen.queryByTestId('conversation-stage-bar')).toBeNull();
@@ -382,6 +384,29 @@ it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async 
   }
 });
 
+it('desce quando a última mensagem muda, com a conversa no teto de 200', async () => {
+  // Cobertura parcial: o jsdom não reproduz de forma confiável a janela que
+  // desliza sem mudar de tamanho, então este teste não distingue o gatilho por
+  // comprimento do gatilho por identidade. Fica como proteção do caminho feliz.
+  const base = Date.parse('2026-09-27T12:00:00Z');
+  const janela = (desloc: number) => Array.from({ length: 200 }, (_, i) => ({
+    id: `m${i + desloc}`, direction: 'in', sender: 'lead', content: `Mensagem ${i + desloc}`,
+    media_path: null, created_at: new Date(base + (i + desloc) * 60000).toISOString(),
+  }));
+  const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  dataByTable.lotti_agent_messages = janela(0);
+  mount(true);
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
+
+  // Zerar a rolagem é o que torna o teste honesto: sem isso o valor antigo
+  // continua lá e passa por certo mesmo quando o efeito não roda.
+  screen.getByTestId('message-timeline').scrollTop = 0;
+  height.mockReturnValue(3000);
+  dataByTable.lotti_agent_messages = janela(1);
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(3000), { timeout: 5000 });
+  height.mockRestore();
+});
+
 it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () => {
   const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
   dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, direction: i % 2 ? 'out' : 'in', sender: i % 2 ? 'human' : 'lead', content: `Mensagem ${i}`, media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString() }));
@@ -420,6 +445,25 @@ it('deixa entrar em filtro vazio, sempre com a saída à vista', async () => {
 
   fireEvent.click(saidas[0]);
   await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
+});
+
+it('diz por que a IA parou, em vez de "revisão operacional"', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves', last_error: 'no_active_entitlement' })];
+  mount(true);
+  const aviso = await screen.findByTestId('motivo-da-parada');
+  expect(aviso.textContent).toContain('não tem plano ativo');
+  expect(aviso.textContent).not.toContain('revisão operacional');
+});
+
+it('a pilula ETAPA mostra a etapa do funil do cliente, não um rótulo inventado', async () => {
+  // Ela dizia "Em atendimento humano", que não existe em funil nenhum: era só
+  // o texto que sobrava quando a IA ainda não tinha qualificado o contato.
+  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
+  dataByTable.clientes = [{ id: 'cliente-1', nome: 'Neves', email: null, telefone: '5511999990000', created_at: '2026-09-20T12:00:00Z', status_funil: 'VISITA_PROPOSTA', tipo_interesse: 'AMBOS' }];
+  mount(true);
+  await screen.findByRole('button', { name: /Neves/ });
+  await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Visita/Proposta'));
+  expect(screen.getByTestId('conversation-stage-pill').textContent).not.toContain('Em atendimento humano');
 });
 
 it('o botão de adicionar ao CRM não existe mais: a conversa já entra sozinha', async () => {

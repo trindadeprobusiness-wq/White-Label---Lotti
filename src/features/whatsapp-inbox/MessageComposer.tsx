@@ -3,6 +3,15 @@ import {supabase} from '@/integrations/supabase/client';
 import {Button} from '@/components/ui/button';
 import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
 import {safeAttachmentName,validateAttachment} from './attachments';
+// A função distingue ponte inalcançável de ponte que recusou. O primeiro caso é
+// incerto e pede conferência antes de reenviar; o segundo não saiu, e insistir
+// que "a confirmação demorou" faz o corretor temer duplicar o que nunca foi.
+const FALHA_CERTA=['bridge_rejected','bridge_not_configured','bridge_bad_state'];
+async function codigoDoErro(error:unknown){
+ const contexto=(error as {context?:{json?:()=>Promise<unknown>}})?.context;
+ if(typeof contexto?.json!=='function')return undefined;
+ try{return ((await contexto.json()) as {error?:string})?.error}catch{return undefined}
+}
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
 type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void};
 export function MessageComposer({conversationId,onSent,preview:previewMode=false,onPreviewSend}:Props){
@@ -62,11 +71,18 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
    }
    const {data,error}=await supabase.functions.invoke('lotti-whatsapp',{body:pending.current});
    if(!alive.current)return;
-   if(error||!data)throw Error('unknown');
+   if(error||!data)throw error??Error('unknown');
    if(data.sendStatus==='sent'){pending.current=undefined;if(!attachment)setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');onSent();}
    else if(['failed','busy'].includes(data.sendStatus)){pending.current=undefined;setNotice(data.sendStatus==='busy'?'Há uma entrega em andamento. Aguarde antes de enviar.':'Não foi enviado. Verifique a conexão e tente novamente.');}
    else setNotice('Envio sem confirmação. Confira no WhatsApp antes de tentar uma nova mensagem.');
-  }catch{if(alive.current)setNotice('A confirmação demorou. Use Verificar envio para consultar sem duplicar a mensagem.');}
+  }catch(error){
+   if(!alive.current)return;
+   if(FALHA_CERTA.includes(await codigoDoErro(error)??'')){
+    // Não saiu: não deixar a mensagem pendurada em "Verificar envio".
+    pending.current=undefined;
+    setNotice('Não foi enviado: a conexão com o WhatsApp está com problema. Veja a página de Conexão e tente de novo.');
+   } else setNotice('A confirmação demorou. Use Verificar envio para consultar sem duplicar a mensagem.');
+  }
   finally{if(alive.current)setBusy(false);}
  }
  const locked=busy||!!pending.current;

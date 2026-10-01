@@ -26,7 +26,9 @@ Deno.serve(async req=>{
    // A missing table or row (migration not applied yet) falls back to the secret.
    const {data:bridge}=await db.from('lotti_agent_bridge_endpoint').select('host').maybeSingle();
    const url=resolveBridgeUrl(Deno.env.get('LOTTI_CHANNEL_BRIDGE_URL'),bridge?.host),secret=Deno.env.get('LOTTI_CHANNEL_BRIDGE_TOKEN');
-   if(!url||!secret)return json({error:'connection_service_unavailable'},503);
+   // Quatro causas distintas devolviam o mesmo 503, e separá-las é a diferença
+   // entre ler o erro e caçar hipóteses por horas.
+   if(!url||!secret)return json({error:'bridge_not_configured'},503);
    let bridgeBody:Record<string,unknown>={action:body.action,corretor_id:owner.id,...(body.action==='send'?{conversation_id:body.conversation_id,request_id:body.request_id,kind:body.kind,text:body.text,audio:body.audio,mime:body.mime,name:body.name,size:body.size,storage_path:body.storage_path}:{})};
    let conversationId:string|undefined;
    if(body.action==='start'){
@@ -39,12 +41,12 @@ Deno.serve(async req=>{
    let response:Response;
    try{response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-lotti-connect':secret,'ngrok-skip-browser-warning':'1'},body:JSON.stringify(bridgeBody),signal:AbortSignal.timeout(25000)});}
    catch{const failure=bridgeUnreachable(body.action,conversationId);return json(failure.body,failure.status);}
-   if(!response.ok)return json({error:'connection_service_unavailable'},503);
+   if(!response.ok)return json({error:'bridge_rejected',upstream:response.status},503);
    const result=await response.json();
    if(body.action==='send'||body.action==='start')return ['sent','sending','uncertain','failed','busy'].includes(result.sendStatus)?json({sendStatus:result.sendStatus,...(conversationId?{conversationId}:{})}):json({error:'send_unavailable'},503);
-   if(!['connected','connecting','disconnected'].includes(result.state))return json({error:'connection_service_unavailable'},503);
+   if(!['connected','connecting','disconnected'].includes(result.state))return json({error:'bridge_bad_state'},503);
    const phone=sanitizeConnectionPhone(result.phone??result.ownerJid);
    const connectedAt=sanitizeConnectionTimestamp(result.connectedAt);
    return json({state:result.state,agentEnabled:result.agentEnabled===true,...(phone?{phone}:{}),...(connectedAt?{connectedAt}:{}),...(typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?{qr:result.qr,qrExpiresAt:result.qrExpiresAt,qrGeneration:result.qrGeneration}:{})});
- }catch{return json({error:'connection_service_unavailable'},503);}
+ }catch{return json({error:'bridge_failed'},503);}
 });

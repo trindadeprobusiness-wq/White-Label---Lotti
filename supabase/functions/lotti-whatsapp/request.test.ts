@@ -42,8 +42,8 @@ describe('ponte sem resposta', () => {
   });
   it('nas demais ações, e em start sem conversa, continua indisponível', () => {
     for (const action of ['send', 'status', 'connect'])
-      expect(bridgeUnreachable(action, 'conversation-1')).toEqual({ status: 503, body: { error: 'connection_service_unavailable' } });
-    expect(bridgeUnreachable('start')).toEqual({ status: 503, body: { error: 'connection_service_unavailable' } });
+      expect(bridgeUnreachable(action, 'conversation-1')).toEqual({ status: 503, body: { error: 'bridge_unreachable' } });
+    expect(bridgeUnreachable('start')).toEqual({ status: 503, body: { error: 'bridge_unreachable' } });
   });
 });
 

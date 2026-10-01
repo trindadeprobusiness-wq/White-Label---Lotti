@@ -88,6 +88,16 @@ it('preserves typed text after sending a file because file captions are not supp
  fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}});fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Segue o recibo'}});fireEvent.keyDown(screen.getByLabelText('Mensagem'),{key:'Enter',code:'Enter'});
  await waitFor(()=>expect(invoke).toHaveBeenCalledTimes(2));expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).value).toBe('Segue o recibo');
 });
+it('ponte que recusa é falha certa: não vira "confirmação demorou" nem fica pendente',async()=>{
+ const recusa=Object.assign(new Error('http'),{context:{json:async()=>({error:'bridge_rejected'})}});
+ invoke.mockResolvedValue({data:null,error:recusa});
+ render(<MessageComposer conversationId="conversation-recusa" onSent={()=>{}}/>);
+ fireEvent.change(screen.getByLabelText('Mensagem'),{target:{value:'Oi'}});
+ fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
+ expect(await screen.findByText(/Não foi enviado/)).not.toBeNull();
+ // Como não saiu, o compositor não pode exigir "Verificar envio" antes de escrever.
+ expect(screen.queryByRole('button',{name:'Verificar envio'})).toBeNull();
+});
 it('offers a retry instead of a reload when the browser blocks the microphone',async()=>{
  const getUserMedia=vi.fn().mockRejectedValue(new DOMException('denied','NotAllowedError'));
  Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia}});

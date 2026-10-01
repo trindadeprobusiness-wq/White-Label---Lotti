@@ -55,7 +55,7 @@ export function resolveBridgeUrl(secretUrl:string|undefined,registeredHost:unkno
 // 'uncertain' opens the conversation and the screen keeps the same request_id.
 export function bridgeUnreachable(action:unknown,conversationId?:string):{status:number;body:Record<string,unknown>}{
  if(action==='start'&&conversationId)return {status:200,body:{sendStatus:'uncertain',conversationId}};
- return {status:503,body:{error:'connection_service_unavailable'}};
+ return {status:503,body:{error:'bridge_unreachable'}};
 }
 
 // Refusals of lotti_inbox_start_conversation the screen can explain; anything else
