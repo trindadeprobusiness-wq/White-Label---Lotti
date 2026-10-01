@@ -71,7 +71,7 @@ it('prévia permite ligar/desligar IA sem consultar nem alterar o backend', asyn
   expect(previewInvoke).not.toHaveBeenCalled();
 });
 
-it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só na tela', async () => {
+it('prévia permite editar contato e fechar só na tela', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Editar nome' }));
@@ -82,14 +82,6 @@ it('prévia permite editar contato, fechar, atribuir, adicionar tag e nota só n
   fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
   expect(await screen.findByRole('button', { name: 'Fechada' })).not.toBeNull();
   expect(await screen.findByText(/Conversa fechada por Corretor/)).not.toBeNull();
-  fireEvent.change(screen.getByLabelText('Atribuição'), { target: { value: 'Equipe' } });
-  expect((screen.getByLabelText('Atribuição') as HTMLSelectElement).value).toBe('Equipe');
-  fireEvent.change(screen.getByLabelText('Adicionar tag'), { target: { value: 'Comprador' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Salvar tag' }));
-  expect(screen.getByText('Comprador')).not.toBeNull();
-  fireEvent.change(screen.getByLabelText('Nota interna'), { target: { value: 'Prefere imóvel no Centro.' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Adicionar nota' }));
-  expect(screen.getByText('Prefere imóvel no Centro.')).not.toBeNull();
   expect(mockDb.reads).toEqual({});
   expect(previewRpc).not.toHaveBeenCalled();
   expect(previewInvoke).not.toHaveBeenCalled();
@@ -302,9 +294,11 @@ it('reproduz a hierarquia do Clix com cabeçalho compacto e painel de perfil', a
   expect(screen.getByTestId('conversation-header')).not.toBeNull();
   expect(screen.getByTestId('conversation-stage-pill')).not.toBeNull();
   expect(screen.getByRole('heading', { name: /Resumo do caso/ })).not.toBeNull();
-  expect(screen.getByRole('heading', { name: 'Atribuição' })).not.toBeNull();
-  expect(screen.getByRole('heading', { name: 'Tags' })).not.toBeNull();
-  expect(screen.getByRole('heading', { name: 'Notas internas' })).not.toBeNull();
+  // Atribuição, Tags e Notas internas saíram do perfil: só respondiam na
+  // demonstração e ficavam inertes no uso real, prometendo o que não faziam.
+  expect(screen.queryByRole('heading', { name: 'Atribuição' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Tags' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Notas internas' })).toBeNull();
 });
 
 it('mantém a densidade compacta da referência do Clix', async () => {
@@ -397,15 +391,23 @@ it('abre a conversa rolada até a última mensagem, como no WhatsApp', async () 
   height.mockRestore();
 });
 
-it('não deixa entrar em filtro vazio, e oferece saída quando a lista fica sem nada', async () => {
-  // Com uma conversa recente, Atrasando e Urgente contam zero. Clicar neles
-  // levava a uma lista vazia com "Selecione uma conversa" ao lado — sem volta.
+it('deixa entrar em filtro vazio, sempre com a saída à vista', async () => {
+  // Com uma conversa recente, Atrasando e Urgente contam zero. Desabilitá-los
+  // aí fazia o corretor ler defeito onde só havia fila vazia. Clicar é
+  // permitido; o que não pode é ficar sem volta, e a saída já existe.
   mountConectado();
 
   const atrasando = await screen.findByRole('button', { name: /Atrasando: 0 conversas/ });
   const urgente = screen.getByRole('button', { name: /Urgente: 0 conversas/ });
-  expect(atrasando.hasAttribute('disabled')).toBe(true);
-  expect(urgente.hasAttribute('disabled')).toBe(true);
+  expect(atrasando.hasAttribute('disabled')).toBe(false);
+  expect(urgente.hasAttribute('disabled')).toBe(false);
+
+  fireEvent.click(atrasando);
+  const doAtalho = await screen.findAllByRole('button', { name: 'Ver todas as conversas' });
+  expect(doAtalho.length).toBeGreaterThan(0);
+  expect(screen.queryByText('Selecione uma conversa')).toBeNull();
+  fireEvent.click(doAtalho[0]);
+  await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
 
   // Pela busca ainda é possível zerar a lista; aí precisa existir a saída.
   fireEvent.change(screen.getByRole('textbox', { name: 'Buscar conversas' }), {
@@ -420,70 +422,30 @@ it('não deixa entrar em filtro vazio, e oferece saída quando a lista fica sem 
   await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
 });
 
-it('conversa sem cliente vinculado entra no CRM com um clique e o botão some', async () => {
+it('o botão de adicionar ao CRM não existe mais: a conversa já entra sozinha', async () => {
+  // A ligação virou invariante do banco (20260930190000): conversa com número
+  // nasce com cliente em "Em qualificação". Um botão aqui só repetiria isso,
+  // e repetia mal — era preciso lembrar de clicar, conversa por conversa.
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
-  mount(true);
-  const button = await screen.findByRole('button', { name: 'Adicionar ao CRM' });
-  expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Sem cliente vinculado');
-  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves', cliente_id: 'cliente-1' })];
-  fireEvent.click(button);
-  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_add_to_crm', { p_conversation: 'c1' }));
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull());
-  expect(screen.queryByRole('alert')).toBeNull();
-});
-
-it('explica quando não foi possível adicionar ao CRM', async () => {
-  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
-  mockDb.rpcError = { message: 'phone_required' };
-  mount(true);
-  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('ainda não revelou o número');
-  mockDb.rpcError = { message: 'boom' };
-  fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao CRM' }));
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Não foi possível adicionar ao CRM'));
-});
-
-it('número oculto: o botão espera o WhatsApp revelar o número e diz isso na tela', async () => {
-  dataByTable.lotti_agent_conversations = [conversationFixture({ phone: null, lid: '123456789012345', contact_name: 'Paula' })];
-  mount(true);
-  const button = await screen.findByRole('button', { name: 'Adicionar ao CRM' });
-  expect(button.hasAttribute('disabled')).toBe(true);
-  expect(screen.getByText('Aguardando o número do WhatsApp')).not.toBeNull();
-  expect(button.getAttribute('aria-describedby')).toBe('crm-waiting-phone');
-});
-
-it('conversa que já é cliente não mostra o botão', async () => {
-  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
   mount(true);
   await screen.findByRole('button', { name: /Neves/ });
   expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull();
-});
-
-it('depois de adicionar ao CRM, atualiza a lista de clientes do CRM', async () => {
-  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' })];
-  mount(true);
-  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
-  await waitFor(() => expect(mockDb.reads.clientes ?? 0).toBeGreaterThan(0));
-});
-
-it('o erro ao adicionar uma conversa não aparece em outra conversa', async () => {
-  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves' }), conversationFixture({ id: 'c2', phone: '5511888880000', contact_name: 'Ana' })];
-  mockDb.rpcError = { message: 'boom' };
-  mount(true);
-  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
-  await screen.findByRole('alert');
-  fireEvent.click(screen.getByRole('button', { name: /Ana/ }));
-  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
-  expect(screen.getByRole('button', { name: 'Adicionar ao CRM' }).hasAttribute('disabled')).toBe(false);
-});
-
-it('na prévia, adicionar ao CRM não chama o banco nem mostra link de cadastro', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
-  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar ao CRM' }));
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull());
   expect(previewRpc).not.toHaveBeenCalledWith('lotti_inbox_add_to_crm', expect.anything());
-  expect(screen.queryByText('Abrir cadastro do cliente')).toBeNull();
+});
+
+it('número oculto: a conversa diz que espera o número, sem botão morto', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ phone: null, lid: '123456789012345', contact_name: 'Paula' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Paula/ });
+  expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Sem cliente vinculado');
+  expect(screen.queryByRole('button', { name: 'Adicionar ao CRM' })).toBeNull();
+});
+
+it('conversa que já é cliente oferece o cadastro', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
+  mount(true);
+  await screen.findByRole('button', { name: /Neves/ });
+  expect(screen.getByRole('link', { name: 'Abrir cadastro do cliente' })).not.toBeNull();
 });
 
 const OTHER = '0b7c3c9e-4a8f-4a45-9f0e-0f3f1c2d3e4f';
