@@ -8,6 +8,11 @@ describe('visibilidade do assistente flutuante', () => {
     expect(shouldShowAIChatWidget('/clientes')).toBe(true);
   });
 
+  it('fica fora do funil, onde o quadro ocupa a tela até a borda de baixo', () => {
+    expect(shouldShowAIChatWidget('/crm')).toBe(false);
+    expect(shouldShowAIChatWidget('/funil')).toBe(false);
+  });
+
   it('fica fora da tela inicial, que já lista o que fazer agora', () => {
     expect(shouldShowAIChatWidget('/')).toBe(false);
     // A regra é a rota exata: uma rota que apenas comece com barra continua com o botão.

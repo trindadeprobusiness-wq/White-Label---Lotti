@@ -7,6 +7,7 @@ import { CrmTarefas } from '@/components/crm/CrmTarefas';
 import { useLeadsPendentes } from '@/hooks/crm/useCrm';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { cn } from '@/lib/utils';
 
 /**
  * Funil de Vendas — reúne num lugar só o que estava espalhado (contato, funil,
@@ -35,11 +36,23 @@ export default function CRM() {
   const aberta = secao ? SECOES[secao] : null;
 
   return (
-    <div className="animate-fade-in">
+    /* Um painel branco sobre o fundo da área de trabalho, com o funil inteiro
+       dentro dele. Com o quadro solto na página, as colunas flutuavam sem
+       moldura e a tela não tinha onde terminar.
+       No Kanban a altura é a da janela: o quadro desce até a borda de baixo e
+       rola por dentro, em vez de deixar uma faixa morta abaixo das colunas.
+       Nas outras seções, que são listas, a altura volta a ser a do conteúdo. */
+    <div
+      className={cn(
+        'animate-fade-in flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6',
+        !aberta && 'md:h-[calc(100dvh-6rem)]',
+      )}
+    >
       <PageHeader
         titulo="Funil de Vendas"
         subtitulo="Leads, negócios e follow-up do primeiro contato ao fechamento."
         comBusca={!!aberta}
+        className="mb-5 shrink-0"
       />
 
       {aberta ? (
@@ -56,25 +69,27 @@ export default function CRM() {
           {aberta.conteudo}
         </div>
       ) : (
-        <CrmPipeline
-          extrasDoMenu={
-            <>
-              <DropdownMenuSeparator />
-              {(Object.keys(SECOES) as Secao[]).map((chave) => {
-                const { titulo, icone: Icone } = SECOES[chave];
-                return (
-                  <DropdownMenuItem key={chave} onSelect={() => setSecao(chave)}>
-                    <Icone className="mr-2 h-4 w-4" />
-                    {titulo}
-                    {chave === 'leads' && pendentes > 0 && (
-                      <span className="ml-auto text-xs text-muted-foreground tabular">{pendentes}</span>
-                    )}
-                  </DropdownMenuItem>
-                );
-              })}
-            </>
-          }
-        />
+        <div className="min-h-0 flex-1">
+          <CrmPipeline
+            extrasDoMenu={
+              <>
+                <DropdownMenuSeparator />
+                {(Object.keys(SECOES) as Secao[]).map((chave) => {
+                  const { titulo, icone: Icone } = SECOES[chave];
+                  return (
+                    <DropdownMenuItem key={chave} onSelect={() => setSecao(chave)}>
+                      <Icone className="mr-2 h-4 w-4" />
+                      {titulo}
+                      {chave === 'leads' && pendentes > 0 && (
+                        <span className="ml-auto text-xs text-muted-foreground tabular">{pendentes}</span>
+                      )}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </>
+            }
+          />
+        </div>
       )}
     </div>
   );

@@ -331,7 +331,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
   const buscaAtiva = busca.trim().length > 0;
 
   return (
-    <div className="relative flex h-[calc(100vh-15rem)] min-h-[440px] flex-col gap-4">
+    <div className="relative flex h-full min-h-[440px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[min(100%,18rem)] flex-1 sm:max-w-[20rem]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
