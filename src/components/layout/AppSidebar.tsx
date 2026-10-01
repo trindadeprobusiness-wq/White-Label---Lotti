@@ -61,7 +61,7 @@ function montarGrupos(): GrupoNav[] {
       titulo: 'Operação',
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
-        { label: 'Planejamento', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
+        { label: 'Planejamento', href: '/planejamento', icone: <CalendarCheck2 className={ic} /> },
       ],
     },
     {
@@ -268,13 +268,13 @@ export function ConteudoDaSidebar({
              diário escondidas atrás de um menu que ninguém abria. */
           /* Compacto de propósito: o cartão é rodapé, não conteúdo. Avatar e
              botões menores, e o papel some — quem está logado já sabe o que é. */
-          <div className="rounded-lg border border-border p-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+          <div className="rounded-xl border border-border p-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                 {iniciais(corretor?.nome)}
               </span>
               <span className="min-w-0 flex-1 leading-tight">
-                <span className="block truncate text-xs font-medium text-foreground">
+                <span className="block truncate text-[13px] font-medium text-foreground">
                   {corretor?.nome ?? 'Minha conta'}
                 </span>
                 {user?.email && (
@@ -282,8 +282,8 @@ export function ConteudoDaSidebar({
                 )}
               </span>
             </div>
-            <div className="mt-2 flex items-center gap-1.5">
-              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => void signOut()}>
+            <div className="mt-2.5 flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 flex-1 text-[13px]" onClick={() => void signOut()}>
                 <LogOut className="mr-1 h-3.5 w-3.5" />
                 Sair
               </Button>

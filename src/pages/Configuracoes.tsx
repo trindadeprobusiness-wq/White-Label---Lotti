@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from 'next-themes';
@@ -19,8 +19,10 @@ import {
   Landmark,
   CreditCard,
   Bot,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import AgentSettingsPage from '@/features/ai-agent/AgentSettingsPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -55,9 +57,31 @@ const Configuracoes = () => {
   const abaSolicitada = searchParams.get('tab');
   const destino = resolverDestinoConfiguracoes(abaSolicitada);
   const abaInicial = destino.tipo === 'aba' ? destino.aba : 'perfil';
+  // Sem seção pedida, a tela abre como índice: cartões agrupados por assunto,
+  // em vez de despejar o formulário de perfil em cima de quem só queria achar
+  // uma coisa. Com ?tab= na URL, vai direto para a seção, como antes.
+  const [abaAtiva, setAbaAtiva] = useState(abaSolicitada ? abaInicial : '');
+  const SECOES = [
+    // Asaas é dinheiro da conta, não integração de atendimento: fica junto de
+    // assinatura e cobrança, que é onde se procura.
+    { grupo: 'Conta', itens: [
+      { valor: 'perfil', icone: User, titulo: 'Perfil', descricao: 'Seus dados, CRECI e endereço comercial.' },
+      { valor: 'assinatura', icone: CreditCard, titulo: 'Assinatura', descricao: 'Plano, cobrança e limites de uso.' },
+      { valor: 'asaas', icone: Landmark, titulo: 'Asaas', descricao: 'Conexão de cobrança e recebimentos.' },
+    ] },
+    { grupo: 'Preferências', itens: [
+      { valor: 'notificacoes', icone: Bell, titulo: 'Notificações', descricao: 'O que avisa, por onde e quando.' },
+      { valor: 'aparencia', icone: Palette, titulo: 'Aparência', descricao: 'Tema claro, escuro e densidade.' },
+    ] },
+    { grupo: 'Atendimento', itens: [
+      { valor: 'agente', icone: Bot, titulo: 'Agente de IA', descricao: 'Como a IA atende, qualifica e passa os leads.' },
+    ] },
+  ];
+
+  const secaoAberta = SECOES.flatMap((secao) => secao.itens).find((item) => item.valor === abaAtiva);
 
   useEffect(() => {
-    if (abaSolicitada === 'agenda') navigate('/rotina#google-agenda', { replace: true });
+    if (abaSolicitada === 'agenda') navigate('/planejamento#google-agenda', { replace: true });
   }, [abaSolicitada, navigate]);
 
   // React Hook Form with Zod validation
@@ -160,39 +184,60 @@ const Configuracoes = () => {
   return (
     <div className="space-y-6">
       <div>
-        <PageTitle>Configurações</PageTitle>
-        <p className="text-muted-foreground mt-1">
-          Gerencie seu perfil, preferências e integrações da sua operação
-        </p>
+        {secaoAberta ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setAbaAtiva('')}
+              className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Configurações
+            </button>
+            <PageTitle>{secaoAberta.titulo}</PageTitle>
+            <p className="text-muted-foreground mt-1">{secaoAberta.descricao}</p>
+          </>
+        ) : (
+          <>
+            <PageTitle>Configurações</PageTitle>
+            <p className="text-muted-foreground mt-1">
+              Gerencie seu perfil, preferências e integrações da sua operação
+            </p>
+          </>
+        )}
       </div>
 
-      <Tabs defaultValue={abaInicial} className="space-y-6">
-        <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-6">
-          <TabsTrigger value="perfil" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Perfil
-          </TabsTrigger>
-          <TabsTrigger value="notificacoes" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notificações
-          </TabsTrigger>
-          <TabsTrigger value="aparencia" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            Aparência
-          </TabsTrigger>
-          <TabsTrigger value="asaas" className="flex items-center gap-2">
-            <Landmark className="h-4 w-4" />
-            Asaas
-          </TabsTrigger>
-          <TabsTrigger value="agente" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Agente de IA
-          </TabsTrigger>
-          <TabsTrigger value="assinatura" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Assinatura
-          </TabsTrigger>
-        </TabsList>
+      {abaAtiva === '' && (
+        <div className="space-y-6">
+          {SECOES.map((secao) => (
+            <section key={secao.grupo}>
+              <h2 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{secao.grupo}</h2>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {secao.itens.map((item) => (
+                  <button
+                    key={item.valor}
+                    type="button"
+                    onClick={() => setAbaAtiva(item.valor)}
+                    className="group flex items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
+                      <item.icone className="h-5 w-5 text-primary" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{item.titulo}</span>
+                      <span className="block text-sm text-muted-foreground">{item.descricao}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+
+      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className={abaAtiva === '' ? 'hidden' : 'space-y-6'}>
 
         {/* O agente é configuração, não operação do dia a dia: sai do menu
             lateral e passa a viver junto do resto que se ajusta uma vez. */}

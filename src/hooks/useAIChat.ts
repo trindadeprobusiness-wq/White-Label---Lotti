@@ -41,7 +41,7 @@ function aiModuleFromPath(pathname: string): string {
     ['/alugueis', 'rentals'],
     ['/financeiro', 'finance'],
     ['/midias', 'media'],
-    ['/rotina', 'agenda'],
+    ['/planejamento', 'agenda'],
     ['/agenda', 'agenda'],
     ['/dashboard', 'dashboard'],
   ];

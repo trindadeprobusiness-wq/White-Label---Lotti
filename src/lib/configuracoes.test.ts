@@ -5,7 +5,7 @@ describe('navegação das configurações', () => {
   it('leva links antigos da Agenda para o painel existente na Rotina', () => {
     expect(resolverDestinoConfiguracoes('agenda')).toEqual({
       tipo: 'redirecionar',
-      destino: '/rotina#google-agenda',
+      destino: '/planejamento#google-agenda',
     });
   });
 

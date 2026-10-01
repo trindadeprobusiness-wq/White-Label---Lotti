@@ -31,7 +31,9 @@ export type TipoContrato =
   | 'PROCURACAO'
   | 'OUTRO';
 
-export type PrioridadeAlerta = 'ALTA' | 'MEDIA' | 'BAIXA';
+// O enum do banco (prioridade_alerta) tem quatro valores; o tipo aqui
+// ignorava URGENTE, que é justamente o mais grave.
+export type PrioridadeAlerta = 'URGENTE' | 'ALTA' | 'MEDIA' | 'BAIXA';
 
 export interface Cliente {
   id: string;

@@ -105,7 +105,7 @@ export default function AgentSettingsPage({ embutido = false }: { embutido?: boo
   return <div className={embutido ? 'space-y-5' : 'mx-auto max-w-4xl space-y-5 animate-fade-in'}>
     <header className="flex flex-wrap items-start justify-between gap-4">
       {embutido
-        ? <p className="min-w-0 max-w-2xl text-sm text-muted-foreground">Como a IA atende, qualifica e passa os leads do WhatsApp para a sua equipe.</p>
+        ? <div className="min-w-0" />
         : <div className="min-w-0">
             <p className="text-sm font-semibold text-primary">Automações</p>
             <h1 className="mt-1 text-2xl font-semibold">Agente de IA</h1>

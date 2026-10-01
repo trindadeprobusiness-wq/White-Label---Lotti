@@ -63,18 +63,93 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     expect(html).toContain('aria-label="Visita no Jardim América,');
   });
 
-  it('prioriza próxima ação, tarefas e captura rápida nessa ordem', () => {
+  it('prioriza próxima ação e depois as tarefas do dia', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
         currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
-        members={[member]} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
-        onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()}
       />,
     );
 
     expect(html.indexOf('Próxima ação · Gabri')).toBeLessThan(html.indexOf('Tarefas que pedem ação'));
-    expect(html.indexOf('Tarefas que pedem ação')).toBeLessThan(html.indexOf('Caixa de entrada'));
     expect(html).toContain('Visita no Jardim América');
     expect(html).toContain('Enviar documentos');
+  });
+
+  // A tela abria com seis cartões e cinco deles anunciando que não havia nada:
+  // "Tudo em dia", "0 compromissos · 0 tarefas", "Tudo organizado". Uma tela
+  // inteira para dizer que o dia está vazio, com o calendário abaixo da dobra.
+  it('sem nada a dizer, não gasta um cartão para dizer que não há nada', () => {
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()}
+      />,
+    );
+
+    expect(html).not.toContain('Tarefas que pedem ação');
+    expect(html).not.toContain('Sinais da operação');
+    expect(html).not.toContain('Carga da equipe');
+    // Sobra o único que serve para agir, e não para informar.
+    expect(html).toContain('Próxima ação · Gabri');
+  });
+
+  // Quem está sem retorno é pergunta do funil, não da agenda — e o Início já
+  // lista as mesmas pessoas em "Próximos contatos", pelo mesmo critério.
+  // O componente nem recebe mais clientes e alertas: a ausência é de tipo.
+  it('não carrega sinais de relacionamento, que são assunto de outra tela', () => {
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()}
+      />,
+    );
+
+    expect(html).not.toContain('Sinais da operação');
+    expect(html).not.toContain('Próxima melhor ação');
+    expect(html).not.toContain('precisa de retorno');
+    // O que é de tempo continua: compromisso e tarefa.
+    expect(html).toContain('Visita no Jardim América');
+    expect(html).toContain('Enviar documentos');
+  });
+
+  it('carga da equipe só aparece quando existe equipe', () => {
+    const sozinho = { members: [member], esperado: false };
+    const acompanhado = {
+      members: [member, { ...member, id: 'member-2', user_id: 'user-2', display_name: 'Outra pessoa' }],
+      esperado: true,
+    };
+    for (const { members, esperado } of [sozinho, acompanhado]) {
+      const html = renderToStaticMarkup(
+        <RoutineBriefing
+          currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
+          members={members} onOpen={vi.fn()}
+          onComplete={vi.fn()} onCreate={vi.fn()}
+        />,
+      );
+      expect(html.includes('Carga da equipe')).toBe(esperado);
+    }
+  });
+
+  it('o comando entra como cartão ao lado da próxima ação', () => {
+    const html = renderToStaticMarkup(
+      <RoutineBriefing
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
+        members={[member]} onOpen={vi.fn()}
+        onComplete={vi.fn()} onCreate={vi.fn()}
+        comando={<div>CARTAO-DO-COMANDO</div>}
+      />,
+    );
+
+    // Entre o cartão verde e as tarefas: como faixa de largura inteira acima da
+    // grade, ele empurrava para baixo tudo o que interessa.
+    const verde = html.indexOf('Próxima ação · Gabri');
+    const comando = html.indexOf('CARTAO-DO-COMANDO');
+    const tarefas = html.indexOf('Tarefas que pedem ação');
+    expect(verde).toBeLessThan(comando);
+    expect(comando).toBeLessThan(tarefas);
   });
 });

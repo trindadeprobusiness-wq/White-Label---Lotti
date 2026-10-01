@@ -115,15 +115,15 @@ describe('acabamento visual do funil e da sidebar', () => {
     expect(html).toMatch(/<a(?=[^>]*href="\/whatsapp\/conexao")(?=[^>]*aria-current="page")[^>]*>/);
   });
 
-  it('nomeia a área de agenda como Planejamento, sem mudar o endereço', () => {
+  it('nomeia a área de agenda como Planejamento, no nome e no endereço', () => {
     const html = renderToStaticMarkup(
-      <StaticRouter location="/rotina">
+      <StaticRouter location="/planejamento">
         <AppSidebar />
       </StaticRouter>,
     );
 
     expect(html).toContain('>Planejamento<');
     expect(html).not.toContain('>Rotina<');
-    expect(html).toMatch(/<a(?=[^>]*href="\/rotina")(?=[^>]*aria-current="page")[^>]*>/);
+    expect(html).toMatch(/<a(?=[^>]*href="\/planejamento")(?=[^>]*aria-current="page")[^>]*>/);
   });
 });

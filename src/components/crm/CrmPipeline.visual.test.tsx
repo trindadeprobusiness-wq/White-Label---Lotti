@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { StaticRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { filtrarOportunidades } from '@/lib/crm/pipeline';
 import { CrmPipeline } from './CrmPipeline';
@@ -21,6 +22,7 @@ vi.mock('@/hooks/crm/useCrm', () => ({
   useEtapas: () => ({ data: [{ id: 'novo', corretor_id: 'c1', nome: 'Novos', ordem: 0, cor: 'sky', tipo: 'ABERTA', ativo: true }], isLoading: false }),
   useOportunidades: () => ({ data: [], isLoading: false }),
   useMoverOportunidade: () => ({ mutate: vi.fn(), isPending: false }),
+  useExcluirOportunidades: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('./WhatsAppDialog', () => ({ WhatsAppDialog: () => null }));
@@ -40,22 +42,27 @@ describe('CrmPipeline', () => {
   });
 
   it('mostra contorno interno uniforme na coluna de destino e monta o overlay de arraste', () => {
-    const html = renderToStaticMarkup(<CrmPipeline />);
+    const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).toContain('outline-2');
     expect(html).toContain('-outline-offset-2');
     expect(html).toContain('data-drag-overlay');
   });
 
-  it('substitui o filtro pelo menu de ações do funil', () => {
-    const html = renderToStaticMarkup(<CrmPipeline />);
+  // O filtro já tinha sido removido em favor do menu de ações; voltou a pedido
+  // do dono do produto, e agora os dois convivem: o menu é o que se faz com o
+  // quadro, o filtro é o que se enxerga dele.
+  it('traz o filtro de volta, ao lado do menu de ações do funil', () => {
+    const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).toContain('Mais opções do funil');
-    expect(html).not.toContain('>Filtros<');
+    expect(html).toContain('Filtros');
+    // Sem nada ligado o botão não anuncia contagem nenhuma.
+    expect(html).not.toContain('aria-label="Filtros ativos"');
   });
 
   it('prepara a barra de ações em lote sem exibir um aviso no quadro', () => {
-    const html = renderToStaticMarkup(<CrmPipeline />);
+    const html = renderToStaticMarkup(<StaticRouter location="/crm"><CrmPipeline /></StaticRouter>);
 
     expect(html).not.toContain('Seleção ativada');
     expect(html).not.toContain('Selecionar cards no quadro');

@@ -39,7 +39,7 @@ function renderizar(url: string) {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[url]}>
         <Routes>
-          <Route path="/rotina" element={<Sonda />} />
+          <Route path="/planejamento" element={<Sonda />} />
           <Route path="/configuracoes" element={<Sonda />} />
         </Routes>
       </MemoryRouter>
@@ -49,7 +49,7 @@ function renderizar(url: string) {
 
 describe('useGoogleCalendarReturn', () => {
   it('avisa e dispara a primeira sincronização quando o Google devolve conectado', () => {
-    const { getByTestId } = renderizar('/rotina?google_calendar=connected');
+    const { getByTestId } = renderizar('/planejamento?google_calendar=connected');
 
     expect(success).toHaveBeenCalledTimes(1);
     expect(failure).not.toHaveBeenCalled();
@@ -59,7 +59,7 @@ describe('useGoogleCalendarReturn', () => {
   });
 
   it('avisa a falha sem sincronizar quando o Google devolve erro', () => {
-    const { getByTestId } = renderizar('/rotina?google_calendar=error');
+    const { getByTestId } = renderizar('/planejamento?google_calendar=error');
 
     expect(failure).toHaveBeenCalledTimes(1);
     expect(success).not.toHaveBeenCalled();
@@ -76,7 +76,7 @@ describe('useGoogleCalendarReturn', () => {
   });
 
   it('não avisa nada numa visita comum', () => {
-    renderizar('/rotina');
+    renderizar('/planejamento');
 
     expect(success).not.toHaveBeenCalled();
     expect(failure).not.toHaveBeenCalled();

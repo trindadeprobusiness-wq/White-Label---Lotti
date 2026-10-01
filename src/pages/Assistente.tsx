@@ -127,10 +127,6 @@ export default function Assistente() {
             <p className="mt-1 text-xs text-muted-foreground">Explore os dados da sua operação imobiliária</p>
           </div>
 
-          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-            <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
-            Disponível
-          </span>
 
           {messages.length > 0 && (
             <Button variant="ghost" size="sm" onClick={startConversation}>

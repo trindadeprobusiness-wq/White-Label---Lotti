@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays, addMinutes, addMonths, addWeeks, differenceInMinutes, format,
   isSameDay, isSameMonth, setHours, setMinutes, startOfDay, subDays, subMonths, subWeeks,
@@ -20,7 +20,7 @@ import { RoutineCategoryIcon } from './RoutineCategoryIcon';
 
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 21;
-const HOUR_HEIGHT = 72;
+const HOUR_HEIGHT = 56;
 const SNAP_MINUTES = 15;
 
 type RoutineItem = RoutineEvent | RoutineTask;
@@ -49,7 +49,7 @@ function eventTopAndHeight(event: RoutineEvent) {
   const duration = Math.max(15, differenceInMinutes(end, start));
   return {
     top: topMinutes * HOUR_HEIGHT / 60,
-    height: Math.max(28, duration * HOUR_HEIGHT / 60),
+    height: Math.max(24, duration * HOUR_HEIGHT / 60),
   };
 }
 
@@ -103,9 +103,19 @@ export function RoutineCalendar({
   onMoveEvent: (event: RoutineEvent, start: Date, end: Date) => Promise<void>;
 }) {
   const timelineRef = useRef<HTMLDivElement>(null);
+  const gradeRef = useRef<HTMLDivElement>(null);
   const [teamFilter, setTeamFilter] = useState('all');
   const [unitFilter, setUnitFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  // Abrir às 7h é abrir no passado: quem olha a agenda quer ver a hora em que
+  // está. A grade desce para uma hora antes de agora, de modo que o
+  // compromisso em curso não fique colado na borda de cima.
+  useEffect(() => {
+    const grade = gradeRef.current;
+    if (!grade) return;
+    grade.scrollTop = Math.max(0, (new Date().getHours() - 1 - DAY_START_HOUR) * HOUR_HEIGHT);
+  }, [view, anchor]);
+
   const range = useMemo(() => rangeForView(view, anchor), [view, anchor]);
   const days = useMemo(() => daysForRange(range), [range]);
   const visibleDays = view === 'day' ? [startOfDay(anchor)] : days.slice(0, 7);
@@ -300,6 +310,10 @@ export function RoutineCalendar({
                 </button>
               ))}
             </div>
+            <div
+              ref={gradeRef}
+              className="max-h-[min(58dvh,520px)] min-h-[260px] overflow-y-auto [scrollbar-width:thin]"
+            >
             <div className="grid" style={{ gridTemplateColumns: `56px repeat(${visibleDays.length}, minmax(0, 1fr))` }}>
               <div className="relative border-r" style={{ height: (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT }}>
                 {Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, index) => (
@@ -314,8 +328,11 @@ export function RoutineCalendar({
                 return (
                   <div
                     key={day.toISOString()}
-                    className="relative border-r bg-[linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[length:100%_72px]"
-                    style={{ height: (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT }}
+                    className="relative border-r bg-[linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)]"
+                    style={{
+                      height: (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT,
+                      backgroundSize: `100% ${HOUR_HEIGHT}px`,
+                    }}
                     onDoubleClick={(event) => createFromEmptySlot(event, day)}
                     title="Clique duas vezes em um horário livre para criar"
                   >
@@ -374,6 +391,7 @@ export function RoutineCalendar({
                   </div>
                 );
               })}
+            </div>
             </div>
           </div>
         </div>

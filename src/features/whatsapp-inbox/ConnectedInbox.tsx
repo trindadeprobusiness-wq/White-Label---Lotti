@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -139,6 +139,14 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const demoConversation: Conversation = { id: 'preview-conversation', phone: '5511999990000', contact_name: 'Rafael', cliente_id: null, mode: 'ai', status: 'open', updated_at: demoTime, qualification: { stage: 'qualificando', reason: 'Cliente procura um imóvel para comprar.' }, last_error: null };
   const cache = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
+  // Vir do funil ou do cadastro e cair na lista genérica obrigava a procurar
+  // de novo quem você acabou de clicar. Com ?cliente= ou ?telefone= a conversa
+  // já abre selecionada — uma vez só, para não brigar com quem troca de
+  // conversa depois.
+  const [parametrosDaUrl] = useSearchParams();
+  const clienteNaUrl = parametrosDaUrl.get('cliente');
+  const telefoneNaUrl = parametrosDaUrl.get('telefone');
+  const alvoAplicado = useRef(false);
   // No celular a lista vira gaveta, como no Clix: a conversa ocupa a tela e a
   // lista desliza por cima. Empilhada, era preciso rolar dezenas de conversas
   // para alcançar a mensagem.
@@ -262,6 +270,21 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const connectionKnown = connected !== 'unknown';
   // Open each conversation at the latest message and follow new ones while the
   // reader is at the bottom; scrolling up to read history is not interrupted.
+  useEffect(() => {
+    if (alvoAplicado.current || (!clienteNaUrl && !telefoneNaUrl)) return;
+    const conversas = list.data ?? [];
+    if (!conversas.length) return;
+    const digitos = (valor: string | null | undefined) => (valor ?? '').replace(/\D/g, '');
+    const finalAlvo = digitos(telefoneNaUrl).slice(-8);
+    const achada = conversas.find(conversa =>
+      (clienteNaUrl && conversa.cliente_id === clienteNaUrl) ||
+      (!!finalAlvo && digitos(conversa.phone).endsWith(finalAlvo)));
+    if (achada) {
+      alvoAplicado.current = true;
+      setSelectedId(achada.id);
+    }
+  }, [list.data, clienteNaUrl, telefoneNaUrl]);
+
   const timelineRef = useRef<HTMLDivElement>(null);
  const followLatest = useRef(true);
   // Mensagens já enviadas e ainda sem confirmação da ponte. Aparecem na conversa

@@ -135,7 +135,7 @@ export function normalizarContextoOnboarding(raw: ContextoOnboardingBruto): Cont
 
 // Páginas que o próprio wizard oferece (conectar agenda, ver assinatura): mandar
 // de volta ao onboarding transformaria esses botões num laço.
-const ROTAS_LIBERADAS_NO_ONBOARDING = ['/onboarding', '/admin', '/rotina', '/plano'];
+const ROTAS_LIBERADAS_NO_ONBOARDING = ['/onboarding', '/admin', '/planejamento', '/plano'];
 
 export function deveAbrirOnboarding(contexto: ContextoOnboarding | null, pathname: string): boolean {
   if (!contexto?.profileId) return false;

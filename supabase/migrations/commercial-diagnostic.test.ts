@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 
 describe('migration commercial_diagnostic', () => {
+  // Subir o Postgres embutido leva mais que os 5s padrão quando a suíte inteira
+  // roda em paralelo — era falha intermitente, não regressão. Os demais testes
+  // de migration já usam este mesmo limite.
   it('cria armazenamento e restringe leitura ao admin autenticado', async () => {
     const db = new PGlite();
     try {
@@ -18,5 +21,5 @@ describe('migration commercial_diagnostic', () => {
       const events = await db.query<{ relrowsecurity: boolean }>("SELECT relrowsecurity FROM pg_class WHERE oid='public.commercial_diagnostic_events'::regclass");
       expect(events.rows[0].relrowsecurity).toBe(true);
     } finally { await db.close(); }
-  });
+  }, 60_000);
 });

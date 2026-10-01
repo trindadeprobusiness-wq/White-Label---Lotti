@@ -250,6 +250,28 @@ export function useClientesParecidos(
  * registro nesse meio-tempo o update casa; se alguém moveu antes (outra aba,
  * outro dispositivo), zero linhas voltam e avisamos em vez de sobrescrever.
  */
+/**
+ * Excluir negócios em lote. O botão existia desabilitado desde sempre: a tela
+ * oferecia a ação e o clique não ia a lugar nenhum.
+ *
+ * No modo legado o "negócio" é o próprio cliente, e apagar o cliente a partir
+ * do funil seria destrutivo demais para o que o botão promete — ali a exclusão
+ * é recusada e o corretor é mandado para a tela de Clientes.
+ */
+export function useExcluirOportunidades() {
+  const qc = useQueryClient();
+  const { data: modo } = useModoCrm();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (modo === 'legado') throw new Error('exclusao_no_funil_legado');
+      const { error } = await db().from('crm_oportunidades').delete().in('id', ids);
+      if (error) throw error;
+      return ids;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: crmKeys.oportunidades() }); },
+  });
+}
+
 export function useMoverOportunidade() {
   const qc = useQueryClient();
   const { data: modo } = useModoCrm();

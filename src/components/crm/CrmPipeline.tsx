@@ -3,7 +3,7 @@ import {
   DndContext, DragEndEvent, MouseSensor, TouchSensor,
   DragOverlay, useDraggable, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
-import { Building2, CalendarClock, Check, Loader2, MessageCircle, MoreHorizontal, RefreshCw, Search, Settings2, SquareCheckBig, Trash2, X } from 'lucide-react';
+import { Building2, CalendarClock, Check, Loader2, MessageCircle, MoreHorizontal, RefreshCw, Search, Settings2, SlidersHorizontal, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,14 +11,19 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { agruparPorEtapa, filtrarOportunidades } from '@/lib/crm/pipeline';
-import { useEtapas, useOportunidades, useMoverOportunidade, useModoCrm } from '@/hooks/crm/useCrm';
+import { FILTROS_VAZIOS, PERIODO_LABEL, aplicarFiltros, contarFiltros, type FiltrosFunil, type PeriodoFiltro } from '@/lib/crm/filtros';
+import { useEtapas, useOportunidades, useMoverOportunidade, useExcluirOportunidades, useModoCrm } from '@/hooks/crm/useCrm';
 import type { CrmEtapa, CrmOportunidade, ColunaPipeline } from '@/lib/crm/tipos';
 import { WhatsAppDialog } from './WhatsAppDialog';
 import { moeda as moedaBR } from '@/lib/formato';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import FunilVendas from '@/pages/FunilVendas';
+import { useNavigate } from 'react-router-dom';
 
 /** Sem centavos no Kanban: o valor é referência de negócio, não extrato. */
 const moeda = (v: number) => moedaBR(v, true);
@@ -35,20 +40,7 @@ const moeda = (v: number) => moedaBR(v, true);
  * `ponto` é a bolinha do cabeçalho — o status não pode depender só de cor, e o
  * nome da etapa fica sempre ao lado.
  */
-const CORES: Record<string, { ponto: string; barra: string }> = {
-  slate: { ponto: 'bg-muted-foreground', barra: 'bg-muted-foreground' },
-  sky: { ponto: 'bg-info', barra: 'bg-info' },
-  blue: { ponto: 'bg-info', barra: 'bg-info' },
-  indigo: { ponto: 'bg-info', barra: 'bg-info' },
-  amber: { ponto: 'bg-warning', barra: 'bg-warning' },
-  orange: { ponto: 'bg-doc', barra: 'bg-doc' },
-  violet: { ponto: 'bg-doc', barra: 'bg-doc' },
-  green: { ponto: 'bg-primary', barra: 'bg-primary' },
-  red: { ponto: 'bg-destructive', barra: 'bg-destructive' },
-};
-
-const corDaEtapa = (cor?: string) => CORES[cor ?? 'slate'] ?? CORES.slate;
-const PALETA_HEX: Record<string, string> = { blue: '#2563eb', amber: '#f59e0b', orange: '#f97316', green: '#16a34a', red: '#dc2626', violet: '#7c3aed', slate: '#64748b' };
+const PALETA_HEX: Record<string, string> = { blue: '#2563eb', sky: '#0284c7', indigo: '#4f46e5', amber: '#f59e0b', orange: '#f97316', green: '#16a34a', red: '#dc2626', violet: '#7c3aed', slate: '#64748b' };
 const corParaHex = (cor: string) => PALETA_HEX[cor] ?? PALETA_HEX.slate;
 const hexParaCor = (hex: string) => Object.entries(PALETA_HEX).reduce((melhor, atual) => {
   const distancia = (valor: string) => Math.abs(parseInt(valor.slice(1, 3), 16) - parseInt(hex.slice(1, 3), 16)) + Math.abs(parseInt(valor.slice(3, 5), 16) - parseInt(hex.slice(3, 5), 16)) + Math.abs(parseInt(valor.slice(5, 7), 16) - parseInt(hex.slice(5, 7), 16));
@@ -81,7 +73,7 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
       {...attributes}
       onClick={modoSelecao ? () => onSelecionar(oportunidade.id) : undefined}
       className={cn(
-        'space-y-1 rounded-xl border border-border bg-card p-3',
+        'space-y-1.5 rounded-[10px] border border-border bg-card px-3 py-2.5',
         'transition-shadow duration-150 active:cursor-grabbing',
         modoSelecao ? 'cursor-pointer' : 'cursor-grab',
         selecionado && 'border-primary bg-primary/5 ring-1 ring-primary/30',
@@ -98,7 +90,7 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-sm font-semibold leading-tight">{oportunidade.titulo}</p>
+            <p className="truncate text-[13.5px] font-semibold leading-tight">{oportunidade.titulo}</p>
             {oportunidade.is_sample_data && <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-700">Demo</span>}
           </div>
           {mostrarCliente && <p className="mt-1 truncate text-[11px] text-muted-foreground">{nomeCliente}</p>}
@@ -109,13 +101,13 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
           title="Falar no WhatsApp"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onWhatsApp(oportunidade); }}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white transition-opacity hover:opacity-90 focus-ring"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#25D366] text-white transition-opacity hover:opacity-90 focus-ring"
         >
           <MessageCircle className="h-3.5 w-3.5" />
         </button>
       </div>
       {oportunidade.clientes?.telefone && (
-        <DadoSensivel valor={oportunidade.clientes.telefone} tipo="telefone" className="block text-[11px] text-muted-foreground" />
+        <DadoSensivel valor={oportunidade.clientes.telefone} tipo="telefone" className="block font-mono text-[11px] tabular text-muted-foreground" />
       )}
       {oportunidade.imoveis?.titulo && (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
@@ -159,19 +151,19 @@ function Coluna({
   onSelecionarColuna: (ids: string[]) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.etapa.id });
-  const cor = corDaEtapa(coluna.etapa.cor);
+  const cor = corParaHex(coluna.etapa.cor ?? 'slate');
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'min-w-[260px] flex-1 rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
+        'w-[260px] shrink-0 overflow-hidden rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
         // Verde da marca com opacidade, não o #F6FFE7: aquele era tão claro
         // que a coluna de destino mal se distinguia das outras.
         isOver && 'border-primary outline outline-2 -outline-offset-2 outline-primary/60',
       )}
     >
-      <div className="px-3 pt-3 pb-2">
+      <div className="bg-card px-3.5 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             {modoSelecao && (
@@ -184,25 +176,26 @@ function Coluna({
                 {coluna.oportunidades.length > 0 && coluna.oportunidades.every((o) => selecionados.has(o.id)) && <Check className="h-3 w-3" strokeWidth={3} />}
               </button>
             )}
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', cor.ponto)} aria-hidden="true" />
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cor }} aria-hidden="true" />
             <h3 className="truncate text-sm font-semibold text-foreground">{coluna.etapa.nome}</h3>
           </div>
-          <Badge variant="secondary" className="h-5 min-w-[2rem] shrink-0 justify-center rounded-full px-2 text-xs font-semibold">
+          <Badge variant="secondary" className="h-5 min-w-[2rem] shrink-0 justify-center rounded-full px-2 text-[11px] font-semibold tabular">
             {coluna.oportunidades.length}
           </Badge>
         </div>
       </div>
 
-      <div className={cn('h-[2px] w-full opacity-70', cor.barra)} aria-hidden="true" />
+      <div className="h-[3px] w-full" style={{ background: cor }} aria-hidden="true" />
 
-      <div className={cn('flex-1 space-y-2 overflow-y-auto p-3', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
+      <div className={cn('flex-1 space-y-2 overflow-y-auto p-2.5',
+            '[scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
         {coluna.oportunidades.map((o) => (
           <Card key={o.id} oportunidade={o} onWhatsApp={onWhatsApp} modoSelecao={modoSelecao} selecionado={selecionados.has(o.id)} onSelecionar={onSelecionar} />
         ))}
 
         {coluna.oportunidades.length === 0 && (
           <div className={cn(
-            'flex items-center justify-center rounded-lg py-10 text-center text-xs italic text-muted-foreground',
+            'flex items-center justify-center rounded-lg py-6 text-center text-[12.5px] italic text-muted-foreground',
             isOver && 'border-2 border-dashed border-primary/50 not-italic text-foreground',
           )}>
             {isOver ? 'Solte aqui' : 'Vazio. Arraste cards pra cá.'}
@@ -218,9 +211,22 @@ export function CrmPipeline() {
   const { data: etapas, isLoading: carregandoEtapas, refetch: recarregarEtapas } = useEtapas();
   const { data: oportunidades, isLoading: carregandoOps, refetch: recarregarOportunidades } = useOportunidades();
   const mover = useMoverOportunidade();
+  const excluir = useExcluirOportunidades();
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [conversa, setConversa] = useState<CardOportunidade | null>(null);
+  const navegar = useNavigate();
+  // O ícone abria um compositor solto, fora da conversa. Quem clica ali quer
+  // ler o que já foi dito antes de responder — então vai para o Inbox, já na
+  // conversa daquele contato.
+  const abrirConversa = (o: CardOportunidade) => {
+    const telefone = (o.clientes?.telefone ?? '').replace(/\D/g, '');
+    const destino = o.cliente_id
+      ? `/whatsapp?cliente=${encodeURIComponent(o.cliente_id)}`
+      : telefone ? `/whatsapp?telefone=${telefone}` : '/whatsapp';
+    navegar(destino);
+  };
   const [busca, setBusca] = useState('');
+  const [filtros, setFiltros] = useState<FiltrosFunil>(FILTROS_VAZIOS);
   const [modoSelecao, setModoSelecao] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [gerenciarOpen, setGerenciarOpen] = useState(false);
@@ -240,8 +246,10 @@ export function CrmPipeline() {
   );
   const oportunidadesVisiveis = useMemo(() => {
     const encontradas = filtrarOportunidades((oportunidades ?? []) as CardOportunidade[], busca);
-    return encontradas;
-  }, [busca, oportunidades]);
+    // A busca corta por texto; o filtro corta por situação. São perguntas
+    // diferentes e se somam.
+    return aplicarFiltros(encontradas, filtros);
+  }, [busca, filtros, oportunidades]);
   const colunas = useMemo(
     () => agruparPorEtapa(etapas ?? [], oportunidadesVisiveis),
     [etapas, oportunidadesVisiveis],
@@ -314,18 +322,19 @@ export function CrmPipeline() {
   if (modo === 'legado') return <FunilVendas embedded />;
 
   const buscaAtiva = busca.trim().length > 0;
+  const filtrosLigados = contarFiltros(filtros);
 
   return (
-    <div className="relative flex h-[calc(100vh-15rem)] min-h-[440px] flex-col gap-4">
+    <div className="relative flex h-full min-h-[440px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[min(100%,18rem)] flex-1 sm:max-w-[20rem]">
+        <div className="relative w-full sm:w-[260px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar lead, cliente ou imóvel..."
             aria-label="Buscar no pipeline"
-            className="h-10 pl-9 pr-9"
+            className="h-[34px] pl-9 pr-9 text-[13.5px]"
           />
           {busca && (
             <button type="button" onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Limpar busca">
@@ -333,10 +342,58 @@ export function CrmPipeline() {
             </button>
           )}
         </div>
-        {buscaAtiva && <span className="text-xs text-muted-foreground">{oportunidadesVisiveis.length} negócio{ oportunidadesVisiveis.length === 1 ? '' : 's' }</span>}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant={filtrosLigados ? 'default' : 'outline'} className="h-[34px] shrink-0 gap-1.5 px-3.5 text-[13px] font-semibold">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtros
+              {filtrosLigados > 0 && (
+                <span className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary-foreground px-1.5 text-[11px] font-bold tabular text-primary">
+                  {filtrosLigados}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movimentação</Label>
+              <Select value={filtros.periodo} onValueChange={(v) => setFiltros((f) => ({ ...f, periodo: v as PeriodoFiltro }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PERIODO_LABEL) as PeriodoFiltro[]).map((p) => (
+                    <SelectItem key={p} value={p}>{PERIODO_LABEL[p]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {([
+              ['atrasados', 'Só os atrasados', 'Passaram da data prevista e seguem abertos.'],
+              ['comValor', 'Só os com valor', 'Negócio com valor estimado preenchido.'],
+              ['comImovel', 'Só os com imóvel', 'Negócio já ligado a um imóvel.'],
+            ] as const).map(([chave, titulo, ajuda]) => (
+              <div key={chave} className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor={`filtro-${chave}`} className="text-sm font-medium">{titulo}</Label>
+                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{ajuda}</p>
+                </div>
+                <Switch
+                  id={`filtro-${chave}`}
+                  checked={filtros[chave]}
+                  onCheckedChange={(v) => setFiltros((f) => ({ ...f, [chave]: v }))}
+                />
+              </div>
+            ))}
+            {filtrosLigados > 0 && (
+              <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                Limpar filtros
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+        {(buscaAtiva || filtrosLigados > 0) && <span className="text-xs text-muted-foreground">{oportunidadesVisiveis.length} negócio{ oportunidadesVisiveis.length === 1 ? '' : 's' }</span>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="icon" className="ml-auto h-10 w-10" aria-label="Mais opções do funil">
+            <Button type="button" variant="outline" size="icon" className="ml-auto h-[34px] w-[34px]" aria-label="Mais opções do funil">
               <MoreHorizontal className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -363,12 +420,12 @@ export function CrmPipeline() {
         onDragEnd={aoSoltar}
         onDragCancel={() => setArrastando(null)}
       >
-        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto [scrollbar-width:thin]">
+        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-2 [scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]">
           {colunas.map((c) => (
             <Coluna
               key={c.etapa.id}
               coluna={c}
-              onWhatsApp={setConversa}
+              onWhatsApp={abrirConversa}
               modoSelecao={modoSelecao}
               selecionados={selecionados}
               onSelecionar={alternarSelecao}
@@ -386,7 +443,7 @@ export function CrmPipeline() {
       {arrastando && <span className="sr-only">Movendo negócio</span>}
 
       {modoSelecao && (
-        <div className="absolute -bottom-14 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-1.5 rounded-xl bg-[#151824] px-2.5 py-1.5 text-xs text-white shadow-xl">
+        <div className="absolute bottom-3 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-1.5 rounded-xl bg-[#151824] px-2.5 py-1.5 text-xs text-white shadow-xl">
           <span className="whitespace-nowrap font-semibold">{selecionados.size} selecionado(s)</span>
           <Select value="" onValueChange={moverSelecionados}>
             <SelectTrigger className="h-8 w-[154px] border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground [&_svg]:text-primary-foreground">
@@ -396,9 +453,16 @@ export function CrmPipeline() {
               {colunasCompletas.map((coluna) => <SelectItem key={coluna.etapa.id} value={coluna.etapa.id}>{coluna.etapa.nome}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button type="button" size="sm" variant="secondary" disabled className="h-8 px-2.5 text-xs">Arquivar</Button>
-          <Button type="button" size="sm" variant="destructive" disabled className="h-8 px-2.5 text-xs">Excluir</Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setSelecionados(new Set())} className="h-8 px-2.5 text-xs border-primary-foreground/50 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">Limpar seleção</Button>
+          {/* Arquivar nunca existiu de verdade: era um botão desabilitado
+              prometendo uma ação. Excluir passa a excluir. */}
+          <Button
+            type="button" size="sm" variant="destructive"
+            disabled={excluir.isPending || selecionados.size === 0}
+            onClick={() => { excluir.mutate([...selecionados], { onSuccess: () => setSelecionados(new Set()) }); }}
+            className="h-8 px-2.5 text-xs"
+          >
+            {excluir.isPending ? 'Excluindo…' : 'Excluir'}
+          </Button>
           <Button type="button" size="icon" variant="ghost" onClick={sairDaSelecao} className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground" aria-label="Cancelar seleção"><X className="h-3.5 w-3.5" /></Button>
         </div>
       )}
