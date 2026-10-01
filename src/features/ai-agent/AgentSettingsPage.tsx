@@ -27,7 +27,9 @@ const TAB_COMPONENTS: Record<AgentTab, ComponentType<AgentTabProps>> = {
 
 const tabLabel = (tab: AgentTab) => AGENT_TABS.find((item) => item.id === tab)?.label ?? tab;
 
-export default function AgentSettingsPage() {
+/** Dentro de Configurações a tela já tem título próprio; repetir o do agente
+ *  daria dois cabeçalhos na mesma página. Os controles de salvar ficam. */
+export default function AgentSettingsPage({ embutido = false }: { embutido?: boolean } = {}) {
   const [saved, setSaved] = useState<AgentSettings>(() => loadAgentSettings());
   const [settings, setSettings] = useState<AgentSettings>(saved);
   const [activeTab, setActiveTab] = useState<AgentTab>('identity');
@@ -100,13 +102,15 @@ export default function AgentSettingsPage() {
   ];
   const ActiveTab = TAB_COMPONENTS[activeTab];
 
-  return <div className="mx-auto max-w-4xl space-y-5 animate-fade-in">
+  return <div className={embutido ? 'space-y-5' : 'mx-auto max-w-4xl space-y-5 animate-fade-in'}>
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-primary">Automações</p>
-        <h1 className="mt-1 text-2xl font-semibold">Agente de IA</h1>
-        <p className="mt-1 max-w-2xl text-muted-foreground">Como a IA atende, qualifica e passa os leads do WhatsApp para a sua equipe.</p>
-      </div>
+      {embutido
+        ? <p className="min-w-0 max-w-2xl text-sm text-muted-foreground">Como a IA atende, qualifica e passa os leads do WhatsApp para a sua equipe.</p>
+        : <div className="min-w-0">
+            <p className="text-sm font-semibold text-primary">Automações</p>
+            <h1 className="mt-1 text-2xl font-semibold">Agente de IA</h1>
+            <p className="mt-1 max-w-2xl text-muted-foreground">Como a IA atende, qualifica e passa os leads do WhatsApp para a sua equipe.</p>
+          </div>}
       <div className="flex flex-wrap items-center gap-2">
         <SaveStatus dirty={dirty} state={saveState} source={source} />
         {dirty && <Button variant="ghost" onClick={discard}>Descartar</Button>}
