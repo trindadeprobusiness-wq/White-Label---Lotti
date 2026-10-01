@@ -80,8 +80,12 @@ export default function Assistente() {
   );
 
   return (
-    // O AppLayout não aplica padding nesta rota; o chat ocupa a altura disponível.
-    <div className="flex h-[calc(100dvh-4.5rem)] m-2 md:m-5 md:h-[calc(100dvh-2.5rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
+    // O AppLayout aplica pt-8 e pb-16 nesta rota como em qualquer outra — a
+    // única exceção dela é esconder o widget flutuante. Somados à altura de
+    // uma tela, davam mais que uma tela, e o documento ganhava barra de
+    // rolagem numa página que deve caber inteira. Desconta-se o respiro de
+    // cima e cancela-se o de baixo, chegando exatamente a 100dvh.
+    <div className="flex h-[calc(100dvh-4.5rem)] m-2 md:m-5 md:-mb-16 md:h-[calc(100dvh-4.5rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
       {/* Coluna de conversas */}
       <aside className="w-[260px] xl:w-[280px] shrink-0 border-r border-border/70 hidden md:flex flex-col overflow-hidden bg-muted/20">
         <AIConversationList
