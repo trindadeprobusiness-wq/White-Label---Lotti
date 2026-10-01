@@ -67,7 +67,7 @@ export function RoutineBriefing({
       <button
         type="button"
         onClick={() => nextEvent ? onOpen(nextEvent) : onCreate()}
-        className="group relative overflow-hidden rounded-2xl bg-[#093323] p-5 text-left text-white shadow-sm outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="group relative overflow-hidden rounded-2xl bg-[#093323] p-4 text-left text-white shadow-sm outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <div className="absolute bottom-0 left-6 top-0 w-px bg-white/15" aria-hidden />
         <span className="relative flex items-center justify-between pl-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/65">
@@ -88,14 +88,14 @@ export function RoutineBriefing({
             </div>
           </div>
         ) : (
-          <div className="relative mt-8 pl-5">
+          <div className="relative mt-5 pl-5">
             <span className="absolute -left-[3px] top-1 h-2 w-2 rounded-full bg-[#B8F34A] ring-4 ring-[#093323]" />
             <span className="block text-xl font-semibold">Nenhum compromisso próximo</span>
             <span className="mt-2 block text-sm text-white/65">Abra um horário e mantenha o dia sob controle.</span>
-            <span className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#093323]"><Plus className="h-3.5 w-3.5" />Criar atividade</span>
+            <span className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#093323]"><Plus className="h-3.5 w-3.5" />Criar atividade</span>
           </div>
         )}
-        <span className="relative mt-5 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/15 pt-3 pl-5 text-[10px] text-white/65">
+        <span className="relative mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/15 pt-2.5 pl-5 text-[10px] text-white/65">
           <span><strong className="text-white">{confirmedToday}</strong> confirmados</span>
           <span><strong className="text-white">{awaitingToday}</strong> aguardando</span>
           <span><strong className="text-white">{visitsToday}</strong> visitas hoje</span>
