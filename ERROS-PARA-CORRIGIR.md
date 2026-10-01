@@ -158,3 +158,31 @@ Ele depende do **comprimento** da lista. A consulta devolve no máximo 200 mensa
 **Conserto.** Alertas com a mesma mensagem passam a ocupar uma linha, com a contagem ao lado. O bloco perde o fundo vermelho e vira lista discreta, com marcador fino e ações sem peso. "Ver cliente" só aparece quando o grupo tem um único cliente — com vários, não há um para abrir.
 
 **Arquivo.** `src/pages/Dashboard.tsx`.
+
+---
+
+## 11. VPS — o YAML do projeto `lotti-agent` não é aceito no Gerenciador Docker
+
+**Onde.** Hostinger, VPS 2020915, Gerenciador Docker → Componha um projeto →
+`lotti-agent` → editar.
+URL: `hpanel.hostinger.com/vps/2020915/docker-manager/compose/lotti-agent/edit`
+
+**Sintoma.** Ao tentar implantar, aparece a faixa vermelha:
+"O arquivo YAML não pôde ser processado. Verifique a linha destacada no editor."
+O botão "Implantar" fica desabilitado; nada sobe.
+
+**Estado.** Não investigado. Visto em 01/10/2026, durante a configuração do
+agente de IA. O print mostra só o topo da tela — a linha que o editor destaca
+ficou fora do enquadramento.
+
+**O que apurar quando for mexer.**
+- Qual linha o editor marca (é ela que diz se é indentação, aspas, tabulação ou
+  chave duplicada).
+- Se o conteúdo foi colado de algum lugar que trocou espaço por tabulação —
+  causa mais comum nesse editor.
+- Se o projeto `lotti-agent` já estava no ar antes da edição, para saber se é
+  uma quebra nova ou se nunca chegou a subir.
+
+**Cuidado.** Este é o projeto do agente, na mesma VPS da ponte do WhatsApp
+(Evolution + n8n). Mexer no compose errado derruba o atendimento. Conferir o
+nome do projeto antes de qualquer alteração.
