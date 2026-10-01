@@ -447,6 +447,14 @@ it('deixa entrar em filtro vazio, sempre com a saída à vista', async () => {
   await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
 });
 
+it('diz por que a IA parou, em vez de "revisão operacional"', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves', last_error: 'no_active_entitlement' })];
+  mount(true);
+  const aviso = await screen.findByTestId('motivo-da-parada');
+  expect(aviso.textContent).toContain('não tem plano ativo');
+  expect(aviso.textContent).not.toContain('revisão operacional');
+});
+
 it('a pilula ETAPA mostra a etapa do funil do cliente, não um rótulo inventado', async () => {
   // Ela dizia "Em atendimento humano", que não existe em funil nenhum: era só
   // o texto que sobrava quando a IA ainda não tinha qualificado o contato.

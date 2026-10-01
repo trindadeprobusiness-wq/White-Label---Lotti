@@ -94,6 +94,17 @@ function MessageBubble({ message }: { message: Message }) {
     </time>
   </article>;
 }
+// O banco registra por que a conversa saiu do automático. Até aqui os cinco
+// motivos viravam a mesma frase genérica, escondida no painel do contato: o
+// corretor via a IA desligar sozinha e concluía que era defeito.
+const MOTIVO_DA_PARADA: Record<string, string> = {
+  no_active_entitlement: 'A IA não respondeu porque esta conta não tem plano ativo. Reative a assinatura para o agente voltar a atender.',
+  quota_exhausted: 'A franquia de atendimentos do plano acabou neste período. A IA volta a responder na renovação.',
+  processing_stalled: 'A IA tentou responder e não conseguiu. A conversa foi passada para a equipe.',
+  delivery_uncertain: 'Um envio não foi confirmado. Confira no WhatsApp antes de responder de novo.',
+  crm_capture_pending: 'Este contato ainda não entrou no CRM. O sistema tentará de novo sozinho.',
+};
+
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
 const inboxTimeZone = 'America/Sao_Paulo';
@@ -323,6 +334,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         {notice?.id === selected.id && <p role="status" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice.text}</p>}
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
+        {selected.last_error && <p role="status" data-testid="motivo-da-parada" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</p>}
         <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {/* O aviso fala do histórico cortado, que fica no começo da lista.
               No fim, junto da mensagem mais nova, ele não descrevia nada e
@@ -352,7 +364,6 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         <h3 className="mt-5 text-xs font-semibold uppercase text-muted-foreground">Qualificação comercial</h3>
         <div className="flex flex-wrap gap-2"><Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>{q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}{q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}</div>
         <dl className="space-y-3">{Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="break-words text-sm">{q?.profile?.[key]}</dd></div>)}</dl>
-        {selected?.last_error && <p className="rounded-lg bg-muted p-3 text-xs">Esta conversa precisa de revisão operacional. O histórico foi preservado.</p>}
         {selected?.cliente_id && !preview && <Link className="inline-block text-sm text-primary underline" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
       </aside>}
     </div>}
