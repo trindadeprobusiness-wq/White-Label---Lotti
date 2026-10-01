@@ -21,6 +21,7 @@ vi.mock('@/hooks/crm/useCrm', () => ({
   useEtapas: () => ({ data: [{ id: 'novo', corretor_id: 'c1', nome: 'Novos', ordem: 0, cor: 'sky', tipo: 'ABERTA', ativo: true }], isLoading: false }),
   useOportunidades: () => ({ data: [], isLoading: false }),
   useMoverOportunidade: () => ({ mutate: vi.fn(), isPending: false }),
+  useExcluirOportunidades: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('./WhatsAppDialog', () => ({ WhatsAppDialog: () => null }));

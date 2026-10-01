@@ -62,17 +62,19 @@ const Configuracoes = () => {
   // uma coisa. Com ?tab= na URL, vai direto para a seção, como antes.
   const [abaAtiva, setAbaAtiva] = useState(abaSolicitada ? abaInicial : '');
   const SECOES = [
+    // Asaas é dinheiro da conta, não integração de atendimento: fica junto de
+    // assinatura e cobrança, que é onde se procura.
     { grupo: 'Conta', itens: [
       { valor: 'perfil', icone: User, titulo: 'Perfil', descricao: 'Seus dados, CRECI e endereço comercial.' },
       { valor: 'assinatura', icone: CreditCard, titulo: 'Assinatura', descricao: 'Plano, cobrança e limites de uso.' },
+      { valor: 'asaas', icone: Landmark, titulo: 'Asaas', descricao: 'Conexão de cobrança e recebimentos.' },
     ] },
     { grupo: 'Preferências', itens: [
       { valor: 'notificacoes', icone: Bell, titulo: 'Notificações', descricao: 'O que avisa, por onde e quando.' },
       { valor: 'aparencia', icone: Palette, titulo: 'Aparência', descricao: 'Tema claro, escuro e densidade.' },
     ] },
-    { grupo: 'Atendimento e integrações', itens: [
+    { grupo: 'Atendimento', itens: [
       { valor: 'agente', icone: Bot, titulo: 'Agente de IA', descricao: 'Como a IA atende, qualifica e passa os leads.' },
-      { valor: 'asaas', icone: Landmark, titulo: 'Asaas', descricao: 'Conexão de cobrança e recebimentos.' },
     ] },
   ];
 
@@ -190,23 +192,23 @@ const Configuracoes = () => {
         <div className="space-y-6">
           {SECOES.map((secao) => (
             <section key={secao.grupo}>
-              <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{secao.grupo}</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <h2 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{secao.grupo}</h2>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {secao.itens.map((item) => (
                   <button
                     key={item.valor}
                     type="button"
                     onClick={() => setAbaAtiva(item.valor)}
-                    className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                    className="group flex items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
                       <item.icone className="h-5 w-5 text-primary" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{item.titulo}</span>
                       <span className="block text-sm text-muted-foreground">{item.descricao}</span>
                     </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                   </button>
                 ))}
               </div>

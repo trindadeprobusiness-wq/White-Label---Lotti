@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { agruparPorEtapa, filtrarOportunidades } from '@/lib/crm/pipeline';
-import { useEtapas, useOportunidades, useMoverOportunidade, useModoCrm } from '@/hooks/crm/useCrm';
+import { useEtapas, useOportunidades, useMoverOportunidade, useExcluirOportunidades, useModoCrm } from '@/hooks/crm/useCrm';
 import type { CrmEtapa, CrmOportunidade, ColunaPipeline } from '@/lib/crm/tipos';
 import { WhatsAppDialog } from './WhatsAppDialog';
 import { moeda as moedaBR } from '@/lib/formato';
@@ -218,6 +218,7 @@ export function CrmPipeline() {
   const { data: etapas, isLoading: carregandoEtapas, refetch: recarregarEtapas } = useEtapas();
   const { data: oportunidades, isLoading: carregandoOps, refetch: recarregarOportunidades } = useOportunidades();
   const mover = useMoverOportunidade();
+  const excluir = useExcluirOportunidades();
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [conversa, setConversa] = useState<CardOportunidade | null>(null);
   const [busca, setBusca] = useState('');
@@ -396,8 +397,16 @@ export function CrmPipeline() {
               {colunasCompletas.map((coluna) => <SelectItem key={coluna.etapa.id} value={coluna.etapa.id}>{coluna.etapa.nome}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button type="button" size="sm" variant="secondary" disabled className="h-8 px-2.5 text-xs">Arquivar</Button>
-          <Button type="button" size="sm" variant="destructive" disabled className="h-8 px-2.5 text-xs">Excluir</Button>
+          {/* Arquivar nunca existiu de verdade: era um botão desabilitado
+              prometendo uma ação. Excluir passa a excluir. */}
+          <Button
+            type="button" size="sm" variant="destructive"
+            disabled={excluir.isPending || selecionados.size === 0}
+            onClick={() => { excluir.mutate([...selecionados], { onSuccess: () => setSelecionados(new Set()) }); }}
+            className="h-8 px-2.5 text-xs"
+          >
+            {excluir.isPending ? 'Excluindo…' : 'Excluir'}
+          </Button>
           <Button type="button" size="sm" variant="outline" onClick={() => setSelecionados(new Set())} className="h-8 px-2.5 text-xs border-primary-foreground/50 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">Limpar seleção</Button>
           <Button type="button" size="icon" variant="ghost" onClick={sairDaSelecao} className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground" aria-label="Cancelar seleção"><X className="h-3.5 w-3.5" /></Button>
         </div>

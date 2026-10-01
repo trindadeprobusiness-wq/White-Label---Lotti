@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
@@ -36,6 +36,9 @@ interface ItemNav {
 
 interface GrupoNav {
   titulo: string;
+  // O grupo é uma linha clicável, não um rótulo miúdo: sem ícone ele não se
+  // lê como algo que se abre, e a lista perde o ritmo dos itens.
+  icone: ReactNode;
   itens: ItemNav[];
 }
 
@@ -59,6 +62,7 @@ function montarGrupos(): GrupoNav[] {
   return [
     {
       titulo: 'Operação',
+      icone: <Home className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
         { label: 'Planejamento', href: '/rotina', icone: <CalendarCheck2 className={ic} /> },
@@ -66,6 +70,7 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'WhatsApp',
+      icone: <MessageCircle className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Conversas', href: '/whatsapp', icone: <MessageCircle className={ic} /> },
         // O CRM é o dono do pipeline quando ligado; /funil vira atalho para ele.
@@ -77,12 +82,14 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'Automações',
+      icone: <Send className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Disparos', href: '/automacoes', icone: <Send className={ic} /> },
       ],
     },
     {
       titulo: 'Cadastros',
+      icone: <Users className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Clientes', href: '/clientes', icone: <Users className={ic} /> },
         { label: 'Imóveis', href: '/imoveis', icone: <Building2 className={ic} /> },
@@ -91,6 +98,7 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'Gestão',
+      icone: <Wallet className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Financeiro', href: '/financeiro', icone: <Wallet className={ic} /> },
         { label: 'Jurídico', href: '/juridico', icone: <Scale className={ic} /> },
@@ -100,6 +108,7 @@ function montarGrupos(): GrupoNav[] {
     },
     {
       titulo: 'Sistema',
+      icone: <Settings className="h-[18px] w-[18px]" />,
       itens: [
         { label: 'Assistente IA', href: '/assistente', icone: <Sparkles className={ic} /> },
         { label: 'Configurações', href: '/configuracoes', icone: <Settings className={ic} /> },
@@ -219,12 +228,15 @@ export function ConteudoDaSidebar({
                 type="button"
                 onClick={() => setGruposAbertos((atual) => ({ ...atual, [grupo.titulo]: !aberto }))}
                 aria-expanded={aberto}
-                className="mb-2 flex w-full items-center gap-1.5 rounded-md px-3 py-1 text-group uppercase text-muted-strong transition-colors hover:bg-sidebar-accent focus-ring"
+                className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent focus-ring"
               >
-                {grupo.titulo}
+                <span className="shrink-0 text-muted-strong">{grupo.icone}</span>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide text-muted-strong">
+                  {grupo.titulo}
+                </span>
                 <ChevronRight
                   aria-hidden="true"
-                  className={cn('ml-auto h-3.5 w-3.5 transition-transform duration-150', aberto && 'rotate-90')}
+                  className={cn('h-3.5 w-3.5 shrink-0 text-muted-strong transition-transform duration-150', aberto && 'rotate-90')}
                 />
               </button>
             )}
@@ -287,13 +299,13 @@ export function ConteudoDaSidebar({
              diário escondidas atrás de um menu que ninguém abria. */
           /* Compacto de propósito: o cartão é rodapé, não conteúdo. Avatar e
              botões menores, e o papel some — quem está logado já sabe o que é. */
-          <div className="rounded-lg border border-border p-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+          <div className="rounded-xl border border-border p-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                 {iniciais(corretor?.nome)}
               </span>
               <span className="min-w-0 flex-1 leading-tight">
-                <span className="block truncate text-xs font-medium text-foreground">
+                <span className="block truncate text-[13px] font-medium text-foreground">
                   {corretor?.nome ?? 'Minha conta'}
                 </span>
                 {user?.email && (
@@ -301,8 +313,8 @@ export function ConteudoDaSidebar({
                 )}
               </span>
             </div>
-            <div className="mt-2 flex items-center gap-1.5">
-              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => void signOut()}>
+            <div className="mt-2.5 flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 flex-1 text-[13px]" onClick={() => void signOut()}>
                 <LogOut className="mr-1 h-3.5 w-3.5" />
                 Sair
               </Button>
