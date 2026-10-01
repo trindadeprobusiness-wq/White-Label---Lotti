@@ -178,7 +178,6 @@ export default function Clientes() {
       <PageHeader
         titulo="Clientes"
         subtitulo={`${numero(clientes.length)} cliente${clientes.length === 1 ? '' : 's'} cadastrado${clientes.length === 1 ? '' : 's'}`}
-        comBusca
         comUtilitarios
         acoes={
           <>
