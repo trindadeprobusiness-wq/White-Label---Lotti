@@ -43,7 +43,7 @@ interface GrupoNav {
 }
 
 const CHAVE_RECOLHIDA = 'lotti:sidebar-recolhida';
-const ic = 'h-[18px] w-[18px] shrink-0';
+const ic = 'h-4 w-4 shrink-0';
 
 /**
  * O back office NÃO aparece aqui, nem para quem é admin.
@@ -135,7 +135,7 @@ function ItemMenu({
       onClick={aoNavegar}
       aria-current={ativo ? 'page' : undefined}
       className={cn(
-        'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
+        'group flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium',
         'transition-colors duration-150 focus-ring',
         recolhida && 'justify-center px-0',
         // Mesmo verde dos blocos de ícone (--surface-brand), agora que ele é
@@ -144,7 +144,7 @@ function ItemMenu({
         ativo
           ? cn(
               'relative bg-surface-brand font-semibold text-primary',
-              'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1',
+              'before:absolute before:left-0 before:top-1/2 before:h-4 before:w-1',
               'before:-translate-y-1/2 before:rounded-r-full before:bg-primary',
             )
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -228,19 +228,19 @@ export function ConteudoDaSidebar({
                 type="button"
                 onClick={() => setGruposAbertos((atual) => ({ ...atual, [grupo.titulo]: !aberto }))}
                 aria-expanded={aberto}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-sidebar-accent focus-ring"
+                className="flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-left transition-colors hover:bg-sidebar-accent focus-ring"
               >
-                <span className="shrink-0 text-muted-strong [&>svg]:h-4 [&>svg]:w-4">{grupo.icone}</span>
-                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-strong">
+                <span className="shrink-0 text-muted-strong">{grupo.icone}</span>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide text-muted-strong">
                   {grupo.titulo}
                 </span>
                 <ChevronRight
                   aria-hidden="true"
-                  className={cn('h-3 w-3 shrink-0 text-muted-strong transition-transform duration-150', aberto && 'rotate-90')}
+                  className={cn('h-4 w-4 shrink-0 text-muted-strong transition-transform duration-150', aberto && 'rotate-90')}
                 />
               </button>
             )}
-            <div className={cn('space-y-0.5', !recolhida && (aberto ? 'mb-2 mt-0.5' : 'hidden'))}>
+            <div className={cn('space-y-0.5', !recolhida && (aberto ? 'mb-2 mt-0.5 pl-3' : 'hidden'))}>
               {grupo.itens.map((item) => (
                 <ItemMenu
                   key={item.href}
