@@ -37,6 +37,8 @@ Copie `.env.example` para `.env` e preencha as chaves do Supabase. Os segredos d
 O projeto já está configurado para a Vercel via [`vercel.json`](./vercel.json) — framework `vite`,
 build `npm run build`, saída `dist`, com rewrite de SPA para o React Router.
 
+Nota operacional: deploy de produção reacionado em 2026-10-01.
+
 **Opção A — Git (recomendado):** conecte o repositório na Vercel. Cada push para a branch principal
 gera um deploy de produção e cada PR gera uma preview automática.
 
