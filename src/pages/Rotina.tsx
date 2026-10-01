@@ -156,8 +156,6 @@ export default function Rotina() {
           events={allEvents}
           tasks={taskList}
           members={visibleMembers}
-          clients={clientes}
-          alerts={alertas}
           inbox={inbox.query.data ?? []}
           onOpen={openItem}
           onComplete={(item) => actions.complete.mutateAsync(item)}

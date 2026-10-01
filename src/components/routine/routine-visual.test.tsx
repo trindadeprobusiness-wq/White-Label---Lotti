@@ -67,7 +67,7 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
         currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
-        members={[member]} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
+        members={[member]} inbox={[]} onOpen={vi.fn()}
         onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
       />,
     );
@@ -85,7 +85,7 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
         currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
-        members={[member]} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
+        members={[member]} inbox={[]} onOpen={vi.fn()}
         onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
       />,
     );
@@ -98,24 +98,24 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
     expect(html).toContain('Caixa de entrada');
   });
 
-  it('a sugestão vive dentro dos sinais, e não num cartão só dela', () => {
-    const atrasado = { ...task, id: 'task-2' };
+  // Quem está sem retorno é pergunta do funil, não da agenda — e o Início já
+  // lista as mesmas pessoas em "Próximos contatos", pelo mesmo critério.
+  // O componente nem recebe mais clientes e alertas: a ausência é de tipo.
+  it('não carrega sinais de relacionamento, que são assunto de outra tela', () => {
     const html = renderToStaticMarkup(
       <RoutineBriefing
-        currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[atrasado]}
-        members={[member]}
-        clients={[{ id: 'c1', nome: 'Anadiana', ultimo_contato: '2026-09-01' } as never]}
-        alerts={[]} inbox={[]} onOpen={vi.fn()}
+        currentUserName="Gabri Teste" currentUserId="user-1" events={[event]} tasks={[task]}
+        members={[member]} inbox={[]} onOpen={vi.fn()}
         onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
       />,
     );
 
-    // Eram dois cartões para o mesmo dado: a sugestão saía de staleClients[0]
-    // e a lista ao lado começava pelo mesmo contato.
+    expect(html).not.toContain('Sinais da operação');
     expect(html).not.toContain('Próxima melhor ação');
-    const sinais = html.indexOf('Sinais da operação');
-    expect(sinais).toBeGreaterThan(-1);
-    expect(html.indexOf('Anadiana', sinais)).toBeGreaterThan(sinais);
+    expect(html).not.toContain('precisa de retorno');
+    // O que é de tempo continua: compromisso e tarefa.
+    expect(html).toContain('Visita no Jardim América');
+    expect(html).toContain('Enviar documentos');
   });
 
   it('carga da equipe só aparece quando existe equipe', () => {
@@ -128,7 +128,7 @@ describe('acabamento visual e responsivo da Central de Rotina', () => {
       const html = renderToStaticMarkup(
         <RoutineBriefing
           currentUserName="Gabri Teste" currentUserId="user-1" events={[]} tasks={[]}
-          members={members} clients={[]} alerts={[]} inbox={[]} onOpen={vi.fn()}
+          members={members} inbox={[]} onOpen={vi.fn()}
           onComplete={vi.fn()} onCreate={vi.fn()} onAddInbox={vi.fn()} onArchiveInbox={vi.fn()}
         />,
       );

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { differenceInDays, format, isSameDay } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  AlertCircle, ArrowUpRight, BrainCircuit, Circle, Inbox,
+  ArrowUpRight, Circle, Inbox,
   MapPin, MessageSquarePlus, Plus, Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -16,20 +16,6 @@ import { taskIsOverdue } from '@/lib/routine/calendar';
 import type { RoutineDraft, RoutineEvent, RoutineInboxItem, RoutineMember, RoutineTask } from '@/types/routine';
 import { RoutineCategoryIcon } from './RoutineCategoryIcon';
 
-type ClientSignal = {
-  id: string;
-  nome: string;
-  ultimo_contato?: string | null;
-  proximo_followup?: string | null;
-};
-
-type AlertSignal = {
-  id: string;
-  mensagem: string;
-  prioridade?: string | null;
-  lido?: boolean;
-};
-
 function firstName(name?: string | null) {
   return name?.trim().split(/\s+/)[0] || 'por aí';
 }
@@ -40,8 +26,6 @@ export function RoutineBriefing({
   events,
   tasks,
   members,
-  clients,
-  alerts,
   inbox,
   onOpen,
   onComplete,
@@ -54,8 +38,6 @@ export function RoutineBriefing({
   events: RoutineEvent[];
   tasks: RoutineTask[];
   members: RoutineMember[];
-  clients: ClientSignal[];
-  alerts: AlertSignal[];
   inbox: RoutineInboxItem[];
   onOpen: (item: RoutineEvent | RoutineTask) => void;
   onComplete: (item: RoutineEvent | RoutineTask) => Promise<unknown>;
@@ -75,10 +57,6 @@ export function RoutineBriefing({
     .sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
   const todayTasks = tasks.filter((task) => task.assigned_to === currentUserId && task.due_at && isSameDay(new Date(task.due_at), now) && !['completed', 'cancelled'].includes(task.status));
   const overdue = tasks.filter((task) => task.assigned_to === currentUserId && taskIsOverdue(task, now));
-  const staleClients = clients
-    .filter((client) => !client.ultimo_contato || differenceInDays(now, new Date(client.ultimo_contato)) >= 3)
-    .slice(0, 4);
-  const importantAlerts = alerts.filter((alert) => !alert.lido && alert.prioridade === 'ALTA').slice(0, 3);
 
   const teamLoad = useMemo(() => members.map((member) => {
     const openTasks = tasks.filter((task) => task.assigned_to === member.user_id && !['completed', 'cancelled'].includes(task.status)).length;
@@ -88,15 +66,6 @@ export function RoutineBriefing({
   const maxLoad = Math.max(1, ...teamLoad.map((item) => item.total));
 
   const temTarefas = overdue.length > 0 || todayTasks.length > 0;
-  const temSinais = importantAlerts.length > 0 || staleClients.length > 0;
-
-  const suggestion = overdue.length > 0
-    ? `Reorganize ${overdue.length} ${overdue.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'} antes do próximo compromisso.`
-    : staleClients.length > 0
-      ? `Comece por ${firstName(staleClients[0].nome)}: é o contato mais antigo sem retorno.`
-      : nextEvent
-        ? `Prepare o contexto da próxima ${getRoutineCategory(nextEvent.activity_type).label.toLowerCase()}.`
-        : 'Sua agenda está leve. Use o bloco livre para prospecção ou organização do funil.';
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -162,32 +131,6 @@ export function RoutineBriefing({
                 </span>
               </button>
               <RoutineCategoryIcon categoryId={task.activity_type} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      )}
-
-      {temSinais && (
-      <Card className="shadow-sm">
-        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><AlertCircle className="h-4 w-4" />Sinais da operação</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="rounded-lg border border-primary/15 bg-surface-brand/40 px-3 py-2.5">
-            <p className="flex gap-2 text-xs leading-5"><BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{suggestion}</p>
-            {(overdue.length > 0 || staleClients.length > 0) && (
-              <div className="mt-2 flex flex-wrap gap-2 pl-6">
-                {overdue.length > 0 && <Badge variant="outline" className="bg-card">{overdue.length} atrasada{overdue.length > 1 ? 's' : ''}</Badge>}
-                {staleClients.length > 0 && <Badge variant="outline" className="bg-card">{staleClients.length} sem retorno</Badge>}
-              </div>
-            )}
-          </div>
-          {importantAlerts.map((alert) => (
-            <div key={alert.id} className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">{alert.mensagem}</div>
-          ))}
-          {staleClients.slice(0, importantAlerts.length ? 2 : 4).map((client) => (
-            <div key={client.id} className="flex items-center justify-between gap-3 text-xs">
-              <span className="truncate"><strong>{client.nome}</strong> precisa de retorno</span>
-              <Badge variant="outline" className="shrink-0">{client.ultimo_contato ? `${differenceInDays(now, new Date(client.ultimo_contato))} dias` : 'sem contato'}</Badge>
             </div>
           ))}
         </CardContent>
