@@ -41,6 +41,20 @@ it('starts once, polls read-only, expires a QR locally and cancels without logou
  expect(invoke.mock.calls.every(c=>['status','connect'].includes(c[1].body.action))).toBe(true);
  expect(invoke.mock.calls.filter(c=>c[1].body.action==='connect')).toHaveLength(1);
 });
+it('connect recusado: a tela oferece refazer o connect, não o status, e o caminho não some',async()=>{
+ // O erro vinha do connect, mas "Tentar novamente" refazia a consulta de
+ // status — repetia o que não tinha falhado e deixava a tela sem saída.
+ invoke.mockImplementation((_name,options)=>options.body.action==='connect'
+   ?Promise.resolve({data:null,error:new Error('connection_service_unavailable')})
+   :Promise.resolve({data:{state:'disconnected',agentEnabled:false},error:null}));
+ mount({autoStart:true});await advance();
+ expect(screen.getByText(/gerar o QR Code/i)).not.toBeNull();
+ const antes=invoke.mock.calls.filter(c=>c[1].body.action==='connect').length;
+ fireEvent.click(screen.getByText('Tentar de novo'));await advance();
+ expect(invoke.mock.calls.filter(c=>c[1].body.action==='connect')).toHaveLength(antes+1);
+ // Mesmo com autoStart, sempre sobra um botão para pedir o QR de novo.
+ expect(screen.getByText('Gerar QR Code')).not.toBeNull();
+});
 it('shows connected only on provider confirmation and offers no new pairing',async()=>{
  invoke.mockResolvedValue({data:{state:'connected',agentEnabled:false},error:null});
  mount();await advance();

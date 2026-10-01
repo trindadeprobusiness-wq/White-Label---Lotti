@@ -44,9 +44,16 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
    <div className="flex flex-wrap items-center gap-3">{connected?<CheckCircle2 className="h-6 w-6 text-emerald-600"/>:<QrCode className="h-6 w-6 text-primary"/>}
      <div className="mr-auto"><h2 className="font-semibold">{connected?'WhatsApp conectado':'Conecte ao WhatsApp'}</h2>
      <p className="mt-1 text-sm text-muted-foreground">{connected?(connection.data?.agentEnabled?'O agente está liberado para atender conforme o seu plano.':'Seu número está conectado. O atendimento automático aguarda liberação.'):reconnecting?'O WhatsApp está reconectando. Não é preciso escanear o QR de novo.':'Conecte o número de atendimento para receber as conversas nesta conta.'}</p></div>
-     {!connected&&!pairing&&!autoStart&&<Button disabled={connection.isPending||starting} onClick={begin}>Conectar WhatsApp</Button>}
+     {/* Com autoStart a tela não oferecia botão nenhum: se o connect falhasse,
+         sumia o único caminho de conectar. Enquanto não houver pareamento em
+         curso, sempre sobra como pedir o QR de novo. */}
+     {!connected&&!pairing&&!starting&&<Button disabled={connection.isPending} onClick={begin}>{autoStart?'Gerar QR Code':'Conectar WhatsApp'}</Button>}
    </div>
-   {(connection.isError||startError)&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível consultar a conexão agora. <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
+   {/* São dois erros diferentes: falhar ao consultar o estado e falhar ao pedir
+       o QR. Tentar de novo precisa refazer o que falhou — repetir o status
+       depois de um connect recusado não muda nada e parece defeito. */}
+   {startError&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível gerar o QR Code agora. <button className="underline" disabled={starting} onClick={()=>void begin()}>Tentar de novo</button></p>}
+   {connection.isError&&!startError&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível consultar a conexão agora. <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
    {expired&&!connected&&<p role="alert" className="mt-3 text-sm text-destructive">O WhatsApp não confirmou a conexão em dois minutos. A tentativa nesta tela foi encerrada. Clique em Conectar WhatsApp para iniciar outra tentativa.</p>}
    {pairing&&!connected&&<div className="mt-5 grid gap-4 sm:grid-cols-[280px_1fr]">
      <div className="grid min-h-56 place-items-center rounded-xl bg-white p-4">{previewPairing?<img className="w-64 max-w-full" src={previewQr} alt="QR Code de demonstração para conectar seu WhatsApp"/>:visibleQr&&visibleQr.expiresAt>now?<img className="w-64 max-w-full" src={visibleQr.src} alt="QR Code atualizado para conectar seu WhatsApp"/>:<p role="status" className="text-center text-sm text-slate-600">{connection.isError?'Código indisponível no momento.':'Preparando QR Code…'}</p>}</div>
