@@ -82,7 +82,7 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
       {...attributes}
       onClick={modoSelecao ? () => onSelecionar(oportunidade.id) : undefined}
       className={cn(
-        'space-y-1 rounded-xl border border-border bg-card p-3',
+        'space-y-1.5 rounded-[10px] border border-border bg-card px-3 py-2.5',
         'transition-shadow duration-150 active:cursor-grabbing',
         modoSelecao ? 'cursor-pointer' : 'cursor-grab',
         selecionado && 'border-primary bg-primary/5 ring-1 ring-primary/30',
@@ -99,7 +99,7 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-sm font-semibold leading-tight">{oportunidade.titulo}</p>
+            <p className="truncate text-[13.5px] font-semibold leading-tight">{oportunidade.titulo}</p>
             {oportunidade.is_sample_data && <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-700">Demo</span>}
           </div>
           {mostrarCliente && <p className="mt-1 truncate text-[11px] text-muted-foreground">{nomeCliente}</p>}
@@ -110,13 +110,13 @@ function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar
           title="Falar no WhatsApp"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onWhatsApp(oportunidade); }}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white transition-opacity hover:opacity-90 focus-ring"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-opacity hover:opacity-90 focus-ring"
         >
-          <MessageCircle className="h-3.5 w-3.5" />
+          <MessageCircle className="h-3 w-3" />
         </button>
       </div>
       {oportunidade.clientes?.telefone && (
-        <DadoSensivel valor={oportunidade.clientes.telefone} tipo="telefone" className="block text-[11px] text-muted-foreground" />
+        <DadoSensivel valor={oportunidade.clientes.telefone} tipo="telefone" className="block font-mono text-[11px] tabular text-muted-foreground" />
       )}
       {oportunidade.imoveis?.titulo && (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
@@ -166,13 +166,13 @@ function Coluna({
     <div
       ref={setNodeRef}
       className={cn(
-        'min-w-[260px] flex-1 rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
+        'w-[260px] shrink-0 overflow-hidden rounded-xl border border-border bg-secondary/60 flex flex-col h-full min-h-0 transition-all',
         // Verde da marca com opacidade, não o #F6FFE7: aquele era tão claro
         // que a coluna de destino mal se distinguia das outras.
         isOver && 'border-primary outline outline-2 -outline-offset-2 outline-primary/60',
       )}
     >
-      <div className="px-3 pt-3 pb-2">
+      <div className="bg-card px-3.5 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             {modoSelecao && (
@@ -188,22 +188,22 @@ function Coluna({
             <span className={cn('h-2 w-2 shrink-0 rounded-full', cor.ponto)} aria-hidden="true" />
             <h3 className="truncate text-sm font-semibold text-foreground">{coluna.etapa.nome}</h3>
           </div>
-          <Badge variant="secondary" className="h-5 min-w-[2rem] shrink-0 justify-center rounded-full px-2 text-xs font-semibold">
+          <Badge variant="secondary" className="h-5 min-w-[2rem] shrink-0 justify-center rounded-full px-2 text-[11px] font-semibold tabular">
             {coluna.oportunidades.length}
           </Badge>
         </div>
       </div>
 
-      <div className={cn('h-[2px] w-full opacity-70', cor.barra)} aria-hidden="true" />
+      <div className={cn('h-[3px] w-full', cor.barra)} aria-hidden="true" />
 
-      <div className={cn('flex-1 space-y-2 overflow-y-auto p-3', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
+      <div className={cn('flex-1 space-y-2 overflow-y-auto p-2.5', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
         {coluna.oportunidades.map((o) => (
           <Card key={o.id} oportunidade={o} onWhatsApp={onWhatsApp} modoSelecao={modoSelecao} selecionado={selecionados.has(o.id)} onSelecionar={onSelecionar} />
         ))}
 
         {coluna.oportunidades.length === 0 && (
           <div className={cn(
-            'flex items-center justify-center rounded-lg py-10 text-center text-xs italic text-muted-foreground',
+            'flex items-center justify-center rounded-lg py-6 text-center text-[12.5px] italic text-muted-foreground',
             isOver && 'border-2 border-dashed border-primary/50 not-italic text-foreground',
           )}>
             {isOver ? 'Solte aqui' : 'Vazio. Arraste cards pra cá.'}
@@ -333,14 +333,14 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
   return (
     <div className="relative flex h-full min-h-[440px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[min(100%,18rem)] flex-1 sm:max-w-[20rem]">
+        <div className="relative w-full sm:w-[260px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar lead, cliente ou imóvel..."
             aria-label="Buscar no pipeline"
-            className="h-10 pl-9 pr-9"
+            className="h-9 pl-9 pr-9 text-[13.5px]"
           />
           {busca && (
             <button type="button" onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Limpar busca">
@@ -351,7 +351,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
         {buscaAtiva && <span className="text-xs text-muted-foreground">{oportunidadesVisiveis.length} negócio{ oportunidadesVisiveis.length === 1 ? '' : 's' }</span>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="icon" className="ml-auto h-10 w-10" aria-label="Mais opções do funil">
+            <Button type="button" variant="outline" size="icon" className="ml-auto h-9 w-9" aria-label="Mais opções do funil">
               <MoreHorizontal className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -379,7 +379,7 @@ export function CrmPipeline({ extrasDoMenu }: { extrasDoMenu?: ReactNode } = {})
         onDragEnd={aoSoltar}
         onDragCancel={() => setArrastando(null)}
       >
-        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto [scrollbar-width:thin]">
+        <div className="flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-3 [scrollbar-width:thin]">
           {colunas.map((c) => (
             <Coluna
               key={c.etapa.id}
