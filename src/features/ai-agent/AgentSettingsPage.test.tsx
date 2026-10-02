@@ -59,8 +59,11 @@ it('shows the model in use and changes it from the identity tab', async () => {
   render(<AgentSettingsPage />);
   expect(screen.getByTestId('model-in-use').textContent).toContain('GPT-4o mini');
 
+  // O link "Trocar modelo" saiu: o modelo virou um cartão do resumo, e os
+  // cartões já levam à aba ao serem clicados. Era um botão a mais para a
+  // mesma viagem, ao lado de uma informação que já aparecia duas vezes.
   openTab('Prompt');
-  fireEvent.click(screen.getByRole('button', { name: 'Trocar modelo' }));
+  fireEvent.click(within(screen.getByTestId('model-in-use')).getByRole('button'));
   expect(screen.getByRole('tab', { name: 'Identidade' }).getAttribute('aria-selected')).toBe('true');
 
   fireEvent.change(screen.getByLabelText('Modelo de IA'), { target: { value: 'gpt-4.1-mini' } });

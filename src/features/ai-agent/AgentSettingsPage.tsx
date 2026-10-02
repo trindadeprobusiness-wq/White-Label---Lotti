@@ -95,6 +95,7 @@ export default function AgentSettingsPage({ embutido = false }: { embutido?: boo
 
   const handoffStage = stageName(stages, settings.behavior.handoff.stageId);
   const summary: Array<{ tab: AgentTab; label: string; value: string }> = [
+    { tab: 'identity', label: 'Modelo', value: `${agentModel(settings.model).label} · ${agentModel(settings.model).provider}` },
     { tab: 'behavior', label: 'Quando atende', value: describeAttendMode(settings.behavior) },
     { tab: 'schedule', label: 'Horário', value: describeBusinessHours(settings.schedule.week) },
     { tab: 'cycle', label: 'Follow-up', value: settings.followUp.enabled ? `${settings.followUp.delaysHours.length} ${settings.followUp.delaysHours.length === 1 ? 'toque' : 'toques'}${settings.followUp.closeConversation ? ', fecha sem resposta' : ''}` : 'Desligado' },
@@ -145,12 +146,8 @@ export default function AgentSettingsPage({ embutido = false }: { embutido?: boo
           <p className="mt-1 text-sm text-muted-foreground">{settings.active ? 'Ligado: atende os leads do WhatsApp com as regras abaixo.' : 'Desligado: não atende nenhuma conversa.'}</p>
         </div>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3 text-sm">
-        <span data-testid="model-in-use" className="text-muted-foreground">Modelo em uso: <span className="font-medium text-foreground">{agentModel(settings.model).label}</span> · {agentModel(settings.model).provider}</span>
-        <button type="button" className="text-sm font-medium text-primary underline-offset-4 hover:underline" onClick={() => setActiveTab('identity')}>Trocar modelo</button>
-      </div>
-      <ul aria-label="Resumo do agente" className={cn('grid border-t sm:grid-cols-2 lg:grid-cols-4', !settings.active && 'opacity-60')}>
-        {summary.map((item) => <li key={item.label} className="border-b last:border-b-0 sm:[&:nth-child(odd)]:border-r lg:border-b-0 lg:border-r lg:last:border-r-0">
+      <ul aria-label="Resumo do agente" className={cn('grid border-t sm:grid-cols-2 lg:grid-cols-5', !settings.active && 'opacity-60')}>
+        {summary.map((item) => <li key={item.label} data-testid={item.label === 'Modelo' ? 'model-in-use' : undefined} className="border-b last:border-b-0 sm:[&:nth-child(odd)]:border-r lg:border-b-0 lg:border-r lg:last:border-r-0">
           <button type="button" onClick={() => setActiveTab(item.tab)} className="flex h-full w-full flex-col items-start justify-start px-5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
             <span className="block text-xs font-medium text-muted-foreground">{item.label}</span>
             <span className="mt-1 block text-sm font-medium">{item.value}</span>
