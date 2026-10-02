@@ -48,7 +48,7 @@ const claim = async () => (await db.query<{ job: Record<string, unknown> | null 
 const mensagemNova = async (id: string) =>
   db.exec(`update lotti_agent_conversations set revision=revision+1, next_attempt_at=now() where id='${id}'`);
 
-const salvarConfig = async (behavior: Record<string, unknown>) => {
+const salvarConfig = async (behavior: Record<string, unknown>, schedule?: Record<string, unknown>) => {
   const settings = {
     version: 2, active: true, model: 'gpt-4.1',
     identity: { name: 'Lotti' },
@@ -56,6 +56,19 @@ const salvarConfig = async (behavior: Record<string, unknown>) => {
       attendMode: 'always', attendDelayMinutes: 5,
       handoff: { mode: 'message' }, guards: { aggregationSeconds: 0 },
       ...behavior,
+    },
+    schedule: {
+      timezone: 'America/Sao_Paulo',
+      week: {
+        mon: { enabled: true, start: '09:00', end: '18:00' },
+        tue: { enabled: true, start: '09:00', end: '18:00' },
+        wed: { enabled: true, start: '09:00', end: '18:00' },
+        thu: { enabled: true, start: '09:00', end: '18:00' },
+        fri: { enabled: true, start: '09:00', end: '18:00' },
+        sat: { enabled: true, start: '09:00', end: '13:00' },
+        sun: { enabled: false, start: '09:00', end: '13:00' },
+      },
+      ...schedule,
     },
   };
   await db.query('insert into lotti_agent_settings(corretor_id,settings) values($1,$2) on conflict(corretor_id) do update set settings=excluded.settings',
@@ -192,6 +205,37 @@ describe('modo de atendimento', () => {
     await db.exec(`update lotti_agent_conversations set next_attempt_at=now() where id='${idIA}'`);
     expect(await claim()).not.toBeNull();
     await db.exec(`update lotti_agent_conversations set lease_until=null,lease_token=null where id='${idIA}'`);
+  });
+
+
+  // `outside_hours` lê a aba Agendamento, não um horário fixo. O teste chama a
+  // função direto com um instante escolhido: depender do relógio faria o
+  // resultado mudar conforme a hora em que a suíte roda.
+  it('outside_hours: dentro do expediente a conversa é do corretor', async () => {
+    await salvarConfig({ attendMode: 'outside_hours' });
+    const cv = await conversa('5562911110003');
+    // Quarta-feira, 10h de Brasília.
+    const dentro = await db.query<{ pode: boolean }>(
+      `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-07 13:00:00+00') as pode`, [cv.id]);
+    expect(dentro.rows[0].pode).toBe(false);
+  });
+
+  it('outside_hours: fora do expediente a IA cobre', async () => {
+    await salvarConfig({ attendMode: 'outside_hours' });
+    const cv = await conversa('5562911110003');
+    // Mesma quarta, 22h de Brasília.
+    const fora = await db.query<{ pode: boolean }>(
+      `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-08 01:00:00+00') as pode`, [cv.id]);
+    expect(fora.rows[0].pode).toBe(true);
+  });
+
+  it('outside_hours: dia sem expediente é turno inteiro da IA', async () => {
+    await salvarConfig({ attendMode: 'outside_hours' });
+    const cv = await conversa('5562911110003');
+    // Domingo às 10h: a semana marca `sun` como desligado.
+    const domingo = await db.query<{ pode: boolean }>(
+      `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-11 13:00:00+00') as pode`, [cv.id]);
+    expect(domingo.rows[0].pode).toBe(true);
   });
 
   it('sem configuração salva, o comportamento é o de hoje: atende', async () => {

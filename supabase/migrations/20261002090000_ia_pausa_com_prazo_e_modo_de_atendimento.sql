@@ -43,8 +43,10 @@ language sql immutable set search_path='' as $$ select interval '24 hours' $$;
 create or replace function public.lotti_agent_pode_atender(p_conversa uuid, p_agora timestamptz default now())
 returns boolean language plpgsql stable security definer set search_path='' as $$
 declare
-  v_owner uuid; v_cfg jsonb; v_modo text; v_minutos int;
-  v_inicio int; v_fim int; v_hora int; v_houve_humano boolean;
+  v_owner uuid; v_cfg jsonb; v_modo text; v_minutos int; v_houve_humano boolean;
+  v_tz text; v_local timestamp; v_dia jsonb; v_hora time;
+  -- extract(dow) devolve 0 para domingo. As chaves são as da aba Agendamento.
+  v_dias constant text[] := array['sun','mon','tue','wed','thu','fri','sat'];
 begin
   select corretor_id into v_owner from public.lotti_agent_conversations where id = p_conversa;
   if v_owner is null then return false; end if;
@@ -55,17 +57,20 @@ begin
   if v_modo = 'always' then return true; end if;
 
   if v_modo = 'outside_hours' then
-    -- Fora do horário comercial a IA cobre o turno. O fuso é o de Brasília,
-    -- que é onde o corretor e o lead estão.
-    v_inicio := coalesce((v_cfg #>> '{behavior,businessHoursStart}')::int, 8);
-    v_fim    := coalesce((v_cfg #>> '{behavior,businessHoursEnd}')::int, 18);
-    v_hora   := extract(hour from (p_agora at time zone 'America/Sao_Paulo'))::int;
-    -- Expediente que atravessa a meia-noite continua sendo expediente.
-    if v_inicio <= v_fim then
-      return v_hora < v_inicio or v_hora >= v_fim;
-    else
-      return v_hora >= v_fim and v_hora < v_inicio;
+    -- Fora do expediente a IA cobre o turno. O expediente é o da aba
+    -- Agendamento: um horário por dia da semana, no fuso escolhido ali.
+    v_tz    := coalesce(nullif(v_cfg #>> '{schedule,timezone}', ''), 'America/Sao_Paulo');
+    v_local := p_agora at time zone v_tz;
+    v_dia   := v_cfg #> array['schedule', 'week', v_dias[extract(dow from v_local)::int + 1]];
+
+    -- Dia sem expediente (domingo, por exemplo) é turno inteiro da IA.
+    if v_dia is null or coalesce((v_dia->>'enabled')::boolean, false) is not true then
+      return true;
     end if;
+
+    v_hora := v_local::time;
+    return v_hora < coalesce(nullif(v_dia->>'start', ''), '09:00')::time
+        or v_hora >= coalesce(nullif(v_dia->>'end', ''), '18:00')::time;
   end if;
 
   if v_modo = 'after_delay' then
