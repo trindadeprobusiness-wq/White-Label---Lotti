@@ -94,6 +94,41 @@ function MessageBody({ message }: { message: Message }) {
 // Cada bloco do painel inventava o seu espaçamento (mt-2.5, mt-4, mt-5) e o seu
 // tamanho de título. Com a remoção dos campos que não funcionavam, o que sobrou
 // ficou sem ritmo. Uma seção só, usada por todos.
+/**
+ * Linha do tempo do contato.
+ *
+ * O fio entre as bolinhas ia de `top-3` até `bottom-0` do próprio item:
+ * começava em cima da primeira bolinha e parava 14px antes da seguinte,
+ * deixando um pedaço solto no ar — foi o que o corretor viu como defeito.
+ *
+ * A ordem é do mais antigo para o mais novo: "Lead criado" depois de uma
+ * conversa de ontem lia-se como se o lead tivesse nascido hoje.
+ */
+function LinhaDoTempo({ eventos }: { eventos: { titulo: string; quando?: string | null }[] }) {
+  const lista = eventos
+    .map((evento) => ({ ...evento, instante: evento.quando ? Date.parse(evento.quando) : NaN }))
+    .filter((evento) => Number.isFinite(evento.instante))
+    .sort((a, b) => a.instante - b.instante);
+  if (!lista.length) return <p className="text-[11px] text-muted-foreground">Sem eventos ainda.</p>;
+
+  return <ol>
+    {lista.map((evento, indice) => <li key={evento.titulo} className="relative flex gap-2.5">
+      {/* O fio nasce onde a bolinha acaba (mt-1.5 + 7px de altura = 13px) e
+          desce 6px além do item, que é exatamente o mt-1.5 da bolinha
+          seguinte. Antes ia de `top-3` a `bottom-0`: cobria o pé da primeira
+          bolinha e parava 14px antes da outra, no vazio. */}
+      {indice < lista.length - 1 && <span aria-hidden="true" className="absolute -bottom-1.5 left-[3px] top-[13px] w-px bg-border" />}
+      <span aria-hidden="true" className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-primary" />
+      <div className={`min-w-0 ${indice < lista.length - 1 ? 'pb-3' : ''}`}>
+        <strong className="block text-[11px] font-medium leading-tight text-foreground">{evento.titulo}</strong>
+        <time dateTime={evento.quando ?? undefined} className="text-[11px] text-muted-foreground">
+          {new Date(evento.instante).toLocaleString('pt-BR')}
+        </time>
+      </div>
+    </li>)}
+  </ol>;
+}
+
 function SecaoPerfil({ titulo, acessorio, children }: { titulo: string; acessorio?: React.ReactNode; children: React.ReactNode }) {
   return <section className="mt-5 first:mt-0">
     <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}{acessorio && <span className="ml-auto">{acessorio}</span>}</h3>
@@ -446,17 +481,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </SecaoPerfil>
 
         <SecaoPerfil titulo="Linha do tempo">
-          {[
+          <LinhaDoTempo eventos={[
+            { titulo: 'Lead criado', quando: client.data?.created_at },
             { titulo: 'Conversou no WhatsApp', quando: selected.updated_at },
-            ...(client.data?.created_at ? [{ titulo: 'Lead criado', quando: client.data.created_at }] : []),
-          ].map((evento, indice, lista) => <div key={evento.titulo} className="relative flex gap-2.5 pb-3 last:pb-0">
-            {indice < lista.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[3px] top-3 w-px bg-border" />}
-            <span aria-hidden="true" className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-primary" />
-            <div className="min-w-0">
-              <strong className="block text-[11px] font-medium leading-tight text-foreground">{evento.titulo}</strong>
-              <time className="text-[11px] text-muted-foreground">{new Date(evento.quando).toLocaleString('pt-BR')}</time>
-            </div>
-          </div>)}
+          ]} />
         </SecaoPerfil>
 
         <SecaoPerfil titulo="Qualificação comercial">

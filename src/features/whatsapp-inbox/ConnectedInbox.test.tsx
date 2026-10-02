@@ -610,3 +610,21 @@ it('trocar de conversa abre no fim, mesmo depois de ter subido na anterior', asy
   await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
   height.mockRestore();
 });
+
+it('linha do tempo segue a data, não a ordem em que os eventos são montados', async () => {
+  // A conversa é mais ANTIGA que o cadastro do cliente aqui de propósito: só
+  // assim o teste prova que existe ordenação, e não que a lista já vinha certa.
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: 'cli-1', mode: 'ai', updated_at: '2026-09-20T10:00:00Z', qualification: {}, last_error: null },
+  ];
+  dataByTable.clientes = [{ id: 'cli-1', nome: 'Marina', created_at: '2026-09-24T23:06:43Z' }];
+  mount(true);
+
+  const tempos = await waitFor(() => {
+    const encontrados = screen.getAllByText(/\/2026,/);
+    expect(encontrados.length).toBeGreaterThanOrEqual(2);
+    return encontrados;
+  });
+  expect(tempos[0].textContent).toContain('20/09/2026');
+  expect(tempos[1].textContent).toContain('24/09/2026');
+});
