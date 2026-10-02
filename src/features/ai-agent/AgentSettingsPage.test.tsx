@@ -73,6 +73,19 @@ it('não deixa um zero fantasma quando o campo numérico é apagado', async () =
   expect(campo.value).toBe('12');
 });
 
+
+// Lido do FollowUpEditor do Clix: "Cobre os 4 casos (fechar+mover, fechar sem
+// mover, não-fechar+mover, nada)". Aninhar o funil dentro do fechamento tirava
+// o terceiro — deixar aberta e marcar no funil quem sumiu.
+it('deixa mover o lead no funil mesmo sem fechar a conversa', async () => {
+  render(<AgentSettingsPage />);
+  openTab('Atendimento');
+
+  // Fechamento desligado: o seletor de etapa continua à mão.
+  expect(screen.getByRole('switch', { name: 'Fechar quando ninguém responder' }).getAttribute('data-state')).toBe('unchecked');
+  expect(screen.getByLabelText('Etapa do funil')).toBeTruthy();
+});
+
 it('shows the model in use and changes it from the identity tab', async () => {
   render(<AgentSettingsPage />);
   expect(screen.getByTestId('model-in-use').textContent).toContain('GPT-4o mini');

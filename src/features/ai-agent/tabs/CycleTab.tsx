@@ -50,35 +50,48 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
     </SettingsSection>
 
     {followUp.enabled && <SettingsSection
-      title="Quando o lead não responde"
-      description="Depois do último toque, se ele continuar calado."
+      title="O que fazer no fim"
+      description="Quando o lead não responde a nenhum dos toques. As duas decisões são independentes."
     >
-      <ToggleRow
-        title="Encerrar a conversa"
-        description={followUp.closeConversation
-          ? 'Ela sai da lista de abertas no Inbox e o follow-up para. Se o lead escrever de novo, a conversa reabre sozinha.'
-          : 'Desligado: a conversa fica aberta no Inbox, esperando o lead.'}
-        checked={followUp.closeConversation}
-        onCheckedChange={(closeConversation) => set({ closeConversation })}
-      />
-      {followUp.closeConversation && <div className="space-y-4 rounded-lg border p-4">
-        <Field label="Encerrar depois de quantas horas sem resposta" hint="Contadas a partir do último toque." className="max-w-xs">
-          {(id) => <NumberField id={id} min={1} max={72} value={followUp.closeAfterHours} onChange={(closeAfterHours) => set({ closeAfterHours })} />}
-        </Field>
-        <ToggleRow title="Mandar uma última mensagem antes de encerrar" description="A IA se despede, em vez de sumir sem avisar." checked={followUp.farewell} onCheckedChange={(farewell) => set({ farewell })} />
-        {followUp.farewell && <Field label="Objetivo da despedida">
-          {(id) => <textarea id={id} className={cn(textareaClassName, 'min-h-16')} value={followUp.farewellObjective} onChange={(event) => set({ farewellObjective: event.target.value })} />}
-        </Field>}
-        <FieldIssues issues={issues} field="followUp.closeAfterHours" />
-        <FieldIssues issues={issues} field="followUp.farewellObjective" />
-        <StageSelect
-          label="Mover o lead para esta etapa ao encerrar"
-          value={followUp.finalStageId}
-          onChange={(finalStageId) => set({ finalStageId })}
-          stages={stages}
-          hint="Serve para separar no funil quem parou de responder."
-        />
-      </div>}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Fechar e mover são escolhas separadas: dá para fechar sem mover,
+            mover sem fechar, os dois, ou nenhum. Aninhar o funil dentro do
+            fechamento tirava justamente o caso de deixar aberta e marcar no
+            funil quem sumiu — que é o que o corretor faz para ir atrás depois. */}
+        <fieldset className="space-y-3 rounded-lg border p-4">
+          <legend className="px-1 text-sm font-medium">Fechar a conversa</legend>
+          <ToggleRow
+            title="Fechar quando ninguém responder"
+            description={followUp.closeConversation
+              ? 'Sai da lista de abertas no Inbox. Se o lead escrever de novo, reabre sozinha.'
+              : 'A conversa fica aberta no Inbox. Útil para alguém dar uma olhada depois.'}
+            checked={followUp.closeConversation}
+            onCheckedChange={(closeConversation) => set({ closeConversation })}
+          />
+          {followUp.closeConversation && <>
+            <Field label="Fechar após quantas horas de silêncio" hint="Contadas do último toque." className="max-w-xs">
+              {(id) => <NumberField id={id} min={1} max={72} value={followUp.closeAfterHours} onChange={(closeAfterHours) => set({ closeAfterHours })} />}
+            </Field>
+            <FieldIssues issues={issues} field="followUp.closeAfterHours" />
+            <ToggleRow title="Avisar o lead antes de fechar" checked={followUp.farewell} onCheckedChange={(farewell) => set({ farewell })} />
+            {followUp.farewell && <Field label="Objetivo da despedida">
+              {(id) => <textarea id={id} className={cn(textareaClassName, 'min-h-16')} value={followUp.farewellObjective} onChange={(event) => set({ farewellObjective: event.target.value })} />}
+            </Field>}
+            <FieldIssues issues={issues} field="followUp.farewellObjective" />
+          </>}
+        </fieldset>
+
+        <fieldset className="space-y-3 rounded-lg border p-4">
+          <legend className="px-1 text-sm font-medium">Mover o lead no funil</legend>
+          <StageSelect
+            label="Etapa do funil"
+            value={followUp.finalStageId}
+            onChange={(finalStageId) => set({ finalStageId })}
+            stages={stages}
+            hint="Serve para separar quem parou de responder, feche a conversa ou não."
+          />
+        </fieldset>
+      </div>
     </SettingsSection>}
   </>;
 }
