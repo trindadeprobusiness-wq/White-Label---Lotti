@@ -22,11 +22,6 @@ export function IdentityTab({ settings, onChange, issues }: AgentTabProps) {
   };
 
   return <>
-    <SettingsSection title="Modelo de IA" description={agentModel(settings.model).description}>
-      <select aria-label="Modelo de IA" className={cn(inputClassName, 'max-w-md')} value={settings.model} onChange={(event) => onChange({ ...settings, model: event.target.value as AgentModelId })}>
-        {AGENT_MODEL_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label} · {option.provider}</option>)}
-      </select>
-    </SettingsSection>
 
     <SettingsSection title="Apresentação">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -57,6 +52,16 @@ export function IdentityTab({ settings, onChange, issues }: AgentTabProps) {
           {buildGreetingPreview(identity) || 'Escreva a mensagem de apresentação.'}
         </p>
       </figure>
+    </SettingsSection>
+
+    {/* Qual LLM roda por trás vem por último: a aba responde "quem é a sua
+        IA", e abrir com um seletor técnico atrasa essa resposta. Quem troca
+        de modelo sabe o que procura; quem configura o agente pela primeira
+        vez precisa é dar um nome a ele. */}
+    <SettingsSection title="Modelo de IA" description={agentModel(settings.model).description}>
+      <select aria-label="Modelo de IA" className={cn(inputClassName, 'max-w-md')} value={settings.model} onChange={(event) => onChange({ ...settings, model: event.target.value as AgentModelId })}>
+        {AGENT_MODEL_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label} · {option.provider}</option>)}
+      </select>
     </SettingsSection>
 
   </>;
