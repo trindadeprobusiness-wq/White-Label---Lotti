@@ -16,12 +16,14 @@ const dataByTable: Record<string, unknown[]> = {
 };
 // missingColumns simulates the production database before the account-scope migration.
 const mockDb = { missingColumns: false, missingOptOut: false, filters: [] as string[], reads: {} as Record<string, number>, rpcError: null as null | { message: string },
+  counts: {} as Record<string, number>,
   rpcResults: {} as Record<string, { data: unknown; error: unknown }>, invokeResult: null as null | { data: unknown; error: unknown } };
 function builder(table: string) {
   let columns = '';
+  let contar = false;
   const filters: string[] = [];
   const b: Record<string, unknown> = {
-    select: (cols: string) => { columns = cols ?? ''; return b; }, order: () => b, limit: () => b, eq: () => b,
+    select: (cols: string, opcoes?: { count?: string; head?: boolean }) => { columns = cols ?? ''; contar = !!opcoes?.head; return b; }, order: () => b, limit: () => b, eq: () => b,
     is: (column: string, value: unknown) => { filters.push(column); mockDb.filters.push(`${table}.${column} is ${value}`); return b; },
     // Devolvia null sempre, então nenhuma consulta com .single() (a do cliente,
     // por exemplo) conseguia ser testada com dados.
@@ -33,6 +35,7 @@ function builder(table: string) {
         return Promise.resolve({ data: null, error: { code: '42703' } }).then(resolve);
       if (table === 'lotti_agent_conversations' && mockDb.missingOptOut && columns.includes('opted_out_at'))
         return Promise.resolve({ data: null, error: { code: '42703' } }).then(resolve);
+      if (contar) return Promise.resolve({ data: null, error: null, count: mockDb.counts[table] ?? (dataByTable[table] ?? []).length } as never).then(resolve);
       return Promise.resolve({ data: dataByTable[table] ?? [], error: null }).then(resolve);
     },
   };
@@ -107,7 +110,8 @@ it('prévia mantém o histórico compacto nas laterais e entre mensagens', async
   render(<MemoryRouter><QueryClientProvider client={client}><ConnectedInbox connected={false} preview /></QueryClientProvider></MemoryRouter>);
   const timeline = screen.getByTestId('message-timeline');
   expect(timeline.className).toContain('px-[clamp(10px,1.5vw,18px)]');
-  expect(timeline.className).toContain('space-y-1');
+  // Era space-y-1; o corretor pediu um pouco mais de ar entre as mensagens.
+  expect(timeline.className).toContain('space-y-2');
 });
 
 it('prévia usa o fundo verde claro da Lotti no histórico', () => {
@@ -371,14 +375,16 @@ it('banco sem a coluna de opt-out continua mostrando o nome do contato', async (
 it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({
     qualification: { stage: 'qualificado_busca', temperature: 'quente', priority: 'alta', reason: 'Quer comprar no Centro com financiamento aprovado.',
-      profile: { budget: 'até 500 mil', timeframe: 'em 3 meses', needs: '2 quartos com garagem', nextStep: 'enviar opções', region: 'Centro' } },
+      profile: { budget: 'Até 500 mil', timeframe: 'em 3 meses', needs: '2 quartos com garagem', nextStep: 'enviar opções', region: 'Centro' } },
   })];
   mount(true);
   const profile = await screen.findByRole('complementary', { name: 'Perfil do contato' });
   expect(profile.textContent).toContain('Quer comprar no Centro com financiamento aprovado.');
   expect(profile.textContent).toContain('Qualificado para busca');
   expect(profile.textContent).toContain('Prioridade alta');
-  for (const [label, value] of [['Orçamento', 'até 500 mil'], ['Prazo', 'em 3 meses'], ['Essenciais', '2 quartos com garagem'], ['Próximo passo', 'enviar opções'], ['Região', 'Centro']]) {
+  // O que a tela mostra é o valor legível: primeira letra maiúscula. O dado
+  // gravado continua como a IA escreveu.
+  for (const [label, value] of [['Orçamento', 'Até 500 mil'], ['Prazo', 'Em 3 meses'], ['Essenciais', '2 quartos com garagem'], ['Próximo passo', 'Enviar opções'], ['Região', 'Centro']]) {
     const term = Array.from(profile.querySelectorAll('dt')).find(dt => dt.textContent === label);
     expect(term?.nextElementSibling?.textContent).toBe(value);
   }
@@ -649,4 +655,28 @@ it('motivo que não é de envio não oferece os botões', async () => {
   mount(true);
   const faixa = await screen.findByTestId('motivo-da-parada');
   expect(within(faixa).queryByRole('button', { name: 'A mensagem chegou' })).toBeNull();
+});
+
+it('o rodapé mostra o total real, não o teto da página', async () => {
+  // A consulta traz no máximo 100; com 104 existindo, o rodapé dizia
+  // "100 de 100" e parecia que não havia mais nada.
+  dataByTable.lotti_agent_conversations = Array.from({ length: 3 }, (_, i) => (
+    { id: `c${i}`, phone: `551199999000${i}`, cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null }));
+  mockDb.counts.lotti_agent_conversations = 104;
+  mount(true);
+  expect(await screen.findByText('3 de 104')).toBeTruthy();
+  delete mockDb.counts.lotti_agent_conversations;
+});
+
+it('IA esperando a vez dela não aparece como problema', async () => {
+  // `lotti_agent_defer` grava o motivo da espera no mesmo campo das falhas.
+  // Juntar mensagens por 10 segundos é o comportamento certo, e a tela dizia
+  // "Esta conversa precisa de revisão operacional".
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: 'aggregation' },
+  ];
+  mount(true);
+  expect((await screen.findByTestId('espera-da-ia')).textContent).toContain('Juntando as mensagens');
+  expect(screen.queryByTestId('motivo-da-parada')).toBeNull();
+  expect(document.body.textContent).not.toContain('revisão operacional');
 });

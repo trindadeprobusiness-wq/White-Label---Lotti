@@ -32,6 +32,7 @@ const anteriores = [
   '20261002160000_atendimento_combinavel.sql',
   '20261002190000_reconciliar_envio_pelo_inbox.sql',
   '20261002210000_falha_de_envio_com_certeza.sql',
+  '20261002220000_freio_e_motivos_honestos.sql',
 ];
 
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -266,5 +267,57 @@ describe('freio da falha certa', () => {
     const job = await ateOEnvio();
     await db.query('select public.lotti_agent_fail($1,$2,$3,false)', [job.id, job.token, 'delivery_failed_or_uncertain']);
     expect((await estado()).last_error).toBe('delivery_rejected');
+  });
+});
+
+describe('arestas achadas na revisão do runtime', () => {
+  /** Falha ANTES do envio: não existe registro em 'sending' para marcar. */
+  const falhaAntesDoEnvio = async (incerta: boolean) => {
+    const job = (await db.query<{ job: { id: string; token: string } | null }>(
+      'select public.lotti_agent_claim() as job')).rows[0].job!;
+    await db.query('select public.lotti_agent_fail($1,$2,$3,$4)',
+      [job.id, job.token, 'delivery_upstream_error', incerta]);
+  };
+
+  it('falha incerta antes do envio não promete botão que não existe', async () => {
+    // O Inbox decide pelos botões só pelo last_error. Deixar ali um motivo da
+    // família "incerto" sem registro para reconciliar daria dois cliques mudos.
+    await comMensagemNova();
+    await falhaAntesDoEnvio(true);
+    expect((await estado()).last_error).toBe('falha_antes_do_envio');
+    expect(await outbox()).toHaveLength(0);
+  });
+
+  it('o freio não é zerado por falha incerta', async () => {
+    // Era a brecha: alternar falha certa com falha incerta de pré-envio
+    // mantinha o contador em 1 para sempre.
+    await comMensagemNova();
+    for (let volta = 0; volta < 3; volta += 1) {
+      await db.exec(`update lotti_agent_conversations set next_attempt_at=now()-interval '1 minute' where id='${conversa}'`);
+      if (volta % 2 === 0) {
+        const job = await ateOEnvio();
+        await db.query('select public.lotti_agent_fail($1,$2,$3,false)', [job.id, job.token, 'delivery_rejected']);
+      } else {
+        await falhaAntesDoEnvio(true);
+      }
+    }
+    expect(await contador()).toBeGreaterThanOrEqual(3);
+    expect((await estado()).mode).toBe('human');
+  });
+
+  it('o caminho automático apaga em vez de cancelar', async () => {
+    // `prepare` só atualiza registro em 'prepared'; um 'cancelled' faria o
+    // follow-up travar no mesmo laço mudo do caminho manual.
+    await comMensagemNova();
+    const job = await ateOEnvio();
+    await db.query('select public.lotti_agent_auto_fail($1,$2,$3,false)', [job.id, job.token, 5]);
+    expect(await outbox()).toHaveLength(0);
+  });
+
+  it('o caminho automático ainda marca dúvida quando há dúvida', async () => {
+    await comMensagemNova();
+    const job = await ateOEnvio();
+    await db.query('select public.lotti_agent_auto_fail($1,$2,$3,true)', [job.id, job.token, 5]);
+    expect((await outbox())[0].status).toBe('uncertain');
   });
 });

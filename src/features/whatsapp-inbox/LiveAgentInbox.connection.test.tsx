@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ vi.mock('./ConnectedInbox', () => ({ default: ({ connected, preview }: { connect
 function mount(initialEntry = '/whatsapp') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MemoryRouter initialEntries={[initialEntry]}><QueryClientProvider client={client}><LiveAgentInbox /></QueryClientProvider></MemoryRouter>);
+  return client;
 }
 
 describe('acesso ao Inbox pela conexão do WhatsApp', () => {
@@ -47,8 +48,30 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
   it('erro da consulta não libera o Inbox sem confirmar a conexão', async () => {
     invoke.mockResolvedValue({ data: null, error: new Error('indisponível') });
     mount();
-    expect(await screen.findByRole('heading', { name: 'Conecte ao WhatsApp' })).not.toBeNull();
+    // Durante a nova tentativa da consulta, a tela diz "Abrindo o Inbox…" em
+    // vez de afirmar desconexão que ainda não foi confirmada. O que importa
+    // segue igual: em nenhum momento o Inbox é liberado.
     expect(screen.queryByRole('heading', { name: 'Inbox real' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Conecte ao WhatsApp' }, { timeout: 4000 })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Inbox real' })).toBeNull();
+  });
+
+  it('uma falha depois de conectado não derruba o Inbox para a tela de conectar', async () => {
+    // Era o defeito relatado: sair da aba e voltar mostrava "conecte o
+    // WhatsApp". A sondagem de status roda a cada 8s, e uma única falha dela
+    // bastava para trocar a tela inteira.
+    invoke.mockResolvedValueOnce({ data: { state: 'connected', agentEnabled: true }, error: null })
+      .mockResolvedValue({ data: null, error: new Error('oscilou') });
+    const client = mount();
+    expect(await screen.findByRole('heading', { name: 'Inbox real' })).not.toBeNull();
+
+    // Força a sondagem seguinte, que falha. Sem isto o teste verificaria antes
+    // de qualquer nova consulta e passaria sem exercitar nada.
+    await act(async () => { await client.refetchQueries({ queryKey: ['whatsapp-connection'] }); });
+    await waitFor(() => expect(invoke.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 4000 });
+
+    expect(screen.getByRole('heading', { name: 'Inbox real' })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Conecte ao WhatsApp' })).toBeNull();
   });
 
   it('a prévia local de pareamento mostra QR e instruções sem chamar a ponte', async () => {

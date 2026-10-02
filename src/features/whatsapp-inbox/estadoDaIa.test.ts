@@ -66,6 +66,7 @@ describe('motivos de parada', () => {
       'no_active_entitlement', 'quota_exhausted', 'processing_stalled', 'delivery_uncertain',
       'crm_capture_pending', 'qualification_failed', 'delivery_failed_or_uncertain',
       'delivery_rejected', 'delivery_upstream_error', 'delivery_commit_failed',
+      'falha_antes_do_envio', 'automatic_send_failed', 'ai_not_configured',
     ]) expect(MOTIVOS_CONHECIDOS).toContain(motivo);
   });
 
@@ -75,6 +76,7 @@ describe('motivos de parada', () => {
       expect(ENVIO_SEM_CONFIRMACAO.has(duvida)).toBe(true);
     // Recusa explícita não é dúvida: a mensagem não saiu, o registro é apagado
     // e a IA tenta de novo sozinha. Perguntar seria inventar uma decisão.
-    expect(ENVIO_SEM_CONFIRMACAO.has('delivery_rejected')).toBe(false);
+    for (const semEnvio of ['delivery_rejected', 'falha_antes_do_envio', 'automatic_send_failed', 'ai_not_configured'])
+      expect(ENVIO_SEM_CONFIRMACAO.has(semEnvio)).toBe(false);
   });
 });
