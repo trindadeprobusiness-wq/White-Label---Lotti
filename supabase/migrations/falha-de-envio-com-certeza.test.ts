@@ -49,12 +49,15 @@ const alertas = async () => (await db.query<{ total: number }>(
   'select count(*)::int as total from alertas where metadata->>\'conversation_id\'=$1', [conversa])).rows[0].total;
 
 /** Põe a conversa na fila com uma mensagem do lead sem resposta. */
-const comMensagemNova = async (attempts = 0) => {
+const contador = async () => (await db.query<{ falhas_de_envio: number }>(
+  'select falhas_de_envio from lotti_agent_conversations where id=$1', [conversa])).rows[0].falhas_de_envio;
+
+const comMensagemNova = async (attempts = 0, falhas = 0) => {
   await db.exec(`
     delete from lotti_agent_outbox where conversation_id='${conversa}';
     delete from alertas;
     update lotti_agent_conversations set mode='ai', revision=5, processed_revision=4,
-      attempts=${attempts}, lease_token=null, lease_until=null, last_error=null,
+      attempts=${attempts}, falhas_de_envio=${falhas}, lease_token=null, lease_until=null, last_error=null,
       next_attempt_at=now()-interval '1 minute' where id='${conversa}';
   `);
 };
@@ -210,5 +213,58 @@ describe('botão "Não chegou" do Inbox', () => {
     // A migration limpa os que o botão antigo deixou para trás.
     const r = await db.query<{ total: number }>("select count(*)::int as total from lotti_agent_outbox where status='cancelled'");
     expect(r.rows[0].total).toBe(0);
+  });
+});
+
+describe('freio da falha certa', () => {
+  /** O lead escreve de novo, como quem não recebeu resposta. Isso zera `attempts`. */
+  const leadEscreve = async (texto: string) => db.query(
+    'select public.lotti_agent_ingest($1::jsonb)',
+    [JSON.stringify({ instance: 'lotti-agent', phone: '5562911110001', text: texto, external_id: 'lead-' + texto })]);
+
+  it('mensagem do lead não desarma o freio — este era o defeito', async () => {
+    // `lotti_agent_ingest` faz `attempts=0` a cada mensagem recebida. Se a
+    // escalada dependesse de `attempts`, um lead que insiste manteria a IA
+    // tentando para sempre, sem nunca passar para a equipe e sem alerta.
+    await comMensagemNova();
+    for (let volta = 1; volta <= 3; volta += 1) {
+      await db.exec(`update lotti_agent_conversations set next_attempt_at=now()-interval '1 minute' where id='${conversa}'`);
+      const job = await ateOEnvio();
+      await db.query('select public.lotti_agent_fail($1,$2,$3,false)', [job.id, job.token, 'delivery_rejected']);
+      if (volta < 3) await leadEscreve(`alo ${volta}`);
+    }
+    const depois = await estado();
+    expect(depois.mode).toBe('human');
+    expect(await alertas()).toBeGreaterThanOrEqual(1);
+  });
+
+  it('envio que dá certo zera o contador', async () => {
+    await comMensagemNova();
+    const job = await ateOEnvio();
+    await db.query('select public.lotti_agent_fail($1,$2,$3,false)', [job.id, job.token, 'delivery_rejected']);
+    expect((await contador())).toBe(1);
+
+    await db.exec(`update lotti_agent_conversations set next_attempt_at=now()-interval '1 minute' where id='${conversa}'`);
+    const segundo = await ateOEnvio();
+    await db.query('select public.lotti_agent_finish($1,$2,$3,$4)', [segundo.id, segundo.token, segundo.revision, 'id-do-provedor']);
+    expect((await contador())).toBe(0);
+  });
+
+  it('religar a IA zera o contador', async () => {
+    await comMensagemNova(0, 2);
+    await db.exec(`set request.jwt.claim.sub='${user}'`);
+    await db.query(`select public.lotti_agent_set_mode('${conversa}','human')`);
+    await db.query(`select public.lotti_agent_set_mode('${conversa}','ai')`);
+    expect((await contador())).toBe(0);
+  });
+
+  it('falha certa não deixa na tela um motivo que promete botão', async () => {
+    // Se o runtime mandar um código da família "incerto" junto de
+    // p_uncertain=false, o Inbox mostraria "A mensagem chegou / Não chegou"
+    // sem registro nenhum para reconciliar: dois botões mudos.
+    await comMensagemNova();
+    const job = await ateOEnvio();
+    await db.query('select public.lotti_agent_fail($1,$2,$3,false)', [job.id, job.token, 'delivery_failed_or_uncertain']);
+    expect((await estado()).last_error).toBe('delivery_rejected');
   });
 });
