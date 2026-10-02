@@ -65,6 +65,16 @@ describe('motivos de parada', () => {
     for (const motivo of [
       'no_active_entitlement', 'quota_exhausted', 'processing_stalled', 'delivery_uncertain',
       'crm_capture_pending', 'qualification_failed', 'delivery_failed_or_uncertain',
+      'delivery_rejected', 'delivery_upstream_error', 'delivery_commit_failed',
     ]) expect(MOTIVOS_CONHECIDOS).toContain(motivo);
+  });
+
+  it('só oferece os botões quando há mesmo o que confirmar', async () => {
+    const { ENVIO_SEM_CONFIRMACAO } = await import('./estadoDaIa');
+    for (const duvida of ['delivery_uncertain', 'delivery_failed_or_uncertain', 'delivery_upstream_error', 'delivery_commit_failed'])
+      expect(ENVIO_SEM_CONFIRMACAO.has(duvida)).toBe(true);
+    // Recusa explícita não é dúvida: a mensagem não saiu, o registro é apagado
+    // e a IA tenta de novo sozinha. Perguntar seria inventar uma decisão.
+    expect(ENVIO_SEM_CONFIRMACAO.has('delivery_rejected')).toBe(false);
   });
 });
