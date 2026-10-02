@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -19,7 +19,8 @@ import { crmKeys } from '@/hooks/crm/useCrm';
 import { codigoDoErro, registroDoErro } from '@/lib/crm/duplicidade';
 import { functionErrorCode, mergeErrorText, renameErrorText, startErrorText } from './inboxRequests';
 import { mesmoTelefone } from './deepLink';
-import { ENVIO_SEM_CONFIRMACAO, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
+import { temperaturaLegivel, valorLegivel, type Temperatura } from './qualificacaoLegivel';
+import { ENVIO_SEM_CONFIRMACAO, ESPERA_DA_IA, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -156,6 +157,13 @@ function MessageBubble({ message }: { message: Message }) {
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
 const inboxTimeZone = 'America/Sao_Paulo';
+const CHAVE_CONVERSA_ABERTA = 'lotti:inbox:conversa-aberta';
+const TOM_TEMPERATURA: Record<Temperatura['tom'], string> = {
+  frio: 'bg-sky-50 text-sky-700',
+  morno: 'bg-amber-50 text-amber-700',
+  quente: 'bg-rose-50 text-rose-700',
+  neutro: 'bg-muted text-muted-foreground',
+};
 function listTimestamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -169,7 +177,19 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const demoTime = new Date().toISOString();
   const demoConversation: Conversation = { id: 'preview-conversation', phone: '5511999990000', contact_name: 'Rafael', cliente_id: null, mode: 'ai', status: 'open', updated_at: demoTime, qualification: { stage: 'qualificando', reason: 'Cliente procura um imóvel para comprar.' }, last_error: null };
   const cache = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string>();
+  // A conversa aberta sobrevive a sair da aba e voltar. Era estado local puro:
+  // ao remontar, sumia, e `selected` caía em `filtered[0]` — a primeira da
+  // lista, não a que o corretor estava lendo. sessionStorage é por aba do
+  // navegador e some ao fechar, que é o tamanho certo de memória para isso.
+  const [selectedId, setSelectedIdState] = useState<string | undefined>(() => {
+    if (preview) return undefined;
+    try { return sessionStorage.getItem(CHAVE_CONVERSA_ABERTA) ?? undefined; } catch { return undefined; }
+  });
+  const setSelectedId = useCallback((id: string | undefined) => {
+    setSelectedIdState(id);
+    if (preview || !id) return;
+    try { sessionStorage.setItem(CHAVE_CONVERSA_ABERTA, id); } catch { /* armazenamento bloqueado: segue sem lembrar */ }
+  }, [preview]);
   // Vir do funil ou do cadastro e cair na lista genérica obrigava a procurar
   // de novo quem você acabou de clicar. Com ?cliente= ou ?telefone= a conversa
   // já abre selecionada — uma vez só, para não brigar com quem troca de
@@ -202,6 +222,17 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     queryKey: ['lotti-agent-conversations', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
     queryFn: fetchConversations,
     initialData: preview ? [demoConversation] : undefined,
+  });
+  // A lista traz no máximo 100 conversas, e o rodapé dizia "100 de 100" mesmo
+  // com 104 existindo: o denominador era o tamanho da página, não o total.
+  // Contagem à parte, sem trazer linha nenhuma.
+  const totalDeConversas = useQuery({
+    queryKey: ['lotti-agent-conversation-count', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 30000,
+    queryFn: async (): Promise<number | null> => {
+      const { count, error } = await db.from('lotti_agent_conversations').select('id', { count: 'exact', head: true }).is('archived_at', null);
+      if (error) return null;
+      return count ?? null;
+    },
   });
   const previews = useQuery({
     queryKey: ['lotti-agent-message-previews', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
@@ -306,6 +337,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     setSelectedId(id);setNewOpen(false);
   };
   const q = selected?.qualification;
+  const temperatura = temperaturaLegivel(q?.temperature);
   const optOut = preview ? 'none' : optOutState(selected?.opted_out_at, messages.data ?? []);
   // `mode` continua 'ai' durante a pausa — é por isso que o interruptor dizia
   // "IA ligada" com a IA calada. O estado real soma o modo e o prazo.
@@ -329,7 +361,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       alvoAplicado.current = true;
       setSelectedId(achada.id);
     }
-  }, [list.data, clienteNaUrl, telefoneNaUrl]);
+  }, [list.data, clienteNaUrl, telefoneNaUrl, setSelectedId]);
 
   const timelineRef = useRef<HTMLDivElement>(null);
  const followLatest = useRef(true);
@@ -397,7 +429,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         <div className="space-y-2 border-b border-[#e9ebf3] bg-gradient-to-b from-white to-[#fbfcfe] px-[14px] pb-[13px] pt-[15px]">
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 bg-primary px-2.5 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
-          <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground">{filtered.length} de {list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
+          <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground" title={(totalDeConversas.data ?? 0) > list.data.length ? `Mostrando as ${list.data.length} mais recentes` : undefined}>{filtered.length} de {totalDeConversas.data ?? list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
           {/* Sem contagem os atalhos continuam clicáveis: desabilitar em zero
               faz o corretor ler defeito onde só há fila vazia. Clicar mostra o
               estado vazio, que já traz o caminho de volta para "Todas". */}
@@ -454,7 +486,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         {notice?.id === selected.id && <p role="status" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice.text}</p>}
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
-        {selected.last_error && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        {selected.last_error && ESPERA_DA_IA[selected.last_error] && <p role="status" data-testid="espera-da-ia" className="border-b bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+          {selected.mode === 'ai' ? ESPERA_DA_IA[selected.last_error] : 'A conversa está com a equipe.'}
+        </p>}
+        {selected.last_error && !ESPERA_DA_IA[selected.last_error] && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <span>{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</span>
           {/* Sem estes dois botões a conversa ficava morta até alguém mexer no
               banco: nada limpa `uncertain` sozinho, e enquanto ele existe a
@@ -465,7 +500,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </span>}
           {reconciliar.isError && <span className="text-destructive">Não foi possível concluir. Tente de novo.</span>}
         </div>}
-        <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
+        <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {/* O aviso fala do histórico cortado, que fica no começo da lista.
               No fim, junto da mensagem mais nova, ele não descrevia nada e
               ainda disputava espaço com o compositor. */}
@@ -493,7 +528,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
               </div>
             : <p>Nenhuma conversa ainda.</p>}
       </div>}
-      {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
+      {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
         <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
 
@@ -515,15 +550,19 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </SecaoPerfil>
 
         <SecaoPerfil titulo="Qualificação comercial">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="outline">{stages[q?.stage ?? ''] ?? 'Novo contato'}</Badge>
-            {q?.temperature && <Badge variant="secondary">{q.temperature}</Badge>}
+            {temperatura && <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${TOM_TEMPERATURA[temperatura.tom]}`}>
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />{temperatura.rotulo}
+            </span>}
             {q?.priority === 'alta' && <Badge>Prioridade alta</Badge>}
           </div>
-          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="space-y-2 pt-1">
-            {Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key}>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
-              <dd className="break-words text-[13px] leading-snug">{q?.profile?.[key]}</dd>
+          {/* Rótulo e valor na mesma linha: empilhados, cinco campos ocupavam a
+              altura do painel inteiro e obrigavam a rolar para ver o botão. */}
+          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border bg-muted/20 px-3 py-2.5 text-[12px]">
+            {Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="break-words font-medium leading-snug">{valorLegivel(key, q!.profile![key]!)}</dd>
             </div>)}
           </dl>}
         </SecaoPerfil>

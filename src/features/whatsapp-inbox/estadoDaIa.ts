@@ -122,3 +122,19 @@ export const ENVIO_SEM_CONFIRMACAO = new Set([
   'delivery_uncertain', 'delivery_failed_or_uncertain',
   'delivery_upstream_error', 'delivery_commit_failed',
 ]);
+
+/**
+ * Motivos que NÃO são parada: são a IA esperando a vez dela, de propósito.
+ *
+ * O runtime chama `lotti_agent_defer` com um motivo, e a função grava esse
+ * motivo em `last_error` — o mesmo campo das falhas. Por isso uma conversa
+ * saudável, só aguardando o lead terminar de digitar, aparecia com o aviso
+ * amarelo "Esta conversa precisa de revisão operacional". Não precisava.
+ *
+ * Os três valores são os que `runtime/attend.mjs` produz.
+ */
+export const ESPERA_DA_IA: Record<string, string> = {
+  aggregation: 'Juntando as mensagens do cliente antes de responder, para não interromper quem ainda está digitando.',
+  inside_business_hours: 'Dentro do expediente a equipe atende primeiro. A IA entra se ninguém responder.',
+  waiting_broker: 'Aguardando a equipe responder. A IA entra se ninguém responder no prazo configurado.',
+};

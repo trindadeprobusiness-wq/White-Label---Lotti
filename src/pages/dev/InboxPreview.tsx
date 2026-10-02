@@ -16,7 +16,7 @@ const AGORA = Date.parse('2026-10-02T14:41:55Z');
 const quando = (minutosAtras: number) => new Date(AGORA - minutosAtras * 60000).toISOString();
 
 const CONVERSAS = [
-  { id: 'c1', phone: '5562994586396', contact_name: 'Marina Alves', cliente_id: 'cli-1', mode: 'ai', status: 'open', updated_at: quando(0), qualification: { stage: 'qualificando', reason: 'Procura apartamento de 2 quartos no Setor Bueno.' }, last_error: null, opted_out_at: null, pausa_ia_ate: new Date(AGORA + 23 * 3600000).toISOString() },
+  { id: 'c1', phone: '5562994586396', contact_name: 'Marina Alves', cliente_id: 'cli-1', mode: 'ai', status: 'open', updated_at: quando(0), qualification: { stage: 'qualificando', temperature: 'morno', reason: 'Procura apartamento de 2 quartos no Setor Bueno.', profile: { intent: 'locacao', region: 'Anápolis', budget: '1900', needs: '2 quartos', nextStep: 'agendar visita' } }, last_error: null, opted_out_at: null, pausa_ia_ate: new Date(AGORA + 23 * 3600000).toISOString() },
   { id: 'c2', phone: '5562991237788', contact_name: 'Carlos Henrique', cliente_id: null, mode: 'human', status: 'open', updated_at: quando(40), qualification: {}, last_error: null, opted_out_at: null, pausa_ia_ate: null },
   { id: 'c3', phone: '5562985550199', contact_name: 'Bianca Souza', cliente_id: null, mode: 'ai', status: 'open', updated_at: quando(180), qualification: {}, last_error: null, opted_out_at: null, pausa_ia_ate: null },
 ];

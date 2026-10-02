@@ -23,6 +23,9 @@ export function useWhatsAppConnectionQuery(userId?: string) {
       return data;
     },
     refetchInterval: query => query.state.data?.state === 'connecting' ? 2000 : query.state.data?.state === 'connected' ? 8000 : 10000,
+    // Voltar para a aba em menos de 30s não precisa perguntar de novo: a
+    // resposta anterior ainda vale, e a sondagem periódica continua rodando.
+    staleTime: 30_000,
     retry: 1,
   });
 }
