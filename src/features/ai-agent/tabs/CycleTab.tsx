@@ -50,8 +50,11 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
       </>}
     </SettingsSection>
 
-    {followUp.enabled && <SettingsSection title="Sem resposta" description="Depois do último toque.">
-      <ToggleRow title="Fechar a conversa" description={followUp.closeConversation ? undefined : 'Desligado: a conversa fica aberta na Inbox.'} checked={followUp.closeConversation} onCheckedChange={(closeConversation) => set({ closeConversation })} />
+    {followUp.enabled && <SettingsSection
+      title="Quando o lead não responde"
+      description="O que fazer depois do último toque, se ele continuar calado."
+    >
+      <ToggleRow title="Fechar a conversa" description={followUp.closeConversation ? undefined : 'Desligado: a conversa fica aberta na Inbox, esperando o lead.'} checked={followUp.closeConversation} onCheckedChange={(closeConversation) => set({ closeConversation })} />
       {followUp.closeConversation && <div className="space-y-4 rounded-lg border p-4">
         <Field label="Fechar após (horas do último toque)" className="max-w-xs">
           {(id) => <input id={id} type="number" min={1} max={72} className={inputClassName} value={followUp.closeAfterHours} onChange={(event) => set({ closeAfterHours: Number(event.target.value) })} />}
@@ -62,8 +65,14 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
         </Field>}
         <FieldIssues issues={issues} field="followUp.closeAfterHours" />
         <FieldIssues issues={issues} field="followUp.farewellObjective" />
+        <StageSelect
+          label="Mover o lead para esta etapa ao fechar"
+          value={followUp.finalStageId}
+          onChange={(finalStageId) => set({ finalStageId })}
+          stages={stages}
+          hint="Serve para separar no funil quem parou de responder."
+        />
       </div>}
-      <StageSelect label="Etapa do funil ao final" value={followUp.finalStageId} onChange={(finalStageId) => set({ finalStageId })} stages={stages} />
     </SettingsSection>}
   </>;
 }

@@ -23,9 +23,12 @@ export function describeBusinessHours(week: Record<Weekday, DayHours>): string {
 }
 
 export function describeAttendMode(behavior: AgentSettings['behavior']): string {
-  if (behavior.attendMode === 'outside_hours') return 'Responde só fora do horário de atendimento';
-  if (behavior.attendMode === 'after_delay') return `Responde se a equipe não responder em ${behavior.attendDelayMinutes} min`;
-  return 'Responde toda mensagem recebida';
+  const motivos: string[] = [];
+  if (behavior.attend.outsideHours) motivos.push('fora do horário de atendimento');
+  if (behavior.attend.afterDelay) motivos.push(`se a equipe não responder em ${behavior.attendDelayMinutes} min`);
+  // Sem restrição marcada, ela atende tudo — é o começo de toda conta.
+  if (motivos.length === 0) return 'Responde toda mensagem recebida';
+  return `Responde ${motivos.join(' e ')}`;
 }
 
 export function describeHandoff(behavior: AgentSettings['behavior'], stageName?: string): string {

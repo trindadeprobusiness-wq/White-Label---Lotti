@@ -1,28 +1,36 @@
 import { cn } from '@/lib/utils';
 import { Field, FieldIssues, Segmented, SettingsSection, StageSelect, ToggleRow, inputClassName, textareaClassName } from '../components';
-import type { AgentSettings, AttendMode } from '../settings';
+import type { AgentSettings } from '../settings';
 import type { AgentTabProps } from './types';
-
-const ATTEND_MODES: Array<{ id: AttendMode; label: string }> = [
-  { id: 'always', label: 'Sempre, toda mensagem recebida' },
-  { id: 'outside_hours', label: 'Só fora do horário de atendimento' },
-  { id: 'after_delay', label: 'Só se a equipe não responder em X min' },
-];
 
 export function BehaviorTab({ settings, onChange, issues, stages }: AgentTabProps) {
   const behavior = settings.behavior;
   const set = (patch: Partial<AgentSettings['behavior']>) => onChange({ ...settings, behavior: { ...behavior, ...patch } });
   const setHandoff = (patch: Partial<AgentSettings['behavior']['handoff']>) => set({ handoff: { ...behavior.handoff, ...patch } });
   const setGuards = (patch: Partial<AgentSettings['behavior']['guards']>) => set({ guards: { ...behavior.guards, ...patch } });
+  const setAttend = (patch: Partial<AgentSettings['behavior']['attend']>) => set({ attend: { ...behavior.attend, ...patch } });
+  const semRestricao = !behavior.attend.outsideHours && !behavior.attend.afterDelay;
 
   return <>
-    <SettingsSection title="Quando atender">
-      <Field label="Modo" hint="O horário de atendimento fica na aba Agendamento." className="max-w-md">
-        {(id) => <select id={id} className={inputClassName} value={behavior.attendMode} onChange={(event) => set({ attendMode: event.target.value as AttendMode })}>
-          {ATTEND_MODES.map((mode) => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
-        </select>}
-      </Field>
-      {behavior.attendMode === 'after_delay' && <Field label="Minutos sem resposta antes de atender" className="max-w-xs">
+    <SettingsSection
+      title="Quando atender"
+      description={semRestricao
+        ? 'A IA responde toda mensagem que chega. Ligue abaixo para ela entrar só em algumas situações.'
+        : 'A IA entra pelos motivos marcados. Qualquer um deles basta.'}
+    >
+      <ToggleRow
+        title="Fora do horário de atendimento"
+        description="Ela cobre o turno quando a equipe não está. O expediente é o da aba Agendamento."
+        checked={behavior.attend.outsideHours}
+        onCheckedChange={(outsideHours) => setAttend({ outsideHours })}
+      />
+      <ToggleRow
+        title="Quando a equipe não responder"
+        description="Ela espera o tempo abaixo antes de entrar. Se alguém responder antes, ela não fala por cima."
+        checked={behavior.attend.afterDelay}
+        onCheckedChange={(afterDelay) => setAttend({ afterDelay })}
+      />
+      {behavior.attend.afterDelay && <Field label="Minutos de espera antes de a IA entrar" className="max-w-xs">
         {(id) => <input id={id} type="number" min={1} max={240} className={inputClassName} value={behavior.attendDelayMinutes} onChange={(event) => set({ attendDelayMinutes: Number(event.target.value) })} />}
       </Field>}
       <FieldIssues issues={issues} field="behavior.attendDelayMinutes" />

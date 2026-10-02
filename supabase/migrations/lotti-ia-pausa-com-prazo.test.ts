@@ -119,6 +119,7 @@ beforeAll(async () => {
   `);
 
   await db.exec(readFileSync(new URL('./20261002090000_ia_pausa_com_prazo_e_modo_de_atendimento.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('./20261002160000_atendimento_combinavel.sql', import.meta.url), 'utf8'));
 }, 90_000);
 afterAll(async () => db?.close());
 
@@ -233,6 +234,43 @@ describe('modo de atendimento', () => {
     await salvarConfig({ attendMode: 'outside_hours' });
     const cv = await conversa('5562911110003');
     // Domingo às 10h: a semana marca `sun` como desligado.
+    const domingo = await db.query<{ pode: boolean }>(
+      `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-11 13:00:00+00') as pode`, [cv.id]);
+    expect(domingo.rows[0].pode).toBe(true);
+  });
+
+
+  // Os dois motivos somam. Antes era preciso abrir mão de um.
+  it('os dois ligados: basta um valer para a IA entrar', async () => {
+    await salvarConfig({ attend: { outsideHours: true, afterDelay: true }, attendDelayMinutes: 30 });
+    const cv = await conversa('5562911110003');
+    await db.exec(`delete from lotti_agent_messages where conversation_id='${cv.id}' and sender='human'`);
+
+    // Quarta, 10h: dentro do expediente. Mas a equipe está calada, e isso basta.
+    const dentroDoHorarioSemEquipe = await db.query<{ pode: boolean }>(
+      `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-07 13:00:00+00') as pode`, [cv.id]);
+    expect(dentroDoHorarioSemEquipe.rows[0].pode).toBe(true);
+  });
+
+  it('os dois ligados: nenhum valendo, a conversa é da equipe', async () => {
+    await salvarConfig({ attend: { outsideHours: true, afterDelay: true }, attendDelayMinutes: 30 });
+    const cv = await conversa('5562911110003');
+    // Alguém respondeu agora, e é quarta às 10h — dentro do expediente.
+    await db.exec(`insert into lotti_agent_messages(conversation_id,external_id,direction,sender,content)
+      values('${cv.id}','humano-recente-2','out','human','respondi')`);
+    await db.exec(`update lotti_agent_messages set created_at=timestamptz '2026-10-07 12:50:00+00' where external_id='humano-recente-2'`);
+
+    const resultado = await db.query<{ pode: boolean }>(
+      `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-07 13:00:00+00') as pode`, [cv.id]);
+    expect(resultado.rows[0].pode).toBe(false);
+  });
+
+  it('o formato antigo continua sendo lido', async () => {
+    // Conta salva antes desta versão não pode perder a escolha que tinha.
+    const cv = await conversa('5562911110003');
+    await db.query(`update lotti_agent_settings set settings = settings - 'behavior' ||
+      jsonb_build_object('behavior', (settings->'behavior') - 'attend' || jsonb_build_object('attendMode','outside_hours'))
+      where corretor_id=$1`, [owner]);
     const domingo = await db.query<{ pode: boolean }>(
       `select public.lotti_agent_pode_atender($1::uuid, timestamptz '2026-10-11 13:00:00+00') as pode`, [cv.id]);
     expect(domingo.rows[0].pode).toBe(true);

@@ -26,7 +26,7 @@ export function validateAgentSettings(settings: AgentSettings): AgentIssue[] {
   else if (identity.intro.length > INTRO_LIMIT) error('identity', 'identity.intro', `A apresentação pode ter até ${INTRO_LIMIT} caracteres.`);
   if (!identity.businessTypes.venda && !identity.businessTypes.locacao) error('identity', 'identity.businessTypes', 'Escolha ao menos venda ou locação.');
 
-  if (behavior.attendMode === 'after_delay' && !between(behavior.attendDelayMinutes, 1, 240)) {
+  if (behavior.attend.afterDelay && !between(behavior.attendDelayMinutes, 1, 240)) {
     error('behavior', 'behavior.attendDelayMinutes', 'O tempo de espera pela equipe deve ficar entre 1 e 240 minutos.');
   }
   if (behavior.handoff.mode === 'message') {

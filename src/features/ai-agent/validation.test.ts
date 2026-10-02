@@ -40,7 +40,7 @@ describe('validateAgentSettings', () => {
   it('checks the waiting time only when the agent waits for the team', () => {
     expect(withSettings((settings) => { settings.behavior.attendDelayMinutes = 0; })).toEqual([]);
     expect(fields(withSettings((settings) => {
-      settings.behavior.attendMode = 'after_delay';
+      settings.behavior.attend.afterDelay = true;
       settings.behavior.attendDelayMinutes = 0;
     }))).toContain('error:behavior:behavior.attendDelayMinutes');
   });
