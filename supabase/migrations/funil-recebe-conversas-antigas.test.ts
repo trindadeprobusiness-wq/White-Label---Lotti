@@ -40,6 +40,7 @@ const canalTeste = 'cccccccc-cccc-4ccc-8ccc-cccccccccccd';
 let db: PGlite;
 
 const backfill = () => db.exec(readFileSync(new URL('./20261002180000_funil_recebe_conversas_antigas.sql', import.meta.url), 'utf8'));
+const titulos = () => db.exec(readFileSync(new URL('./20261002200000_cartao_sem_nome_mostra_o_numero.sql', import.meta.url), 'utf8'));
 
 const negociosDe = async (cliente: string) => (await db.query<{ titulo: string; etapa_id: string; origem: string }>(
   'select titulo, etapa_id, origem from crm_oportunidades where cliente_id=$1 and fechada_em is null', [cliente])).rows;
@@ -159,5 +160,42 @@ describe('conversas antigas entram no funil', () => {
     await backfill();
     const depois = (await db.query<{ total: number }>('select count(*)::int as total from crm_oportunidades')).rows[0].total;
     expect(depois).toBe(antes);
+  });
+});
+
+describe('cartão de contato sem nome', () => {
+  it('passa a mostrar o número no lugar do marcador', async () => {
+    // "Contato WhatsApp" é o marcador de contato fora da agenda. Em produção
+    // 49 dos 102 cartões nasceram com esse mesmo texto — um quadro com meia
+    // dúzia de cartões idênticos lado a lado não dá para trabalhar.
+    await db.exec(`
+      insert into clientes(id,corretor_id,nome,telefone)
+        values ('c1aa0000-0000-4000-8000-000000000009','${owner}','Contato WhatsApp','5562911110009');
+      alter table lotti_agent_conversations disable trigger lotti_conversa_no_crm_insert;
+      insert into lotti_agent_conversations(id,channel_id,corretor_id,phone,mode,status,cliente_id)
+        values ('11111111-0000-4000-8000-000000000009','${canal}','${owner}','556291111009','ai','open','c1aa0000-0000-4000-8000-000000000009');
+      alter table lotti_agent_conversations enable trigger lotti_conversa_no_crm_insert;
+    `);
+    await backfill();
+    expect((await negociosDe('c1aa0000-0000-4000-8000-000000000009'))[0].titulo).toBe('Contato WhatsApp');
+
+    await titulos();
+    expect((await negociosDe('c1aa0000-0000-4000-8000-000000000009'))[0].titulo).toBe('+55 (62) 9111-1009');
+  });
+
+  it('não renomeia cartão que alguém já batizou', async () => {
+    const negocios = await negociosDe('c1aa0000-0000-4000-8000-000000000003');
+    expect(negocios[0].titulo).toBe('Bianca — proposta');
+  });
+
+  it('formata do mesmo jeito que o Inbox', async () => {
+    const r = await db.query<{ celular: string; fixo: string; vazio: string | null; fora: string }>(
+      `select public.lotti_telefone_legivel('5562994586396') as celular,
+              public.lotti_telefone_legivel('556232001234') as fixo,
+              public.lotti_telefone_legivel('') as vazio,
+              public.lotti_telefone_legivel('1 415 555 0100') as fora`);
+    expect(r.rows[0]).toEqual({
+      celular: '+55 (62) 99458-6396', fixo: '+55 (62) 3200-1234', vazio: null, fora: '+14155550100',
+    });
   });
 });
