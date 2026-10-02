@@ -158,11 +158,20 @@ it('moves the lead to a real funnel stage on handoff', async () => {
 });
 
 it('shows each weekday with its own hours in scheduling', async () => {
+  // O seletor de hora deixou de ser `<select>` nativo — a lista dele saltava
+  // para o topo da página. O Radix é um popover, e no jsdom ele precisa destes
+  // dois apoios que o ambiente não implementa.
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.scrollIntoView = () => {};
+
   render(<AgentSettingsPage />);
   openTab('Agendamento');
 
   expect(screen.getByRole('switch', { name: 'Atender no domingo' }).getAttribute('data-state')).toBe('unchecked');
-  fireEvent.change(screen.getByLabelText('Terça: início'), { target: { value: '19:00' } });
+
+  const inicioDaTerca = screen.getByRole('combobox', { name: 'Terça: início' });
+  fireEvent.keyDown(inicioDaTerca, { key: 'Enter' });
+  fireEvent.click(screen.getByRole('option', { name: '19:00' }));
 
   expect(screen.getByText('Terça: o horário final precisa ser depois do inicial.')).toBeTruthy();
 });

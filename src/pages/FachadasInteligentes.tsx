@@ -410,7 +410,7 @@ export default function FachadasInteligentes() {
 
         {/* Aba: Leads */}
         <TabsContent value="leads">
-          <LeadsTable leads={leads} onDeleteLead={deleteLead} />
+          <LeadsTable leads={leads} fachadas={fachadas} onDeleteLead={deleteLead} />
         </TabsContent>
 
         {/* Aba: Templates */}

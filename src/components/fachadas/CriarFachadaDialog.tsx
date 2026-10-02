@@ -13,6 +13,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { QrCodePositioner } from './QrCodePositioner';
+import { MENSAGEM_PADRAO, montarMensagemDeContato } from '@/lib/fachadas/mensagemContato';
+import { moeda } from '@/lib/formato';
 import { ImovelMediaManager } from '@/components/imoveis/ImovelMediaManager';
 import { NovoImovelDialog } from '@/components/imoveis/NovoImovelDialog';
 import {
@@ -57,6 +59,7 @@ interface CriarFachadaDialogProps {
     cta_principal: CTAPrincipal;
     modo_conversao: boolean;
     mensagem_whatsapp?: string;
+    mensagem_contato?: string;
   }) => Promise<void>;
 }
 
@@ -83,6 +86,8 @@ export function CriarFachadaDialog({
   const [ctaPrincipal, setCtaPrincipal] = useState<CTAPrincipal>('WHATSAPP');
   const [modoConversao, setModoConversao] = useState(false);
   const [mensagemWhatsapp, setMensagemWhatsapp] = useState('');
+  // A abordagem do corretor ao lead. Caminho contrário da de cima.
+  const [mensagemContato, setMensagemContato] = useState('');
   
   // Custom Template (Upload Avulso) States
   const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
@@ -101,6 +106,7 @@ export function CriarFachadaDialog({
       setCtaPrincipal(fachadaToEdit.cta_principal);
       setModoConversao(!!fachadaToEdit.modo_conversao);
       setMensagemWhatsapp(fachadaToEdit.mensagem_whatsapp || '');
+      setMensagemContato(fachadaToEdit.mensagem_contato || '');
       setStep(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,6 +209,7 @@ export function CriarFachadaDialog({
         cta_principal: ctaPrincipal,
         modo_conversao: modoConversao,
         mensagem_whatsapp: mensagemWhatsapp || undefined,
+        mensagem_contato: mensagemContato || undefined,
       });
 
       resetForm();
@@ -561,6 +568,32 @@ export function CriarFachadaDialog({
                 </p>
               </div>
             )}
+
+            <div>
+              <Label className="flex items-center gap-1">
+                <MessageCircle className="h-4 w-4" /> Sua mensagem ao contactar o lead
+              </Label>
+              <Input
+                value={mensagemContato}
+                onChange={(event) => setMensagemContato(event.target.value)}
+                placeholder={MENSAGEM_PADRAO}
+                maxLength={600}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                É o texto que abre no WhatsApp quando você clica em "Contactar" na
+                lista de leads. Use <code>{'{nome}'}</code>, <code>{'{imovel}'}</code> e{' '}
+                <code>{'{valor}'}</code> — são preenchidos com os dados de quem escaneou
+                esta placa. Vazio usa o texto padrão.
+              </p>
+              {mensagemContato.trim() && <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs">
+                <span className="text-muted-foreground">Prévia: </span>
+                {montarMensagemDeContato(mensagemContato, {
+                  nome: 'Maria Silva',
+                  imovel: selectedImovel?.titulo ?? 'Apartamento 302',
+                  valor: selectedImovel?.valor ? moeda(selectedImovel.valor) : 'R$ 450.000',
+                })}
+              </p>}
+            </div>
 
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
