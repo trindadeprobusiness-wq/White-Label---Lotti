@@ -291,16 +291,40 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // na hora: esperar três segundos olhando a tela parada era o custo de uma
   // garantia que vem do request_id, não da espera.
   const [pendentes, setPendentes] = useState<{ key: string; kind: 'text' | 'file' | 'audio'; content: string; incerto?: boolean }[]>([]);
-  useEffect(() => { followLatest.current = true; setPendentes([]); }, [selected?.id]);
+  useEffect(() => { setPendentes([]); }, [selected?.id]);
+  // Qual conversa já foi desenhada. O reset de `followLatest` morava num
+  // useEffect, que roda DEPOIS do useLayoutEffect abaixo: quem tivesse subido
+  // numa conversa abria a seguinte no topo.
+  const conversaDesenhada = useRef<string | undefined>(undefined);
   // Pelo comprimento não serve: a consulta devolve no máximo 200 mensagens, e no
   // teto a mensagem nova entra enquanto a antiga sai. A identidade do último
   // item muda sempre que chega algo, com ou sem corte.
   const ultimoDaLista = timeline.length ? timeline[timeline.length - 1].value.id : '';
   useLayoutEffect(() => {
     const el = timelineRef.current;
-    if (el && followLatest.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (conversaDesenhada.current !== selected?.id) {
+      conversaDesenhada.current = selected?.id;
+      followLatest.current = true;
+    }
+    if (followLatest.current) el.scrollTop = el.scrollHeight;
   }, [selected?.id, ultimoDaLista, pendentes.length]);
-  return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
+  // A régua de escrever muda de altura quando os botões quebram em duas linhas,
+  // e a conversa encolhe junto — a rolagem parava algumas dezenas de pixels
+  // antes do fim. Quem está acompanhando o fim continua no fim.
+  useEffect(() => {
+    const el = timelineRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(() => { if (followLatest.current) el.scrollTop = el.scrollHeight; });
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, []);
+  // A altura é travada em QUALQUER largura, não só a partir de `lg`.
+  // Com `min-h` e sem teto, a lista de mensagens crescia até o tamanho do
+  // conteúdo: `scrollHeight` virava igual a `clientHeight`, não havia rolagem
+  // interna nenhuma e quem rolava era a página. Daí a conversa abrir no topo
+  // por mais que o efeito mandasse ir para o fim — não havia fim para onde ir.
+  return <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden lg:h-dvh" data-testid="connected-inbox">
     <h1 className="sr-only">Inbox</h1>
     {preview && <p className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">Prévia interativa com dados fictícios. Nada é enviado ou salvo; recarregar desfaz as mudanças.</p>}
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}

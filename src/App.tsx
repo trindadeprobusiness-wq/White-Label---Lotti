@@ -40,6 +40,7 @@ import {
 // (recharts, pdf-lib, docx, jszip) só baixam quando a página é acessada.
 const FunilPreview = lazy(() => import('@/pages/dev/FunilPreview'));
 const PlanejamentoPreview = lazy(() => import('@/pages/dev/PlanejamentoPreview'));
+const InboxPreview = lazy(() => import('@/pages/dev/InboxPreview'));
 const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
@@ -152,6 +153,7 @@ const App = () => (
             <Route path="/__previa">
               <Route path="funil" element={<FunilPreview />} />
               <Route path="planejamento" element={<PlanejamentoPreview />} />
+              <Route path="inbox" element={<InboxPreview />} />
             </Route>
           )}
 

@@ -584,3 +584,29 @@ it('no celular a lista vira gaveta: abre pelo cabeçalho e fecha ao escolher', a
   fireEvent.click(screen.getByRole('button', { name: 'Fechar lista de conversas' }));
   await waitFor(() => expect(lista.className).toContain('max-lg:-translate-x-[104%]'));
 });
+
+it('trocar de conversa abre no fim, mesmo depois de ter subido na anterior', async () => {
+  // O corretor sobe para reler algo numa conversa e clica na próxima: a nova
+  // abria no topo, obrigando a rolar até o fim toda vez.
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null },
+    { id: 'c2', phone: '5511888880000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null },
+  ];
+  dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({
+    id: `m${i}`, direction: 'in', sender: 'lead', content: `Mensagem ${i}`,
+    media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString(),
+  }));
+  const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  mount(true);
+
+  const trilha = await screen.findByTestId('message-timeline');
+  await waitFor(() => expect(trilha.scrollTop).toBe(2400));
+
+  // Sobe na conversa atual: a partir daqui a tela não deve mais perseguir o fim.
+  trilha.scrollTop = 0;
+  fireEvent.scroll(trilha);
+
+  fireEvent.click(await screen.findByRole('button', { name: /8888/ }));
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
+  height.mockRestore();
+});
