@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -583,4 +583,70 @@ it('no celular a lista vira gaveta: abre pelo cabeçalho e fecha ao escolher', a
   // Tocar fora fecha, que é o gesto de quem abriu a gaveta sem querer.
   fireEvent.click(screen.getByRole('button', { name: 'Fechar lista de conversas' }));
   await waitFor(() => expect(lista.className).toContain('max-lg:-translate-x-[104%]'));
+});
+
+it('trocar de conversa abre no fim, mesmo depois de ter subido na anterior', async () => {
+  // O corretor sobe para reler algo numa conversa e clica na próxima: a nova
+  // abria no topo, obrigando a rolar até o fim toda vez.
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null },
+    { id: 'c2', phone: '5511888880000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null },
+  ];
+  dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({
+    id: `m${i}`, direction: 'in', sender: 'lead', content: `Mensagem ${i}`,
+    media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString(),
+  }));
+  const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  mount(true);
+
+  const trilha = await screen.findByTestId('message-timeline');
+  await waitFor(() => expect(trilha.scrollTop).toBe(2400));
+
+  // Sobe na conversa atual: a partir daqui a tela não deve mais perseguir o fim.
+  trilha.scrollTop = 0;
+  fireEvent.scroll(trilha);
+
+  fireEvent.click(await screen.findByRole('button', { name: /8888/ }));
+  await waitFor(() => expect(screen.getByTestId('message-timeline').scrollTop).toBe(2400));
+  height.mockRestore();
+});
+
+it('linha do tempo segue a data, não a ordem em que os eventos são montados', async () => {
+  // A conversa é mais ANTIGA que o cadastro do cliente aqui de propósito: só
+  // assim o teste prova que existe ordenação, e não que a lista já vinha certa.
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: 'cli-1', mode: 'ai', updated_at: '2026-09-20T10:00:00Z', qualification: {}, last_error: null },
+  ];
+  dataByTable.clientes = [{ id: 'cli-1', nome: 'Marina', created_at: '2026-09-24T23:06:43Z' }];
+  mount(true);
+
+  const tempos = await waitFor(() => {
+    const encontrados = screen.getAllByText(/\/2026,/);
+    expect(encontrados.length).toBeGreaterThanOrEqual(2);
+    return encontrados;
+  });
+  expect(tempos[0].textContent).toContain('20/09/2026');
+  expect(tempos[1].textContent).toContain('24/09/2026');
+});
+
+it('envio sem confirmação oferece a saída na própria tela', async () => {
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'human', updated_at: new Date().toISOString(), qualification: {}, last_error: 'delivery_failed_or_uncertain' },
+  ];
+  mount(true);
+
+  const faixa = await screen.findByTestId('motivo-da-parada');
+  expect(faixa.textContent).toContain('o envio não foi confirmado');
+
+  fireEvent.click(within(faixa).getByRole('button', { name: 'A mensagem chegou' }));
+  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_agent_reconciliar_envio', { p_id: 'c1', p_chegou: true }));
+});
+
+it('motivo que não é de envio não oferece os botões', async () => {
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'human', updated_at: new Date().toISOString(), qualification: {}, last_error: 'quota_exhausted' },
+  ];
+  mount(true);
+  const faixa = await screen.findByTestId('motivo-da-parada');
+  expect(within(faixa).queryByRole('button', { name: 'A mensagem chegou' })).toBeNull();
 });

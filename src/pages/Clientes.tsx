@@ -136,7 +136,7 @@ export default function Clientes() {
         variant: 'destructive',
         title: 'Erro ao excluir cliente',
         description:
-          'Este cliente possui dados vinculados (histórico, contratos) e não pode ser excluído.',
+          'Nada foi apagado. Recarregue a página e tente de novo; se insistir, você pode não ter permissão sobre este cliente.',
       });
     }
     setClienteToDelete(null);
@@ -162,7 +162,7 @@ export default function Clientes() {
     setConfirmarLote(false);
     setSelecionados(new Set());
     toast(falhas
-      ? { variant: 'destructive', title: `${falhas} cliente(s) não puderam ser excluídos.`, description: 'Clientes com histórico ou contratos vinculados são preservados.' }
+      ? { variant: 'destructive', title: `${falhas} cliente(s) não puderam ser excluídos.`, description: 'Eles continuam na lista. Recarregue a página e tente de novo.' }
       : { title: 'Clientes excluídos.' });
   };
 
@@ -518,28 +518,11 @@ export default function Clientes() {
         onOpenChange={(aberto) => !aberto && setClienteToDelete(null)}
       >
         <AlertDialogContent>
-      <AlertDialog open={confirmarLote} onOpenChange={setConfirmarLote}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir {selecionados.size} cliente(s)?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Quem tiver histórico ou contratos vinculados é preservado, e você verá quantos ficaram. Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={emLote}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction disabled={emLote} onClick={(e) => { e.preventDefault(); void excluirSelecionados(); }}>
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              {clienteToDelete?.nome} será removido permanentemente. Clientes com histórico,
-              contratos ou documentos vinculados não podem ser excluídos.
+              {clienteToDelete?.nome} será removido permanentemente, junto com o histórico,
+              as tarefas e os negócios dele no funil.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -548,6 +531,23 @@ export default function Clientes() {
               onClick={handleDelete}
               className="bg-destructive hover:bg-destructive/90"
             >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmarLote} onOpenChange={setConfirmarLote}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selecionados.size} cliente(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O histórico, as tarefas e os negócios de cada um saem junto. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={emLote}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={emLote} onClick={(e) => { e.preventDefault(); void excluirSelecionados(); }}>
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

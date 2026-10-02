@@ -19,11 +19,12 @@ import { crmKeys } from '@/hooks/crm/useCrm';
 import { codigoDoErro, registroDoErro } from '@/lib/crm/duplicidade';
 import { functionErrorCode, mergeErrorText, renameErrorText, startErrorText } from './inboxRequests';
 import { mesmoTelefone } from './deepLink';
+import { ENVIO_SEM_CONFIRMACAO, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
 type Qualification = { stage?: string; temperature?: string; priority?: string; reason?: string; profile?: Record<string, string | null> };
-type Conversation = { id: string; phone: string | null; contact_name?: string | null; clientes?: { nome: string } | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null; opted_out_at?: string | null };
+type Conversation = { id: string; phone: string | null; contact_name?: string | null; clientes?: { nome: string } | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null; opted_out_at?: string | null; pausa_ia_ate?: string | null };
 const CONVERSATION_FIELDS = 'id,phone,cliente_id,mode,status,updated_at,qualification,last_error,clientes(nome)';
 // Archived conversations belong to a WhatsApp number that is no longer connected.
 async function fetchConversations() {
@@ -32,7 +33,9 @@ async function fetchConversations() {
     if (scoped) query = query.is('archived_at', null);
     return query.order('updated_at', { ascending: false }).limit(100);
   };
-  let { data, error } = await recent(`${CONVERSATION_FIELDS},contact_name,opted_out_at`, true);
+  let { data, error } = await recent(`${CONVERSATION_FIELDS},contact_name,opted_out_at,pausa_ia_ate`, true);
+  // `pausa_ia_ate` é a coluna mais nova: banco sem ela cai no degrau seguinte.
+  if (error?.code === '42703') ({ data, error } = await recent(`${CONVERSATION_FIELDS},contact_name,opted_out_at`, true));
   // Each migration adds columns; older databases fall back one step at a time.
   if (error?.code === '42703') ({ data, error } = await recent(`${CONVERSATION_FIELDS},contact_name`, true));
   if (error?.code === '42703') ({ data, error } = await recent(CONVERSATION_FIELDS, false));
@@ -94,6 +97,41 @@ function MessageBody({ message }: { message: Message }) {
 // Cada bloco do painel inventava o seu espaçamento (mt-2.5, mt-4, mt-5) e o seu
 // tamanho de título. Com a remoção dos campos que não funcionavam, o que sobrou
 // ficou sem ritmo. Uma seção só, usada por todos.
+/**
+ * Linha do tempo do contato.
+ *
+ * O fio entre as bolinhas ia de `top-3` até `bottom-0` do próprio item:
+ * começava em cima da primeira bolinha e parava 14px antes da seguinte,
+ * deixando um pedaço solto no ar — foi o que o corretor viu como defeito.
+ *
+ * A ordem é do mais antigo para o mais novo: "Lead criado" depois de uma
+ * conversa de ontem lia-se como se o lead tivesse nascido hoje.
+ */
+function LinhaDoTempo({ eventos }: { eventos: { titulo: string; quando?: string | null }[] }) {
+  const lista = eventos
+    .map((evento) => ({ ...evento, instante: evento.quando ? Date.parse(evento.quando) : NaN }))
+    .filter((evento) => Number.isFinite(evento.instante))
+    .sort((a, b) => a.instante - b.instante);
+  if (!lista.length) return <p className="text-[11px] text-muted-foreground">Sem eventos ainda.</p>;
+
+  return <ol>
+    {lista.map((evento, indice) => <li key={evento.titulo} className="relative flex gap-2.5">
+      {/* O fio nasce onde a bolinha acaba (mt-1.5 + 7px de altura = 13px) e
+          desce 6px além do item, que é exatamente o mt-1.5 da bolinha
+          seguinte. Antes ia de `top-3` a `bottom-0`: cobria o pé da primeira
+          bolinha e parava 14px antes da outra, no vazio. */}
+      {indice < lista.length - 1 && <span aria-hidden="true" className="absolute -bottom-1.5 left-[3px] top-[13px] w-px bg-border" />}
+      <span aria-hidden="true" className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-primary" />
+      <div className={`min-w-0 ${indice < lista.length - 1 ? 'pb-3' : ''}`}>
+        <strong className="block text-[11px] font-medium leading-tight text-foreground">{evento.titulo}</strong>
+        <time dateTime={evento.quando ?? undefined} className="text-[11px] text-muted-foreground">
+          {new Date(evento.instante).toLocaleString('pt-BR')}
+        </time>
+      </div>
+    </li>)}
+  </ol>;
+}
+
 function SecaoPerfil({ titulo, acessorio, children }: { titulo: string; acessorio?: React.ReactNode; children: React.ReactNode }) {
   return <section className="mt-5 first:mt-0">
     <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}{acessorio && <span className="ml-auto">{acessorio}</span>}</h3>
@@ -114,13 +152,6 @@ function MessageBubble({ message }: { message: Message }) {
 // O banco registra por que a conversa saiu do automático. Até aqui os cinco
 // motivos viravam a mesma frase genérica, escondida no painel do contato: o
 // corretor via a IA desligar sozinha e concluía que era defeito.
-const MOTIVO_DA_PARADA: Record<string, string> = {
-  no_active_entitlement: 'A IA não respondeu porque esta conta não tem plano ativo. Reative a assinatura para o agente voltar a atender.',
-  quota_exhausted: 'A franquia de atendimentos do plano acabou neste período. A IA volta a responder na renovação.',
-  processing_stalled: 'A IA tentou responder e não conseguiu. A conversa foi passada para a equipe.',
-  delivery_uncertain: 'Um envio não foi confirmado. Confira no WhatsApp antes de responder de novo.',
-  crm_capture_pending: 'Este contato ainda não entrou no CRM. O sistema tentará de novo sozinho.',
-};
 
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
@@ -225,6 +256,18 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     },
     onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
   });
+  // O envio sem confirmação é a única pergunta que o sistema não consegue
+  // responder sozinho: só quem abre o WhatsApp sabe se a mensagem chegou.
+  const reconciliar = useMutation({
+    mutationFn: async (chegou: boolean) => {
+      const { error } = await db.rpc('lotti_agent_reconciliar_envio', { p_id: selected!.id, p_chegou: chegou });
+      if (error) throw error;
+    },
+    onSuccess: () => Promise.all([
+      cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
+      cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id] }),
+    ]),
+  });
   const clearOptOut=useMutation({mutationFn:async()=>{const {error}=await db.rpc('lotti_inbox_clear_opt_out',{p_conversation:selected!.id});if(error)throw error},onSuccess:async()=>{await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
   const refreshConversation=async(id?:string)=>{if(id)setSelectedId(id);await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-agent-message-previews',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-client',user?.id]})])};
   // The conversation already exists when the send is unconfirmed (bridge timeout): it opens with a
@@ -264,6 +307,9 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   };
   const q = selected?.qualification;
   const optOut = preview ? 'none' : optOutState(selected?.opted_out_at, messages.data ?? []);
+  // `mode` continua 'ai' durante a pausa — é por isso que o interruptor dizia
+  // "IA ligada" com a IA calada. O estado real soma o modo e o prazo.
+  const estadoIa = estadoDaIa(selected ?? { mode: 'human' });
   const timeline = [...(messages.data ?? []).map(message => ({ type: 'message' as const, value: message })),
     ...(events.data ?? []).map(event => ({ type: 'event' as const, value: event }))]
     .sort((a, b) => new Date(a.value.created_at).getTime() - new Date(b.value.created_at).getTime());
@@ -291,16 +337,40 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // na hora: esperar três segundos olhando a tela parada era o custo de uma
   // garantia que vem do request_id, não da espera.
   const [pendentes, setPendentes] = useState<{ key: string; kind: 'text' | 'file' | 'audio'; content: string; incerto?: boolean }[]>([]);
-  useEffect(() => { followLatest.current = true; setPendentes([]); }, [selected?.id]);
+  useEffect(() => { setPendentes([]); }, [selected?.id]);
+  // Qual conversa já foi desenhada. O reset de `followLatest` morava num
+  // useEffect, que roda DEPOIS do useLayoutEffect abaixo: quem tivesse subido
+  // numa conversa abria a seguinte no topo.
+  const conversaDesenhada = useRef<string | undefined>(undefined);
   // Pelo comprimento não serve: a consulta devolve no máximo 200 mensagens, e no
   // teto a mensagem nova entra enquanto a antiga sai. A identidade do último
   // item muda sempre que chega algo, com ou sem corte.
   const ultimoDaLista = timeline.length ? timeline[timeline.length - 1].value.id : '';
   useLayoutEffect(() => {
     const el = timelineRef.current;
-    if (el && followLatest.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (conversaDesenhada.current !== selected?.id) {
+      conversaDesenhada.current = selected?.id;
+      followLatest.current = true;
+    }
+    if (followLatest.current) el.scrollTop = el.scrollHeight;
   }, [selected?.id, ultimoDaLista, pendentes.length]);
-  return <div className="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden" data-testid="connected-inbox">
+  // A régua de escrever muda de altura quando os botões quebram em duas linhas,
+  // e a conversa encolhe junto — a rolagem parava algumas dezenas de pixels
+  // antes do fim. Quem está acompanhando o fim continua no fim.
+  useEffect(() => {
+    const el = timelineRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(() => { if (followLatest.current) el.scrollTop = el.scrollHeight; });
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, []);
+  // A altura é travada em QUALQUER largura, não só a partir de `lg`.
+  // Com `min-h` e sem teto, a lista de mensagens crescia até o tamanho do
+  // conteúdo: `scrollHeight` virava igual a `clientHeight`, não havia rolagem
+  // interna nenhuma e quem rolava era a página. Daí a conversa abrir no topo
+  // por mais que o efeito mandasse ir para o fim — não havia fim para onde ir.
+  return <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden lg:h-dvh" data-testid="connected-inbox">
     <h1 className="sr-only">Inbox</h1>
     {preview && <p className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">Prévia interativa com dados fictícios. Nada é enviado ou salvo; recarregar desfaz as mudanças.</p>}
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
@@ -335,7 +405,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
         {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); clearOptOut.reset(); setListaAberta(false); if (notice?.id !== c.id) setNotice(undefined); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
-          <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.opted_out_at ? 'Não quer receber' : c.mode === 'ai' ? 'IA' : c.mode === 'human' ? 'Equipe' : 'Pausado'}</span></span>
+          <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.opted_out_at ? 'Não quer receber' : c.mode === 'human' ? 'Equipe' : rotuloDaIa(estadoDaIa(c))}</span></span>
         </button>)}
         {!filtered.length && (
           <div className="p-4 text-center text-xs text-muted-foreground">
@@ -371,14 +441,30 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           <div data-testid="conversation-header-actions" className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
             <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{preview ? 'Qualificação' : selected.cliente_id ? (client.data?.status_funil ? STATUS_FUNIL_LABELS[client.data.status_funil as StatusFunil] : 'Sem etapa definida') : 'Sem cliente vinculado'}</span></span>
             <button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button>
-            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{optOut!=='none'?'IA bloqueada':selected.mode==='ai'?'IA ligada':selected.mode==='paused'?'IA pausada':'IA desligada'}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
+            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{optOut!=='none'?'IA bloqueada':rotuloDaIa(estadoIa)}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
             <Button size="sm" className="h-8 shrink-0 border-primary px-2 text-[11px] text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
           </div>
         </header>
+        {/* Antes não havia nada aqui: a IA simplesmente parava de responder e
+            o corretor ficava ligando e desligando o interruptor. */}
+        {estadoIa.tipo === 'em-espera' && optOut === 'none' && <p role="status" data-testid="ia-em-espera" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <span>IA em espera até {quandoAIaVolta(estadoIa.ate)}, porque esta conversa foi respondida fora do Inbox. Ela volta sozinha.</span>
+          <button type="button" className="font-semibold underline underline-offset-2 disabled:opacity-50" disabled={mode.isPending} onClick={() => mode.mutate('ai')}>Reativar agora</button>
+        </p>}
         {notice?.id === selected.id && <p role="status" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice.text}</p>}
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
-        {selected.last_error && <p role="status" data-testid="motivo-da-parada" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</p>}
+        {selected.last_error && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <span>{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</span>
+          {/* Sem estes dois botões a conversa ficava morta até alguém mexer no
+              banco: nada limpa `uncertain` sozinho, e enquanto ele existe a
+              fila não entrega a conversa nem deixa religar a IA. */}
+          {ENVIO_SEM_CONFIRMACAO.has(selected.last_error) && <span className="flex flex-wrap items-center gap-2">
+            <button type="button" disabled={reconciliar.isPending} onClick={() => reconciliar.mutate(true)} className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold hover:border-amber-500 disabled:opacity-50">A mensagem chegou</button>
+            <button type="button" disabled={reconciliar.isPending} onClick={() => reconciliar.mutate(false)} className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold hover:border-amber-500 disabled:opacity-50">Não chegou</button>
+          </span>}
+          {reconciliar.isError && <span className="text-destructive">Não foi possível concluir. Tente de novo.</span>}
+        </div>}
         <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {/* O aviso fala do histórico cortado, que fica no começo da lista.
               No fim, junto da mensagem mais nova, ele não descrevia nada e
@@ -422,17 +508,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </SecaoPerfil>
 
         <SecaoPerfil titulo="Linha do tempo">
-          {[
+          <LinhaDoTempo eventos={[
+            { titulo: 'Lead criado', quando: client.data?.created_at },
             { titulo: 'Conversou no WhatsApp', quando: selected.updated_at },
-            ...(client.data?.created_at ? [{ titulo: 'Lead criado', quando: client.data.created_at }] : []),
-          ].map((evento, indice, lista) => <div key={evento.titulo} className="relative flex gap-2.5 pb-3 last:pb-0">
-            {indice < lista.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[3px] top-3 w-px bg-border" />}
-            <span aria-hidden="true" className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-primary" />
-            <div className="min-w-0">
-              <strong className="block text-[11px] font-medium leading-tight text-foreground">{evento.titulo}</strong>
-              <time className="text-[11px] text-muted-foreground">{new Date(evento.quando).toLocaleString('pt-BR')}</time>
-            </div>
-          </div>)}
+          ]} />
         </SecaoPerfil>
 
         <SecaoPerfil titulo="Qualificação comercial">
