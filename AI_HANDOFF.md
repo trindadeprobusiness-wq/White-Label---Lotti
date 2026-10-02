@@ -2260,3 +2260,10 @@ credencial); nao foi contornada.
 - Verificação: 25 arquivos de migration, 361 testes; 9 novos em PGlite sobre a cadeia real, incluindo prova ponta a ponta de que a retentativa acontece depois do `delete`.
 - Pendente: aplicar `20261002210000`; o botão "Não chegou" em produção ainda recria a armadilha enquanto isso. Também pendente: o "Excluir" em lote do Kanban segue sem confirmação, e o histórico de migrations do banco continua divergente (103 arquivos locais, 43 registrados) — `supabase db push` continua proibido.
 - Diário — Claude: a revisão adversarial pagou-se sozinha; os dois defeitos de maior gravidade estavam em código que eu já tinha dado por bom.
+
+### 2026-10-02 (noite) — Claude (correção de rumo: o checkout da ponte estava velho)
+- `C:/Users/rafae/n8n-agent-lotti` neste notebook está **32 commits atrás de `origin/main`**. Toda a leitura que fiz de `runtime/server.mjs` durante o dia saiu dessa cópia velha.
+- Consequência registrada: afirmei ao usuário que os ramos `no_destination` e `turn.afterDelivery` não existiam e que o Codex os tinha inventado. **Estava errado.** Conferido em `git show origin/main:runtime/server.mjs`: linha 77 e linha 85. A correção foi comunicada e o documento `prompt-codex-runtime-corrigido.md` foi reescrito.
+- Regra reforçada: para repositório de terceiro neste notebook, `git fetch` e ler de `origin/main` antes de afirmar o que existe. Checkout local não é prova, do mesmo jeito que documentação não é prova.
+- O diagnóstico central sobreviveu à releitura: o `deliver` do `origin/main` continua com um `catch` único para todos os ramos.
+- Dois ajustes que saíram da releitura: `no_destination` é falha certa (lançado antes de qualquer chamada à Evolution, portanto `p_uncertain=false`); e `turn.afterDelivery` está dentro do `try`, então uma falha dele reporta `delivery_failed_or_uncertain` para entrega que deu certo — sem corromper estado, porque `fail` sai pelo `lease_token` nulo, mas sujando log e métrica.
