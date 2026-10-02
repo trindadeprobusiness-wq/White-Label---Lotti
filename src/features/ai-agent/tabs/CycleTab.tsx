@@ -2,7 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { Field, FieldIssues, SettingsSection, StageSelect, ToggleRow, inputClassName, textareaClassName } from '../components';
+import { Field, FieldIssues, NumberField, SettingsSection, StageSelect, ToggleRow, textareaClassName } from '../components';
 import { FOLLOW_UP_WINDOW_HOURS, MAX_FOLLOW_UPS, type AgentSettings } from '../settings';
 import type { AgentTabProps } from './types';
 
@@ -21,14 +21,13 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
         <ol className="space-y-2">
           {followUp.delaysHours.map((delay, index) => <li key={index} className="flex items-center gap-2 text-sm">
             <span className="w-16 shrink-0 rounded-full bg-muted px-2 py-1 text-center text-xs font-semibold">{index + 1}º toque</span>
-            <input
+            <NumberField
               aria-label={`${index + 1}º toque, horas após ${index === 0 ? 'a última mensagem' : 'o anterior'}`}
-              type="number"
               min={1}
               max={FOLLOW_UP_WINDOW_HOURS}
-              className={cn(inputClassName, 'w-20')}
+              className="w-20"
               value={delay}
-              onChange={(event) => setDelay(index, Number(event.target.value))}
+              onChange={(valor) => setDelay(index, valor)}
             />
             <span className="text-muted-foreground">horas<span className="hidden sm:inline">{index === 0 ? ' após a última mensagem' : ' após o toque anterior'}</span></span>
             <Button type="button" variant="ghost" size="icon" className="ml-auto h-8 w-8 text-muted-foreground" aria-label={`Remover ${index + 1}º toque`} disabled={followUp.delaysHours.length === 1} onClick={() => set({ delaysHours: followUp.delaysHours.filter((_, itemIndex) => itemIndex !== index) })}>
@@ -50,20 +49,49 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
       </>}
     </SettingsSection>
 
-    {followUp.enabled && <SettingsSection title="Sem resposta" description="Depois do último toque.">
-      <ToggleRow title="Fechar a conversa" description={followUp.closeConversation ? undefined : 'Desligado: a conversa fica aberta na Inbox.'} checked={followUp.closeConversation} onCheckedChange={(closeConversation) => set({ closeConversation })} />
-      {followUp.closeConversation && <div className="space-y-4 rounded-lg border p-4">
-        <Field label="Fechar após (horas do último toque)" className="max-w-xs">
-          {(id) => <input id={id} type="number" min={1} max={72} className={inputClassName} value={followUp.closeAfterHours} onChange={(event) => set({ closeAfterHours: Number(event.target.value) })} />}
-        </Field>
-        <ToggleRow title="Despedir-se antes de fechar" checked={followUp.farewell} onCheckedChange={(farewell) => set({ farewell })} />
-        {followUp.farewell && <Field label="Objetivo da despedida">
-          {(id) => <textarea id={id} className={cn(textareaClassName, 'min-h-16')} value={followUp.farewellObjective} onChange={(event) => set({ farewellObjective: event.target.value })} />}
-        </Field>}
-        <FieldIssues issues={issues} field="followUp.closeAfterHours" />
-        <FieldIssues issues={issues} field="followUp.farewellObjective" />
-      </div>}
-      <StageSelect label="Etapa do funil ao final" value={followUp.finalStageId} onChange={(finalStageId) => set({ finalStageId })} stages={stages} />
+    {followUp.enabled && <SettingsSection
+      title="O que fazer no fim"
+      description="Quando o lead não responde a nenhum dos toques. As duas decisões são independentes."
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Fechar e mover são escolhas separadas: dá para fechar sem mover,
+            mover sem fechar, os dois, ou nenhum. Aninhar o funil dentro do
+            fechamento tirava justamente o caso de deixar aberta e marcar no
+            funil quem sumiu — que é o que o corretor faz para ir atrás depois. */}
+        <fieldset className="space-y-3 rounded-lg border p-4">
+          <legend className="px-1 text-sm font-medium">Fechar a conversa</legend>
+          <ToggleRow
+            title="Fechar quando ninguém responder"
+            description={followUp.closeConversation
+              ? 'Sai da lista de abertas no Inbox. Se o lead escrever de novo, reabre sozinha.'
+              : 'A conversa fica aberta no Inbox. Útil para alguém dar uma olhada depois.'}
+            checked={followUp.closeConversation}
+            onCheckedChange={(closeConversation) => set({ closeConversation })}
+          />
+          {followUp.closeConversation && <>
+            <Field label="Fechar após quantas horas de silêncio" hint="Contadas do último toque." className="max-w-xs">
+              {(id) => <NumberField id={id} min={1} max={72} value={followUp.closeAfterHours} onChange={(closeAfterHours) => set({ closeAfterHours })} />}
+            </Field>
+            <FieldIssues issues={issues} field="followUp.closeAfterHours" />
+            <ToggleRow title="Avisar o lead antes de fechar" checked={followUp.farewell} onCheckedChange={(farewell) => set({ farewell })} />
+            {followUp.farewell && <Field label="Objetivo da despedida">
+              {(id) => <textarea id={id} className={cn(textareaClassName, 'min-h-16')} value={followUp.farewellObjective} onChange={(event) => set({ farewellObjective: event.target.value })} />}
+            </Field>}
+            <FieldIssues issues={issues} field="followUp.farewellObjective" />
+          </>}
+        </fieldset>
+
+        <fieldset className="space-y-3 rounded-lg border p-4">
+          <legend className="px-1 text-sm font-medium">Mover o lead no funil</legend>
+          <StageSelect
+            label="Etapa do funil"
+            value={followUp.finalStageId}
+            onChange={(finalStageId) => set({ finalStageId })}
+            stages={stages}
+            hint="Serve para separar quem parou de responder, feche a conversa ou não."
+          />
+        </fieldset>
+      </div>
     </SettingsSection>}
   </>;
 }

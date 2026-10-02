@@ -1,8 +1,9 @@
 import { Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Field, FieldIssues, LockedNote, SettingsSection, StageSelect, ToggleRow, inputClassName } from '../components';
+import { Field, FieldIssues, LockedNote, NumberField, SettingsSection, StageSelect, ToggleRow } from '../components';
 import { TIME_OPTIONS, WEEKDAYS, type AgentSettings, type DayHours, type Weekday } from '../settings';
 import type { AgentTabProps } from './types';
 
@@ -10,6 +11,23 @@ const WORKDAYS: Weekday[] = ['tue', 'wed', 'thu', 'fri'];
 // Mantém um horário salvo fora da grade de 30 min visível no seletor.
 const timeChoices = (current: string) => (TIME_OPTIONS.includes(current) ? TIME_OPTIONS : [...TIME_OPTIONS, current].sort());
 const onDay = (day: Weekday) => (day === 'sat' || day === 'sun' ? 'no' : 'na');
+
+/**
+ * Hora do expediente.
+ *
+ * Era um `<select>` nativo com 48 opções. O navegador abre essa lista onde
+ * acha melhor — e com tantos itens ela saltava para o topo da página, longe do
+ * campo clicado. Aqui a lista é um popover: nasce colada ao campo e já rolada
+ * até a hora escolhida.
+ */
+function SeletorDeHora({ rotulo, valor, aoMudar }: { rotulo: string; valor: string; aoMudar: (valor: string) => void }) {
+  return <Select value={valor} onValueChange={aoMudar}>
+    <SelectTrigger aria-label={rotulo} className="h-9 w-24"><SelectValue /></SelectTrigger>
+    <SelectContent className="max-h-72">
+      {timeChoices(valor).map((hora) => <SelectItem key={hora} value={hora}>{hora}</SelectItem>)}
+    </SelectContent>
+  </Select>;
+}
 
 export function ScheduleTab({ settings, onChange, issues, stages }: AgentTabProps) {
   const schedule = settings.schedule;
@@ -28,13 +46,9 @@ export function ScheduleTab({ settings, onChange, issues, stages }: AgentTabProp
             <span className="w-20 text-sm font-medium">{day.label}</span>
             {hours.enabled
               ? <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                <select aria-label={`${day.label}: início`} className={cn(inputClassName, 'h-9 w-24')} value={hours.start} onChange={(event) => setDay(day.id, { start: event.target.value })}>
-                  {timeChoices(hours.start).map((time) => <option key={time} value={time}>{time}</option>)}
-                </select>
+                <SeletorDeHora rotulo={`${day.label}: início`} valor={hours.start} aoMudar={(start) => setDay(day.id, { start })} />
                 às
-                <select aria-label={`${day.label}: fim`} className={cn(inputClassName, 'h-9 w-24')} value={hours.end} onChange={(event) => setDay(day.id, { end: event.target.value })}>
-                  {timeChoices(hours.end).map((time) => <option key={time} value={time}>{time}</option>)}
-                </select>
+                <SeletorDeHora rotulo={`${day.label}: fim`} valor={hours.end} aoMudar={(end) => setDay(day.id, { end })} />
               </span>
               : <span className="text-sm text-muted-foreground">Fechado</span>}
           </div>;
@@ -52,10 +66,10 @@ export function ScheduleTab({ settings, onChange, issues, stages }: AgentTabProp
       {schedule.visits.enabled && <>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Duração da visita (min)">
-            {(id) => <input id={id} type="number" min={15} max={240} step={15} className={inputClassName} value={schedule.visits.durationMinutes} onChange={(event) => setVisits({ durationMinutes: Number(event.target.value) })} />}
+            {(id) => <NumberField id={id} min={15} max={240} step={15} value={schedule.visits.durationMinutes} onChange={(durationMinutes) => setVisits({ durationMinutes })} />}
           </Field>
           <Field label="Antecedência mínima (horas)">
-            {(id) => <input id={id} type="number" min={0} max={168} className={inputClassName} value={schedule.visits.minNoticeHours} onChange={(event) => setVisits({ minNoticeHours: Number(event.target.value) })} />}
+            {(id) => <NumberField id={id} min={0} max={168} value={schedule.visits.minNoticeHours} onChange={(minNoticeHours) => setVisits({ minNoticeHours })} />}
           </Field>
         </div>
         <FieldIssues issues={issues} field="schedule.visits" />

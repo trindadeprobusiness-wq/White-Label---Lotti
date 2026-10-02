@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { AlertTriangle, Lock } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
@@ -87,4 +87,55 @@ export function StageSelect({ label, value, onChange, stages, emptyLabel = 'Não
 
 export function LockedNote({ children }: { children: ReactNode }) {
   return <p className="flex items-start gap-1.5 text-xs text-muted-foreground"><Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{children}</p>;
+}
+
+/**
+ * Campo de número que guarda o que foi digitado, não o número.
+ *
+ * Com `value={numero}` e `onChange={Number(...)}`, apagar o campo vira
+ * `Number('') === 0`: aparece um "0" que ninguém escreveu, e o próximo dígito
+ * entra depois dele — digitar "12" num campo vazio mostrava "012".
+ *
+ * Aqui o texto é o estado enquanto se edita. Ao sair do campo, ele volta a
+ * refletir o número guardado, o que também some com zeros à esquerda. Campo
+ * vazio continua vazio na tela; quem reclama disso é a validação, que tem a
+ * mensagem certa para dar.
+ */
+export function NumberField({ id, value, onChange, min, max, className, ...resto }: {
+  id?: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  className?: string;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>) {
+  const [texto, setTexto] = useState(() => String(value));
+  // Guarda o último número que veio de fora. Comparar com ele distingue uma
+  // mudança externa (descartar, carregar) de uma digitação — depender do foco
+  // para isso deixava o campo refém de um evento que nem sempre acontece.
+  const [ultimoValor, setUltimoValor] = useState(value);
+  if (value !== ultimoValor) {
+    setUltimoValor(value);
+    setTexto(String(value));
+  }
+
+  return <input
+    {...resto}
+    id={id}
+    type="number"
+    min={min}
+    max={max}
+    className={cn(inputClassName, className)}
+    value={texto}
+    onChange={(event) => {
+      setTexto(event.target.value);
+      const numero = Number(event.target.value);
+      // Texto vazio ou inválido não vira 0 às escondidas: o número guardado
+      // fica como estava até a pessoa digitar algo que seja um número.
+      if (event.target.value.trim() !== '' && Number.isFinite(numero)) onChange(numero);
+    }}
+    // Sair do campo vazio ou com lixo devolve o último número válido: salvar
+    // um valor que a pessoa não escolheu é pior que desfazer a digitação.
+    onBlur={() => setTexto(String(value))}
+  />;
 }

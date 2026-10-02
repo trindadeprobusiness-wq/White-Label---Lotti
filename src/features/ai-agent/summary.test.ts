@@ -26,10 +26,19 @@ describe('describeBusinessHours', () => {
 describe('describeAttendMode', () => {
   it('describes each answering mode', () => {
     const behavior = createDefaultAgentSettings().behavior;
+    const com = (attend: Partial<typeof behavior.attend>) => ({ ...behavior, attend: { ...behavior.attend, ...attend } });
 
     expect(describeAttendMode(behavior)).toBe('Responde toda mensagem recebida');
-    expect(describeAttendMode({ ...behavior, attendMode: 'outside_hours' })).toBe('Responde só fora do horário de atendimento');
-    expect(describeAttendMode({ ...behavior, attendMode: 'after_delay', attendDelayMinutes: 20 })).toBe('Responde se a equipe não responder em 20 min');
+    expect(describeAttendMode(com({ outsideHours: true }))).toBe('Responde fora do horário de atendimento');
+    expect(describeAttendMode({ ...com({ afterDelay: true }), attendDelayMinutes: 20 }))
+      .toBe('Responde se a equipe não responder em 20 min');
+  });
+
+  // Os dois motivos somam: era disso que o escolha-um-só privava o corretor.
+  it('soma os dois motivos quando os dois estão ligados', () => {
+    const behavior = createDefaultAgentSettings().behavior;
+    expect(describeAttendMode({ ...behavior, attend: { outsideHours: true, afterDelay: true }, attendDelayMinutes: 15 }))
+      .toBe('Responde fora do horário de atendimento e se a equipe não responder em 15 min');
   });
 });
 

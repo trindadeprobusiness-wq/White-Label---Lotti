@@ -52,6 +52,8 @@ export interface Fachada {
   cta_principal: CTAPrincipal;
   modo_conversao: boolean;
   mensagem_whatsapp?: string;
+  /** Abordagem do corretor ao lead desta placa. Aceita {nome}, {imovel}, {valor}. */
+  mensagem_contato?: string;
   logo_url?: string;
   foto_principal_url?: string;
   ativo: boolean;

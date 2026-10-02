@@ -20,15 +20,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { FachadaLead } from '@/types/fachada';
+import type { FachadaComImovel, FachadaLead } from '@/types/fachada';
+import { linkDeContato, montarMensagemDeContato } from '@/lib/fachadas/mensagemContato';
+import { moeda } from '@/lib/formato';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 
 interface LeadsTableProps {
   leads: FachadaLead[];
+  /** As placas, para a abordagem lembrar qual imóvel o lead escaneou. */
+  fachadas?: FachadaComImovel[];
   onDeleteLead?: (id: string) => Promise<boolean>;
 }
 
-export function LeadsTable({ leads, onDeleteLead }: LeadsTableProps) {
+export function LeadsTable({ leads, fachadas, onDeleteLead }: LeadsTableProps) {
+  const porFachada = new Map((fachadas ?? []).map((fachada) => [fachada.id, fachada]));
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleConfirmDelete = async () => {
@@ -116,7 +121,14 @@ export function LeadsTable({ leads, onDeleteLead }: LeadsTableProps) {
                       asChild
                     >
                       <a
-                        href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}`}
+                        href={(() => {
+                          const fachada = porFachada.get(lead.fachada_id);
+                          return linkDeContato(lead.telefone, montarMensagemDeContato(fachada?.mensagem_contato, {
+                            nome: lead.nome,
+                            imovel: fachada?.imovel?.titulo,
+                            valor: fachada?.imovel?.valor ? moeda(fachada.imovel.valor) : null,
+                          }));
+                        })()}
                         target="_blank"
                         rel="noopener noreferrer"
                       >

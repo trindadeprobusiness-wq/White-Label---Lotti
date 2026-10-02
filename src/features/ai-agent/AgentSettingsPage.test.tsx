@@ -55,12 +55,46 @@ it('saves the active state locally without any WhatsApp connection control', asy
   expect(stored().active).toBe(true);
 });
 
+
+// Campo numérico guardava o número, não o texto: apagar virava `Number('')`,
+// ou seja 0, e o próximo dígito entrava depois dele. Digitar "12" num campo
+// recém-apagado mostrava "012".
+it('não deixa um zero fantasma quando o campo numérico é apagado', async () => {
+  render(<AgentSettingsPage />);
+  openTab('Atendimento');
+
+  fireEvent.click(screen.getByRole('switch', { name: /Quando a equipe não responder/i }));
+  const campo = screen.getByLabelText('Minutos de espera antes de a IA entrar') as HTMLInputElement;
+
+  fireEvent.change(campo, { target: { value: '' } });
+  expect(campo.value).toBe('');
+
+  fireEvent.change(campo, { target: { value: '12' } });
+  expect(campo.value).toBe('12');
+});
+
+
+// Lido do FollowUpEditor do Clix: "Cobre os 4 casos (fechar+mover, fechar sem
+// mover, não-fechar+mover, nada)". Aninhar o funil dentro do fechamento tirava
+// o terceiro — deixar aberta e marcar no funil quem sumiu.
+it('deixa mover o lead no funil mesmo sem fechar a conversa', async () => {
+  render(<AgentSettingsPage />);
+  openTab('Atendimento');
+
+  // Fechamento desligado: o seletor de etapa continua à mão.
+  expect(screen.getByRole('switch', { name: 'Fechar quando ninguém responder' }).getAttribute('data-state')).toBe('unchecked');
+  expect(screen.getByLabelText('Etapa do funil')).toBeTruthy();
+});
+
 it('shows the model in use and changes it from the identity tab', async () => {
   render(<AgentSettingsPage />);
   expect(screen.getByTestId('model-in-use').textContent).toContain('GPT-4o mini');
 
-  openTab('Prompt');
-  fireEvent.click(screen.getByRole('button', { name: 'Trocar modelo' }));
+  // O link "Trocar modelo" saiu: o modelo virou um cartão do resumo, e os
+  // cartões já levam à aba ao serem clicados. Era um botão a mais para a
+  // mesma viagem, ao lado de uma informação que já aparecia duas vezes.
+  openTab('Identidade');
+  fireEvent.click(within(screen.getByTestId('model-in-use')).getByRole('button'));
   expect(screen.getByRole('tab', { name: 'Identidade' }).getAttribute('aria-selected')).toBe('true');
 
   fireEvent.change(screen.getByLabelText('Modelo de IA'), { target: { value: 'gpt-4.1-mini' } });
@@ -73,7 +107,7 @@ it('shows the model in use and changes it from the identity tab', async () => {
 it('does not show loose notices in any tab', async () => {
   render(<AgentSettingsPage />);
 
-  for (const tab of ['Identidade', 'Comportamento', 'Ciclo da conversa', 'Agendamento', 'Ferramentas', 'Prompt']) {
+  for (const tab of ['Identidade', 'Atendimento', 'Agenda', 'Ferramentas']) {
     openTab(tab);
     expect(screen.queryByText(/nenhuma mensagem é enviada|salva só neste navegador/i)).toBeNull();
   }
@@ -83,7 +117,7 @@ it('blocks saving while a tab has an error and points to that tab', async () => 
   render(<AgentSettingsPage />);
 
   fireEvent.change(screen.getByLabelText('Nome do agente'), { target: { value: '' } });
-  openTab('Prompt');
+  openTab('Identidade');
   await save();
 
   expect(stored()).toBeNull();
@@ -117,14 +151,14 @@ it('opens the matching tab from the summary of the active card', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: /Follow-up/ }));
 
-  expect(screen.getByRole('tab', { name: 'Ciclo da conversa' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('tab', { name: 'Atendimento' }).getAttribute('aria-selected')).toBe('true');
 });
 
 it('keeps follow-up only in the conversation cycle and lets the broker add touches', async () => {
   render(<AgentSettingsPage />);
   expect(screen.queryByRole('heading', { name: 'Follow-up' })).toBeNull();
 
-  openTab('Ciclo da conversa');
+  openTab('Atendimento');
   expect(screen.getByRole('heading', { name: 'Follow-up' })).toBeTruthy();
   expect(screen.getAllByRole('spinbutton', { name: /º toque/ })).toHaveLength(3);
 
@@ -137,7 +171,7 @@ it('keeps follow-up only in the conversation cycle and lets the broker add touch
 
 it('warns when the touches go past the WhatsApp window without blocking the save', async () => {
   render(<AgentSettingsPage />);
-  openTab('Ciclo da conversa');
+  openTab('Atendimento');
 
   fireEvent.change(screen.getByRole('spinbutton', { name: '3º toque, horas após o anterior' }), { target: { value: '20' } });
 
@@ -148,7 +182,7 @@ it('warns when the touches go past the WhatsApp window without blocking the save
 
 it('moves the lead to a real funnel stage on handoff', async () => {
   render(<AgentSettingsPage />);
-  openTab('Comportamento');
+  openTab('Atendimento');
 
   fireEvent.change(screen.getByLabelText('Mover o lead para a etapa do funil'), { target: { value: 'etapa-humano' } });
   await save();
@@ -158,11 +192,20 @@ it('moves the lead to a real funnel stage on handoff', async () => {
 });
 
 it('shows each weekday with its own hours in scheduling', async () => {
+  // O seletor de hora deixou de ser `<select>` nativo — a lista dele saltava
+  // para o topo da página. O Radix é um popover, e no jsdom ele precisa destes
+  // dois apoios que o ambiente não implementa.
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.scrollIntoView = () => {};
+
   render(<AgentSettingsPage />);
-  openTab('Agendamento');
+  openTab('Agenda');
 
   expect(screen.getByRole('switch', { name: 'Atender no domingo' }).getAttribute('data-state')).toBe('unchecked');
-  fireEvent.change(screen.getByLabelText('Terça: início'), { target: { value: '19:00' } });
+
+  const inicioDaTerca = screen.getByRole('combobox', { name: 'Terça: início' });
+  fireEvent.keyDown(inicioDaTerca, { key: 'Enter' });
+  fireEvent.click(screen.getByRole('option', { name: '19:00' }));
 
   expect(screen.getByText('Terça: o horário final precisa ser depois do inicial.')).toBeTruthy();
 });
@@ -173,12 +216,12 @@ it('shows capability tools as locked and controlled by their own tab', async () 
 
   expect(screen.getByRole('switch', { name: 'Buscar imóveis compatíveis' })).toBeTruthy();
   expect(screen.queryByRole('switch', { name: 'Retomar conversas paradas' })).toBeNull();
-  expect(screen.getByText('Retomar conversas paradas').closest('li')?.textContent).toContain('Ciclo da conversa');
+  expect(screen.getByText('Retomar conversas paradas').closest('li')?.textContent).toContain('Atendimento');
 });
 
 it('saves additional instructions without a generated prompt preview', async () => {
   render(<AgentSettingsPage />);
-  openTab('Prompt');
+  openTab('Identidade');
 
   fireEvent.change(screen.getByLabelText('Instruções adicionais'), { target: { value: 'Priorize imóveis prontos.' } });
   await save();

@@ -9,7 +9,18 @@ export const MAX_FOLLOW_UPS = 5;
 /** Soma máxima dos toques para o último cair dentro da janela de 24 h do WhatsApp. */
 export const FOLLOW_UP_WINDOW_HOURS = 23;
 
-export type AgentTab = 'identity' | 'behavior' | 'cycle' | 'schedule' | 'tools' | 'prompt';
+/**
+ * Quatro abas, não seis.
+ *
+ * Eram 6 abas para 12 seções — duas por aba. Nesse tamanho a aba não organiza
+ * nada, só esconde: para configurar o agente era preciso visitar seis telas e
+ * guardar na cabeça o que havia em cada uma. O Clix resolve com página única e
+ * cartões em sequência; aqui, com menos abas e cada uma contando uma história
+ * inteira.
+ *
+ * `cycle` e `prompt` somem como abas e viram seções de `service` e `identity`.
+ */
+export type AgentTab = 'identity' | 'service' | 'schedule' | 'tools';
 export type AgentTone = 'consultivo' | 'acolhedor' | 'objetivo';
 export type AgentFormality = 'voce' | 'senhor';
 export type AttendMode = 'always' | 'outside_hours' | 'after_delay';
@@ -45,7 +56,17 @@ export type AgentSettings = {
     serviceArea: string;
   };
   behavior: {
-    attendMode: AttendMode;
+    /**
+     * Quando a IA entra. Os dois motivos SOMAM: marcar os dois faz a IA
+     * atender fora do expediente E quando a equipe demora. Nenhum marcado
+     * significa atender sempre, que é o começo de todo mundo.
+     *
+     * Era um escolha-um-só (`attendMode`), e isso obrigava a abrir mão de
+     * um dos dois. O campo antigo continua sendo lido para contas que ainda
+     * não foram salvas no formato novo.
+     */
+    attend: { outsideHours: boolean; afterDelay: boolean };
+    attendMode?: AttendMode;
     attendDelayMinutes: number;
     qualification: QualificationField[];
     handoff: {
@@ -92,11 +113,9 @@ export type AgentSettings = {
 
 export const AGENT_TABS: Array<{ id: AgentTab; label: string }> = [
   { id: 'identity', label: 'Identidade' },
-  { id: 'behavior', label: 'Comportamento' },
-  { id: 'cycle', label: 'Ciclo da conversa' },
-  { id: 'schedule', label: 'Agendamento' },
+  { id: 'service', label: 'Atendimento' },
+  { id: 'schedule', label: 'Agenda' },
   { id: 'tools', label: 'Ferramentas' },
-  { id: 'prompt', label: 'Prompt' },
 ];
 
 export const TONE_OPTIONS: Array<{ id: AgentTone; label: string; description: string }> = [
@@ -167,7 +186,7 @@ export function createDefaultAgentSettings(): AgentSettings {
       serviceArea: '',
     },
     behavior: {
-      attendMode: 'always',
+      attend: { outsideHours: false, afterDelay: false },
       attendDelayMinutes: 15,
       qualification: ['finalidade', 'tipo_imovel', 'regiao', 'faixa_preco', 'quartos'],
       handoff: {
@@ -243,6 +262,18 @@ const tones = TONE_OPTIONS.map((option) => option.id);
 const qualificationFields = QUALIFICATION_OPTIONS.map((option) => option.id);
 const handoffTriggers = HANDOFF_TRIGGER_OPTIONS.map((option) => option.id);
 const timezones = TIMEZONE_OPTIONS.map((option) => option.id);
+
+function lerAtendimento(behavior: Loose): AgentSettings['behavior']['attend'] {
+  const novo = obj(behavior.attend);
+  if (typeof novo.outsideHours === 'boolean' || typeof novo.afterDelay === 'boolean') {
+    return { outsideHours: novo.outsideHours === true, afterDelay: novo.afterDelay === true };
+  }
+  // Formato antigo: um modo só.
+  return {
+    outsideHours: behavior.attendMode === 'outside_hours',
+    afterDelay: behavior.attendMode === 'after_delay',
+  };
+}
 const models = AGENT_MODEL_OPTIONS.map((option) => option.id);
 
 function normalizeCurrent(raw: Loose): AgentSettings {
@@ -278,7 +309,7 @@ function normalizeCurrent(raw: Loose): AgentSettings {
       serviceArea: str(identity.serviceArea, defaults.identity.serviceArea),
     },
     behavior: {
-      attendMode: oneOf(behavior.attendMode, ['always', 'outside_hours', 'after_delay'] as const, defaults.behavior.attendMode),
+      attend: lerAtendimento(behavior),
       attendDelayMinutes: num(behavior.attendDelayMinutes, defaults.behavior.attendDelayMinutes),
       qualification: knownList(behavior.qualification, qualificationFields, defaults.behavior.qualification),
       handoff: {
