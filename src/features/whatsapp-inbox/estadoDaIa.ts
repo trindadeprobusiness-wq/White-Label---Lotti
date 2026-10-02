@@ -93,6 +93,12 @@ export const MOTIVO_DA_PARADA: Record<string, string> = {
   delivery_rejected: 'O WhatsApp recusou o envio e a mensagem não saiu. A IA tenta de novo sozinha; se repetir, o número pode estar errado ou fora do WhatsApp.',
   delivery_upstream_error: 'O WhatsApp falhou ao responder e não dá para afirmar que a mensagem saiu. Confira na conversa antes de responder de novo.',
   delivery_commit_failed: 'A mensagem foi enviada, mas o sistema não conseguiu registrá-la aqui. Confirme para o histórico ficar certo — não responda por cima sem olhar.',
+  // A IA nem chegou a tentar enviar: quebrou antes, do lado do sistema.
+  falha_antes_do_envio: 'A IA não chegou a enviar nada: a falha foi antes, no próprio sistema. Ela tenta de novo sozinha.',
+  automatic_send_failed: 'Um envio automático (follow-up ou disparo) não saiu. A conversa segue normal; o toque é refeito no próximo ciclo.',
+  // Gravado pela ponte quando falta a chave da OpenAI. Caía no texto genérico,
+  // logo quando a causa é a mais concreta e acionável de todas.
+  ai_not_configured: 'A IA não está configurada no servidor: falta a chave do provedor. Nenhuma conversa é atendida até alguém repor a chave.',
 };
 
 /** Todo motivo que banco e ponte sabem gravar. Serve de trava no teste. */
