@@ -89,6 +89,10 @@ export const MOTIVO_DA_PARADA: Record<string, string> = {
   crm_capture_pending: 'Este contato ainda não entrou no CRM. O sistema tentará de novo sozinho.',
   delivery_failed_or_uncertain: 'A IA escreveu uma resposta e o envio não foi confirmado. Confira no WhatsApp se a mensagem chegou antes de responder de novo. A conversa ficou com a equipe; religue a IA quando quiser devolvê-la.',
   qualification_failed: 'A IA não conseguiu montar a resposta e passou a conversa para a equipe. Pode responder por aqui; religar a IA faz ela tentar de novo.',
+  // Os três abaixo vêm da separação entre falha certa e dúvida, feita na ponte.
+  delivery_rejected: 'O WhatsApp recusou o envio e a mensagem não saiu. A IA tenta de novo sozinha; se repetir, o número pode estar errado ou fora do WhatsApp.',
+  delivery_upstream_error: 'O WhatsApp falhou ao responder e não dá para afirmar que a mensagem saiu. Confira na conversa antes de responder de novo.',
+  delivery_commit_failed: 'A mensagem foi enviada, mas o sistema não conseguiu registrá-la aqui. Confirme para o histórico ficar certo — não responda por cima sem olhar.',
 };
 
 /** Todo motivo que banco e ponte sabem gravar. Serve de trava no teste. */
@@ -98,7 +102,17 @@ export const MOTIVOS_CONHECIDOS = Object.keys(MOTIVO_DA_PARADA);
  * Os motivos que significam "um envio ficou sem confirmação".
  *
  * São os únicos que o corretor consegue resolver, porque dependem de abrir o
- * WhatsApp e olhar. O banco grava `delivery_uncertain`; o runtime da ponte
- * grava `delivery_failed_or_uncertain` para o mesmo acontecimento.
+ * WhatsApp e olhar. O banco grava `delivery_uncertain`; a ponte grava
+ * `delivery_failed_or_uncertain` para o mesmo acontecimento, e depois da
+ * separação entre falha certa e dúvida passa a gravar também
+ * `delivery_upstream_error` e `delivery_commit_failed`.
+ *
+ * `delivery_rejected` fica DE FORA de propósito: ali a recusa é explícita, a
+ * mensagem não saiu, o registro é apagado e a IA tenta de novo sozinha. Não há
+ * nada para o corretor confirmar, e oferecer o botão só convidaria a responder
+ * uma pergunta que o sistema já sabe.
  */
-export const ENVIO_SEM_CONFIRMACAO = new Set(['delivery_uncertain', 'delivery_failed_or_uncertain']);
+export const ENVIO_SEM_CONFIRMACAO = new Set([
+  'delivery_uncertain', 'delivery_failed_or_uncertain',
+  'delivery_upstream_error', 'delivery_commit_failed',
+]);
