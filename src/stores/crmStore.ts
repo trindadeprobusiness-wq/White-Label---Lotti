@@ -342,12 +342,15 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
     });
 
     try {
-      const { error } = await supabase
+      // Mesma armadilha do delete: UPDATE sem linha afetada não é erro.
+      const { data, error } = await supabase
         .from('clientes')
         .update({ status_funil: status })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('nenhuma_linha_atualizada');
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       set({ clientes: clientesAnteriores });
@@ -357,12 +360,17 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   removeCliente: async (id) => {
     try {
-      const { error } = await supabase
+      // O `select` não é enfeite: um DELETE barrado pela RLS volta SEM erro e
+      // sem linha nenhuma. Sem conferir o que saiu, a tela dizia "excluído" e o
+      // cliente continuava lá — que foi exatamente o que o corretor viu.
+      const { data, error } = await supabase
         .from('clientes')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('nenhuma_linha_apagada');
       get().fetchClientes();
       return { success: true };
     } catch (error) {
