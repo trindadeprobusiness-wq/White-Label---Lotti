@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Field, FieldIssues, LockedNote, SettingsSection, StageSelect, ToggleRow, inputClassName } from '../components';
+import { Field, FieldIssues, LockedNote, NumberField, SettingsSection, StageSelect, ToggleRow } from '../components';
 import { TIME_OPTIONS, WEEKDAYS, type AgentSettings, type DayHours, type Weekday } from '../settings';
 import type { AgentTabProps } from './types';
 
@@ -66,10 +66,10 @@ export function ScheduleTab({ settings, onChange, issues, stages }: AgentTabProp
       {schedule.visits.enabled && <>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Duração da visita (min)">
-            {(id) => <input id={id} type="number" min={15} max={240} step={15} className={inputClassName} value={schedule.visits.durationMinutes} onChange={(event) => setVisits({ durationMinutes: Number(event.target.value) })} />}
+            {(id) => <NumberField id={id} min={15} max={240} step={15} value={schedule.visits.durationMinutes} onChange={(durationMinutes) => setVisits({ durationMinutes })} />}
           </Field>
           <Field label="Antecedência mínima (horas)">
-            {(id) => <input id={id} type="number" min={0} max={168} className={inputClassName} value={schedule.visits.minNoticeHours} onChange={(event) => setVisits({ minNoticeHours: Number(event.target.value) })} />}
+            {(id) => <NumberField id={id} min={0} max={168} value={schedule.visits.minNoticeHours} onChange={(minNoticeHours) => setVisits({ minNoticeHours })} />}
           </Field>
         </div>
         <FieldIssues issues={issues} field="schedule.visits" />

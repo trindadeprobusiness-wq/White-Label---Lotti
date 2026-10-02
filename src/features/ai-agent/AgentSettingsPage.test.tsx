@@ -55,6 +55,24 @@ it('saves the active state locally without any WhatsApp connection control', asy
   expect(stored().active).toBe(true);
 });
 
+
+// Campo numérico guardava o número, não o texto: apagar virava `Number('')`,
+// ou seja 0, e o próximo dígito entrava depois dele. Digitar "12" num campo
+// recém-apagado mostrava "012".
+it('não deixa um zero fantasma quando o campo numérico é apagado', async () => {
+  render(<AgentSettingsPage />);
+  openTab('Comportamento');
+
+  fireEvent.click(screen.getByRole('switch', { name: /Quando a equipe não responder/i }));
+  const campo = screen.getByLabelText('Minutos de espera antes de a IA entrar') as HTMLInputElement;
+
+  fireEvent.change(campo, { target: { value: '' } });
+  expect(campo.value).toBe('');
+
+  fireEvent.change(campo, { target: { value: '12' } });
+  expect(campo.value).toBe('12');
+});
+
 it('shows the model in use and changes it from the identity tab', async () => {
   render(<AgentSettingsPage />);
   expect(screen.getByTestId('model-in-use').textContent).toContain('GPT-4o mini');

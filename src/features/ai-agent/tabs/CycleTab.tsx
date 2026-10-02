@@ -2,7 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { Field, FieldIssues, SettingsSection, StageSelect, ToggleRow, inputClassName, textareaClassName } from '../components';
+import { Field, FieldIssues, NumberField, SettingsSection, StageSelect, ToggleRow, textareaClassName } from '../components';
 import { FOLLOW_UP_WINDOW_HOURS, MAX_FOLLOW_UPS, type AgentSettings } from '../settings';
 import type { AgentTabProps } from './types';
 
@@ -21,14 +21,13 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
         <ol className="space-y-2">
           {followUp.delaysHours.map((delay, index) => <li key={index} className="flex items-center gap-2 text-sm">
             <span className="w-16 shrink-0 rounded-full bg-muted px-2 py-1 text-center text-xs font-semibold">{index + 1}º toque</span>
-            <input
+            <NumberField
               aria-label={`${index + 1}º toque, horas após ${index === 0 ? 'a última mensagem' : 'o anterior'}`}
-              type="number"
               min={1}
               max={FOLLOW_UP_WINDOW_HOURS}
-              className={cn(inputClassName, 'w-20')}
+              className="w-20"
               value={delay}
-              onChange={(event) => setDelay(index, Number(event.target.value))}
+              onChange={(valor) => setDelay(index, valor)}
             />
             <span className="text-muted-foreground">horas<span className="hidden sm:inline">{index === 0 ? ' após a última mensagem' : ' após o toque anterior'}</span></span>
             <Button type="button" variant="ghost" size="icon" className="ml-auto h-8 w-8 text-muted-foreground" aria-label={`Remover ${index + 1}º toque`} disabled={followUp.delaysHours.length === 1} onClick={() => set({ delaysHours: followUp.delaysHours.filter((_, itemIndex) => itemIndex !== index) })}>
@@ -52,21 +51,28 @@ export function CycleTab({ settings, onChange, issues, stages }: AgentTabProps) 
 
     {followUp.enabled && <SettingsSection
       title="Quando o lead não responde"
-      description="O que fazer depois do último toque, se ele continuar calado."
+      description="Depois do último toque, se ele continuar calado."
     >
-      <ToggleRow title="Fechar a conversa" description={followUp.closeConversation ? undefined : 'Desligado: a conversa fica aberta na Inbox, esperando o lead.'} checked={followUp.closeConversation} onCheckedChange={(closeConversation) => set({ closeConversation })} />
+      <ToggleRow
+        title="Encerrar a conversa"
+        description={followUp.closeConversation
+          ? 'Ela sai da lista de abertas no Inbox e o follow-up para. Se o lead escrever de novo, a conversa reabre sozinha.'
+          : 'Desligado: a conversa fica aberta no Inbox, esperando o lead.'}
+        checked={followUp.closeConversation}
+        onCheckedChange={(closeConversation) => set({ closeConversation })}
+      />
       {followUp.closeConversation && <div className="space-y-4 rounded-lg border p-4">
-        <Field label="Fechar após (horas do último toque)" className="max-w-xs">
-          {(id) => <input id={id} type="number" min={1} max={72} className={inputClassName} value={followUp.closeAfterHours} onChange={(event) => set({ closeAfterHours: Number(event.target.value) })} />}
+        <Field label="Encerrar depois de quantas horas sem resposta" hint="Contadas a partir do último toque." className="max-w-xs">
+          {(id) => <NumberField id={id} min={1} max={72} value={followUp.closeAfterHours} onChange={(closeAfterHours) => set({ closeAfterHours })} />}
         </Field>
-        <ToggleRow title="Despedir-se antes de fechar" checked={followUp.farewell} onCheckedChange={(farewell) => set({ farewell })} />
+        <ToggleRow title="Mandar uma última mensagem antes de encerrar" description="A IA se despede, em vez de sumir sem avisar." checked={followUp.farewell} onCheckedChange={(farewell) => set({ farewell })} />
         {followUp.farewell && <Field label="Objetivo da despedida">
           {(id) => <textarea id={id} className={cn(textareaClassName, 'min-h-16')} value={followUp.farewellObjective} onChange={(event) => set({ farewellObjective: event.target.value })} />}
         </Field>}
         <FieldIssues issues={issues} field="followUp.closeAfterHours" />
         <FieldIssues issues={issues} field="followUp.farewellObjective" />
         <StageSelect
-          label="Mover o lead para esta etapa ao fechar"
+          label="Mover o lead para esta etapa ao encerrar"
           value={followUp.finalStageId}
           onChange={(finalStageId) => set({ finalStageId })}
           stages={stages}

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Field, FieldIssues, Segmented, SettingsSection, StageSelect, ToggleRow, inputClassName, textareaClassName } from '../components';
+import { Field, FieldIssues, NumberField, Segmented, SettingsSection, StageSelect, ToggleRow, inputClassName, textareaClassName } from '../components';
 import type { AgentSettings } from '../settings';
 import type { AgentTabProps } from './types';
 
@@ -31,7 +31,7 @@ export function BehaviorTab({ settings, onChange, issues, stages }: AgentTabProp
         onCheckedChange={(afterDelay) => setAttend({ afterDelay })}
       />
       {behavior.attend.afterDelay && <Field label="Minutos de espera antes de a IA entrar" className="max-w-xs">
-        {(id) => <input id={id} type="number" min={1} max={240} className={inputClassName} value={behavior.attendDelayMinutes} onChange={(event) => set({ attendDelayMinutes: Number(event.target.value) })} />}
+        {(id) => <NumberField id={id} min={1} max={240} value={behavior.attendDelayMinutes} onChange={(attendDelayMinutes) => set({ attendDelayMinutes })} />}
       </Field>}
       <FieldIssues issues={issues} field="behavior.attendDelayMinutes" />
     </SettingsSection>
@@ -67,7 +67,7 @@ export function BehaviorTab({ settings, onChange, issues, stages }: AgentTabProp
           <p className="mt-0.5 text-sm text-muted-foreground">Espera o lead terminar de digitar. 0 responde na hora.</p>
         </div>
         <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-          <input aria-label="Segundos para juntar mensagens" type="number" min={0} max={60} className={cn(inputClassName, 'w-20')} value={behavior.guards.aggregationSeconds} onChange={(event) => setGuards({ aggregationSeconds: Number(event.target.value) })} />s
+          <NumberField aria-label="Segundos para juntar mensagens" min={0} max={60} className="w-20" value={behavior.guards.aggregationSeconds} onChange={(aggregationSeconds) => setGuards({ aggregationSeconds })} />s
         </label>
       </div>
       <FieldIssues issues={issues} field="behavior.guards" />
