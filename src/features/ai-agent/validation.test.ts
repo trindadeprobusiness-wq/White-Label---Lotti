@@ -42,11 +42,11 @@ describe('validateAgentSettings', () => {
     expect(fields(withSettings((settings) => {
       settings.behavior.attend.afterDelay = true;
       settings.behavior.attendDelayMinutes = 0;
-    }))).toContain('error:behavior:behavior.attendDelayMinutes');
+    }))).toContain('error:service:behavior.attendDelayMinutes');
   });
 
   it('requires the handoff message only when the handoff sends a message', () => {
-    expect(fields(withSettings((settings) => { settings.behavior.handoff.messageInHours = ''; }))).toContain('error:behavior:behavior.handoff.messageInHours');
+    expect(fields(withSettings((settings) => { settings.behavior.handoff.messageInHours = ''; }))).toContain('error:service:behavior.handoff.messageInHours');
     expect(withSettings((settings) => {
       settings.behavior.handoff.mode = 'silent';
       settings.behavior.handoff.messageInHours = '';
@@ -63,10 +63,10 @@ describe('validateAgentSettings', () => {
     });
 
     expect(fields(issues)).toEqual(expect.arrayContaining([
-      'error:cycle:followUp.delaysHours.0',
-      'error:cycle:followUp.delaysHours.1',
-      'error:cycle:followUp.objective',
-      'error:cycle:followUp.closeAfterHours',
+      'error:service:followUp.delaysHours.0',
+      'error:service:followUp.delaysHours.1',
+      'error:service:followUp.objective',
+      'error:service:followUp.closeAfterHours',
     ]));
     expect(withSettings((settings) => {
       settings.followUp.enabled = false;
@@ -77,7 +77,7 @@ describe('validateAgentSettings', () => {
   it('warns without blocking when the touches go past the WhatsApp 24-hour window', () => {
     const issues = withSettings((settings) => { settings.followUp.delaysHours = [12, 12]; });
 
-    expect(fields(issues)).toEqual(['warning:cycle:followUp.delaysHours']);
+    expect(fields(issues)).toEqual(['warning:service:followUp.delaysHours']);
     expect(hasBlockingIssues(issues)).toBe(false);
   });
 
@@ -91,7 +91,7 @@ describe('validateAgentSettings', () => {
   });
 
   it('limits the additional instructions', () => {
-    expect(fields(withSettings((settings) => { settings.prompt = 'x'.repeat(3001); }))).toEqual(['error:prompt:prompt']);
+    expect(fields(withSettings((settings) => { settings.prompt = 'x'.repeat(3001); }))).toEqual(['error:identity:prompt']);
   });
 });
 

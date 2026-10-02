@@ -16,10 +16,10 @@ export function ToolsTab({ settings, onChange, onOpenTab }: AgentTabProps) {
   const movesStage = [settings.behavior.handoff.stageId, settings.followUp.finalStageId, settings.schedule.visits.stageId].some(Boolean);
 
   const capabilityTools: Array<{ title: string; tab: AgentTab; tabLabel: string; on: boolean }> = [
-    { title: 'Encaminhar para corretor', tab: 'behavior', tabLabel: 'Comportamento', on: true },
-    { title: 'Mover etapa do funil', tab: 'behavior', tabLabel: 'Comportamento', on: movesStage },
-    { title: 'Retomar conversas paradas', tab: 'cycle', tabLabel: 'Ciclo da conversa', on: settings.followUp.enabled },
-    { title: 'Propor horários de visita', tab: 'schedule', tabLabel: 'Agendamento', on: settings.schedule.visits.enabled },
+    { title: 'Encaminhar para corretor', tab: 'service', tabLabel: 'Atendimento', on: true },
+    { title: 'Mover etapa do funil', tab: 'service', tabLabel: 'Atendimento', on: movesStage },
+    { title: 'Retomar conversas paradas', tab: 'service', tabLabel: 'Atendimento', on: settings.followUp.enabled },
+    { title: 'Propor horários de visita', tab: 'schedule', tabLabel: 'Agenda', on: settings.schedule.visits.enabled },
   ];
 
   return <>

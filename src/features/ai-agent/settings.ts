@@ -9,7 +9,18 @@ export const MAX_FOLLOW_UPS = 5;
 /** Soma máxima dos toques para o último cair dentro da janela de 24 h do WhatsApp. */
 export const FOLLOW_UP_WINDOW_HOURS = 23;
 
-export type AgentTab = 'identity' | 'behavior' | 'cycle' | 'schedule' | 'tools' | 'prompt';
+/**
+ * Quatro abas, não seis.
+ *
+ * Eram 6 abas para 12 seções — duas por aba. Nesse tamanho a aba não organiza
+ * nada, só esconde: para configurar o agente era preciso visitar seis telas e
+ * guardar na cabeça o que havia em cada uma. O Clix resolve com página única e
+ * cartões em sequência; aqui, com menos abas e cada uma contando uma história
+ * inteira.
+ *
+ * `cycle` e `prompt` somem como abas e viram seções de `service` e `identity`.
+ */
+export type AgentTab = 'identity' | 'service' | 'schedule' | 'tools';
 export type AgentTone = 'consultivo' | 'acolhedor' | 'objetivo';
 export type AgentFormality = 'voce' | 'senhor';
 export type AttendMode = 'always' | 'outside_hours' | 'after_delay';
@@ -102,11 +113,9 @@ export type AgentSettings = {
 
 export const AGENT_TABS: Array<{ id: AgentTab; label: string }> = [
   { id: 'identity', label: 'Identidade' },
-  { id: 'behavior', label: 'Comportamento' },
-  { id: 'cycle', label: 'Ciclo da conversa' },
-  { id: 'schedule', label: 'Agendamento' },
+  { id: 'service', label: 'Atendimento' },
+  { id: 'schedule', label: 'Agenda' },
   { id: 'tools', label: 'Ferramentas' },
-  { id: 'prompt', label: 'Prompt' },
 ];
 
 export const TONE_OPTIONS: Array<{ id: AgentTone; label: string; description: string }> = [

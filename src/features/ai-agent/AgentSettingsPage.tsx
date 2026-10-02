@@ -8,21 +8,17 @@ import { fetchServerSettings, storeSettings, type SettingsSource } from './remot
 import { describeAttendMode, describeBusinessHours, describeHandoff } from './summary';
 import { hasBlockingIssues, issuesByTab, validateAgentSettings } from './validation';
 import { stageName, useStageOptions } from './useStageOptions';
-import { BehaviorTab } from './tabs/BehaviorTab';
-import { CycleTab } from './tabs/CycleTab';
 import { IdentityTab } from './tabs/IdentityTab';
-import { PromptTab } from './tabs/PromptTab';
+import { ServiceTab } from './tabs/ServiceTab';
 import { ScheduleTab } from './tabs/ScheduleTab';
 import { ToolsTab } from './tabs/ToolsTab';
 import type { AgentTabProps } from './tabs/types';
 
 const TAB_COMPONENTS: Record<AgentTab, ComponentType<AgentTabProps>> = {
   identity: IdentityTab,
-  behavior: BehaviorTab,
-  cycle: CycleTab,
+  service: ServiceTab,
   schedule: ScheduleTab,
   tools: ToolsTab,
-  prompt: PromptTab,
 };
 
 const tabLabel = (tab: AgentTab) => AGENT_TABS.find((item) => item.id === tab)?.label ?? tab;
@@ -96,10 +92,10 @@ export default function AgentSettingsPage({ embutido = false }: { embutido?: boo
   const handoffStage = stageName(stages, settings.behavior.handoff.stageId);
   const summary: Array<{ tab: AgentTab; label: string; value: string }> = [
     { tab: 'identity', label: 'Modelo', value: `${agentModel(settings.model).label} · ${agentModel(settings.model).provider}` },
-    { tab: 'behavior', label: 'Quando atende', value: describeAttendMode(settings.behavior) },
+    { tab: 'service', label: 'Quando atende', value: describeAttendMode(settings.behavior) },
     { tab: 'schedule', label: 'Horário', value: describeBusinessHours(settings.schedule.week) },
-    { tab: 'cycle', label: 'Follow-up', value: settings.followUp.enabled ? `${settings.followUp.delaysHours.length} ${settings.followUp.delaysHours.length === 1 ? 'toque' : 'toques'}${settings.followUp.closeConversation ? ', fecha sem resposta' : ''}` : 'Desligado' },
-    { tab: 'behavior', label: 'Encaminhamento', value: describeHandoff(settings.behavior, handoffStage) },
+    { tab: 'service', label: 'Follow-up', value: settings.followUp.enabled ? `${settings.followUp.delaysHours.length} ${settings.followUp.delaysHours.length === 1 ? 'toque' : 'toques'}${settings.followUp.closeConversation ? ', fecha sem resposta' : ''}` : 'Desligado' },
+    { tab: 'service', label: 'Encaminhamento', value: describeHandoff(settings.behavior, handoffStage) },
   ];
   const ActiveTab = TAB_COMPONENTS[activeTab];
 
@@ -176,7 +172,7 @@ export default function AgentSettingsPage({ embutido = false }: { embutido?: boo
         })}
       </div>
       <div role="tabpanel" id="agent-tab-panel" aria-labelledby={`agent-tab-${activeTab}`} className="mt-4 space-y-4">
-        {unavailable && ['behavior', 'cycle', 'schedule'].includes(activeTab) && <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
+        {unavailable && ['service', 'service', 'schedule'].includes(activeTab) && <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Não foi possível carregar as etapas do funil agora. Os seletores de etapa ficam só com "Não mover".
         </p>}
         <ActiveTab settings={settings} onChange={change} issues={issues} stages={stages} onOpenTab={setActiveTab} />

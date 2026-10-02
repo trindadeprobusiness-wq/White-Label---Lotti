@@ -4,8 +4,10 @@ import { Field, FieldIssues, SettingsSection, inputClassName, textareaClassName 
 import { buildGreetingPreview } from '../prompt';
 import { AGENT_MODEL_OPTIONS, AGENT_NAME_VARIABLE, COMPANY_VARIABLE, INTRO_LIMIT, NAME_LIMIT, agentModel, type AgentModelId, type AgentSettings } from '../settings';
 import type { AgentTabProps } from './types';
+import { PromptTab } from './PromptTab';
 
-export function IdentityTab({ settings, onChange, issues }: AgentTabProps) {
+export function IdentityTab(props: AgentTabProps) {
+  const { settings, onChange, issues } = props;
   const identity = settings.identity;
   const introRef = useRef<HTMLTextAreaElement>(null);
   const set = (patch: Partial<AgentSettings['identity']>) => onChange({ ...settings, identity: { ...identity, ...patch } });
@@ -58,6 +60,8 @@ export function IdentityTab({ settings, onChange, issues }: AgentTabProps) {
         </p>
       </figure>
     </SettingsSection>
+
+    <PromptTab {...props} />
 
   </>;
 }
