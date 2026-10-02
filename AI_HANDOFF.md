@@ -2227,3 +2227,12 @@ credencial); nao foi contornada.
 - Envio sintético em produção confirmou resposta HTTP 200, problema dominante DEMANDA, UTM, score e evento `diagnostic_completed` persistidos. O registro e seus eventos de teste foram removidos; consulta confirmou 0 registros remanescentes para a sessão de teste.
 - Pendente: validar a triagem autenticada em `/admin/diagnosticos` com uma conta admin e observar respostas reais após a divulgação da rota. O diretório de migrations da main continua divergente do histórico remoto; não usar `db push` geral sem reconciliação.
 - Diário - Codex: implementação isolada sobre a main; alterações locais de WhatsApp e demais arquivos não foram incorporadas.
+
+### 2026-10-02 — Claude (ações em lote na aba Clientes)
+- Defeito relatado: marcar linhas em `/clientes` e usar "Excluir" ou "Mover para etapa" não surtia efeito nenhum.
+- Causa: o `<AlertDialog>` de confirmação do lote estava escrito dentro do `<AlertDialogContent>` da exclusão individual. Esse conteúdo só é montado com o diálogo individual aberto, então `confirmarLote` virava `true` sem nada aparecer na tela.
+- Correção (`0685a15`, branch `fix/assinatura-e-fachada`): o diálogo de lote virou irmão do individual; `removeCliente` e `updateClienteStatus` passaram a usar `.select('id')` e a tratar zero linhas como falha (DELETE/UPDATE barrados pela RLS voltam sem erro); as mensagens de erro foram corrigidas — toda FK que aponta para `clientes` é CASCADE ou SET NULL, logo "tem histórico vinculado" nunca foi motivo de falha.
+- Verificação: novo `src/pages/Clientes.lote.test.tsx` (3 testes) cobre barra de seleção, exclusão em lote e mudança de etapa; `npx tsc --noEmit` limpo; 14 arquivos/56 testes em `src/stores`, `src/pages` e `src/components/crm` passando.
+- Estado conferido em produção: 148 clientes contra 8 `crm_oportunidades`; `crm_oportunidades.cliente_id` é `ON DELETE CASCADE`, então apagar o cliente derruba o card do funil, mas apagar o card não apaga o cliente — comportamento intencional, não defeito.
+- Pendente: o "Excluir" em lote do Kanban (`CrmPipeline`) dispara sem nenhuma confirmação.
+- Diário — Claude: investigação começou pelo banco (RLS, FKs e dono dos registros) antes do código; o teste de componente foi o que isolou o JSX aninhado.
