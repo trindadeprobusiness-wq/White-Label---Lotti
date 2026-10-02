@@ -19,7 +19,7 @@ import { crmKeys } from '@/hooks/crm/useCrm';
 import { codigoDoErro, registroDoErro } from '@/lib/crm/duplicidade';
 import { functionErrorCode, mergeErrorText, renameErrorText, startErrorText } from './inboxRequests';
 import { mesmoTelefone } from './deepLink';
-import { MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
+import { ENVIO_SEM_CONFIRMACAO, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -256,6 +256,18 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     },
     onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
   });
+  // O envio sem confirmação é a única pergunta que o sistema não consegue
+  // responder sozinho: só quem abre o WhatsApp sabe se a mensagem chegou.
+  const reconciliar = useMutation({
+    mutationFn: async (chegou: boolean) => {
+      const { error } = await db.rpc('lotti_agent_reconciliar_envio', { p_id: selected!.id, p_chegou: chegou });
+      if (error) throw error;
+    },
+    onSuccess: () => Promise.all([
+      cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
+      cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id] }),
+    ]),
+  });
   const clearOptOut=useMutation({mutationFn:async()=>{const {error}=await db.rpc('lotti_inbox_clear_opt_out',{p_conversation:selected!.id});if(error)throw error},onSuccess:async()=>{await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
   const refreshConversation=async(id?:string)=>{if(id)setSelectedId(id);await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-agent-message-previews',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-client',user?.id]})])};
   // The conversation already exists when the send is unconfirmed (bridge timeout): it opens with a
@@ -442,7 +454,17 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         {notice?.id === selected.id && <p role="status" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice.text}</p>}
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
-        {selected.last_error && <p role="status" data-testid="motivo-da-parada" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</p>}
+        {selected.last_error && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <span>{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</span>
+          {/* Sem estes dois botões a conversa ficava morta até alguém mexer no
+              banco: nada limpa `uncertain` sozinho, e enquanto ele existe a
+              fila não entrega a conversa nem deixa religar a IA. */}
+          {ENVIO_SEM_CONFIRMACAO.has(selected.last_error) && <span className="flex flex-wrap items-center gap-2">
+            <button type="button" disabled={reconciliar.isPending} onClick={() => reconciliar.mutate(true)} className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold hover:border-amber-500 disabled:opacity-50">A mensagem chegou</button>
+            <button type="button" disabled={reconciliar.isPending} onClick={() => reconciliar.mutate(false)} className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold hover:border-amber-500 disabled:opacity-50">Não chegou</button>
+          </span>}
+          {reconciliar.isError && <span className="text-destructive">Não foi possível concluir. Tente de novo.</span>}
+        </div>}
         <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {/* O aviso fala do histórico cortado, que fica no começo da lista.
               No fim, junto da mensagem mais nova, ele não descrevia nada e

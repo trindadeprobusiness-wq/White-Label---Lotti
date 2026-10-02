@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -627,4 +627,26 @@ it('linha do tempo segue a data, não a ordem em que os eventos são montados', 
   });
   expect(tempos[0].textContent).toContain('20/09/2026');
   expect(tempos[1].textContent).toContain('24/09/2026');
+});
+
+it('envio sem confirmação oferece a saída na própria tela', async () => {
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'human', updated_at: new Date().toISOString(), qualification: {}, last_error: 'delivery_failed_or_uncertain' },
+  ];
+  mount(true);
+
+  const faixa = await screen.findByTestId('motivo-da-parada');
+  expect(faixa.textContent).toContain('o envio não foi confirmado');
+
+  fireEvent.click(within(faixa).getByRole('button', { name: 'A mensagem chegou' }));
+  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_agent_reconciliar_envio', { p_id: 'c1', p_chegou: true }));
+});
+
+it('motivo que não é de envio não oferece os botões', async () => {
+  dataByTable.lotti_agent_conversations = [
+    { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'human', updated_at: new Date().toISOString(), qualification: {}, last_error: 'quota_exhausted' },
+  ];
+  mount(true);
+  const faixa = await screen.findByTestId('motivo-da-parada');
+  expect(within(faixa).queryByRole('button', { name: 'A mensagem chegou' })).toBeNull();
 });

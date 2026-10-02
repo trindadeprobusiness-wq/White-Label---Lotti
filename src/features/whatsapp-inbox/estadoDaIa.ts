@@ -93,3 +93,12 @@ export const MOTIVO_DA_PARADA: Record<string, string> = {
 
 /** Todo motivo que banco e ponte sabem gravar. Serve de trava no teste. */
 export const MOTIVOS_CONHECIDOS = Object.keys(MOTIVO_DA_PARADA);
+
+/**
+ * Os motivos que significam "um envio ficou sem confirmação".
+ *
+ * São os únicos que o corretor consegue resolver, porque dependem de abrir o
+ * WhatsApp e olhar. O banco grava `delivery_uncertain`; o runtime da ponte
+ * grava `delivery_failed_or_uncertain` para o mesmo acontecimento.
+ */
+export const ENVIO_SEM_CONFIRMACAO = new Set(['delivery_uncertain', 'delivery_failed_or_uncertain']);
