@@ -195,6 +195,8 @@ export interface SubscriptionSummary {
   campaign: PricingCampaign | null;
   daysLeftInTrial: number | null;
   isReadOnly: boolean;
+  /** Conta de antes da cobrança: imóveis, fachadas e aluguéis sem limite enquanto não assinar um plano. */
+  contaAntigaSemLimite: boolean;
 }
 
 // ── Addon catalog (for display) ──

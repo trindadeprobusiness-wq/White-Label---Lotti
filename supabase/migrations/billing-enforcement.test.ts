@@ -30,7 +30,7 @@ describe('cotas de planos no PostgreSQL', () => {
       INSERT INTO subscriptions(corretor_id,plan_id,status,current_period_end)
       SELECT '${owner}',id,'active',now()+interval '1 month' FROM plans WHERE code='essencial';
     `);
-    for (const name of ['20260925120000_billing_plan_enforcement.sql','20260925120100_contract_quota_reservations.sql','20260925120300_commercial_rent_and_checkout_rate.sql']) {
+    for (const name of ['20260925120000_billing_plan_enforcement.sql','20260925120100_contract_quota_reservations.sql','20260925120300_commercial_rent_and_checkout_rate.sql','20261003120000_conta_antiga_sem_limite_no_teste.sql']) {
       await db.exec(readFileSync(new URL(name, import.meta.url),'utf8'));
     }
   }, 30_000);

@@ -82,7 +82,7 @@ export function criarAssinaturaDemonstracao(
           status: ratio !== null && ratio >= 1 ? 'exceeded' : ratio !== null && ratio >= 0.8 ? 'warning' : 'ok',
         };
       }),
-      addons: [], campaign: null, daysLeftInTrial: null, isReadOnly: false,
+      addons: [], campaign: null, daysLeftInTrial: null, isReadOnly: false, contaAntigaSemLimite: false,
     },
   };
 }
@@ -122,7 +122,7 @@ export function PlanoAssinatura() {
     );
   }
 
-  const { subscription, plan, usage, addons, isReadOnly, daysLeftInTrial } = summaryExibido;
+  const { subscription, plan, usage, addons, isReadOnly, daysLeftInTrial, contaAntigaSemLimite } = summaryExibido;
 
   const handlePlanSelect = async (planId: string) => {
     const selectedPlan = plansExibidos.find(p => p.id === planId);
@@ -189,7 +189,24 @@ export function PlanoAssinatura() {
           </div>
         </div>
       )}
-      {isReadOnly && (
+      {/* Conta antiga com teste vencido: só o que o plano dá foi cortado.
+          Dizer "somente leitura" a empurraria a assinar — e assinar encerra a
+          isenção de imóveis, fachadas e aluguéis. */}
+      {isReadOnly && contaAntigaSemLimite && (
+        <div className="rounded-lg border border-warning/50 bg-warning/10 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
+          <div>
+            <h4 className="font-semibold">O período de teste terminou</h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              Imóveis, fachadas e contratos de aluguel continuam sem limite nesta conta.
+              A IA e os demais recursos do plano ficam desligados até você escolher um plano —
+              e, ao assinar, passam a valer os limites do plano escolhido.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isReadOnly && !contaAntigaSemLimite && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
           <div>

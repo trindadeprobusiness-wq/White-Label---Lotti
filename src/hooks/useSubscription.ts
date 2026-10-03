@@ -169,12 +169,39 @@ export function useActiveCampaign() {
   });
 }
 
+// ── Conta antiga: imóveis, fachadas e aluguéis sem limite, mesmo em teste ──
+// A regra mora no banco (conta_antiga_sem_limite, migration 20261003120000) e
+// é a mesma que checar_cota usa. A tela não enxerga billing_legacy_accounts,
+// então pergunta.
+const RECURSOS_DA_CONTA_ANTIGA: FeatureKey[] = ['max_imoveis', 'max_fachadas', 'max_contratos_locacao'];
+
+export function useContaAntigaSemLimite() {
+  const corretorId = useCRMStore((s) => s.corretor?.id);
+
+  return useQuery({
+    queryKey: ['conta-antiga-sem-limite', corretorId],
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase.rpc('conta_antiga_sem_limite' as never, {
+        _corretor_id: corretorId,
+      } as never);
+      if (error) throw error;
+      return data === true;
+    },
+    enabled: !!corretorId,
+  });
+}
+
+// Só a primeira tentativa segura a tela. Se ela falha, vale o plano enquanto
+// o TanStack tenta de novo — em vez de travar uns 7s a cada tentativa.
+const aguardandoContaAntiga = (q: { isLoading: boolean; failureCount: number }) => q.isLoading && q.failureCount === 0;
+
 // ── Verificar limite de uma feature ──
 export function useCheckLimit() {
   const subscriptionQuery = useCurrentSubscription();
   const plansQuery = useAllPlans();
   const usageQuery = useUsage();
   const addonsQuery = useAddons();
+  const contaAntigaQuery = useContaAntigaSemLimite();
   const subscription = subscriptionQuery.data;
   const plans = plansQuery.data;
   const usage = usageQuery.data;
@@ -185,8 +212,13 @@ export function useCheckLimit() {
    * Retorna { allowed, used, limit, unlimited }
    */
   const checkLimit = (featureKey: FeatureKey): LimitCheck => {
+    // A pergunta da conta antiga só segura os três recursos que ela decide —
+    // IA e leads não esperam por ela. E um erro nela não trava nada: sem a
+    // resposta, vale o plano, o mesmo de antes da isenção.
+    const recursoDaContaAntiga = RECURSOS_DA_CONTA_ANTIGA.includes(featureKey);
     const ready = !subscriptionQuery.isLoading && !plansQuery.isLoading
       && !usageQuery.isLoading && !addonsQuery.isLoading
+      && !(recursoDaContaAntiga && aguardandoContaAntiga(contaAntigaQuery))
       && !subscriptionQuery.error && !plansQuery.error && !usageQuery.error && !addonsQuery.error;
     const BLOQUEADO = {
       allowed: false, used: 0, limit: 0, unlimited: false,
@@ -203,6 +235,9 @@ export function useCheckLimit() {
       ratio: null, status: 'ok',
     } as const;
     if (!subscription || !plans) return LEGADO;
+    // Conta antiga com assinatura de teste — ativa ou já vencida — continua
+    // sem limite nesses três recursos. As demais cotas seguem o plano.
+    if (recursoDaContaAntiga && contaAntigaQuery.data === true) return LEGADO;
 
     const plan = plans.find((p) => p.id === subscription.plan_id);
     if (!plan) return BLOQUEADO;
@@ -295,9 +330,14 @@ export function useSubscriptionSummary(): {
   const { data: usage, isLoading: usageLoading } = useUsage();
   const { data: addons, isLoading: addonsLoading } = useAddons();
   const { data: campaign } = useActiveCampaign();
+  const contaAntigaQuery = useContaAntigaSemLimite();
+  const contaAntiga = contaAntigaQuery.data;
+  const contaAntigaLoading = aguardandoContaAntiga(contaAntigaQuery);
   const checkLimit = useCheckLimit();
 
-  const isLoading = subLoading || plansLoading || usageLoading || addonsLoading;
+  // Sem esperar a conta antiga, /plano mostraria imóveis, fachadas e aluguéis
+  // como "0 de 0 · Limite atingido" enquanto ela carrega.
+  const isLoading = subLoading || plansLoading || usageLoading || addonsLoading || contaAntigaLoading;
 
   if (isLoading || !subscription || !plans) {
     return { data: null, isLoading };
@@ -349,6 +389,7 @@ export function useSubscriptionSummary(): {
       addons: addons || [],
       campaign: campaign || null,
       daysLeftInTrial,
+      contaAntigaSemLimite: contaAntiga === true,
       isReadOnly: !['active', 'trialing'].includes(subscription.status)
         || !((subscription.status === 'trialing' ? subscription.trial_ends_at : subscription.current_period_end))
         || Date.parse((subscription.status === 'trialing' ? subscription.trial_ends_at : subscription.current_period_end)!) <= Date.now(),
