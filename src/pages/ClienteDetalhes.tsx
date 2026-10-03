@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import { AvisoContratosEmRisco } from '@/components/clientes/AvisoContratosEmRisco';
+import { podeExcluirCliente, temContrato, useContratosDosClientes } from '@/hooks/crm/useContratosDosClientes';
 
 const statusColors: Record<StatusFunil, string> = {
   QUALIFICACAO: 'bg-primary text-primary-foreground',
@@ -67,6 +69,9 @@ export default function ClienteDetalhes() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Excluir cliente apaga em cascata os contratos dele, com faturas e repasses.
+  // A consulta roda ao abrir a confirmação, para dizer o que vai junto.
+  const contratosEmRisco = useContratosDosClientes(id ? [id] : [], deleteDialogOpen);
 
   // Ensure imoveis are loaded to resolve the link
   useEffect(() => {
@@ -328,14 +333,15 @@ export default function ClienteDetalhes() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir <strong>{cliente.nome}</strong>? Esta ação é irreversível e todos os dados associados
-              (histórico de contatos, vínculos com imóveis, etc.) serão removidos permanentemente.
+              (histórico de contatos, vínculos com imóveis, contratos, etc.) serão removidos permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <AvisoContratosEmRisco consulta={contratosEmRisco} />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={isDeleting}
+              disabled={isDeleting || !podeExcluirCliente(contratosEmRisco)}
               onClick={async (e) => {
                 e.preventDefault();
                 setIsDeleting(true);
@@ -354,7 +360,7 @@ export default function ClienteDetalhes() {
                 }
               }}
             >
-              {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
+              {isDeleting ? 'Excluindo...' : temContrato(contratosEmRisco) ? 'Excluir cliente e contratos' : 'Sim, Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

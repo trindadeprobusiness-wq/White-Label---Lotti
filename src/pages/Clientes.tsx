@@ -31,6 +31,8 @@ import { FLAGS } from '@/lib/flags';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import { AvisoContratosEmRisco } from '@/components/clientes/AvisoContratosEmRisco';
+import { podeExcluirCliente, temContrato, useContratosDosClientes } from '@/hooks/crm/useContratosDosClientes';
 
 const ROTA_FUNIL = FLAGS.crm ? '/crm' : '/funil';
 const POR_PAGINA = 6;
@@ -81,6 +83,10 @@ export default function Clientes() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clienteToEdit, setClienteToEdit] = useState<Cliente | null>(null);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
+  // Antes de confirmar, a tela pergunta ao banco o que vai junto. Excluir
+  // cliente apaga em cascata os contratos dele, com faturas e repasses.
+  const contratosDoUnico = useContratosDosClientes(clienteToDelete ? [clienteToDelete.id] : [], !!clienteToDelete);
+  const contratosDoLote = useContratosDosClientes([...selecionados], confirmarLote);
 
   useEffect(() => { fetchImoveis(); }, [fetchImoveis]);
 
@@ -522,16 +528,18 @@ export default function Clientes() {
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               {clienteToDelete?.nome} será removido permanentemente, junto com o histórico,
-              as tarefas e os negócios dele no funil.
+              as tarefas, os negócios no funil e os contratos em que aparece.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <AvisoContratosEmRisco consulta={contratosDoUnico} />
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={!podeExcluirCliente(contratosDoUnico)}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Excluir
+              {temContrato(contratosDoUnico) ? 'Excluir cliente e contratos' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -542,13 +550,19 @@ export default function Clientes() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir {selecionados.size} cliente(s)?</AlertDialogTitle>
             <AlertDialogDescription>
-              O histórico, as tarefas e os negócios de cada um saem junto. Esta ação não pode ser desfeita.
+              O histórico, as tarefas, os negócios no funil e os contratos de cada um saem junto.
+              Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <AvisoContratosEmRisco consulta={contratosDoLote} nomeDoCliente={(id) => clientes.find((c) => c.id === id)?.nome} />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={emLote}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction disabled={emLote} onClick={(e) => { e.preventDefault(); void excluirSelecionados(); }}>
-              Excluir
+            <AlertDialogAction
+              disabled={emLote || !podeExcluirCliente(contratosDoLote)}
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); void excluirSelecionados(); }}
+            >
+              {temContrato(contratosDoLote) ? 'Excluir clientes e contratos' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
