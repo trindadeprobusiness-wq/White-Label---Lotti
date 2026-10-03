@@ -2267,3 +2267,9 @@ credencial); nao foi contornada.
 - Regra reforçada: para repositório de terceiro neste notebook, `git fetch` e ler de `origin/main` antes de afirmar o que existe. Checkout local não é prova, do mesmo jeito que documentação não é prova.
 - O diagnóstico central sobreviveu à releitura: o `deliver` do `origin/main` continua com um `catch` único para todos os ramos.
 - Dois ajustes que saíram da releitura: `no_destination` é falha certa (lançado antes de qualquer chamada à Evolution, portanto `p_uncertain=false`); e `turn.afterDelivery` está dentro do `try`, então uma falha dele reporta `delivery_failed_or_uncertain` para entrega que deu certo — sem corromper estado, porque `fail` sai pelo `lease_token` nulo, mas sujando log e métrica.
+
+### 2026-10-03 - Codex (leads filtrados por fachada em produção)
+- O botão `Ver leads` de cada card agora consulta apenas o `fachada_id` clicado; a aba `Leads` aberta pelo menu mantém a visão geral. A tela ganhou filtro por fachada/imóvel, contador do recorte, origem do lead com título/endereço e estados próprios de carregamento e lista vazia.
+- Integração feita sobre `origin/main` em checkout limpo, preservando a mensagem personalizada de contato adicionada anteriormente. Commit funcional `64588ce` enviado diretamente para `main`.
+- Verificação: testes direcionados passaram com 4/4; build Vite de produção e `git diff --check` passaram. O bundle público `FachadasInteligentes-QInLIFyI.js` no alias `app.plataformalotti.com.br` contém os novos textos do filtro, confirmando a publicação. Nenhuma migration, banco ou variável de ambiente foi alterada.
+- Diário - Codex: filtro e identificação dos leads por fachada publicados em produção; alterações locais preexistentes no checkout original foram preservadas.
