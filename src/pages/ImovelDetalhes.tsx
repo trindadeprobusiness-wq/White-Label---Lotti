@@ -156,7 +156,16 @@ export default function ImovelDetalhes() {
       .eq('id', id);
 
     if (error) {
-      toast({ title: 'Erro ao excluir imóvel', variant: 'destructive' });
+      // Imóvel com contrato não pode ser apagado: a chave é RESTRICT desde a
+      // migration 20261003090000. Antes, o contrato ia junto, em silêncio.
+      const comContrato = error.code === '23503' && /contratos/.test(error.message ?? '');
+      toast({
+        title: 'Erro ao excluir imóvel',
+        description: comContrato
+          ? 'Este imóvel tem contrato e não pode ser excluído. Encerre ou exclua o contrato antes, pela tela de contratos.'
+          : undefined,
+        variant: 'destructive',
+      });
       return;
     }
 

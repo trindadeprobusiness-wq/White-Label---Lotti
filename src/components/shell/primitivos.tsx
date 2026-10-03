@@ -14,16 +14,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 /* ── Cartão de seção ────────────────────────────────────────────────────── */
 
 export function SectionCard({
-  titulo, acao, children, className, semPadding = false,
+  titulo, acao, children, className, semPadding = false, ...atributos
 }: {
   titulo?: React.ReactNode;
   acao?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   semPadding?: boolean;
-}) {
+  // Atributos do elemento (`data-*`, `id`, `aria-*`) seguem para o <section>.
+  // Sem isto o TypeScript aceitava `data-*` e a página nunca o recebia.
+} & Omit<React.HTMLAttributes<HTMLElement>, 'title' | 'children' | 'className'>) {
   return (
     <section
+      {...atributos}
       className={cn(
         // `min-w-0` é obrigatório aqui: item de grid/flex nasce com
         // `min-width: auto`, que é o tamanho do conteúdo. Sem isto, um nome

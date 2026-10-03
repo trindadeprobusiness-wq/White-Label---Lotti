@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import { AvisoContratosEmRisco } from '@/components/clientes/AvisoContratosEmRisco';
+import { podeExcluirCliente, useContratosDosClientes } from '@/hooks/crm/useContratosDosClientes';
 
 const statusColors: Record<StatusFunil, string> = {
   QUALIFICACAO: 'bg-primary text-primary-foreground',
@@ -67,6 +69,10 @@ export default function ClienteDetalhes() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Cliente com contrato não pode ser excluído (o banco recusa desde a
+  // migration 20261003090000). A consulta roda ao abrir a confirmação, para a
+  // tela dizer isso antes do clique em vez de mostrar um erro depois.
+  const contratosEmRisco = useContratosDosClientes(id ? [id] : [], deleteDialogOpen);
 
   // Ensure imoveis are loaded to resolve the link
   useEffect(() => {
@@ -331,11 +337,12 @@ export default function ClienteDetalhes() {
               (histórico de contatos, vínculos com imóveis, etc.) serão removidos permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <AvisoContratosEmRisco consulta={contratosEmRisco} />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={isDeleting}
+              disabled={isDeleting || !podeExcluirCliente(contratosEmRisco)}
               onClick={async (e) => {
                 e.preventDefault();
                 setIsDeleting(true);
