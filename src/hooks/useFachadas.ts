@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import type {
@@ -13,8 +13,10 @@ import type {
 export function useFachadas() {
   const [fachadas, setFachadas] = useState<FachadaComImovel[]>([]);
   const [leads, setLeads] = useState<FachadaLead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
   const [metricas, setMetricas] = useState<FachadaMetricas | null>(null);
   const [loading, setLoading] = useState(false);
+  const leadsRequestId = useRef(0);
 
   const fetchFachadas = useCallback(async () => {
     setLoading(true);
@@ -164,6 +166,10 @@ export function useFachadas() {
   );
 
   const fetchLeads = useCallback(async (fachadaId?: string) => {
+    const requestId = ++leadsRequestId.current;
+    setLeadsLoading(true);
+    setLeads([]);
+
     try {
       let query = supabase
         .from('fachada_leads')
@@ -176,9 +182,15 @@ export function useFachadas() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setLeads((data || []) as unknown as FachadaLead[]);
+      if (requestId === leadsRequestId.current) {
+        setLeads((data || []) as unknown as FachadaLead[]);
+      }
     } catch (err) {
       console.error('Erro ao buscar leads:', err);
+    } finally {
+      if (requestId === leadsRequestId.current) {
+        setLeadsLoading(false);
+      }
     }
   }, []);
 
@@ -273,6 +285,7 @@ export function useFachadas() {
   return {
     fachadas,
     leads,
+    leadsLoading,
     metricas,
     loading,
     fetchFachadas,

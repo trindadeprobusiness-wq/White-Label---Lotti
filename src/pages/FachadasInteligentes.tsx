@@ -95,6 +95,7 @@ export default function FachadasInteligentes() {
   const {
     fachadas,
     leads,
+    leadsLoading,
     metricas,
     loading,
     fetchFachadas,
@@ -107,6 +108,7 @@ export default function FachadasInteligentes() {
   } = useFachadas();
 
   const [abaAtiva, setAbaAtiva] = useState('fachadas');
+  const [fachadaSelecionadaId, setFachadaSelecionadaId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewFachada, setPreviewFachada] = useState<FachadaComImovel | null>(null);
   const [editingFachada, setEditingFachada] = useState<FachadaComImovel | null>(null);
@@ -121,14 +123,31 @@ export default function FachadasInteligentes() {
 
   useEffect(() => {
     fetchFachadas();
-    fetchLeads();
-    fetchMetricas(periodo);
     fetchCustomTemplates();
-  }, [fetchFachadas, fetchLeads, fetchMetricas]);
+  }, [fetchFachadas]);
+
+  useEffect(() => {
+    void fetchMetricas(periodo);
+  }, [fetchMetricas, periodo]);
+
+  useEffect(() => {
+    if (abaAtiva === 'leads') {
+      void fetchLeads(fachadaSelecionadaId ?? undefined);
+    }
+  }, [abaAtiva, fachadaSelecionadaId, fetchLeads]);
+
+  const handleTabChange = (proximaAba: string) => {
+    if (proximaAba === 'leads') setFachadaSelecionadaId(null);
+    setAbaAtiva(proximaAba);
+  };
+
+  const handleViewLeads = (fachadaId: string) => {
+    setFachadaSelecionadaId(fachadaId);
+    setAbaAtiva('leads');
+  };
 
   const handlePeriodoChange = (dias: number) => {
     setPeriodo(dias);
-    fetchMetricas(dias);
   };
 
   // Cria (novo) ou atualiza (edição) a fachada, conforme editingFachada.
@@ -287,7 +306,7 @@ export default function FachadasInteligentes() {
       />
 
       {/* Tabs */}
-      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="space-y-5">
+      <Tabs value={abaAtiva} onValueChange={handleTabChange} className="space-y-5">
         <TabsList className={abasSublinhadas.lista}>
           <TabsTrigger value="fachadas" className={abasSublinhadas.gatilho}>
             <QrCode className="mr-2 h-4 w-4" />
@@ -361,7 +380,7 @@ export default function FachadasInteligentes() {
                   onPreview={setPreviewFachada}
                   onEdit={(fac) => { setEditingFachada(fac); setDialogOpen(true); }}
                   onDeactivate={deleteFachada}
-                  onViewLeads={() => setAbaAtiva('leads')}
+                  onViewLeads={() => handleViewLeads(f.id)}
                 />
               ))}
             </div>
@@ -410,7 +429,14 @@ export default function FachadasInteligentes() {
 
         {/* Aba: Leads */}
         <TabsContent value="leads">
-          <LeadsTable leads={leads} fachadas={fachadas} onDeleteLead={deleteLead} />
+          <LeadsTable
+            leads={leads}
+            fachadas={fachadas}
+            fachadaSelecionadaId={fachadaSelecionadaId}
+            onFachadaSelecionadaChange={setFachadaSelecionadaId}
+            loading={leadsLoading}
+            onDeleteLead={deleteLead}
+          />
         </TabsContent>
 
         {/* Aba: Templates */}
