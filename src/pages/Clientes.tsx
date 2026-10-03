@@ -54,6 +54,16 @@ const TOM_STATUS: Record<StatusFunil, 'brand' | 'warning' | 'doc' | 'success' | 
  */
 type AbaCliente = 'todos' | 'qualificacao' | 'fechados' | 'sem_retorno';
 
+/**
+ * O banco recusa apagar cliente com contrato (23503, chave RESTRICT desde a
+ * migration 20261003090000). A tela confere antes, mas um contrato criado entre
+ * a conferência e o clique ainda chega aqui — e merece mensagem própria.
+ */
+function barradoPorContrato(erro: unknown): boolean {
+  const e = erro as { code?: string; message?: string } | null | undefined;
+  return e?.code === '23503' && /contratos/.test(e.message ?? '');
+}
+
 /** 30 dias sem contato é o limite a partir do qual o lead esfria de fato. */
 const DIAS_SEM_RETORNO = 30;
 
@@ -87,6 +97,37 @@ export default function Clientes() {
   // cliente apaga em cascata os contratos dele, com faturas e repasses.
   const contratosDoUnico = useContratosDosClientes(clienteToDelete ? [clienteToDelete.id] : [], !!clienteToDelete);
   const contratosDoLote = useContratosDosClientes([...selecionados], confirmarLote);
+  // Linha destacada depois de "Mostrar na lista": o cliente com contrato pode
+  // estar em outra página, ou escondido por um filtro.
+  const [destacado, setDestacado] = useState<string | null>(null);
+
+  const desmarcar = (ids: string[]) => setSelecionados((atual) => {
+    const novo = new Set(atual);
+    ids.forEach((id) => novo.delete(id));
+    return novo;
+  });
+
+  const mostrarNaLista = (id: string) => {
+    setConfirmarLote(false);
+    let indice = filtrados.findIndex((c) => c.id === id);
+    if (indice < 0) {
+      // Escondido por busca, filtro ou aba: limpa tudo para ele aparecer. Sem
+      // filtro a lista é `clientes` na mesma ordem, então o índice vale.
+      setSearch(''); setStatusFilter('TODOS'); setAba('todos');
+      indice = clientes.findIndex((c) => c.id === id);
+    }
+    if (indice < 0) return;
+    setPagina(Math.floor(indice / POR_PAGINA) + 1);
+    setDestacado(id);
+  };
+
+  useEffect(() => {
+    if (!destacado) return;
+    const linha = document.querySelector(`[data-cliente-id="${destacado}"]`);
+    linha?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    const fim = window.setTimeout(() => setDestacado(null), 5000);
+    return () => window.clearTimeout(fim);
+  }, [destacado, pagina]);
 
   useEffect(() => { fetchImoveis(); }, [fetchImoveis]);
 
@@ -141,8 +182,9 @@ export default function Clientes() {
       toast({
         variant: 'destructive',
         title: 'Erro ao excluir cliente',
-        description:
-          'Nada foi apagado. Recarregue a página e tente de novo; se insistir, você pode não ter permissão sobre este cliente.',
+        description: barradoPorContrato(error)
+          ? 'Este cliente tem contrato e não pode ser excluído. Encerre ou exclua o contrato antes, pela tela de contratos.'
+          : 'Nada foi apagado. Recarregue a página e tente de novo; se insistir, você pode não ter permissão sobre este cliente.',
       });
     }
     setClienteToDelete(null);
@@ -159,16 +201,27 @@ export default function Clientes() {
   const excluirSelecionados = async () => {
     setEmLote(true);
     let falhas = 0;
-    // Um a um, para que um cliente com histórico vinculado não derrube o resto.
+    let comContrato = 0;
+    // Um a um, para que um cliente barrado não derrube o resto.
     for (const id of selecionados) {
-      const { success } = await removeCliente(id);
-      if (!success) falhas += 1;
+      const { success, error } = await removeCliente(id);
+      if (!success) {
+        falhas += 1;
+        // Contrato criado entre a conferência e o clique: o banco recusa.
+        if (barradoPorContrato(error)) comContrato += 1;
+      }
     }
     setEmLote(false);
     setConfirmarLote(false);
     setSelecionados(new Set());
     toast(falhas
-      ? { variant: 'destructive', title: `${falhas} cliente(s) não puderam ser excluídos.`, description: 'Eles continuam na lista. Recarregue a página e tente de novo.' }
+      ? {
+        variant: 'destructive',
+        title: `${falhas} cliente(s) não puderam ser excluídos.`,
+        description: comContrato
+          ? `${comContrato} tem(têm) contrato e foram preservados. Os demais continuam na lista; recarregue e tente de novo.`
+          : 'Eles continuam na lista. Recarregue a página e tente de novo.',
+      }
       : { title: 'Clientes excluídos.' });
   };
 
@@ -377,7 +430,7 @@ export default function Clientes() {
                 </TableHeader>
                 <TableBody>
                   {visiveis.map((cliente) => (
-                    <TableRow key={cliente.id}>
+                    <TableRow key={cliente.id} data-cliente-id={cliente.id} className={destacado === cliente.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-400 dark:bg-amber-950/30' : undefined}>
                       <TableCell>
                         <Checkbox
                           checked={selecionados.has(cliente.id)}
@@ -475,7 +528,7 @@ export default function Clientes() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visiveis.map((cliente) => (
-              <SectionCard key={cliente.id}>
+              <SectionCard key={cliente.id} data-cliente-id={cliente.id} className={destacado === cliente.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-400 dark:bg-amber-950/30' : undefined}>
                 <div className="flex min-w-0 items-start gap-3">
                   <Avatar nome={cliente.nome} />
                   <div className="min-w-0 flex-1">
@@ -528,7 +581,7 @@ export default function Clientes() {
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               {clienteToDelete?.nome} será removido permanentemente, junto com o histórico,
-              as tarefas, os negócios no funil e os contratos em que aparece.
+              as tarefas e os negócios no funil.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AvisoContratosEmRisco consulta={contratosDoUnico} />
@@ -539,7 +592,7 @@ export default function Clientes() {
               disabled={!podeExcluirCliente(contratosDoUnico)}
               className="bg-destructive hover:bg-destructive/90"
             >
-              {temContrato(contratosDoUnico) ? 'Excluir cliente e contratos' : 'Excluir'}
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -550,19 +603,25 @@ export default function Clientes() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir {selecionados.size} cliente(s)?</AlertDialogTitle>
             <AlertDialogDescription>
-              O histórico, as tarefas, os negócios no funil e os contratos de cada um saem junto.
+              O histórico, as tarefas e os negócios no funil de cada um saem junto.
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AvisoContratosEmRisco consulta={contratosDoLote} nomeDoCliente={(id) => clientes.find((c) => c.id === id)?.nome} />
+          <AvisoContratosEmRisco
+            consulta={contratosDoLote}
+            nomeDoCliente={(id) => clientes.find((c) => c.id === id)?.nome}
+            onDesmarcar={desmarcar}
+            onMostrarNaLista={mostrarNaLista}
+          />
+          {temContrato(contratosDoLote) && <p className="text-xs text-muted-foreground">Desmarque quem tem contrato para excluir os demais.</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={emLote}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              disabled={emLote || !podeExcluirCliente(contratosDoLote)}
+              disabled={emLote || selecionados.size === 0 || !podeExcluirCliente(contratosDoLote)}
               className="bg-destructive hover:bg-destructive/90"
               onClick={(e) => { e.preventDefault(); void excluirSelecionados(); }}
             >
-              {temContrato(contratosDoLote) ? 'Excluir clientes e contratos' : 'Excluir'}
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,16 +2,17 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Contratos que somem junto quando um cliente é apagado.
+ * Contratos dos clientes que alguém quer excluir.
  *
- * `contratos.cliente_id` é ON DELETE CASCADE, e o contrato leva junto as
- * faturas e os repasses (também em cascata). Apagar um cliente não avisava
- * nada disso: em 2026-10-02, três proprietários cadastrados como clientes —
- * com telefone de preenchimento, parecendo lead de teste — foram excluídos em
- * lote e levaram contratos de locação ativos, com o histórico financeiro.
+ * Até 2026-10-02, `contratos.cliente_id` era ON DELETE CASCADE: apagar o
+ * cliente apagava o contrato, e o contrato levava faturas e repasses. Naquele
+ * dia, três proprietários cadastrados como clientes — com telefone de
+ * preenchimento, parecendo lead de teste — foram excluídos em lote e levaram
+ * contratos de locação ativos. Desde a migration 20261003090000 a chave é
+ * RESTRICT e o banco recusa.
  *
- * A consulta roda antes da confirmação, para a tela poder dizer exatamente o
- * que vai junto.
+ * A consulta roda antes da confirmação, para a tela dizer quem está bloqueado
+ * antes do clique, em vez de o corretor descobrir por um erro depois.
  */
 
 export type ContratoEmRisco = {
@@ -67,9 +68,11 @@ export function useContratosDosClientes(ids: string[], habilitado: boolean) {
 }
 
 /**
- * Só libera a exclusão depois de saber, com certeza, o que vai junto.
- * Falha fechada: carregando ou com erro, não libera.
+ * Só libera a exclusão depois de saber, com certeza, que ninguém ali tem
+ * contrato. Falha fechada: carregando ou com erro, não libera. E com contrato
+ * também não: desde 20261003090000 o banco recusaria de qualquer jeito.
  */
-export const podeExcluirCliente = (consulta: UseQueryResult<ContratoEmRisco[]>) => consulta.isSuccess;
+export const podeExcluirCliente = (consulta: UseQueryResult<ContratoEmRisco[]>) =>
+  consulta.isSuccess && (consulta.data?.length ?? 0) === 0;
 
 export const temContrato = (consulta: UseQueryResult<ContratoEmRisco[]>) => (consulta.data?.length ?? 0) > 0;

@@ -16,7 +16,8 @@ const loja = vi.hoisted(() => ({
   fetchImoveis: vi.fn(),
 }));
 vi.mock('@/stores/crmStore', () => ({ useCRMStore: () => loja }));
-vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+const avisos = vi.hoisted(() => ({ toast: vi.fn() }));
+vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: avisos.toast }) }));
 
 // Contratos por cliente, como o banco devolveria. `erro` simula a consulta falhando.
 const banco = vi.hoisted(() => ({
@@ -54,6 +55,7 @@ beforeEach(() => {
   loja.fetchImoveis.mockReset();
   banco.contratos = [];
   banco.erro = null;
+  avisos.toast.mockReset();
 });
 afterEach(cleanup);
 
@@ -98,7 +100,7 @@ it('mover em lote grava a etapa escolhida em cada selecionado', async () => {
   await waitFor(() => expect(loja.updateClienteStatus).toHaveBeenCalledWith('1', 'DOCUMENTACAO'));
 });
 
-it('avisa, antes de excluir, que o contrato do cliente vai junto', async () => {
+it('diz quem tem contrato, pelo nome, e não deixa excluir enquanto estiver marcado', async () => {
   // O caso real: proprietários cadastrados como clientes, com telefone de
   // preenchimento, foram excluídos em lote e levaram contratos ativos.
   banco.contratos = [{ id: 'k1', cliente_id: '1', tipo: 'LOCACAO_RESIDENCIAL', status: 'ATIVO', imoveis: { titulo: 'Apartamento 603 - Jardins do Éden' } }];
@@ -108,12 +110,58 @@ it('avisa, antes de excluir, que o contrato do cliente vai junto', async () => {
 
   const dialogo = await screen.findByRole('alertdialog');
   const aviso = await within(dialogo).findByTestId('contratos-em-risco');
-  expect(aviso.textContent).toContain('Isto também apaga 1 contrato');
+  expect(aviso.textContent).toContain('Hélio Ferreira Neves tem contrato e não pode ser excluído');
   expect(aviso.textContent).toContain('Locação residencial');
   expect(aviso.textContent).toContain('Apartamento 603 - Jardins do Éden');
-  expect(aviso.textContent).toContain('Cliente: Hélio Ferreira Neves');
-  expect(aviso.textContent).toContain('faturas e os repasses');
-  expect(within(dialogo).getByRole('button', { name: 'Excluir clientes e contratos' })).toBeTruthy();
+  expect(aviso.textContent).toContain('ATIVO');
+  expect(within(dialogo).getByRole('button', { name: 'Excluir' }).hasAttribute('disabled')).toBe(true);
+});
+
+it('desmarcar ali mesmo libera a exclusão dos demais', async () => {
+  banco.contratos = [{ id: 'k1', cliente_id: '1', tipo: 'LOCACAO_RESIDENCIAL', status: 'ATIVO', imoveis: { titulo: 'Apartamento 603' } }];
+  abrir();
+  selecionar('Hélio Ferreira Neves');
+  selecionar('Shirley Pereira de Figueiredo');
+  fireEvent.click(screen.getByRole('button', { name: /Excluir/ }));
+  const dialogo = await screen.findByRole('alertdialog');
+  fireEvent.click(await within(dialogo).findByRole('button', { name: 'Desmarcar' }));
+
+  // Sobrou só a Shirley, sem contrato: o aviso some e o botão libera.
+  await waitFor(() => expect(within(dialogo).queryByTestId('contratos-em-risco')).toBeNull());
+  const botao = within(dialogo).getByRole('button', { name: 'Excluir' });
+  await waitFor(() => expect(botao.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(botao);
+  await waitFor(() => expect(loja.removeCliente).toHaveBeenCalledTimes(1));
+  expect(loja.removeCliente).toHaveBeenCalledWith('2');
+});
+
+it('"Mostrar na lista" fecha a caixa e destaca a linha do cliente', async () => {
+  banco.contratos = [{ id: 'k1', cliente_id: '1', tipo: 'LOCACAO_RESIDENCIAL', status: 'ATIVO', imoveis: { titulo: 'Apartamento 603' } }];
+  abrir();
+  selecionar('Hélio Ferreira Neves');
+  fireEvent.click(screen.getByRole('button', { name: /Excluir/ }));
+  const dialogo = await screen.findByRole('alertdialog');
+  fireEvent.click(await within(dialogo).findByRole('button', { name: 'Mostrar na lista' }));
+
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  const linha = document.querySelector('[data-cliente-id="1"]');
+  expect(linha?.className).toContain('ring-amber-400');
+  // Continua marcado: é ali que o corretor desmarca, vendo a linha.
+  expect((screen.getByRole('checkbox', { name: 'Selecionar Hélio Ferreira Neves' }) as HTMLElement).getAttribute('data-state')).toBe('checked');
+});
+
+it('se um contrato surgir entre a conferência e o clique, a mensagem diz isso', async () => {
+  // O banco recusa (23503, chave RESTRICT); a tela não pode mostrar só "erro".
+  loja.removeCliente.mockResolvedValue({ success: false, error: { code: '23503', message: 'update or delete on table "clientes" violates RESTRICT setting of foreign key constraint "contratos_cliente_id_fkey" on table "contratos"' } });
+  abrir();
+  selecionar('Shirley Pereira de Figueiredo');
+  fireEvent.click(screen.getByRole('button', { name: /Excluir/ }));
+  const dialogo = await screen.findByRole('alertdialog');
+  const botao = within(dialogo).getByRole('button', { name: 'Excluir' });
+  await waitFor(() => expect(botao.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(botao);
+  await waitFor(() => expect(avisos.toast).toHaveBeenCalled());
+  expect(avisos.toast.mock.calls.at(-1)?.[0].description).toContain('contrato');
 });
 
 it('sem contrato, não assusta: o botão continua só "Excluir"', async () => {
