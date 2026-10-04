@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const MINIMO = 10;
 export default function NovaSenha() {
   const { definirNovaSenha, session, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [senha, setSenha] = useState('');
   const [confirma, setConfirma] = useState('');
   const [mostrar, setMostrar] = useState(false);
@@ -47,7 +48,8 @@ export default function NovaSenha() {
 
     if (!r.ok) { setErro(r.erro ?? null); return; }
     toast.success('Senha alterada! Você já está conectado.');
-    navigate('/', { replace: true });
+    const destino = searchParams.get('redirectTo');
+    navigate(destino?.startsWith('/') && !destino.startsWith('//') ? destino : '/', { replace: true });
   };
 
   return (

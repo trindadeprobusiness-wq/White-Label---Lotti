@@ -3,10 +3,13 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { deveAbrirOnboarding } from '@/lib/onboarding/contexto';
+import { obterSuporte } from '@/lib/admin/suporte';
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { contexto, carregando, erro } = useOnboarding();
+
+  if (obterSuporte() && !carregando) return <>{children}</>;
 
   if (carregando) {
     return (

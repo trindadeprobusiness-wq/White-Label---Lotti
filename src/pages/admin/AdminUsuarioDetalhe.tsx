@@ -13,6 +13,7 @@ import { usePapeis } from '@/hooks/admin/usePapeis';
 import { dataBR, dataHoraBR, numero } from '@/lib/formato';
 import { cn } from '@/lib/utils';
 import { rotuloAssinatura, rotuloStatusConta } from '@/lib/admin/saas';
+import { AbrirPainelUsuario } from '@/components/admin/AbrirPainelUsuario';
 
 interface DetalheCorretor {
   corretor_id: string;
@@ -98,6 +99,7 @@ export default function AdminUsuarioDetalhe() {
         ]}
         acoes={
           <>
+            <AbrirPainelUsuario corretorId={c.corretor_id} ativo={c.status === 'ativo'} />
             <Button variant="outline" size="sm" asChild>
               <Link to="/admin/usuarios">
                 <ArrowLeft className="mr-2 h-4 w-4" />

@@ -7,6 +7,8 @@ import { AIChatWidget } from '../ai/AIChatWidget';
 import { OnboardingTour } from '../onboarding/OnboardingTour';
 import { useGoogleCalendarReturn } from '@/hooks/routine/useGoogleCalendarReturn';
 import { shouldShowAIChatWidget } from './appLayoutRules';
+import { SuporteBanner } from '@/components/admin/SuporteBoundary';
+import { obterSuporte } from '@/lib/admin/suporte';
 
 export function AppLayout() {
   const { pathname } = useLocation();
@@ -39,6 +41,7 @@ export function AppLayout() {
             respiro de baixo acompanha a barra de gestos do aparelho, já que
             não há mais barra de navegação ocupando esse espaço. */}
         <div className="mx-auto w-full max-w-[1600px] px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-20 md:px-8 md:pb-16 md:pt-8">
+          <SuporteBanner />
           {/* Suspense aqui: a sidebar fica fixa enquanto a página (lazy) carrega */}
           <Suspense
             fallback={
@@ -53,7 +56,7 @@ export function AppLayout() {
       </main>
 
       {showChatWidget && <AIChatWidget />}
-      <OnboardingTour />
+      {!obterSuporte() && <OnboardingTour />}
     </div>
   );
 }

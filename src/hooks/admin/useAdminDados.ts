@@ -25,6 +25,8 @@ import type {
   AtribuicaoParceiro,
 } from '@/integrations/supabase/admin-types';
 import { somarDias } from '@/lib/admin/periodo';
+import { supabase } from '@/integrations/supabase/client';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 const POR_PAGINA = 25;
 
@@ -212,6 +214,25 @@ export function useSalvarParceiro() {
       void qc.invalidateQueries({ queryKey: adminKeys.todos });
     },
     onError: (e) => toast.error(mensagemDeErro(e, 'Não foi possível salvar o parceiro.')),
+  });
+}
+
+export function useCriarParceiroConvidar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dados: Record<string, unknown>) => {
+      const { data, error } = await supabase.functions.invoke<{
+        ok: boolean; parceiro_id?: string; email_enviado?: boolean; error?: string;
+      }>('parceiro-convidar', { body: { acao: 'criar', dados } });
+      if (error instanceof FunctionsHttpError) {
+        const resposta = await error.context.json().catch(() => null);
+        throw new Error(resposta?.error ?? 'Não foi possível criar o parceiro. Tente novamente.');
+      }
+      if (error) throw error;
+      if (!data?.parceiro_id) throw new Error(data?.error ?? 'Não foi possível criar o parceiro.');
+      return data;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: adminKeys.todos }); },
   });
 }
 

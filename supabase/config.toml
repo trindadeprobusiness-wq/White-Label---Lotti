@@ -61,9 +61,24 @@ verify_jwt = false
 [functions.parceiro-clique]
 verify_jwt = false
 
+[functions.admin-suporte]
+verify_jwt = true
+
+[auth]
+additional_redirect_urls = [
+  "https://app.plataformalotti.com.br/nova-senha",
+  "https://app.plataformalotti.com.br/auth/callback",
+  "https://app.plataformalotti.com.br/nova-senha?redirectTo=%2Fparceiro",
+  "https://app.plataformalotti.com.br/parceiro",
+]
+
 [auth.email.template.invite]
-subject = "Crie sua senha e acesse a Lotti"
+subject = "Seu convite para a Lotti"
 content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Seu acesso ao Programa de Parceiros Lotti"
+content_path = "./supabase/templates/magic-link.html"
 
 [auth.email.template.recovery]
 subject = "Redefina sua senha da Lotti"

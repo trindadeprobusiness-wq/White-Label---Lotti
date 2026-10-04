@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
 import { isolarTrocaDeSessao } from '@/lib/auth/isolamentoSessao';
+import { obterSuporte, limparSuporte } from '@/lib/admin/suporte';
 import {
   deveRegistrarAtividade,
   marcarAtividadeRegistrada,
@@ -103,11 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ultimoUsuarioId = useRef<string | null | undefined>(undefined);
 
   const aplicarSessao = useCallback((sessao: Session | null) => {
-    const usuarioAtual = sessao?.user.id ?? null;
+    const suporte = obterSuporte();
+    const usuarioEfetivo = sessao ? suporte?.user ?? sessao.user : null;
+    const usuarioAtual = usuarioEfetivo?.id ?? null;
     isolarTrocaDeSessao(ultimoUsuarioId.current, usuarioAtual, queryClient);
     ultimoUsuarioId.current = usuarioAtual;
     setSession(sessao);
-    setUser(sessao?.user ?? null);
+    setUser(usuarioEfetivo);
   }, [queryClient]);
 
   useEffect(() => {
@@ -120,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Efeitos pós-login. Rodam soltos e nunca são aguardados: o callback do
       // onAuthStateChange não pode bloquear, e nenhum dos dois pode atrasar ou
       // impedir a entrada do usuário.
-      if (evento === 'SIGNED_IN' && sessao) {
+      if (evento === 'SIGNED_IN' && sessao && !obterSuporte()) {
         void registrarAtividadeSeNecessario();
         void reivindicarAtribuicaoDeParceiro();
       }
@@ -175,6 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (obterSuporte()) {
+      const { error } = await supabase.functions.invoke('admin-suporte', { body: { acao: 'encerrar', sessao_id: obterSuporte()?.id } });
+      if (error && Date.parse(obterSuporte()?.expira_em ?? '') > Date.now() && session) {
+        toast.error('Não foi possível encerrar o atendimento. Tente novamente.'); return;
+      }
+      limparSuporte();
+      window.location.replace('/admin/onboarding');
+      return;
+    }
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Erro no logout:', error);
@@ -182,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     toast.success('Você saiu da sua conta.');
-  }, []);
+  }, [session]);
 
   /**
    * Login social. O Supabase redireciona o navegador para o provedor e volta em
@@ -227,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** Grava a nova senha. Só funciona com a sessão de recuperação ativa. */
   const definirNovaSenha = useCallback(async (senha: string) => {
+    if (obterSuporte()) return { ok: false, erro: 'A senha não pode ser alterada durante o atendimento.' };
     const { error } = await supabase.auth.updateUser({ password: senha });
     if (error) {
       console.error('Erro ao definir nova senha:', error);

@@ -29,6 +29,8 @@ import { montarCsv, baixarCsv, nomeArquivoCsv } from '@/lib/admin/csv';
 import { cn } from '@/lib/utils';
 import type { UsuarioAdmin } from '@/integrations/supabase/admin-types';
 import { rotuloAssinatura, rotuloAtividade, rotuloStatusConta } from '@/lib/admin/saas';
+import { useOpcoesParceiros } from '@/hooks/admin/useAtendimento';
+import { AbrirPainelUsuario } from '@/components/admin/AbrirPainelUsuario';
 
 const COR_STATUS: Record<string, string> = {
   ativo: 'bg-success/10 text-success border-success/20',
@@ -42,22 +44,25 @@ export default function AdminUsuarios() {
   const [busca, setBusca] = useState('');
   const [status, setStatus] = useState(TODOS);
   const [atividade, setAtividade] = useState(TODOS);
+  const [parceiroId, setParceiroId] = useState(TODOS);
   const [pagina, setPagina] = useState(1);
   const [alvo, setAlvo] = useState<{ usuario: UsuarioAdmin; novoStatus: string } | null>(null);
 
   const { podeExecutar } = usePapeis();
   const definirStatus = useDefinirStatusCorretor();
+  const { data: parceiros } = useOpcoesParceiros();
 
   const { data, isLoading, error, refetch } = useUsuarios({
     busca: busca.trim() || undefined,
     status: status === TODOS ? undefined : status,
     atividade: atividade === TODOS ? undefined : atividade,
+    parceiroId: parceiroId === TODOS ? undefined : parceiroId,
     pagina,
   });
 
   const itens = data?.itens ?? [];
   const total = data?.total ?? 0;
-  const comFiltro = !!busca.trim() || status !== TODOS || atividade !== TODOS;
+  const comFiltro = !!busca.trim() || status !== TODOS || atividade !== TODOS || parceiroId !== TODOS;
 
   const aoFiltrar = (fn: () => void) => {
     fn();
@@ -136,6 +141,23 @@ export default function AdminUsuarios() {
         </div>
 
         <div className="space-y-1.5">
+          <Label htmlFor="filtro-parceiro" className="text-xs text-muted-foreground">
+            Origem
+          </Label>
+          <Select value={parceiroId} onValueChange={(v) => aoFiltrar(() => setParceiroId(v))}>
+            <SelectTrigger id="filtro-parceiro" className="w-full sm:w-[190px]">
+              <SelectValue placeholder="Todos os parceiros" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todas as origens</SelectItem>
+              {(parceiros ?? []).map((parceiro) => (
+                <SelectItem key={parceiro.id} value={parceiro.id}>{parceiro.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
           <Label htmlFor="filtro-atividade" className="text-xs text-muted-foreground">
             Atividade
           </Label>
@@ -180,6 +202,7 @@ export default function AdminUsuarios() {
                     setBusca('');
                     setStatus(TODOS);
                     setAtividade(TODOS);
+                    setParceiroId(TODOS);
                   })
                 }
               >
@@ -204,6 +227,7 @@ export default function AdminUsuarios() {
                     <TableHead className="hidden lg:table-cell">Atividade</TableHead>
                     <TableHead className="hidden lg:table-cell">Cadastro</TableHead>
                     <TableHead className="hidden xl:table-cell">Parceiro</TableHead>
+                    <TableHead>Atendimento</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -254,6 +278,9 @@ export default function AdminUsuarios() {
                       </TableCell>
                       <TableCell className="hidden text-sm xl:table-cell">
                         {u.parceiro_nome ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        <AbrirPainelUsuario corretorId={u.corretor_id} ativo={u.status === 'ativo'} />
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

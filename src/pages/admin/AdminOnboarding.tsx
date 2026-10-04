@@ -9,6 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { useMetricasOnboarding } from '@/hooks/admin/useAdminDados';
 import { periodoDeAtalho, type AtalhoPeriodo, type Periodo } from '@/lib/admin/periodo';
 import { numero, percentual } from '@/lib/formato';
+import { ContasAtendimento } from '@/components/admin/ContasAtendimento';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const ROTULOS: Record<string, string> = {
   boas_vindas: 'Boas-vindas', persona: 'Tipo de operação', aceitar_convite: 'Aceite de convite',
@@ -19,6 +21,17 @@ const ROTULOS: Record<string, string> = {
 };
 
 export default function AdminOnboarding() {
+  return <>
+    <CabecalhoAdmin titulo="Atendimento" descricao="Contas da plataforma" />
+    <Tabs defaultValue="contas">
+      <TabsList className="mb-5"><TabsTrigger value="contas">Contas</TabsTrigger><TabsTrigger value="ativacao">Ativação</TabsTrigger></TabsList>
+      <TabsContent value="contas"><ContasAtendimento /></TabsContent>
+      <TabsContent value="ativacao"><Ativacao /></TabsContent>
+    </Tabs>
+  </>;
+}
+
+function Ativacao() {
   const [atalho, setAtalho] = useState<AtalhoPeriodo | 'personalizado'>('30d');
   const [periodo, setPeriodo] = useState<Periodo>(() => periodoDeAtalho('30d'));
   const { data, isLoading, error, refetch } = useMetricasOnboarding(periodo);
@@ -32,15 +45,11 @@ export default function AdminOnboarding() {
   const maiorEtapa = Math.max(1, ...etapas.map(([, total]) => total));
 
   if (error) {
-    return <><CabecalhoAdmin titulo="Onboarding" /><EstadoErro erro={error} aoTentarNovamente={() => void refetch()} /></>;
+    return <EstadoErro erro={error} aoTentarNovamente={() => void refetch()} />;
   }
 
   return (
     <>
-      <CabecalhoAdmin
-        titulo="Onboarding"
-        descricao="Ativação agregada por etapa, sem abrir clientes, imóveis ou outros dados operacionais das contas."
-      />
       <div className="mb-6"><FiltroPeriodo atalho={atalho} periodo={periodo} aoMudar={(a, p) => { setAtalho(a); setPeriodo(p); }} /></div>
 
       <section aria-labelledby="metricas-ativacao" className="mb-7">
@@ -50,7 +59,7 @@ export default function AdminOnboarding() {
           <CartaoMetrica titulo="Onboardings iniciados" valor={numero(data?.iniciados ?? 0)} icone={<ListChecks className="h-4 w-4" />} carregando={isLoading} />
           <CartaoMetrica titulo="Concluídos" valor={numero(data?.concluidos ?? 0)} detalhe={taxaConclusao === null ? 'Sem base no período' : `${percentual(taxaConclusao)} dos iniciados`} icone={<CheckCircle2 className="h-4 w-4" />} carregando={isLoading} />
           <CartaoMetrica titulo="Primeiro valor" valor={numero(data?.primeiro_valor ?? 0)} detalhe={taxaPrimeiroValor === null ? 'Sem base no período' : `${percentual(taxaPrimeiroValor)} dos iniciados`} icone={<Flag className="h-4 w-4" />} carregando={isLoading} />
-          <CartaoMetrica titulo="Usuários travados" valor={numero(data?.travados ?? 0)} detalhe="Sem avanço há mais de 48 horas" crescerEhRuim icone={<Clock3 className="h-4 w-4" />} carregando={isLoading} />
+          <CartaoMetrica titulo="Sem avanço no cadastro" valor={numero(data?.travados ?? 0)} detalhe="Etapa sem atualização há mais de 48 horas" crescerEhRuim icone={<Clock3 className="h-4 w-4" />} carregando={isLoading} />
           <CartaoMetrica titulo="Usaram demonstração" valor={numero(data?.usaram_demonstracao ?? 0)} icone={<Sparkles className="h-4 w-4" />} carregando={isLoading} />
           <CartaoMetrica titulo="Convites preparados" valor={numero(data?.convites ?? 0)} icone={<UsersRound className="h-4 w-4" />} carregando={isLoading} />
           <CartaoMetrica titulo="Trials encerrando" valor={numero(data?.trials_encerrando ?? 0)} detalhe="Próximos 7 dias" crescerEhRuim icone={<Clock3 className="h-4 w-4" />} carregando={isLoading} />
@@ -58,7 +67,7 @@ export default function AdminOnboarding() {
       </section>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Contas ainda paradas por etapa</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Cadastros em andamento por etapa</CardTitle></CardHeader>
         <CardContent>
           {etapas.length === 0 && !isLoading ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhum onboarding em andamento neste momento.</p>

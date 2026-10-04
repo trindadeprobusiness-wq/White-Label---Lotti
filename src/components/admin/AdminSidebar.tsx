@@ -65,7 +65,7 @@ const GRUPOS: GrupoMenu[] = [
       { recurso: 'assinaturas', label: 'Assinaturas', href: '/admin/assinaturas', icone: <CreditCard className="h-4 w-4 flex-shrink-0" /> },
       { recurso: 'pagamentos', label: 'Pagamentos', href: '/admin/pagamentos', icone: <Banknote className="h-4 w-4 flex-shrink-0" /> },
       { recurso: 'cancelamentos', label: 'Cancelamentos', href: '/admin/cancelamentos', icone: <MessageSquareX className="h-4 w-4 flex-shrink-0" /> },
-      { recurso: 'onboarding', label: 'Onboarding', href: '/admin/onboarding', icone: <ListChecks className="h-4 w-4 flex-shrink-0" /> },
+      { recurso: 'onboarding', label: 'Atendimento', href: '/admin/onboarding', icone: <ListChecks className="h-4 w-4 flex-shrink-0" /> },
     ],
   },
   {

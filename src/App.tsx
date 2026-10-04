@@ -18,6 +18,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
 import RecuperarSenha from "@/pages/RecuperarSenha";
 import NovaSenha from "@/pages/NovaSenha";
+const ParceiroPortal = lazy(() => import("@/pages/ParceiroPortal"));
+const SuporteUsuario = lazy(() => import("@/pages/SuporteUsuario"));
+import { SuporteBoundary } from '@/components/admin/SuporteBoundary';
 import {
   alugueisLoader,
   assistenteLoader,
@@ -136,6 +139,7 @@ const App = () => (
       <BrowserRouter>
         <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>
+        <SuporteBoundary>
         <Routes>
           {/* Public route */}
           <Route path="/auth" element={<Auth />} />
@@ -143,6 +147,8 @@ const App = () => (
               a senha ficava trancado fora para sempre. */}
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
+          <Route path="/parceiro" element={<ProtectedRoute><ParceiroPortal /></ProtectedRoute>} />
+          <Route path="/suporte/:id" element={<ProtectedRoute><SuporteUsuario /></ProtectedRoute>} />
           <Route path="/sobre" element={<PaginaInicialPublica />} />
           <Route path="/diagnostico" element={<CommercialDiagnostic />} />
           <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
@@ -266,6 +272,7 @@ const App = () => (
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </SuporteBoundary>
         </Suspense>
         </ErrorBoundary>
       </BrowserRouter>

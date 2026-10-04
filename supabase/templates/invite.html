@@ -2,6 +2,27 @@
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Crie sua senha e acesse a Lotti</title></head>
 <body style="margin:0;background:#f4f6f5;color:#17231d;font-family:Arial,Helvetica,sans-serif">
+  {{ if eq .Data.tipo_acesso "parceiro" }}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden">
+      <tr><td style="padding:24px 28px;background:#06152b;color:#ffffff;font-size:24px;font-weight:bold">Lotti <span style="font-weight:normal">Parceiros</span></td></tr>
+      <tr><td style="padding:30px 28px">
+        <p style="margin:0 0 8px;color:#1887d5;font-size:13px;font-weight:bold;letter-spacing:1px">CONVITE EXCLUSIVO</p>
+        <h1 style="font-size:23px;line-height:1.35;margin:0 0 18px;color:#102039">{{ .Data.nome_parceiro }}, seu painel de parceiro está pronto</h1>
+        <p style="font-size:15px;line-height:1.65;color:#425168">Você foi convidado para o Programa de Parceiros Lotti. Acompanhe seu link, indicações e comissões em um painel exclusivo.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;background:#f3f7fb;border:1px solid #dce5ef;border-radius:8px"><tr><td style="padding:16px 18px">
+          <p style="margin:0 0 8px;font-size:14px;color:#425168"><strong style="color:#102039">Comissão:</strong> {{ .Data.comissao }}</p>
+          <p style="margin:0;font-size:14px;line-height:1.55;color:#425168"><strong style="color:#102039">Renovações:</strong> {{ .Data.regra_renovacao }}</p>
+        </td></tr></table>
+        {{ if .Data.link_parceiro }}<p style="font-size:14px;line-height:1.6;color:#425168"><strong style="color:#102039">Seu link exclusivo:</strong><br><a href="{{ .Data.link_parceiro }}" style="color:#1479bd;word-break:break-all">{{ .Data.link_parceiro }}</a></p>{{ end }}
+        <p style="margin:26px 0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#168de2;color:#ffffff;padding:14px 22px;border-radius:7px;text-decoration:none;font-weight:bold">Criar senha e aceitar convite</a></p>
+        <p style="font-size:13px;line-height:1.6;color:#627187">O link é pessoal e temporário. Depois de criar sua senha, entre com <strong>{{ .Email }}</strong>. Não compartilhe este e-mail.</p>
+        <p style="font-size:12px;line-height:1.6;color:#627187">Se o botão não abrir, copie este endereço para o navegador:<br><a href="{{ .ConfirmationURL }}" style="color:#1479bd;word-break:break-all">{{ .ConfirmationURL }}</a></p>
+      </td></tr>
+      <tr><td style="padding:16px 28px;background:#f3f7fb;color:#627187;font-size:12px">Lotti · Programa de Parceiros</td></tr>
+    </table>
+  </td></tr></table>
+  {{ else }}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px">
       <tr><td style="padding:32px 32px 16px;color:#093323;font-size:30px;font-weight:bold">Lotti</td></tr>
@@ -16,5 +37,6 @@
     </table>
     <p style="font-size:12px;color:#58655e">Lotti · Sua operação imobiliária em um só lugar.</p>
   </td></tr></table>
+  {{ end }}
 </body>
 </html>

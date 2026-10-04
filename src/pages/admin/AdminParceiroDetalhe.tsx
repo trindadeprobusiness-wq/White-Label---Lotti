@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Copy, Pencil, Plus, Link2, Ban, Percent } from 'lucide-react';
+import { ArrowLeft, Copy, Pencil, Plus, Link2, Ban, Percent, Mail, Loader2 } from 'lucide-react';
 import { CabecalhoAdmin } from '@/components/admin/CabecalhoAdmin';
 import { CartaoMetrica } from '@/components/admin/CartaoMetrica';
 import { EstadoErro } from '@/components/admin/Estados';
@@ -22,6 +22,7 @@ import { dataBR, dataHoraBR, moeda, numero, percentual } from '@/lib/formato';
 import { getParceiroLinkUrl } from '@/lib/publicBaseUrl';
 import { ROTULO_BASE } from '@/lib/admin/comissao';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 const COR_STATUS: Record<string, string> = {
   ativo: 'bg-success/10 text-success border-success/20',
@@ -43,6 +44,7 @@ export default function AdminParceiroDetalhe() {
   const [novoPercentual, setNovoPercentual] = useState(false);
   const [novoLink, setNovoLink] = useState(false);
   const [revogando, setRevogando] = useState<string | null>(null);
+  const [enviandoConvite, setEnviandoConvite] = useState(false);
 
   const { podeExecutar } = usePapeis();
   const revogarLink = useRevogarLink();
@@ -108,6 +110,22 @@ export default function AdminParceiroDetalhe() {
                 Editar
               </Button>
             )}
+            {podeExecutar('editar_parceiro') && parceiro.convite_status !== 'aceito' && (
+              <Button size="sm" disabled={enviandoConvite || parceiro.status !== 'ativo'} onClick={async () => {
+                setEnviandoConvite(true);
+                const { data: resposta, error: erroConvite } = await supabase.functions.invoke('parceiro-convidar', { body: { parceiro_id: id } });
+                setEnviandoConvite(false);
+                if (erroConvite || !resposta?.ok) {
+                  toast.error(resposta?.error ?? 'Não foi possível enviar o convite. Confira o provedor de e-mail.');
+                  return;
+                }
+                toast.success(`Convite enviado para ${resposta.email}.`);
+                void refetch();
+              }}>
+                {enviandoConvite ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                {parceiro.convite_status === 'falhou' ? 'Reenviar convite' : parceiro.user_id ? 'Reenviar acesso' : 'Enviar convite'}
+              </Button>
+            )}
           </>
         }
       />
@@ -122,6 +140,9 @@ export default function AdminParceiroDetalhe() {
         <span className="text-sm text-muted-foreground">
           Janela de {numero(parceiro.janela_atribuicao_dias)} dias
         </span>
+        {parceiro.user_id && <Badge variant="outline" className="border-success/20 text-success">Acesso ao portal ativo</Badge>}
+        {!parceiro.user_id && parceiro.convite_status === 'falhou' && <Badge variant="outline" className="border-destructive/30 text-destructive">Falha no envio do convite</Badge>}
+        {!parceiro.user_id && parceiro.convite_status === 'enviado' && <Badge variant="outline" className="border-sky-500/30 text-sky-600">Convite enviado</Badge>}
       </div>
 
       {!vigente && (

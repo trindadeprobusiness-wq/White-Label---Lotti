@@ -138,6 +138,7 @@ export interface Parceiro {
   janela_atribuicao_dias: number;
   observacoes: string | null;
   user_id: string | null;
+  convite_status?: 'nao_enviado' | 'enviado' | 'aceito' | 'falhou';
   criado_em: string;
   atualizado_em: string;
 }
@@ -148,6 +149,7 @@ export interface PercentualParceiro {
   percentual: number;
   base_calculo: BaseCalculo;
   valor_fixo: number | null;
+  teto_renovacoes?: number | null;
   vigencia_inicio: string;
   /** Nulo = vigência aberta. Só uma por parceiro (índice único parcial). */
   vigencia_fim: string | null;
