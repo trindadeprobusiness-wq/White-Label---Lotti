@@ -17,6 +17,7 @@
 - Nenhuma migration nova. Tudo usa o que já existe em produção (verificado em 2026-10-04):
   - `routine_events`: `status` aceita `draft|pending_confirmation|confirmed|completed|cancelled`; `priority` aceita `low|medium|high|urgent`; `source` aceita `lotti|google|automation|ai|other_user`; `sync_status` aceita `local|pending|synced|conflict|error`; `visibility` aceita `team|private`.
   - `alertas`: colunas `id, cliente_id, corretor_id, tipo, mensagem, metadata, lido, created_at, read_at, origem, entidade_tipo, entidade_id`. **Não existe coluna `prioridade`**: a prioridade vai em `metadata.prioridade`.
+  - `alertas.entidade_tipo` aceita só `fatura|repasse|contrato|cliente|imovel|plano` (ou null) e `origem` aceita `sistema|asaas|cron|ia`. O alerta de visita usa `entidade_tipo='cliente'` com o id do cliente da conversa, para o sino abrir a ficha dele; o id do evento fica em `metadata.routine_event_id`.
   - `tipo_alerta` aceita `FOLLOWUP,DOCUMENTO,EXCLUSIVIDADE,GERAL,LEAD_QUENTE,PAGAMENTO,TRANSFERENCIA`. Usar `GERAL`.
   - `routine_memberships.role` aceita `proprietario|administrador|gestor|corretor|financeiro|juridico|colaborador`.
   - `routine_detect_conflicts(p_assigned_to uuid, p_start_at timestamptz, p_end_at timestamptz, p_exclude_event_id uuid)` exige `auth.uid()`, por isso roda dentro de `TenantDb.run` como o corretor.
@@ -220,7 +221,6 @@ export interface NovoAlerta {
   corretorId: string;
   clienteId: string | null;
   mensagem: string;
-  entidadeId: string | null;
   metadata: Record<string, unknown>;
 }
 
@@ -310,7 +310,7 @@ export class VisitasRepo {
       await this.prisma.$executeRaw`
         insert into public.alertas (corretor_id, cliente_id, tipo, mensagem, metadata, lido, origem, entidade_tipo, entidade_id)
         values (${a.corretorId}::uuid, ${a.clienteId}::uuid, 'GERAL', ${a.mensagem}, ${JSON.stringify(a.metadata)}::jsonb,
-                false, 'ia', 'visita', ${a.entidadeId}::uuid)`;
+                false, 'ia', 'cliente', ${a.clienteId}::uuid)`;
     }
   }
 
@@ -336,6 +336,7 @@ create temp table prova as
   select co.id as corretor_id, co.user_id, m.organization_id
   from public.corretores co join public.routine_memberships m on m.user_id = co.user_id and m.status = 'active'
   limit 1;
+grant select on prova to authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', user_id, 'role', 'authenticated')::text, true) from prova;
 set local role authenticated;
 select count(*)::text as conflitos_amanha_10h
@@ -348,7 +349,7 @@ select organization_id, user_id, user_id, 'Visita: prova', 'visita', 'pending_co
 select count(*)::text as eventos_prova from public.routine_events where title = 'Visita: prova';
 reset role;
 insert into public.alertas (corretor_id, cliente_id, tipo, mensagem, metadata, lido, origem, entidade_tipo, entidade_id)
-select corretor_id, null, 'GERAL', 'prova', '{"visita_id":"prova","prioridade":"ALTA"}'::jsonb, false, 'ia', 'visita', null from prova;
+select corretor_id, null, 'GERAL', 'prova', '{"visita_id":"prova","prioridade":"ALTA"}'::jsonb, false, 'ia', 'cliente', null from prova;
 select count(*)::text as alertas_prova from public.alertas where metadata->>'visita_id' = 'prova';
 rollback;
 ```
@@ -428,7 +429,7 @@ describe('VisitasService.solicitar', () => {
     const alertas = r.criarAlertas.mock.calls[0][0];
     expect(alertas).toHaveLength(1);
     expect(alertas[0]).toMatchObject({
-      corretorId: 'cor1', clienteId: 'cli1', entidadeId: 'evt1',
+      corretorId: 'cor1', clienteId: 'cli1',
       mensagem: 'Maria Souza pediu visita em 07/10 às 15:30. Confirme o agendamento.',
       metadata: { prioridade: 'ALTA', tipo: 'visita_confirmar', visita_id: out.visitaId, conversation_id: 'conv1',
         inicio: '2026-10-07T18:30:00.000Z', fim: '2026-10-07T19:30:00.000Z', imovel_id: 'imo1',
@@ -588,7 +589,7 @@ export class VisitasService {
       : `${nome} pediu visita em ${quando(inicio)}. Confirme o agendamento.`;
     const destinos = ocupado ? [p.corretorId, ...(await this.repo.gestores(organizationId, corretor.userId))] : [p.corretorId];
     await this.repo.criarAlertas(destinos.map((corretorId) => ({
-      corretorId, clienteId: conversa.clienteId, mensagem, entidadeId: routineEventId, metadata,
+      corretorId, clienteId: conversa.clienteId, mensagem, metadata,
     })));
     return { visitaId, situacao: ocupado ? ('conflito' as const) : ('agendada' as const), routineEventId };
   }
