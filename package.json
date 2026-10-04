@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "audit:security": "npm audit --audit-level=low",
+    "audit:security": "npm audit --omit=dev --audit-level=low",
     "test:security-browser": "node scripts/security-smoke.mjs"
   },
   "dependencies": {
@@ -75,7 +75,6 @@
     "remark-gfm": "^4.0.1",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76",
@@ -85,6 +84,7 @@
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
+    "tailwindcss-animate": "^1.0.7",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
