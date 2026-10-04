@@ -225,9 +225,9 @@ export function gerarSchema(catalogo) {
 
   const saida = [
     '// GERADO por api/scripts/schema/gerar-schema.mjs a partir do banco de produção.',
-    '// Não edite à mão: rode o gerador de novo. NUNCA rodar prisma migrate, db push',
-    '// ou db pull contra o Supabase: até a mudança do banco, o schema é das migrations',
-    '// SQL em supabase/migrations (funções, gatilhos, RLS e checks só existem lá).',
+    '// Não edite à mão: mudança de banco é migration SQL em prisma/migrations; depois',
+    '// rode o gerador de novo. NUNCA rodar prisma migrate dev, db push ou db pull contra',
+    '// a produção. Funções, gatilhos, RLS e checks existem só nas migrations SQL.',
     `// Fora do Prisma: tabelas ${excluidas.join(', ') || '(nenhuma)'}; views ${(catalogo.views || []).join(', ') || '(nenhuma)'}.`,
     '',
     'generator client {',
@@ -237,6 +237,8 @@ export function gerarSchema(catalogo) {
     'datasource db {',
     '  provider = "postgresql"',
     '  url      = env("DATABASE_URL")',
+    '  // Migrations precisam de conexão direta (o pooler de transação não serve).',
+    '  directUrl = env("DIRECT_URL")',
     '}',
     '',
   ];
