@@ -4,7 +4,8 @@
   "private": true,
   "engines": { "node": ">=22" },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
     "start:prod": "node dist/main.js",
     "test": "jest",
     "typecheck": "tsc --noEmit"

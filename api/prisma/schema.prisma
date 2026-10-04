@@ -1,0 +1,45 @@
+// Modelos escritos à mão, só para leitura. O schema real é das migrations SQL
+// em supabase/migrations. NUNCA rodar prisma migrate, db push ou db pull aqui.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoImovel {
+  APARTAMENTO
+  CASA
+  COMERCIAL
+  TERRENO
+
+  @@map("tipo_imovel")
+}
+
+enum FinalidadeImovel {
+  VENDA
+  LOCACAO
+  AMBOS
+
+  @@map("finalidade_imovel")
+}
+
+model Imovel {
+  id          String           @id @db.Uuid
+  corretorId  String           @map("corretor_id") @db.Uuid
+  titulo      String
+  tipo        TipoImovel
+  finalidade  FinalidadeImovel
+  valor       Decimal          @db.Decimal
+  cidade      String
+  bairro      String?
+  dormitorios Int?
+  suites      Int?
+  garagem     Int?
+  areaM2      Decimal?         @map("area_m2") @db.Decimal
+  ativo       Boolean?
+
+  @@map("imoveis")
+}
