@@ -1,5 +1,11 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — migração para o Railway iniciada (2026-10-04)
+- Decisão do Rafael: front, banco/back-end (Supabase) e a stack da VPS vão para o Railway (conta do dono, workspace "Lotti").
+- PR #50 (draft, `feat/railway-front`): Dockerfile + Caddyfile equivalentes ao `vercel.json`. Não testado em container (Docker Desktop parado). O serviço `casa-mente-contrato` criado no Railway falhou porque o Railpack escolheu Bun pelo `bun.lockb`; o Dockerfile resolve.
+- Prompts: `prompt-codex-railway.md` (VPS) e `prompt-codex-railway-supabase.md` (Supabase self-hosted, ensaio sem tocar a produção).
+- Pendente: variáveis VITE_* no serviço do Railway; Redirect URLs no Supabase/Google na virada.
+
 ## Claude — `20260930190000` aplicada e conferida em produção (2026-09-30)
 - Aplicada com `supabase db query --linked -f`, e **conferida lendo o banco**, não pelo histórico: gatilhos `lotti_conversa_no_crm*` = 2, função `lotti_inbox_link_cliente` = 1, conversas com número e sem cliente = 0 (eram 101), clientes em `QUALIFICACAO` = 144 (eram 43), conversas com `crm_capture_pending` = 0. Das 102 conversas com número, as 51 que tinham nome ficaram com o nome exato da conversa; as outras 51 entraram como "Contato WhatsApp" porque o WhatsApp nunca enviou nome para elas.
 - **Histórico de migrations corrigido.** `20260929150000` estava marcada como aplicada sem nunca ter rodado; tentar aplicá-la falha com `relation "public.onboarding_profiles" does not exist` — as tabelas de onboarding não existem em produção, então a funcionalidade inteira não está lá e o bug do "primeiro cliente" não está vivo. A marcação foi revertida com `migration repair --status reverted`. Não tentar aplicar essa migration de novo sem antes resolver a ausência das tabelas de onboarding.
