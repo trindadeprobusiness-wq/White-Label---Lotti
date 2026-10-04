@@ -34,7 +34,9 @@ try {
     const naProducao = (await origem(sqlVisaoDoUsuario(sub)))[0];
     const noEnsaio = (await destino.query(sqlVisaoDoUsuario(sub)))
       .find?.((r) => r.rows?.[0] && 'clientes' in r.rows[0])?.rows[0];
-    const igual = JSON.stringify(naProducao) === JSON.stringify(noEnsaio);
+    // A CLI devolve os campos em ordem alfabética; compara campo a campo.
+    const ordenado = (o) => JSON.stringify(Object.fromEntries(Object.entries(o ?? {}).sort()));
+    const igual = ordenado(naProducao) === ordenado(noEnsaio);
     console.log(`3. usuário ${i + 1}: ${igual ? 'mesma visão' : 'VISÃO DIFERENTE'} ${JSON.stringify(noEnsaio)}${igual ? '' : ' x produção ' + JSON.stringify(naProducao)}`);
     falhou ||= !igual;
   }

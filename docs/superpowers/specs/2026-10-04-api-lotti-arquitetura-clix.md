@@ -77,7 +77,24 @@ dele.
    - Prova no PGlite: a baseline sozinha recria o banco, e o schema gerado dela é
      idêntico, linha por linha, ao da produção.
    - `supabase/migrations` está congelada. Fluxo em `api/prisma/README.md`.
-3. **Ensaio do banco no Railway, sem tocar a produção.**
+3. **Ensaio do banco no Railway, sem tocar a produção.** ✅ Feito (2026-10-04).
+   - Serviço `Postgres` (PostgreSQL 18.6) no projeto Lotti.
+   - Estrutura aplicada pelo próprio `prisma migrate deploy` (as 2 migrations).
+   - Dados copiados por `api/scripts/dados/copiar.mjs`: 7.342 linhas, 62 tabelas
+     com dados, contagens iguais nas 105. Leitura pela CLI do Supabase e
+     gravação direta da memória, sem dado pessoal em disco.
+   - `api/scripts/dados/conferir-ensaio.mjs` confirmou três coisas: schema
+     idêntico ao `schema.prisma`, contagens iguais e a mesma visão pelo RLS
+     para os 3 usuários.
+   - A API (`api`) aponta para esse banco pela rede interna
+     (`${{Postgres.DATABASE_URL}}`). **Até a virada (fase 6), o banco do Railway
+     é cópia, não produção:** nada de tráfego real na API antes disso.
+   - Para atualizar a cópia antes da virada:
+     1. recriar o banco do ensaio;
+     2. `prisma migrate deploy`;
+     3. `copiar.mjs`, com o TCP proxy reaberto
+        (`railway tcp-proxy create --service Postgres --port 5432`).
+   Plano original desta fase:
    - Postgres no Railway com a baseline e os dados copiados. A baseline já foi
      provada fora do Supabase (PGlite): cadastro, RLS no padrão TenantDb e trava
      de plano funcionam com a compatibilidade `auth.uid()`/papéis da `0_init`.
