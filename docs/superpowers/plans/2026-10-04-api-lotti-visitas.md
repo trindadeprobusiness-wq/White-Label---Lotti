@@ -391,7 +391,8 @@ import { inicioEmBrasilia, VisitasService } from './visitas.service';
 const AGORA = new Date('2026-10-05T12:00:00-03:00');
 const pedido = { conversationId: 'conv1', corretorId: 'cor1', data: '2026-10-07', hora: '15:30', imovelId: 'imo1' };
 
-function repo(over: Record<string, unknown> = {}) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function repo(over: Record<string, unknown> = {}): any {
   return {
     conversa: jest.fn(async () => ({ corretorId: 'cor1', clienteId: 'cli1', nome: 'Maria Souza' })),
     corretor: jest.fn(async () => ({ userId: 'user1', nome: 'João Corretor' })),
