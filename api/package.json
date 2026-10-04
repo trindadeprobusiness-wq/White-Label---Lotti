@@ -11,7 +11,8 @@
     "start:prod": "prisma migrate deploy && node dist/main.js",
     "test": "jest && node --test scripts/schema/*.test.mjs",
     "typecheck": "tsc --noEmit",
-    "schema:gerar": "node scripts/schema/gerar-schema.mjs"
+    "schema:gerar": "node scripts/schema/schema-local.mjs && prisma format",
+    "schema:producao": "node scripts/schema/gerar-schema.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",

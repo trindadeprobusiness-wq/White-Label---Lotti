@@ -16,7 +16,7 @@ continuaria sendo "o Supabase").
 |---|---|---|
 | Front | React no Railway (`app.plataformalotti.com.br`) | igual, falando com a API |
 | API | `api/` NestJS no Railway (PR #51): health, busca de imóveis, visitas | todos os módulos abaixo |
-| Schema | **`api/prisma/schema.prisma` completo**, gerado do banco real: 103 modelos, 16 enums, 147 relações | Prisma dono do schema (`migrate deploy`) |
+| Schema | `api/prisma/migrations` é a fonte da verdade (baseline `0_init` + novas); `schema.prisma` gerado delas: 103 modelos, 16 enums, 147 relações | ✅ igual ao Clix (`migrate deploy` no start da API) |
 | Banco | Postgres do Supabase (38 MB, 3 usuários) | Postgres no Railway |
 | Login | Supabase Auth | JWT próprio (como o Clix). 2 das 3 contas têm senha em bcrypt e migram sem trocar senha; a terceira recebe link de criar senha |
 | Arquivos | Supabase Storage (89 arquivos, cerca de 90 MB) | R2/S3 (o Clix usa R2) |
@@ -69,15 +69,18 @@ login, arquivos, Realtime e as Edge Functions dependem do Supabase rodando em ci
 dele.
 
 1. **Schema completo no Prisma.** ✅ Feito (`a57d78b`).
-2. **Baseline SQL e Prisma como dono do schema.**
-   - Extrair do catálogo a DDL completa: tabelas, funções, gatilhos, policies,
-     checks e índices parciais. Vira `api/prisma/migrations/0_init/migration.sql`.
-   - Marcar como aplicada na produção, sem executar: `prisma migrate resolve --applied 0_init`.
-   - A partir daí, **toda mudança de schema é migration Prisma** e
-     `supabase/migrations` congela.
-   - **Precisa de combinado com quem mais escreve migration** (Codex).
+2. **Baseline SQL e Prisma como dono do schema.** ✅ Feito.
+   - `api/prisma/migrations/0_init` tem o banco inteiro (1.740 comandos),
+     extraído do catálogo por `api/scripts/schema/ddl.sql`.
+   - Está marcada como aplicada na produção (`_prisma_migrations`, trancada com
+     RLS e sem acesso público).
+   - Prova no PGlite: a baseline sozinha recria o banco, e o schema gerado dela é
+     idêntico, linha por linha, ao da produção.
+   - `supabase/migrations` está congelada. Fluxo em `api/prisma/README.md`.
 3. **Ensaio do banco no Railway, sem tocar a produção.**
-   - Postgres no Railway com a baseline e os dados copiados.
+   - Postgres no Railway com a baseline e os dados copiados. A baseline já foi
+     provada fora do Supabase (PGlite): cadastro, RLS no padrão TenantDb e trava
+     de plano funcionam com a compatibilidade `auth.uid()`/papéis da `0_init`.
    - Um schema `auth` mínimo (`auth.uid()`, `auth.role()`, `auth.jwt()` lendo
      `request.jwt.claims`, como o Supabase faz) e os papéis `anon`,
      `authenticated` e `service_role`. Assim as 141 policies e o `TenantDb`

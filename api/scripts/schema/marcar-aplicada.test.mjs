@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { montarBaseline } from './gerar-baseline.mjs';
-import { checksum, sqlMarcarAplicada } from './marcar-baseline.mjs';
+import { checksum, sqlMarcarAplicada } from './marcar-aplicada.mjs';
 
 test('checksum é o SHA-256 dos bytes, como o Prisma calcula', () => {
   assert.equal(checksum(Buffer.from('abc')), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');

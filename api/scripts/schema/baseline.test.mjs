@@ -100,3 +100,15 @@ test('a trava de plano da produção também vale fora do Supabase', async () =>
     /PLAN_LIMIT_REACHED:max_imoveis/,
   );
 });
+
+test('prisma/schema.prisma é exatamente o que as migrations geram (migration e schema no mesmo PR)', async () => {
+  const { catalogoLocal } = await import('./schema-local.mjs');
+  const { gerarSchema } = await import('./gerar-schema.mjs');
+  const norm = (t) => t.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const gerado = norm(gerarSchema(await catalogoLocal()));
+  const commitado = norm(readFileSync(fileURLToPath(new URL('../../prisma/schema.prisma', import.meta.url)), 'utf8'));
+  const faltando = gerado.filter((l) => !commitado.includes(l));
+  const sobrando = commitado.filter((l) => !gerado.includes(l));
+  assert.deepEqual({ faltando, sobrando }, { faltando: [], sobrando: [] },
+    'rode `npm run schema:gerar` e commite o prisma/schema.prisma junto com a migration');
+});

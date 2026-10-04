@@ -5,7 +5,7 @@
 // bytes do migration.sql (por isso as migrations são sempre LF, ver .gitattributes).
 //
 // Uso:
-//   node api/scripts/schema/marcar-baseline.mjs api/prisma/migrations/0_init/migration.sql > marcar.sql
+//   node api/scripts/schema/marcar-aplicada.mjs api/prisma/migrations/0_init/migration.sql > marcar.sql
 //   supabase db query --linked -f marcar.sql
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -41,7 +41,7 @@ FROM public._prisma_migrations ORDER BY started_at;
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [arquivo] = process.argv.slice(2);
-  if (!arquivo) { console.error('uso: node marcar-baseline.mjs prisma/migrations/<nome>/migration.sql'); process.exit(1); }
+  if (!arquivo) { console.error('uso: node marcar-aplicada.mjs prisma/migrations/<nome>/migration.sql'); process.exit(1); }
   const bytes = readFileSync(arquivo);
   if (bytes.includes(13)) { console.error('migration.sql com CRLF: o checksum não bateria com o do Prisma no Linux.'); process.exit(1); }
   process.stdout.write(sqlMarcarAplicada(basename(dirname(arquivo)), checksum(bytes)));

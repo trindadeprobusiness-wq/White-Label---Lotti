@@ -224,7 +224,7 @@ export function gerarSchema(catalogo) {
   }
 
   const saida = [
-    '// GERADO por api/scripts/schema/gerar-schema.mjs a partir do banco de produção.',
+    '// GERADO das migrations (npm run schema:gerar) por api/scripts/schema/gerar-schema.mjs.',
     '// Não edite à mão: mudança de banco é migration SQL em prisma/migrations; depois',
     '// rode o gerador de novo. NUNCA rodar prisma migrate dev, db push ou db pull contra',
     '// a produção. Funções, gatilhos, RLS e checks existem só nas migrations SQL.',

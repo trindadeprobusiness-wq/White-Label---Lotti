@@ -1,8 +1,8 @@
-// GERADO por api/scripts/schema/gerar-schema.mjs a partir do banco de produção.
+// GERADO das migrations (npm run schema:gerar) por api/scripts/schema/gerar-schema.mjs.
 // Não edite à mão: mudança de banco é migration SQL em prisma/migrations; depois
 // rode o gerador de novo. NUNCA rodar prisma migrate dev, db push ou db pull contra
 // a produção. Funções, gatilhos, RLS e checks existem só nas migrations SQL.
-// Fora do Prisma: tabelas _backfill_comissoes_20260727, _backup_lancamentos_dup_20260727; views v_leads_whatsapp.
+// Fora do Prisma: tabelas (nenhuma); views v_leads_whatsapp.
 
 generator client {
   provider = "prisma-client-js"

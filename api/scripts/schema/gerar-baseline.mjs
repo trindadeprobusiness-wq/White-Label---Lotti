@@ -1,11 +1,12 @@
 // Monta api/prisma/migrations/0_init/migration.sql a partir da saída de ddl.sql.
-// Na produção (Supabase) esta migration fica MARCADA como aplicada e nunca roda:
+// Usado uma vez (2026-10-04): a 0_init está MARCADA como aplicada na produção e
+// congelada. Na produção ela nunca roda:
 // ela serve para criar bancos novos idênticos (ensaio no Railway, shadow DB).
 //
 // Uso:
 //   supabase db query --linked -f api/scripts/schema/ddl.sql > ddl.json
 //   node api/scripts/schema/gerar-baseline.mjs ddl.json api/prisma/migrations/0_init/migration.sql
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -118,6 +119,9 @@ export function lerLinhas(texto) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [entrada, destino] = process.argv.slice(2);
   if (!entrada || !destino) { console.error('uso: node gerar-baseline.mjs ddl.json migration.sql'); process.exit(1); }
+  // A 0_init já está marcada como aplicada na produção (checksum registrado):
+  // reescrevê-la quebraria o histórico. Para comparar, gere em outro caminho.
+  if (existsSync(destino)) { console.error(`${destino} já existe e está congelada. Gere em outro caminho para comparar.`); process.exit(1); }
   mkdirSync(dirname(destino), { recursive: true });
   writeFileSync(destino, montarBaseline(lerLinhas(readFileSync(entrada, 'utf8'))));
   console.log('baseline gerada em', destino);
