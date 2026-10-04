@@ -1,5 +1,9 @@
-// Modelos escritos à mão, só para leitura. O schema real é das migrations SQL
-// em supabase/migrations. NUNCA rodar prisma migrate, db push ou db pull aqui.
+// GERADO por api/scripts/schema/gerar-schema.mjs a partir do banco de produção.
+// Não edite à mão: rode o gerador de novo. NUNCA rodar prisma migrate, db push
+// ou db pull contra o Supabase: até a mudança do banco, o schema é das migrations
+// SQL em supabase/migrations (funções, gatilhos, RLS e checks só existem lá).
+// Fora do Prisma: tabelas _backfill_comissoes_20260727, _backup_lancamentos_dup_20260727; views v_leads_whatsapp.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +11,132 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum AddonStatus {
+  active
+  canceled
+
+  @@map("addon_status")
+}
+
+enum AppRole {
+  super_admin
+  admin
+  support
+
+  @@map("app_role")
+}
+
+enum BillingCycle {
+  monthly
+  annual
+
+  @@map("billing_cycle")
+}
+
+enum CanalContato {
+  WHATSAPP
+  EMAIL
+  TELEFONE
+  PRESENCIAL
+  OUTRO
+
+  @@map("canal_contato")
+}
+
+enum DirecaoContato {
+  IN
+  OUT
+
+  @@map("direcao_contato")
+}
+
+enum DiscountType {
+  percentage
+  fixed
+
+  @@map("discount_type")
+}
+
+enum FinalidadeImovel {
+  VENDA
+  LOCACAO
+  AMBOS
+
+  @@map("finalidade_imovel")
+}
+
+enum PrioridadeAlerta {
+  ALTA
+  MEDIA
+  BAIXA
+
+  @@map("prioridade_alerta")
+}
+
+enum StatusFunil {
+  QUALIFICACAO
+  VISITA_PROPOSTA
+  DOCUMENTACAO
+  FECHADO_GANHO
+  FECHADO_PERDIDO
+
+  @@map("status_funil")
+}
+
+enum StatusVenda {
+  DISPONIVEL
+  VENDIDO
+  ALUGADO
+
+  @@map("status_venda")
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  expired
+  read_only
+
+  @@map("subscription_status")
+}
+
+enum TipoAlerta {
+  FOLLOWUP
+  DOCUMENTO
+  EXCLUSIVIDADE
+  GERAL
+  LEAD_QUENTE
+  PAGAMENTO
+  TRANSFERENCIA
+
+  @@map("tipo_alerta")
+}
+
+enum TipoContato {
+  LIGACAO
+  EMAIL
+  WHATSAPP
+  VISITA
+  PROPOSTA
+  NOTA
+
+  @@map("tipo_contato")
+}
+
+enum TipoContrato {
+  COMPRA_VENDA
+  LOCACAO_RESIDENCIAL
+  LOCACAO_COMERCIAL
+  EXCLUSIVIDADE_VENDA
+  EXCLUSIVIDADE_LOCACAO
+  DISTRATO
+  PROCURACAO
+
+  @@map("tipo_contrato")
 }
 
 enum TipoImovel {
@@ -18,28 +148,2526 @@ enum TipoImovel {
   @@map("tipo_imovel")
 }
 
-enum FinalidadeImovel {
-  VENDA
+enum TipoInteresse {
+  COMPRA
   LOCACAO
   AMBOS
 
-  @@map("finalidade_imovel")
+  @@map("tipo_interesse")
 }
 
-model Imovel {
-  id          String           @id @db.Uuid
-  corretorId  String           @map("corretor_id") @db.Uuid
-  titulo      String
-  tipo        TipoImovel
-  finalidade  FinalidadeImovel
-  valor       Decimal          @db.Decimal
-  cidade      String
-  bairro      String?
-  dormitorios Int?
-  suites      Int?
-  garagem     Int?
-  areaM2      Decimal?         @map("area_m2") @db.Decimal
-  ativo       Boolean?
+/// Tabela public.admin_auditoria — RLS ligado.
+/// Gatilhos: tr_admin_auditoria_imutavel.
+model AdminAuditoria {
+  id          BigInt   @id @default(autoincrement())
+  /// referencia auth.users(id)
+  atorUserId  String?  @map("ator_user_id") @db.Uuid
+  acao        String
+  entidade    String
+  entidadeId  String?  @map("entidade_id")
+  dadosAntes  Json?    @map("dados_antes")
+  dadosDepois Json?    @map("dados_depois")
+  motivo      String?
+  ipHash      String?  @map("ip_hash")
+  userAgent   String?  @map("user_agent")
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
 
+  @@index([atorUserId, criadoEm(sort: Desc)], map: "idx_admin_auditoria_ator")
+  @@index([criadoEm(sort: Desc)], map: "idx_admin_auditoria_data")
+  @@index([entidade, entidadeId, criadoEm(sort: Desc)], map: "idx_admin_auditoria_entidade")
+  @@map("admin_auditoria")
+}
+
+/// Tabela public.admin_config — RLS ligado.
+/// Gatilhos: auditar_escrita_direta, auditar_suporte.
+model AdminConfig {
+  chave         String   @id
+  valor         Json
+  descricao     String?
+  atualizadoEm  DateTime @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  atualizadoPor String?  @map("atualizado_por") @db.Uuid
+
+  @@map("admin_config")
+}
+
+/// Tabela public.admin_sessoes_suporte — RLS ligado.
+model AdminSessaoSuporte {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  atorUserId    String    @map("ator_user_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId        String    @map("user_id") @db.Uuid
+  corretorId    String    @map("corretor_id") @db.Uuid
+  authSessionId String    @unique @map("auth_session_id") @db.Uuid
+  criadoEm      DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+  expiraEm      DateTime  @default(dbgenerated("(now() + '00:30:00'::interval)")) @map("expira_em") @db.Timestamptz(6)
+  encerradoEm   DateTime? @map("encerrado_em") @db.Timestamptz(6)
+
+  corretor Corretor @relation("admin_sessoes_suporte_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("admin_sessoes_suporte")
+}
+
+/// Tabela public.ai_attachments — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model AiAttachment {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId     String    @map("message_id") @db.Uuid
+  fileName      String    @map("file_name")
+  fileType      String    @map("file_type")
+  fileSize      Int       @map("file_size")
+  storagePath   String    @map("storage_path")
+  extractedText String?   @map("extracted_text")
+  metadata      Json?
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message AiMessage @relation("ai_attachments_message_id_fkey", fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([messageId], map: "idx_ai_attachments_message")
+  @@map("ai_attachments")
+}
+
+/// Tabela public.ai_conversations — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model AiConversation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId  String    @map("corretor_id") @db.Uuid
+  title       String?   @default("Nova conversa")
+  model       String?   @default("grok-4.20-reasoning")
+  totalTokens Int?      @default(0) @map("total_tokens")
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+  pinned      Boolean   @default(false)
+
+  corretor   Corretor    @relation("ai_conversations_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  aiMessages AiMessage[] @relation("ai_messages_conversation_id_fkey")
+
+  @@index([corretorId, pinned(sort: Desc), updatedAt(sort: Desc)], map: "idx_ai_conversations_pinned")
+  @@map("ai_conversations")
+}
+
+/// Tabela public.ai_messages — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_onboarding_ai_first_used.
+/// 1 check constraint(s) só no SQL.
+model AiMessage {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  role           String
+  content        String    @default("")
+  toolCalls      Json?     @map("tool_calls")
+  toolName       String?   @map("tool_name")
+  metadata       Json?
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation  AiConversation @relation("ai_messages_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  aiAttachments AiAttachment[] @relation("ai_attachments_message_id_fkey")
+
+  @@index([conversationId, createdAt], map: "idx_ai_messages_conversation")
+  @@map("ai_messages")
+}
+
+/// Tabela public.ai_rate_limits — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model AiRateLimit {
+  corretorId   String    @id @map("corretor_id") @db.Uuid
+  messageCount Int?      @default(0) @map("message_count")
+  windowStart  DateTime? @default(now()) @map("window_start") @db.Timestamptz(6)
+
+  corretor Corretor @relation("ai_rate_limits_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("ai_rate_limits")
+}
+
+/// Tabela public.alertas — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: alertas_ia_conversation_unread_idx.
+model Alerta {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId    String?    @map("cliente_id") @db.Uuid
+  corretorId   String     @map("corretor_id") @db.Uuid
+  tipo         TipoAlerta
+  mensagem     String
+  metadata     Json       @default("{}")
+  lido         Boolean    @default(false)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt       DateTime?  @map("read_at") @db.Timestamptz(6)
+  origem       String?
+  entidadeTipo String?    @map("entidade_tipo")
+  entidadeId   String?    @map("entidade_id") @db.Uuid
+
+  cliente  Cliente? @relation("alertas_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor Corretor @relation("alertas_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([corretorId, lido, createdAt(sort: Desc)], map: "idx_alertas_corretor_lido")
+  @@index([corretorId, lido, createdAt(sort: Desc)], map: "idx_alertas_corretor_nao_lidos")
+  @@index([entidadeTipo, entidadeId], map: "idx_alertas_entidade")
+  @@map("alertas")
+}
+
+/// Tabela public.asaas_checkout_events — RLS ligado.
+/// Gatilhos: asaas_checkout_events_updated_at, auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+model AsaasCheckoutEvent {
+  id          String    @id
+  eventType   String    @map("event_type")
+  paymentId   String?   @map("payment_id")
+  status      String    @default("received")
+  attempts    Int       @default(0)
+  errorCode   String?   @map("error_code")
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("asaas_checkout_events")
+}
+
+/// Tabela public.asaas_conexoes — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_asaas_conexoes_updated_at.
+/// 3 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_asaas_conexoes_herdada.
+model AsaasConexao {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId           String    @unique @map("corretor_id") @db.Uuid
+  ambiente             String    @default("producao")
+  status               String    @default("nao_conectada")
+  contaNome            String?   @map("conta_nome")
+  contaEmail           String?   @map("conta_email")
+  contaCpfCnpj         String?   @map("conta_cpf_cnpj")
+  chaveFinal           String?   @map("chave_final")
+  escoposFaltando      String[]  @default([]) @map("escopos_faltando")
+  validadaEm           DateTime? @map("validada_em") @db.Timestamptz(6)
+  webhookId            String?   @map("webhook_id")
+  webhookSlug          String?   @unique @map("webhook_slug")
+  webhookConfiguradoEm DateTime? @map("webhook_configurado_em") @db.Timestamptz(6)
+  passoGuia            Int       @default(1) @map("passo_guia") @db.SmallInt
+  rotacaoPendente      Boolean   @default(false) @map("rotacao_pendente")
+  herdadaDoAmbiente    Boolean   @default(false) @map("herdada_do_ambiente")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  corretor            Corretor             @relation("asaas_conexoes_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  asaasConexaoSegredo AsaasConexaoSegredo? @relation("asaas_conexao_segredos_conexao_id_fkey")
+
+  @@index([webhookSlug], map: "idx_asaas_conexoes_webhook_slug")
+  @@map("asaas_conexoes")
+}
+
+/// Tabela public.asaas_conexao_segredos — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_asaas_conexao_segredos_updated_at.
+model AsaasConexaoSegredo {
+  conexaoId              String   @id @map("conexao_id") @db.Uuid
+  apiKeyCiphertext       String?  @map("api_key_ciphertext")
+  webhookTokenCiphertext String?  @map("webhook_token_ciphertext")
+  updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  conexao AsaasConexao @relation("asaas_conexao_segredos_conexao_id_fkey", fields: [conexaoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("asaas_conexao_segredos")
+}
+
+/// Tabela public.asaas_webhook_events — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_awe_pending.
+model AsaasWebhookEvent {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId     String    @unique(map: "uq_asaas_webhook_event") @map("event_id")
+  eventType   String    @map("event_type")
+  paymentId   String?   @map("payment_id")
+  payload     Json
+  status      String    @default("RECEIVED")
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  corretorId  String?   @map("corretor_id") @db.Uuid
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  corretor Corretor? @relation("asaas_webhook_events_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([paymentId], map: "idx_awe_payment")
+  @@map("asaas_webhook_events")
+}
+
+/// Tabela public.atividade_eventos — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model AtividadeEvento {
+  id         BigInt   @id @default(autoincrement())
+  /// referencia auth.users(id)
+  userId     String   @map("user_id") @db.Uuid
+  corretorId String?  @map("corretor_id") @db.Uuid
+  tipo       String
+  rota       String?
+  metadata   Json?
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  corretor Corretor? @relation("atividade_eventos_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([corretorId, criadoEm(sort: Desc)], map: "idx_atividade_corretor")
+  @@index([criadoEm(sort: Desc)], map: "idx_atividade_data")
+  @@map("atividade_eventos")
+}
+
+/// Tabela public.auditoria_financeira — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_auditoria_imutavel.
+/// 1 check constraint(s) só no SQL.
+model AuditoriaFinanceira {
+  id          BigInt   @id @default(autoincrement())
+  corretorId  String?  @map("corretor_id") @db.Uuid
+  entidade    String
+  entidadeId  String   @map("entidade_id") @db.Uuid
+  acao        String
+  dadosAntes  Json?    @map("dados_antes")
+  dadosDepois Json?    @map("dados_depois")
+  calculo     Json?
+  origem      String
+  ator        String?
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  @@index([entidade, entidadeId], map: "idx_auditoria_entidade")
+  @@index([corretorId, criadoEm], map: "idx_auditoria_tenant")
+  @@map("auditoria_financeira")
+}
+
+/// Tabela public.billing_legacy_accounts — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model BillingLegacyAccount {
+  corretorId String   @id @map("corretor_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  corretor Corretor @relation("billing_legacy_accounts_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("billing_legacy_accounts")
+}
+
+/// Tabela public.calendar_connections — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_onboarding_calendar_connected.
+/// 3 check constraint(s) só no SQL.
+model CalendarConnection {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String    @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId                 String    @map("user_id") @db.Uuid
+  provider               String    @default("google")
+  providerAccountId      String?   @map("provider_account_id")
+  providerEmail          String?   @map("provider_email")
+  scopes                 String[]  @default(dbgenerated("ARRAY[]::text[]"))
+  status                 String    @default("pending")
+  accessTokenCiphertext  String?   @map("access_token_ciphertext")
+  refreshTokenCiphertext String?   @map("refresh_token_ciphertext")
+  tokenExpiresAt         DateTime? @map("token_expires_at") @db.Timestamptz(6)
+  oauthStateHash         String?   @map("oauth_state_hash")
+  pkceVerifierCiphertext String?   @map("pkce_verifier_ciphertext")
+  oauthExpiresAt         DateTime? @map("oauth_expires_at") @db.Timestamptz(6)
+  privacyMode            String    @default("partial") @map("privacy_mode")
+  lastSyncAt             DateTime? @map("last_sync_at") @db.Timestamptz(6)
+  lastErrorCode          String?   @map("last_error_code")
+  disconnectedAt         DateTime? @map("disconnected_at") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  organization          RoutineOrganization    @relation("calendar_connections_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  calendarEventMappings CalendarEventMapping[] @relation("calendar_event_mappings_connection_id_fkey")
+  externalCalendars     ExternalCalendar[]     @relation("external_calendars_connection_id_fkey")
+
+  @@unique([organizationId, userId, provider])
+  @@map("calendar_connections")
+}
+
+/// Tabela public.calendar_event_mappings — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model CalendarEventMapping {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  connectionId       String    @map("connection_id") @db.Uuid
+  externalCalendarId String    @map("external_calendar_id") @db.Uuid
+  routineEventId     String?   @map("routine_event_id") @db.Uuid
+  googleEventId      String    @map("google_event_id")
+  googleEtag         String?   @map("google_etag")
+  googleUpdatedAt    DateTime? @map("google_updated_at") @db.Timestamptz(6)
+  syncVersion        BigInt    @default(1) @map("sync_version")
+  origin             String    @default("google")
+  lastSyncedAt       DateTime  @default(now()) @map("last_synced_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  connection       CalendarConnection  @relation("calendar_event_mappings_connection_id_fkey", fields: [connectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  externalCalendar ExternalCalendar    @relation("calendar_event_mappings_external_calendar_id_fkey", fields: [externalCalendarId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization     RoutineOrganization @relation("calendar_event_mappings_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  routineEvent     RoutineEvent?       @relation("calendar_event_mappings_routine_event_id_fkey", fields: [routineEventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([connectionId, routineEventId])
+  @@unique([externalCalendarId, googleEventId], map: "calendar_event_mappings_external_calendar_id_google_event_i_key")
+  @@index([routineEventId], map: "idx_calendar_mapping_event")
+  @@map("calendar_event_mappings")
+}
+
+/// Tabela public.calendar_sync_states — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_calendar_sync_states_updated_at.
+model CalendarSyncState {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalCalendarId    String    @unique @map("external_calendar_id") @db.Uuid
+  syncTokenCiphertext   String?   @map("sync_token_ciphertext")
+  fullSyncStartedAt     DateTime? @map("full_sync_started_at") @db.Timestamptz(6)
+  lastIncrementalSyncAt DateTime? @map("last_incremental_sync_at") @db.Timestamptz(6)
+  lastSuccessAt         DateTime? @map("last_success_at") @db.Timestamptz(6)
+  lastErrorCode         String?   @map("last_error_code")
+  retryCount            Int       @default(0) @map("retry_count")
+  nextRetryAt           DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  externalCalendar ExternalCalendar @relation("calendar_sync_states_external_calendar_id_fkey", fields: [externalCalendarId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("calendar_sync_states")
+}
+
+/// Tabela public.calendar_watch_channels — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_calendar_watch_channels_updated_at.
+/// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_calendar_watch_expiration.
+model CalendarWatchChannel {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalCalendarId String   @map("external_calendar_id") @db.Uuid
+  channelId          String   @unique @map("channel_id")
+  resourceId         String   @map("resource_id")
+  resourceUri        String?  @map("resource_uri")
+  channelTokenHash   String   @map("channel_token_hash")
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(6)
+  status             String   @default("active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  externalCalendar ExternalCalendar @relation("calendar_watch_channels_external_calendar_id_fkey", fields: [externalCalendarId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("calendar_watch_channels")
+}
+
+/// Tabela public.calendar_webhook_receipts — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model CalendarWebhookReceipt {
+  id            BigInt   @id @default(autoincrement())
+  channelId     String   @map("channel_id")
+  messageNumber BigInt   @map("message_number")
+  resourceState String?  @map("resource_state")
+  receivedAt    DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  @@unique([channelId, messageNumber])
+  @@map("calendar_webhook_receipts")
+}
+
+/// Tabela public.cancelamento_feedback — RLS ligado.
+/// Gatilhos: auditar_suporte, cancelamento_feedback_atualizado_em.
+/// 4 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: cancelamento_feedback_corretor_idx.
+model CancelamentoFeedback {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId       String?  @map("corretor_id") @db.Uuid
+  contatoNome      String?  @map("contato_nome")
+  contatoEmail     String?  @map("contato_email")
+  contatoTelefone  String?  @map("contato_telefone")
+  planoAnterior    String?  @map("plano_anterior")
+  motivo           String
+  comentario       String?
+  origem           String   @default("outro")
+  dataCancelamento DateTime @default(dbgenerated("CURRENT_DATE")) @map("data_cancelamento") @db.Date
+  /// referencia auth.users(id)
+  registradoPor    String?  @map("registrado_por") @db.Uuid
+  criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm     DateTime @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  corretor Corretor? @relation("cancelamento_feedback_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([dataCancelamento(sort: Desc)], map: "cancelamento_feedback_data_idx")
+  @@index([motivo, dataCancelamento(sort: Desc)], map: "cancelamento_feedback_motivo_idx")
+  @@map("cancelamento_feedback")
+}
+
+/// Tabela public.checkout_orders — RLS ligado.
+/// Gatilhos: auditar_suporte, checkout_orders_updated_at.
+/// 5 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: checkout_orders_email_idx, checkout_orders_payment_idx.
+model CheckoutOrder {
+  id                    String    @id @db.Uuid
+  accessTokenHash       String    @unique @map("access_token_hash")
+  payerName             String    @map("payer_name")
+  payerEmail            String    @map("payer_email")
+  payerDocument         String    @map("payer_document")
+  payerPhone            String    @map("payer_phone")
+  planCode              String    @map("plan_code")
+  billingCycle          String    @map("billing_cycle")
+  paymentMethod         String    @map("payment_method")
+  amount                Decimal   @db.Decimal(10, 2)
+  status                String    @default("creating")
+  asaasCustomerId       String?   @map("asaas_customer_id")
+  asaasSubscriptionId   String?   @unique @map("asaas_subscription_id")
+  asaasPaymentId        String?   @map("asaas_payment_id")
+  /// referencia auth.users(id)
+  provisionedUserId     String?   @map("provisioned_user_id") @db.Uuid
+  accessEmailSentAt     DateTime? @map("access_email_sent_at") @db.Timestamptz(6)
+  provisioningStartedAt DateTime? @map("provisioning_started_at") @db.Timestamptz(6)
+  failureCode           String?   @map("failure_code")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  checkoutPayments CheckoutPayment[] @relation("checkout_payments_order_id_fkey")
+
+  @@map("checkout_orders")
+}
+
+/// Tabela public.checkout_payments — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model CheckoutPayment {
+  paymentId String   @id @map("payment_id")
+  orderId   String   @map("order_id") @db.Uuid
+  status    String
+  dueDate   DateTime @map("due_date") @db.Date
+  amount    Decimal  @db.Decimal(10, 2)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  order CheckoutOrder @relation("checkout_payments_order_id_fkey", fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("checkout_payments")
+}
+
+/// Tabela public.checkout_rate_limits — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model CheckoutRateLimit {
+  keyHash  String   @map("key_hash")
+  bucket   DateTime @db.Timestamptz(6)
+  attempts Int
+
+  @@id([keyHash, bucket])
+  @@index([bucket])
+  @@map("checkout_rate_limits")
+}
+
+/// Tabela public.clientes — RLS ligado.
+/// Gatilhos: auditar_suporte, clientes_phone_guard_insert, clientes_phone_guard_update, lotti_inbox_record_legacy_stage.
+/// Índices parciais/por expressão só no SQL: clientes_corretor_phone_key_idx, uq_clientes_asaas_customer.
+model Cliente {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId       String        @map("corretor_id") @db.Uuid
+  nome             String
+  telefone         String
+  email            String?
+  cpf              String?
+  rg               String?
+  nacionalidade    String?       @default("brasileiro(a)")
+  estadoCivil      String?       @map("estado_civil")
+  profissao        String?
+  enderecoCompleto String?       @map("endereco_completo")
+  tipoInteresse    TipoInteresse @default(COMPRA) @map("tipo_interesse")
+  statusFunil      StatusFunil   @default(QUALIFICACAO) @map("status_funil")
+  ultimoContato    DateTime?     @default(now()) @map("ultimo_contato") @db.Timestamptz(6)
+  proximoFollowup  DateTime?     @map("proximo_followup") @db.Timestamptz(6)
+  observacoes      String?
+  createdAt        DateTime?     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime?     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  trackingData     Json?         @default("{}") @map("tracking_data")
+  asaasCustomerId  String?       @map("asaas_customer_id")
+  isSampleData     Boolean       @default(false) @map("is_sample_data")
+
+  corretor                Corretor                 @relation("clientes_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  alertas                 Alerta[]                 @relation("alertas_cliente_id_fkey")
+  clienteImovel           ClienteImovel[]          @relation("cliente_imovel_cliente_id_fkey")
+  contratos               Contrato[]               @relation("contratos_cliente_id_fkey")
+  crmOportunidades        CrmOportunidade[]        @relation("crm_oportunidades_cliente_id_fkey")
+  crmTarefas              CrmTarefa[]              @relation("crm_tarefas_cliente_id_fkey")
+  documentos              Documento[]              @relation("documentos_cliente_id_fkey")
+  fachadaLeads            FachadaLead[]            @relation("fachada_leads_cliente_id_fkey")
+  faturasAluguel          FaturaAluguel[]          @relation("faturas_aluguel_cliente_id_fkey")
+  historicoContatos       HistoricoContato[]       @relation("historico_contatos_cliente_id_fkey")
+  lottiAgentConversations LottiAgentConversation[] @relation("lotti_agent_conversations_cliente_id_fkey")
+  routineEvents           RoutineEvent[]           @relation("routine_events_client_id_fkey")
+  routineTasks            RoutineTask[]            @relation("routine_tasks_client_id_fkey")
+
+  @@map("clientes")
+}
+
+/// Tabela public.cliente_imovel — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model ClienteImovel {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId      String    @map("cliente_id") @db.Uuid
+  imovelId       String    @map("imovel_id") @db.Uuid
+  nivelInteresse Int?      @default(5) @map("nivel_interesse")
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cliente Cliente @relation("cliente_imovel_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imovel  Imovel  @relation("cliente_imovel_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([clienteId, imovelId])
+  @@map("cliente_imovel")
+}
+
+/// Tabela public.commercial_diagnostics — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 6 check constraint(s) só no SQL.
+model CommercialDiagnostic {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId           String    @unique @map("session_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  name                String
+  phone               String
+  email               String?
+  city                String?
+  company             String?
+  consentAt           DateTime  @map("consent_at") @db.Timestamptz(6)
+  answers             Json
+  attribution         Json      @default("{}")
+  scores              Json
+  dominantProblem     String    @map("dominant_problem")
+  secondaryProblems   String[]  @default([]) @map("secondary_problems")
+  urgencyLabel        String    @map("urgency_label")
+  profileLabel        String    @map("profile_label")
+  recommendedNextStep String    @map("recommended_next_step")
+  status              String    @default("novo")
+  ctaClickedAt        DateTime? @map("cta_clicked_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)], map: "commercial_diagnostics_created_idx")
+  @@index([status, createdAt(sort: Desc)], map: "commercial_diagnostics_status_idx")
+  @@map("commercial_diagnostics")
+}
+
+/// Tabela public.commercial_diagnostic_events — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+model CommercialDiagnosticEvent {
+  id        BigInt   @id @default(autoincrement())
+  sessionId String   @map("session_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  event     String
+  step      String?
+
+  @@index([event, step, createdAt(sort: Desc)], map: "commercial_diagnostic_events_funnel_idx")
+  @@index([sessionId, createdAt], map: "commercial_diagnostic_events_session_idx")
+  @@map("commercial_diagnostic_events")
+}
+
+/// Tabela public.contract_quota_reservations — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model ContractQuotaReservation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId  String    @map("corretor_id") @db.Uuid
+  periodStart DateTime  @map("period_start") @db.Date
+  status      String    @default("reserved")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  finishedAt  DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  corretor Corretor @relation("contract_quota_reservations_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("contract_quota_reservations")
+}
+
+/// Tabela public.contratos — RLS ligado.
+/// Gatilhos: auditar_suporte, contratos_limite_plano.
+/// 1 check constraint(s) só no SQL.
+model Contrato {
+  id                          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId                  String       @map("corretor_id") @db.Uuid
+  clienteId                   String?      @map("cliente_id") @db.Uuid
+  imovelId                    String?      @map("imovel_id") @db.Uuid
+  tipo                        TipoContrato
+  valor                       Decimal      @db.Decimal(15, 2)
+  dataInicio                  DateTime     @map("data_inicio") @db.Date
+  prazoMeses                  Int?         @map("prazo_meses")
+  diaVencimento               Int?         @map("dia_vencimento")
+  indiceReajuste              String?      @map("indice_reajuste")
+  clausulasAdicionais         String[]     @map("clausulas_adicionais")
+  conteudo                    String
+  status                      String       @default("RASCUNHO")
+  taxaAdministracaoPercentual Decimal?     @default(10.00) @map("taxa_administracao_percentual") @db.Decimal(5, 2)
+  diaVencimentoAluguel        Int          @default(10) @map("dia_vencimento_aluguel")
+  diaRepasseProprietario      Int          @default(15) @map("dia_repasse_proprietario")
+  multaAtrasoPercentual       Decimal?     @default(10.00) @map("multa_atraso_percentual") @db.Decimal(5, 2)
+  jurosMoraDiarioPercentual   Decimal?     @default(0.0333) @map("juros_mora_diario_percentual") @db.Decimal(5, 4)
+  dadosBancariosRepasse       Json?        @map("dados_bancarios_repasse")
+  vistoriaEntradaUrl          String?      @map("vistoria_entrada_url")
+  garantiaTipo                String?      @map("garantia_tipo")
+  createdAt                   DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime?    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  arquivoUrl                  String?      @map("arquivo_url")
+  dataProximoReajuste         DateTime?    @map("data_proximo_reajuste") @db.Date
+  dataEncerramento            DateTime?    @map("data_encerramento") @db.Date
+  dataFim                     DateTime?    @map("data_fim") @db.Date
+  observacoes                 String?
+
+  cliente                Cliente?               @relation("contratos_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  corretor               Corretor               @relation("contratos_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imovel                 Imovel?                @relation("contratos_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  contratosRenegociacoes ContratoRenegociacao[] @relation("contratos_renegociacoes_contrato_id_fkey")
+  faturasAluguel         FaturaAluguel[]        @relation("faturas_aluguel_contrato_id_fkey")
+  lancamentosFinanceiros LancamentoFinanceiro[] @relation("lancamentos_financeiros_contrato_id_fkey")
+  repassesProprietario   RepasseProprietario[]  @relation("repasses_proprietario_contrato_id_fkey")
+  routineEventsContract  RoutineEvent[]         @relation("routine_events_contract_id_fkey")
+  routineEventsRental    RoutineEvent[]         @relation("routine_events_rental_id_fkey")
+  routineTasksContract   RoutineTask[]          @relation("routine_tasks_contract_id_fkey")
+  routineTasksRental     RoutineTask[]          @relation("routine_tasks_rental_id_fkey")
+
+  @@map("contratos")
+}
+
+/// Tabela public.contratos_renegociacoes — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model ContratoRenegociacao {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contratoId     String   @map("contrato_id") @db.Uuid
+  corretorId     String   @map("corretor_id") @db.Uuid
+  tipo           String
+  valoresAntes   Json     @map("valores_antes")
+  valoresDepois  Json     @map("valores_depois")
+  indiceAplicado String?  @map("indice_aplicado")
+  percentual     Decimal? @db.Decimal(8, 4)
+  vigenciaInicio DateTime @map("vigencia_inicio") @db.Date
+  motivo         String?
+  criadoPor      String?  @map("criado_por") @db.Uuid
+  criadoEm       DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  contrato Contrato @relation("contratos_renegociacoes_contrato_id_fkey", fields: [contratoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor Corretor @relation("contratos_renegociacoes_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("contratos_renegociacoes")
+}
+
+/// Tabela public.corretores — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_ensure_routine_organization, tr_proteger_status_corretor, trg_bootstrap_onboarding, trg_crm_seed_etapas.
+/// 2 check constraint(s) só no SQL.
+model Corretor {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  userId           String    @unique @map("user_id") @db.Uuid
+  nome             String
+  creci            String
+  creciEstado      String    @default("SP") @map("creci_estado") @db.Char(2)
+  email            String
+  telefone         String
+  endereco         String?
+  website          String?
+  razaoSocial      String?   @map("razao_social")
+  cnpjCpf          String?   @map("cnpj_cpf")
+  enderecoCompleto String?   @map("endereco_completo")
+  fotoUrl          String?   @map("foto_url")
+  preferencias     Json?     @default("{\"tema\": \"light\", \"sidebar_expandida\": true}")
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+  status           String    @default("ativo")
+  suspensoEm       DateTime? @map("suspenso_em") @db.Timestamptz(6)
+  suspensoMotivo   String?   @map("suspenso_motivo")
+  /// referencia auth.users(id)
+  suspensoPor      String?   @map("suspenso_por") @db.Uuid
+  ultimoAcessoEm   DateTime? @map("ultimo_acesso_em") @db.Timestamptz(6)
+  cidade           String?
+  estado           String?   @db.Char(2)
+  tipoAtuacao      String?   @map("tipo_atuacao")
+  regioesAtendidas String[]  @default(dbgenerated("ARRAY[]::text[]")) @map("regioes_atendidas")
+  especialidade    String?
+  fusoHorario      String    @default("America/Sao_Paulo") @map("fuso_horario")
+  creciStatus      String    @default("nao_informado") @map("creci_status")
+
+  adminSessoesSuporte       AdminSessaoSuporte[]       @relation("admin_sessoes_suporte_corretor_id_fkey")
+  aiConversations           AiConversation[]           @relation("ai_conversations_corretor_id_fkey")
+  aiRateLimit               AiRateLimit?               @relation("ai_rate_limits_corretor_id_fkey")
+  alertas                   Alerta[]                   @relation("alertas_corretor_id_fkey")
+  asaasConexao              AsaasConexao?              @relation("asaas_conexoes_corretor_id_fkey")
+  asaasWebhookEvents        AsaasWebhookEvent[]        @relation("asaas_webhook_events_corretor_id_fkey")
+  atividadeEventos          AtividadeEvento[]          @relation("atividade_eventos_corretor_id_fkey")
+  billingLegacyAccount      BillingLegacyAccount?      @relation("billing_legacy_accounts_corretor_id_fkey")
+  cancelamentoFeedback      CancelamentoFeedback[]     @relation("cancelamento_feedback_corretor_id_fkey")
+  clientes                  Cliente[]                  @relation("clientes_corretor_id_fkey")
+  contractQuotaReservations ContractQuotaReservation[] @relation("contract_quota_reservations_corretor_id_fkey")
+  contratos                 Contrato[]                 @relation("contratos_corretor_id_fkey")
+  contratosRenegociacoes    ContratoRenegociacao[]     @relation("contratos_renegociacoes_corretor_id_fkey")
+  crmEtapas                 CrmEtapa[]                 @relation("crm_etapas_corretor_id_fkey")
+  crmOportunidades          CrmOportunidade[]          @relation("crm_oportunidades_corretor_id_fkey")
+  crmTarefas                CrmTarefa[]                @relation("crm_tarefas_corretor_id_fkey")
+  documentos                Documento[]                @relation("documentos_corretor_id_fkey")
+  fachadaTemplates          FachadaTemplate[]          @relation("fachada_templates_corretor_id_fkey")
+  fachadas                  Fachada[]                  @relation("fachadas_corretor_id_fkey")
+  faturasAluguel            FaturaAluguel[]            @relation("faturas_aluguel_corretor_id_fkey")
+  imoveis                   Imovel[]                   @relation("imoveis_corretor_id_fkey")
+  jobQueue                  JobQueue[]                 @relation("job_queue_corretor_id_fkey")
+  lancamentosFinanceiros    LancamentoFinanceiro[]     @relation("lancamentos_financeiros_corretor_id_fkey")
+  leadsSemDestino           LeadSemDestino[]           @relation("leads_sem_destino_atribuido_a_fkey")
+  lottiAgentChannels        LottiAgentChannel[]        @relation("lotti_agent_channels_corretor_id_fkey")
+  lottiAgentConversations   LottiAgentConversation[]   @relation("lotti_agent_conversations_corretor_id_fkey")
+  lottiAgentSetting         LottiAgentSetting?         @relation("lotti_agent_settings_corretor_id_fkey")
+  lottiAgentUsage           LottiAgentUsage[]          @relation("lotti_agent_usage_corretor_id_fkey")
+  lottiBroadcastCampaigns   LottiBroadcastCampaign[]   @relation("lotti_broadcast_campaigns_corretor_id_fkey")
+  lottiBroadcastDeliveries  LottiBroadcastDelivery[]   @relation("lotti_broadcast_deliveries_corretor_id_fkey")
+  lottiManualSends          LottiManualSend[]          @relation("lotti_manual_sends_corretor_id_fkey")
+  parceiroAtribuicoes       ParceiroAtribuicao[]       @relation("parceiro_atribuicoes_corretor_id_fkey")
+  parceiroComissoes         ParceiroComissao[]         @relation("parceiro_comissoes_corretor_id_fkey")
+  proprietarios             Proprietario[]             @relation("proprietarios_corretor_id_fkey")
+  receitaEventos            ReceitaEvento[]            @relation("receita_eventos_corretor_id_fkey")
+  repassesProprietario      RepasseProprietario[]      @relation("repasses_proprietario_corretor_id_fkey")
+  routineOrganization       RoutineOrganization?       @relation("routine_organizations_legacy_corretor_id_fkey")
+  subscriptionAddons        SubscriptionAddon[]        @relation("subscription_addons_corretor_id_fkey")
+  subscriptions             Subscription[]             @relation("subscriptions_corretor_id_fkey")
+  usageCounters             UsageCounter[]             @relation("usage_counters_corretor_id_fkey")
+
+  @@index([status], map: "idx_corretores_status")
+  @@index([ultimoAcessoEm(sort: Desc)], map: "idx_corretores_ultimo_acesso")
+  @@map("corretores")
+}
+
+/// Tabela public.crm_etapas — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model CrmEtapa {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId String   @map("corretor_id") @db.Uuid
+  nome       String
+  ordem      Int      @default(0)
+  cor        String   @default("slate")
+  tipo       String   @default("ABERTA")
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  corretor         Corretor          @relation("crm_etapas_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  crmOportunidades CrmOportunidade[] @relation("crm_oportunidades_etapa_id_fkey")
+
+  @@unique([corretorId, nome], map: "uq_crm_etapas_corretor_nome")
+  @@index([corretorId, ordem], map: "idx_crm_etapas_corretor_ordem")
+  @@map("crm_etapas")
+}
+
+/// Tabela public.crm_oportunidades — RLS ligado.
+/// Gatilhos: auditar_suporte, lotti_inbox_record_crm_stage, trg_crm_oport_updated_at.
+/// 1 check constraint(s) só no SQL.
+model CrmOportunidade {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId             String    @map("corretor_id") @db.Uuid
+  clienteId              String?   @map("cliente_id") @db.Uuid
+  imovelId               String?   @map("imovel_id") @db.Uuid
+  etapaId                String    @map("etapa_id") @db.Uuid
+  titulo                 String
+  valorEstimado          Decimal   @default(0) @map("valor_estimado") @db.Decimal(15, 2)
+  probabilidade          Int       @default(0)
+  dataPrevistaFechamento DateTime? @map("data_prevista_fechamento") @db.Date
+  motivoPerda            String?   @map("motivo_perda")
+  origem                 String?
+  ordem                  Int       @default(0)
+  observacoes            String?
+  fechadaEm              DateTime? @map("fechada_em") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  isSampleData           Boolean   @default(false) @map("is_sample_data")
+
+  cliente       Cliente?       @relation("crm_oportunidades_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor      Corretor       @relation("crm_oportunidades_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  etapa         CrmEtapa       @relation("crm_oportunidades_etapa_id_fkey", fields: [etapaId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  imovel        Imovel?        @relation("crm_oportunidades_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  crmTarefas    CrmTarefa[]    @relation("crm_tarefas_oportunidade_id_fkey")
+  routineEvents RoutineEvent[] @relation("routine_events_deal_id_fkey")
+  routineTasks  RoutineTask[]  @relation("routine_tasks_deal_id_fkey")
+
+  @@index([clienteId], map: "idx_crm_oport_cliente")
+  @@index([corretorId, etapaId, ordem], map: "idx_crm_oport_corretor_etapa")
+  @@map("crm_oportunidades")
+}
+
+/// Tabela public.crm_tarefas — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_crm_tarefas_abertas.
+model CrmTarefa {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId     String    @map("corretor_id") @db.Uuid
+  oportunidadeId String?   @map("oportunidade_id") @db.Uuid
+  clienteId      String?   @map("cliente_id") @db.Uuid
+  titulo         String
+  descricao      String?
+  tipo           String    @default("OUTRO")
+  dataPrevista   DateTime? @map("data_prevista") @db.Timestamptz(6)
+  concluida      Boolean   @default(false)
+  concluidaEm    DateTime? @map("concluida_em") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  isSampleData   Boolean   @default(false) @map("is_sample_data")
+
+  cliente      Cliente?         @relation("crm_tarefas_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor     Corretor         @relation("crm_tarefas_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  oportunidade CrmOportunidade? @relation("crm_tarefas_oportunidade_id_fkey", fields: [oportunidadeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("crm_tarefas")
+}
+
+/// Tabela public.documentos — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model Documento {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt    DateTime  @default(dbgenerated("timezone('utc'::text, now())")) @map("created_at") @db.Timestamptz(6)
+  corretorId   String?   @map("corretor_id") @db.Uuid
+  clienteId    String?   @map("cliente_id") @db.Uuid
+  imovelId     String?   @map("imovel_id") @db.Uuid
+  nome         String
+  tipo         String
+  arquivoPath  String    @map("arquivo_path")
+  dataValidade DateTime? @map("data_validade") @db.Timestamptz(6)
+  observacoes  String?
+  validado     Boolean?  @default(false)
+  arquivoUrl   String?   @map("arquivo_url")
+
+  cliente  Cliente?  @relation("documentos_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  corretor Corretor? @relation("documentos_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imovel   Imovel?   @relation("documentos_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("documentos")
+}
+
+/// Tabela public.external_calendars — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_external_calendars_updated_at.
+/// 1 check constraint(s) só no SQL.
+model ExternalCalendar {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connectionId       String   @map("connection_id") @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId             String   @map("user_id") @db.Uuid
+  externalCalendarId String   @map("external_calendar_id")
+  summary            String
+  color              String?
+  accessRole         String?  @map("access_role")
+  selected           Boolean  @default(true)
+  isPrimary          Boolean  @default(false) @map("is_primary")
+  isDefault          Boolean  @default(false) @map("is_default")
+  syncDirection      String   @default("bidirectional") @map("sync_direction")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  connection            CalendarConnection     @relation("external_calendars_connection_id_fkey", fields: [connectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization          RoutineOrganization    @relation("external_calendars_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  calendarEventMappings CalendarEventMapping[] @relation("calendar_event_mappings_external_calendar_id_fkey")
+  calendarSyncState     CalendarSyncState?     @relation("calendar_sync_states_external_calendar_id_fkey")
+  calendarWatchChannels CalendarWatchChannel[] @relation("calendar_watch_channels_external_calendar_id_fkey")
+
+  @@unique([connectionId, externalCalendarId])
+  @@map("external_calendars")
+}
+
+/// Tabela public.fachadas — RLS ligado.
+/// Gatilhos: auditar_suporte, fachadas_limite_plano, tr_proteger_id_fachada.
+/// 3 check constraint(s) só no SQL.
+model Fachada {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId         String   @map("corretor_id") @db.Uuid
+  imovelId           String   @map("imovel_id") @db.Uuid
+  tipoNegocio        String   @default("VENDA") @map("tipo_negocio")
+  templateId         String   @default("venda-classica") @map("template_id")
+  ctaPrincipal       String   @default("WHATSAPP") @map("cta_principal")
+  modoConversao      Boolean  @default(false) @map("modo_conversao")
+  mensagemWhatsapp   String?  @map("mensagem_whatsapp")
+  logoUrl            String?  @map("logo_url")
+  fotoPrincipalUrl   String?  @map("foto_principal_url")
+  ativo              Boolean  @default(true)
+  totalEscaneamentos Int      @default(0) @map("total_escaneamentos")
+  totalLeads         Int      @default(0) @map("total_leads")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  mensagemContato    String?  @map("mensagem_contato")
+
+  corretor             Corretor              @relation("fachadas_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imovel               Imovel                @relation("fachadas_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fachadaEscaneamentos FachadaEscaneamento[] @relation("fachada_escaneamentos_fachada_id_fkey")
+  fachadaLeads         FachadaLead[]         @relation("fachada_leads_fachada_id_fkey")
+
+  @@index([corretorId], map: "idx_fachadas_corretor")
+  @@index([imovelId], map: "idx_fachadas_imovel")
+  @@map("fachadas")
+}
+
+/// Tabela public.fachada_escaneamentos — RLS ligado.
+/// Gatilhos: auditar_suporte, guard_public_insert, trg_dec_scans, trigger_increment_escaneamentos.
+model FachadaEscaneamento {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fachadaId String   @map("fachada_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  userAgent String?  @map("user_agent")
+  ipHash    String?  @map("ip_hash")
+
+  fachada Fachada @relation("fachada_escaneamentos_fachada_id_fkey", fields: [fachadaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdAt], map: "idx_fachada_escaneamentos_created")
+  @@index([fachadaId], map: "idx_fachada_escaneamentos_fachada")
+  @@map("fachada_escaneamentos")
+}
+
+/// Tabela public.fachada_leads — RLS ligado.
+/// Gatilhos: auditar_suporte, guard_public_insert, trg_dec_leads, trigger_increment_leads.
+model FachadaLead {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fachadaId  String   @map("fachada_id") @db.Uuid
+  nome       String
+  telefone   String
+  email      String?
+  convertido Boolean  @default(false)
+  clienteId  String?  @map("cliente_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cliente Cliente? @relation("fachada_leads_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  fachada Fachada  @relation("fachada_leads_fachada_id_fkey", fields: [fachadaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdAt], map: "idx_fachada_leads_created")
+  @@index([fachadaId], map: "idx_fachada_leads_fachada")
+  @@map("fachada_leads")
+}
+
+/// Tabela public.fachada_templates — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model FachadaTemplate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId String?  @map("corretor_id") @db.Uuid
+  nome       String
+  categoria  String   @default("VENDA")
+  config     Json     @default("{}")
+  padrao     Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  corretor Corretor? @relation("fachada_templates_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([corretorId], map: "idx_fachada_templates_corretor")
+  @@map("fachada_templates")
+}
+
+/// Tabela public.faturas_aluguel — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_on_bill_paid.
+/// 2 check constraint(s) só no SQL.
+model FaturaAluguel {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contratoId             String    @map("contrato_id") @db.Uuid
+  clienteId              String    @map("cliente_id") @db.Uuid
+  imovelId               String    @map("imovel_id") @db.Uuid
+  corretorId             String    @map("corretor_id") @db.Uuid
+  mesReferencia          String    @map("mes_referencia") @db.Char(7)
+  dataVencimento         DateTime  @map("data_vencimento") @db.Date
+  valorAluguel           Decimal   @map("valor_aluguel") @db.Decimal(15, 2)
+  valorCondominio        Decimal?  @default(0) @map("valor_condominio") @db.Decimal(15, 2)
+  valorIptu              Decimal?  @default(0) @map("valor_iptu") @db.Decimal(15, 2)
+  valorExtras            Decimal?  @default(0) @map("valor_extras") @db.Decimal(15, 2)
+  valorDesconto          Decimal?  @default(0) @map("valor_desconto") @db.Decimal(15, 2)
+  /// coluna gerada pelo banco (somente leitura): ((((valor_aluguel + valor_condominio) + valor_iptu) + valor_extras) - valor_desconto)
+  valorTotal             Decimal?  @map("valor_total") @db.Decimal(15, 2)
+  status                 String    @default("PENDENTE")
+  dataPagamento          DateTime? @map("data_pagamento") @db.Date
+  valorPago              Decimal?  @map("valor_pago") @db.Decimal(15, 2)
+  comprovanteUrl         String?   @map("comprovante_url")
+  boletoUrl              String?   @map("boleto_url")
+  externalId             String?   @unique @map("external_id") @db.VarChar(255)
+  asaasStatus            String?   @map("asaas_status") @db.VarChar(50)
+  dataCredito            DateTime? @map("data_credito") @db.Date
+  reciboUrl              String?   @map("recibo_url")
+  boletoUrlAsaas         String?   @map("boleto_url_asaas")
+  rawPayload             Json?     @map("raw_payload")
+  createdAt              DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+  pixQrcodeText          String?   @map("pix_qrcode_text")
+  valorEncargosRecebidos Decimal?  @default(0) @map("valor_encargos_recebidos") @db.Decimal(12, 2)
+  motivoCancelamento     String?   @map("motivo_cancelamento")
+  geradaPor              String?   @default("manual") @map("gerada_por")
+
+  cliente                Cliente                @relation("faturas_aluguel_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contrato               Contrato               @relation("faturas_aluguel_contrato_id_fkey", fields: [contratoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor               Corretor               @relation("faturas_aluguel_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imovel                 Imovel                 @relation("faturas_aluguel_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lancamentosFinanceiros LancamentoFinanceiro[] @relation("lancamentos_financeiros_fatura_id_fkey")
+  repassesProprietario   RepasseProprietario[]  @relation("repasses_proprietario_fatura_origem_id_fkey")
+
+  @@unique([contratoId, mesReferencia], map: "uq_fatura_contrato_mes")
+  @@index([contratoId], map: "idx_faturas_contrato")
+  @@index([corretorId], map: "idx_faturas_corretor")
+  @@index([status], map: "idx_faturas_status")
+  @@map("faturas_aluguel")
+}
+
+/// Tabela public.historico_contatos — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model HistoricoContato {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId   String         @map("cliente_id") @db.Uuid
+  tipo        CanalContato   @default(WHATSAPP)
+  direcao     DirecaoContato
+  conteudo    String
+  metadata    Json           @default("{}")
+  dataContato DateTime       @default(now()) @map("data_contato") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cliente Cliente @relation("historico_contatos_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([clienteId, dataContato(sort: Desc)], map: "idx_historico_cliente_data")
+  @@index([tipo], map: "idx_historico_tipo")
+  @@map("historico_contatos")
+}
+
+/// Tabela public.imoveis — RLS ligado.
+/// Gatilhos: auditar_suporte, imoveis_limite_plano.
+/// Índices parciais/por expressão só no SQL: idx_imoveis_anunciado, idx_imoveis_status_anunciado.
+model Imovel {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId           String           @map("corretor_id") @db.Uuid
+  titulo               String
+  tipo                 TipoImovel
+  valor                Decimal          @db.Decimal(15, 2)
+  areaM2               Decimal?         @map("area_m2") @db.Decimal(10, 2)
+  dormitorios          Int?             @default(0)
+  garagem              Int?             @default(0)
+  endereco             String
+  bairro               String?
+  cidade               String
+  estado               String?          @default("SP") @db.Char(2)
+  cep                  String?
+  descricao            String?
+  exclusividadeAte     DateTime?        @map("exclusividade_ate") @db.Date
+  proprietarioNome     String           @map("proprietario_nome")
+  proprietarioCpf      String?          @map("proprietario_cpf")
+  proprietarioTelefone String?          @map("proprietario_telefone")
+  proprietarioEmail    String?          @map("proprietario_email")
+  ativo                Boolean?         @default(true)
+  createdAt            DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime?        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  trackingData         Json?            @default("{}") @map("tracking_data")
+  statusVenda          StatusVenda?     @default(DISPONIVEL) @map("status_venda")
+  anunciado            Boolean?         @default(false)
+  finalidade           FinalidadeImovel @default(VENDA)
+  banheiros            Int?             @default(0)
+  descricaoCurta       String?          @map("descricao_curta")
+  proprietarioId       String?          @map("proprietario_id") @db.Uuid
+  suites               Int?
+  isSampleData         Boolean          @default(false) @map("is_sample_data")
+
+  corretor               Corretor               @relation("imoveis_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  proprietario           Proprietario?          @relation("imoveis_proprietario_id_fkey", fields: [proprietarioId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  clienteImovel          ClienteImovel[]        @relation("cliente_imovel_imovel_id_fkey")
+  contratos              Contrato[]             @relation("contratos_imovel_id_fkey")
+  crmOportunidades       CrmOportunidade[]      @relation("crm_oportunidades_imovel_id_fkey")
+  documentos             Documento[]            @relation("documentos_imovel_id_fkey")
+  fachadas               Fachada[]              @relation("fachadas_imovel_id_fkey")
+  faturasAluguel         FaturaAluguel[]        @relation("faturas_aluguel_imovel_id_fkey")
+  imovelFotos            ImovelFoto[]           @relation("imovel_fotos_imovel_id_fkey")
+  lancamentosFinanceiros LancamentoFinanceiro[] @relation("lancamentos_financeiros_imovel_id_fkey")
+  routineEvents          RoutineEvent[]         @relation("routine_events_property_id_fkey")
+  routineTasks           RoutineTask[]          @relation("routine_tasks_property_id_fkey")
+
+  @@index([finalidade], map: "idx_imoveis_finalidade")
   @@map("imoveis")
+}
+
+/// Tabela public.imovel_fotos — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// Índices parciais/por expressão só no SQL: idx_imovel_fotos_principal.
+model ImovelFoto {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  imovelId    String    @map("imovel_id") @db.Uuid
+  arquivoPath String    @map("arquivo_path")
+  arquivoUrl  String    @map("arquivo_url")
+  ordem       Int?      @default(0)
+  principal   Boolean?  @default(false)
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  imovel Imovel @relation("imovel_fotos_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([imovelId], map: "idx_imovel_fotos_imovel")
+  @@index([imovelId, ordem], map: "idx_imovel_fotos_imovel_ordem")
+  @@map("imovel_fotos")
+}
+
+/// Tabela public.job_queue — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_job_queue_claim.
+model JobQueue {
+  id          BigInt    @id @default(autoincrement())
+  jobType     String    @map("job_type")
+  payload     Json      @default("{}")
+  dedupeKey   String?   @unique(map: "uq_job_dedupe") @map("dedupe_key")
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5) @map("max_attempts")
+  runAfter    DateTime  @default(now()) @map("run_after") @db.Timestamptz(6)
+  lastError   String?   @map("last_error")
+  corretorId  String?   @map("corretor_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt  DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  corretor Corretor? @relation("job_queue_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("job_queue")
+}
+
+/// Tabela public.lancamentos_financeiros — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// Índices parciais/por expressão só no SQL: uq_lancamento_comissao_fatura.
+model LancamentoFinanceiro {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId     String    @map("corretor_id") @db.Uuid
+  tipo           String
+  categoria      String
+  descricao      String
+  valor          Decimal   @db.Decimal(15, 2)
+  data           DateTime  @db.Timestamptz(6)
+  recorrente     Boolean?  @default(false)
+  contratoId     String?   @map("contrato_id") @db.Uuid
+  imovelId       String?   @map("imovel_id") @db.Uuid
+  comprovanteUrl String?   @map("comprovante_url")
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  faturaId       String?   @map("fatura_id") @db.Uuid
+
+  contrato Contrato?      @relation("lancamentos_financeiros_contrato_id_fkey", fields: [contratoId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  corretor Corretor       @relation("lancamentos_financeiros_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fatura   FaturaAluguel? @relation("lancamentos_financeiros_fatura_id_fkey", fields: [faturaId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  imovel   Imovel?        @relation("lancamentos_financeiros_imovel_id_fkey", fields: [imovelId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("lancamentos_financeiros")
+}
+
+/// Tabela public.leads_sem_destino — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model LeadSemDestino {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String
+  telefone     String
+  email        String?
+  mensagem     String?
+  trackingData Json      @default("{}") @map("tracking_data")
+  motivo       String
+  atribuidoA   String?   @map("atribuido_a") @db.Uuid
+  atribuidoEm  DateTime? @map("atribuido_em") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  atribuidoARel Corretor? @relation("leads_sem_destino_atribuido_a_fkey", fields: [atribuidoA], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("leads_sem_destino")
+}
+
+/// Tabela public.lotti_agent_bridge_endpoint — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+model LottiAgentBridgeEndpoint {
+  id        Boolean  @id @default(true)
+  host      String
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("lotti_agent_bridge_endpoint")
+}
+
+/// Tabela public.lotti_agent_channels — RLS ligado.
+/// Gatilhos: auditar_suporte, lotti_channel_reset_company_on_number_change.
+/// 1 check constraint(s) só no SQL.
+model LottiAgentChannel {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId     String    @map("corretor_id") @db.Uuid
+  instance       String    @unique
+  enabled        Boolean   @default(false)
+  sandbox        Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  accountPhone   String?   @map("account_phone")
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  companyName    String?   @map("company_name")
+  accountBoundAt DateTime? @map("account_bound_at") @db.Timestamptz(6)
+
+  corretor                Corretor                 @relation("lotti_agent_channels_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lottiAgentConversations LottiAgentConversation[] @relation("lotti_agent_conversations_channel_id_fkey")
+
+  @@index([corretorId], map: "lotti_agent_channel_owner_idx")
+  @@map("lotti_agent_channels")
+}
+
+/// Tabela public.lotti_agent_conversations — RLS ligado.
+/// Gatilhos: auditar_suporte, lotti_agent_conversation_phone_guard, lotti_agent_opt_out_mode_guard, lotti_conversa_no_crm_insert, lotti_conversa_no_crm_phone, lotti_inbox_record_mode, lotti_inbox_record_status, lotti_manual_mode_guard.
+/// 8 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: lotti_agent_conversation_active_idx, lotti_agent_conversation_lid_key, lotti_agent_conversation_phone_key_idx, lotti_agent_conversations_pausa_idx, lotti_agent_followup_due_idx, lotti_agent_pending_idx.
+model LottiAgentConversation {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId         String    @map("channel_id") @db.Uuid
+  corretorId        String    @map("corretor_id") @db.Uuid
+  clienteId         String?   @map("cliente_id") @db.Uuid
+  phone             String?
+  mode              String    @default("ai")
+  revision          BigInt    @default(0)
+  processedRevision BigInt    @default(0) @map("processed_revision")
+  leaseToken        String?   @map("lease_token") @db.Uuid
+  leaseUntil        DateTime? @map("lease_until") @db.Timestamptz(6)
+  nextAttemptAt     DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  attempts          Int       @default(0)
+  qualification     Json      @default("{}")
+  notifiedStage     String?   @map("notified_stage")
+  lastError         String?   @map("last_error")
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  status            String    @default("open")
+  contactName       String?   @map("contact_name")
+  archivedAt        DateTime? @map("archived_at") @db.Timestamptz(6)
+  optedOutAt        DateTime? @map("opted_out_at") @db.Timestamptz(6)
+  followupStep      Int       @default(0) @map("followup_step") @db.SmallInt
+  followupDueAt     DateTime? @map("followup_due_at") @db.Timestamptz(6)
+  followupRevision  BigInt?   @map("followup_revision")
+  lid               String?
+  contactNameSource String?   @map("contact_name_source")
+  pausaIaAte        DateTime? @map("pausa_ia_ate") @db.Timestamptz(6)
+  falhasDeEnvio     Int       @default(0) @map("falhas_de_envio")
+
+  channel                  LottiAgentChannel        @relation("lotti_agent_conversations_channel_id_fkey", fields: [channelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cliente                  Cliente?                 @relation("lotti_agent_conversations_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  corretor                 Corretor                 @relation("lotti_agent_conversations_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lottiAgentMessages       LottiAgentMessage[]      @relation("lotti_agent_messages_conversation_id_fkey")
+  lottiAgentOutbox         LottiAgentOutbox[]       @relation("lotti_agent_outbox_conversation_id_fkey")
+  lottiBroadcastDeliveries LottiBroadcastDelivery[] @relation("lotti_broadcast_deliveries_conversation_id_fkey")
+  lottiInboxEvents         LottiInboxEvent[]        @relation("lotti_inbox_events_conversation_id_fkey")
+  lottiManualSends         LottiManualSend[]        @relation("lotti_manual_sends_conversation_id_fkey")
+
+  @@unique([channelId, phone])
+  @@index([corretorId], map: "lotti_agent_conversation_owner_idx")
+  @@index([clienteId], map: "lotti_agent_customer_idx")
+  @@map("lotti_agent_conversations")
+}
+
+/// Tabela public.lotti_agent_messages — RLS ligado.
+/// Gatilhos: auditar_suporte, lotti_agent_detect_opt_out, lotti_inbox_reopen_on_inbound.
+/// 2 check constraint(s) só no SQL.
+model LottiAgentMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  externalId     String   @map("external_id")
+  direction      String
+  sender         String
+  content        String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  mediaPath      String?  @map("media_path")
+
+  conversation LottiAgentConversation @relation("lotti_agent_messages_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, createdAt], map: "lotti_agent_message_time_idx")
+  @@map("lotti_agent_messages")
+}
+
+/// Tabela public.lotti_agent_outbox — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model LottiAgentOutbox {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  revision       BigInt
+  content        String
+  status         String   @default("prepared")
+  externalId     String?  @map("external_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation LottiAgentConversation @relation("lotti_agent_outbox_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conversationId, revision])
+  @@map("lotti_agent_outbox")
+}
+
+/// Tabela public.lotti_agent_settings — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model LottiAgentSetting {
+  corretorId String   @id @map("corretor_id") @db.Uuid
+  settings   Json
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?  @map("updated_by") @db.Uuid
+
+  corretor Corretor @relation("lotti_agent_settings_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("lotti_agent_settings")
+}
+
+/// Tabela public.lotti_agent_usage — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model LottiAgentUsage {
+  corretorId  String   @map("corretor_id") @db.Uuid
+  phone       String
+  periodStart DateTime @map("period_start") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  corretor Corretor @relation("lotti_agent_usage_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([corretorId, phone, periodStart])
+  @@index([corretorId, periodStart], map: "lotti_agent_usage_period_idx")
+  @@map("lotti_agent_usage")
+}
+
+/// Tabela public.lotti_automation_heartbeat — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model LottiAutomationHeartbeat {
+  id     Int      @id @default(1) @db.SmallInt
+  seenAt DateTime @default(now()) @map("seen_at") @db.Timestamptz(6)
+
+  @@map("lotti_automation_heartbeat")
+}
+
+/// Tabela public.lotti_broadcast_campaigns — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 6 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: lotti_broadcast_campaign_due_idx.
+model LottiBroadcastCampaign {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId      String    @map("corretor_id") @db.Uuid
+  name            String
+  status          String    @default("draft")
+  body            String    @default("")
+  stageIds        String[]  @default([]) @map("stage_ids") @db.Uuid
+  startsAt        DateTime? @map("starts_at") @db.Timestamptz(6)
+  intervalSeconds Int       @default(60) @map("interval_seconds")
+  maxRecipients   Int       @default(100) @map("max_recipients")
+  replyPolicy     String    @default("preserve") @map("reply_policy")
+  total           Int       @default(0)
+  excluded        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  startedAt       DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  corretor                 Corretor                 @relation("lotti_broadcast_campaigns_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lottiBroadcastDeliveries LottiBroadcastDelivery[] @relation("lotti_broadcast_deliveries_campaign_id_fkey")
+  lottiBroadcastEvents     LottiBroadcastEvent[]    @relation("lotti_broadcast_events_campaign_id_fkey")
+
+  @@index([corretorId, updatedAt(sort: Desc)], map: "lotti_broadcast_campaign_owner_idx")
+  @@map("lotti_broadcast_campaigns")
+}
+
+/// Tabela public.lotti_broadcast_deliveries — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: lotti_broadcast_delivery_due_idx.
+model LottiBroadcastDelivery {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId     String   @map("campaign_id") @db.Uuid
+  corretorId     String   @map("corretor_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  status         String   @default("pending")
+  scheduledAt    DateTime @map("scheduled_at") @db.Timestamptz(6)
+  content        String
+  leaseToken     String?  @map("lease_token") @db.Uuid
+  attempts       Int      @default(0)
+  reason         String?
+  externalId     String?  @map("external_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  campaign     LottiBroadcastCampaign @relation("lotti_broadcast_deliveries_campaign_id_fkey", fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conversation LottiAgentConversation @relation("lotti_broadcast_deliveries_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor     Corretor               @relation("lotti_broadcast_deliveries_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([campaignId, conversationId])
+  @@index([corretorId, createdAt], map: "lotti_broadcast_delivery_account_idx")
+  @@index([campaignId, status], map: "lotti_broadcast_delivery_campaign_idx")
+  @@map("lotti_broadcast_deliveries")
+}
+
+/// Tabela public.lotti_broadcast_events — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model LottiBroadcastEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  kind       String
+  detail     Json     @default("{}")
+  actorLabel String   @map("actor_label")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  campaign LottiBroadcastCampaign @relation("lotti_broadcast_events_campaign_id_fkey", fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([campaignId, createdAt], map: "lotti_broadcast_event_campaign_idx")
+  @@map("lotti_broadcast_events")
+}
+
+/// Tabela public.lotti_inbox_events — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model LottiInboxEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  kind           String
+  fromLabel      String?  @map("from_label")
+  toLabel        String   @map("to_label")
+  subjectLabel   String?  @map("subject_label")
+  actorLabel     String   @map("actor_label")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation LottiAgentConversation @relation("lotti_inbox_events_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([conversationId, createdAt], map: "lotti_inbox_events_conversation_time")
+  @@map("lotti_inbox_events")
+}
+
+/// Tabela public.lotti_manual_sends — RLS ligado.
+/// Gatilhos: auditar_suporte, lotti_manual_opt_out_guard.
+/// 1 check constraint(s) só no SQL.
+model LottiManualSend {
+  requestId      String   @id @map("request_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  corretorId     String   @map("corretor_id") @db.Uuid
+  fingerprint    String
+  content        String
+  mediaPath      String?  @map("media_path")
+  status         String   @default("sending")
+  externalId     String?  @map("external_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation LottiAgentConversation @relation("lotti_manual_sends_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  corretor     Corretor               @relation("lotti_manual_sends_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("lotti_manual_sends")
+}
+
+/// Tabela public.onboarding_checklist — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model OnboardingChecklist {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId    String    @unique @map("profile_id") @db.Uuid
+  minimized    Boolean   @default(false)
+  dismissedAt  DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  metadata     Json      @default("{}")
+  atualizadoEm DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  profile OnboardingProfile @relation("onboarding_checklist_profile_id_fkey", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("onboarding_checklist")
+}
+
+/// Tabela public.onboarding_events — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// Índices parciais/por expressão só no SQL: uq_onboarding_evento_marco.
+model OnboardingEvent {
+  id             BigInt   @id @default(autoincrement())
+  organizationId String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId         String   @map("user_id") @db.Uuid
+  profileId      String?  @map("profile_id") @db.Uuid
+  eventName      String   @map("event_name")
+  stepKey        String?  @map("step_key")
+  source         String   @default("onboarding")
+  metadata       Json     @default("{}")
+  criadoEm       DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  organization RoutineOrganization @relation("onboarding_events_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  profile      OnboardingProfile?  @relation("onboarding_events_profile_id_fkey", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([eventName, criadoEm(sort: Desc)], map: "idx_onboarding_events_nome_data")
+  @@index([organizationId, criadoEm(sort: Desc)], map: "idx_onboarding_events_org_data")
+  @@map("onboarding_events")
+}
+
+/// Tabela public.onboarding_preferences — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model OnboardingPreference {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId          String   @unique @map("profile_id") @db.Uuid
+  tipsEnabled        Boolean  @default(true) @map("tips_enabled")
+  assistantEnabled   Boolean  @default(true) @map("assistant_enabled")
+  preferredShortcuts String[] @default(dbgenerated("ARRAY[]::text[]")) @map("preferred_shortcuts")
+  metadata           Json     @default("{}")
+  atualizadoEm       DateTime @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  profile OnboardingProfile @relation("onboarding_preferences_profile_id_fkey", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("onboarding_preferences")
+}
+
+/// Tabela public.onboarding_profiles — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 4 check constraint(s) só no SQL.
+model OnboardingProfile {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId            String   @unique @map("user_id") @db.Uuid
+  persona           String?
+  primaryGoal       String?  @map("primary_goal")
+  dataEntryStrategy String?  @map("data_entry_strategy")
+  creciStatus       String   @default("nao_informado") @map("creci_status")
+  metadata          Json     @default("{}")
+  criadoEm          DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm      DateTime @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  organization         RoutineOrganization   @relation("onboarding_profiles_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  onboardingChecklist  OnboardingChecklist?  @relation("onboarding_checklist_profile_id_fkey")
+  onboardingEvents     OnboardingEvent[]     @relation("onboarding_events_profile_id_fkey")
+  onboardingPreference OnboardingPreference? @relation("onboarding_preferences_profile_id_fkey")
+  onboardingProgress   OnboardingProgress?   @relation("onboarding_progress_profile_id_fkey")
+  onboardingSteps      OnboardingStep[]      @relation("onboarding_steps_profile_id_fkey")
+  onboardingTours      OnboardingTour[]      @relation("onboarding_tours_profile_id_fkey")
+
+  @@map("onboarding_profiles")
+}
+
+/// Tabela public.onboarding_progress — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model OnboardingProgress {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId         String    @unique @map("profile_id") @db.Uuid
+  currentStep       String    @default("boas_vindas") @map("current_step")
+  completedSteps    String[]  @default(dbgenerated("ARRAY[]::text[]")) @map("completed_steps")
+  skippedSteps      String[]  @default(dbgenerated("ARRAY[]::text[]")) @map("skipped_steps")
+  startedAt         DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+  lastActivityAt    DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  dismissedAt       DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  firstValueAt      DateTime? @map("first_value_at") @db.Timestamptz(6)
+  onboardingVersion Int       @default(1) @map("onboarding_version")
+  metadata          Json      @default("{}")
+
+  profile OnboardingProfile @relation("onboarding_progress_profile_id_fkey", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("onboarding_progress")
+}
+
+/// Tabela public.onboarding_sample_data — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model OnboardingSampleData {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId         String   @map("user_id") @db.Uuid
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id") @db.Uuid
+  metadata       Json     @default("{}")
+  criadoEm       DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  organization RoutineOrganization @relation("onboarding_sample_data_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([organizationId, entityType, entityId], map: "onboarding_sample_data_organization_id_entity_type_entity_i_key")
+  @@map("onboarding_sample_data")
+}
+
+/// Tabela public.onboarding_steps — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model OnboardingStep {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId   String    @map("profile_id") @db.Uuid
+  stepKey     String    @map("step_key")
+  status      String    @default("iniciado")
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  metadata    Json      @default("{}")
+
+  profile OnboardingProfile @relation("onboarding_steps_profile_id_fkey", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([profileId, stepKey])
+  @@map("onboarding_steps")
+}
+
+/// Tabela public.onboarding_tours — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model OnboardingTour {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId    String    @map("profile_id") @db.Uuid
+  tourKey      String    @map("tour_key")
+  currentStep  Int       @default(0) @map("current_step")
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  dismissedAt  DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  atualizadoEm DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  profile OnboardingProfile @relation("onboarding_tours_profile_id_fkey", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([profileId, tourKey])
+  @@map("onboarding_tours")
+}
+
+/// Tabela public.organizacao_convites — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_convite_pendente_org_email.
+model OrganizacaoConvite {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  email          String
+  papel          String    @default("corretor")
+  tokenHash      String    @unique @map("token_hash")
+  status         String    @default("pendente")
+  expiraEm       DateTime  @default(dbgenerated("(now() + '7 days'::interval)")) @map("expira_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  criadoPor      String    @map("criado_por") @db.Uuid
+  /// referencia auth.users(id)
+  aceitoPor      String?   @map("aceito_por") @db.Uuid
+  aceitoEm       DateTime? @map("aceito_em") @db.Timestamptz(6)
+  criadoEm       DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  organization RoutineOrganization @relation("organizacao_convites_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("organizacao_convites")
+}
+
+/// Tabela public.parceiros — RLS ligado.
+/// Gatilhos: auditar_escrita_direta, auditar_suporte, tr_auditar_parceiros_admin, tr_parceiros_atualizado, tr_vincular_conta_parceiro.
+/// 9 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_parceiros_email.
+model Parceiro {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                  String
+  empresa               String?
+  documento             String?
+  email                 String
+  telefone              String?
+  responsavel           String?
+  status                String    @default("ativo")
+  dataInicio            DateTime  @default(dbgenerated("CURRENT_DATE")) @map("data_inicio") @db.Date
+  janelaAtribuicaoDias  Int       @default(90) @map("janela_atribuicao_dias")
+  observacoes           String?
+  /// referencia auth.users(id)
+  userId                String?   @map("user_id") @db.Uuid
+  /// referencia auth.users(id)
+  criadoPor             String?   @map("criado_por") @db.Uuid
+  criadoEm              DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm          DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+  chavePix              String?   @map("chave_pix")
+  tipoChavePix          String?   @map("tipo_chave_pix")
+  cortesiaDias          Int?      @map("cortesia_dias")
+  cortesiaExpiraEm      DateTime? @map("cortesia_expira_em") @db.Date
+  tipo                  String?
+  documentoBeneficiario String?   @map("documento_beneficiario")
+  convidadoEm           DateTime? @map("convidado_em") @db.Timestamptz(6)
+  conviteAceitoEm       DateTime? @map("convite_aceito_em") @db.Timestamptz(6)
+  conviteStatus         String    @default("nao_enviado") @map("convite_status")
+
+  parceiroAtribuicoes ParceiroAtribuicao[] @relation("parceiro_atribuicoes_parceiro_id_fkey")
+  parceiroCliques     ParceiroClique[]     @relation("parceiro_cliques_parceiro_id_fkey")
+  parceiroComissoes   ParceiroComissao[]   @relation("parceiro_comissoes_parceiro_id_fkey")
+  parceiroLinks       ParceiroLink[]       @relation("parceiro_links_parceiro_id_fkey")
+  parceiroLoteItens   ParceiroLoteItem[]   @relation("parceiro_lote_itens_parceiro_id_fkey")
+  parceiroPagamentos  ParceiroPagamento[]  @relation("parceiro_pagamentos_parceiro_id_fkey")
+  parceiroPercentuais ParceiroPercentual[] @relation("parceiro_percentuais_parceiro_id_fkey")
+
+  @@index([status], map: "idx_parceiros_status")
+  @@map("parceiros")
+}
+
+/// Tabela public.parceiro_atribuicoes — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 3 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_atribuicao_corretor, uq_atribuicao_user.
+model ParceiroAtribuicao {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parceiroId        String    @map("parceiro_id") @db.Uuid
+  linkId            String?   @map("link_id") @db.Uuid
+  visitanteId       String    @unique(map: "uq_atribuicao_visitante") @map("visitante_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId            String?   @map("user_id") @db.Uuid
+  corretorId        String?   @map("corretor_id") @db.Uuid
+  modelo            String    @default("primeiro_clique")
+  janelaDias        Int       @map("janela_dias")
+  primeiroCliqueEm  DateTime  @default(now()) @map("primeiro_clique_em") @db.Timestamptz(6)
+  expiraEm          DateTime  @map("expira_em") @db.Timestamptz(6)
+  convertidoEm      DateTime? @map("convertido_em") @db.Timestamptz(6)
+  status            String    @default("pendente")
+  motivoInvalidacao String?   @map("motivo_invalidacao")
+  criadoEm          DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  corretor          Corretor?          @relation("parceiro_atribuicoes_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  link              ParceiroLink?      @relation("parceiro_atribuicoes_link_id_fkey", fields: [linkId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  parceiro          Parceiro           @relation("parceiro_atribuicoes_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parceiroComissoes ParceiroComissao[] @relation("parceiro_comissoes_atribuicao_id_fkey")
+
+  @@index([parceiroId, status, criadoEm(sort: Desc)], map: "idx_atribuicoes_parceiro")
+  @@map("parceiro_atribuicoes")
+}
+
+/// Tabela public.parceiro_cliques — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model ParceiroClique {
+  id          BigInt   @id @default(autoincrement())
+  linkId      String   @map("link_id") @db.Uuid
+  parceiroId  String   @map("parceiro_id") @db.Uuid
+  visitanteId String   @map("visitante_id") @db.Uuid
+  ipHash      String?  @map("ip_hash")
+  userAgent   String?  @map("user_agent")
+  referer     String?
+  utm         Json?
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  link     ParceiroLink @relation("parceiro_cliques_link_id_fkey", fields: [linkId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parceiro Parceiro     @relation("parceiro_cliques_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([linkId, criadoEm(sort: Desc)], map: "idx_cliques_link")
+  @@index([parceiroId, criadoEm(sort: Desc)], map: "idx_cliques_parceiro")
+  @@index([visitanteId], map: "idx_cliques_visitante")
+  @@map("parceiro_cliques")
+}
+
+/// Tabela public.parceiro_comissoes — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_comissoes_atualizado.
+/// 4 check constraint(s) só no SQL.
+model ParceiroComissao {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parceiroId         String    @map("parceiro_id") @db.Uuid
+  atribuicaoId       String    @map("atribuicao_id") @db.Uuid
+  receitaEventoId    String    @unique(map: "uq_comissao_por_receita") @map("receita_evento_id") @db.Uuid
+  corretorId         String?   @map("corretor_id") @db.Uuid
+  valorBase          Decimal   @map("valor_base") @db.Decimal(12, 2)
+  percentualAplicado Decimal   @map("percentual_aplicado") @db.Decimal(5, 2)
+  baseCalculo        String    @map("base_calculo")
+  percentualId       String?   @map("percentual_id") @db.Uuid
+  valorComissao      Decimal   @map("valor_comissao") @db.Decimal(12, 2)
+  status             String    @default("pendente")
+  competencia        DateTime? @db.Date
+  geradaEm           DateTime  @default(now()) @map("gerada_em") @db.Timestamptz(6)
+  aprovadaEm         DateTime? @map("aprovada_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  aprovadaPor        String?   @map("aprovada_por") @db.Uuid
+  pagaEm             DateTime? @map("paga_em") @db.Timestamptz(6)
+  pagamentoId        String?   @map("pagamento_id") @db.Uuid
+  canceladaEm        DateTime? @map("cancelada_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  canceladaPor       String?   @map("cancelada_por") @db.Uuid
+  motivoCancelamento String?   @map("motivo_cancelamento")
+  atualizadoEm       DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  atribuicao       ParceiroAtribuicao  @relation("parceiro_comissoes_atribuicao_id_fkey", fields: [atribuicaoId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  corretor         Corretor?           @relation("parceiro_comissoes_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  pagamento        ParceiroPagamento?  @relation("parceiro_comissoes_pagamento_id_fkey", fields: [pagamentoId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  parceiro         Parceiro            @relation("parceiro_comissoes_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  percentual       ParceiroPercentual? @relation("parceiro_comissoes_percentual_id_fkey", fields: [percentualId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  receitaEvento    ReceitaEvento       @relation("parceiro_comissoes_receita_evento_id_fkey", fields: [receitaEventoId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  parceiroLoteItem ParceiroLoteItem?   @relation("parceiro_lote_itens_comissao_id_fkey")
+
+  @@index([parceiroId, status, geradaEm(sort: Desc)], map: "idx_comissoes_parceiro")
+  @@index([status, geradaEm(sort: Desc)], map: "idx_comissoes_status")
+  @@map("parceiro_comissoes")
+}
+
+/// Tabela public.parceiro_links — RLS ligado.
+/// Gatilhos: auditar_escrita_direta, auditar_suporte, tr_auditar_parceiro_links_admin.
+/// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_parceiro_link_principal.
+model ParceiroLink {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parceiroId String    @map("parceiro_id") @db.Uuid
+  slug       String    @unique(map: "uq_parceiro_links_slug")
+  campanha   String?
+  principal  Boolean   @default(false)
+  ativo      Boolean   @default(true)
+  revogadoEm DateTime? @map("revogado_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  criadoPor  String?   @map("criado_por") @db.Uuid
+  criadoEm   DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  parceiro            Parceiro             @relation("parceiro_links_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parceiroAtribuicoes ParceiroAtribuicao[] @relation("parceiro_atribuicoes_link_id_fkey")
+  parceiroCliques     ParceiroClique[]     @relation("parceiro_cliques_link_id_fkey")
+
+  @@index([parceiroId], map: "idx_parceiro_links_parceiro")
+  @@map("parceiro_links")
+}
+
+/// Tabela public.parceiro_lotes — RLS ligado.
+/// Gatilhos: auditar_suporte, parceiro_lotes_atualizado_em.
+/// 4 check constraint(s) só no SQL.
+model ParceiroLote {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referencia          String    @unique
+  status              String    @default("rascunho")
+  valorTotal          Decimal   @default(0) @map("valor_total") @db.Decimal(12, 2)
+  totalParceiros      Int       @default(0) @map("total_parceiros")
+  totalComissoes      Int       @default(0) @map("total_comissoes")
+  saldoMinimo         Decimal?  @map("saldo_minimo") @db.Decimal(12, 2)
+  exportadoEm         DateTime? @map("exportado_em") @db.Timestamptz(6)
+  pagoEm              DateTime? @map("pago_em") @db.Date
+  referenciaPagamento String?   @map("referencia_pagamento")
+  comprovanteUrl      String?   @map("comprovante_url")
+  observacoes         String?
+  motivoCancelamento  String?   @map("motivo_cancelamento")
+  /// referencia auth.users(id)
+  criadoPor           String?   @map("criado_por") @db.Uuid
+  criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm        DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz(6)
+
+  parceiroLoteItens ParceiroLoteItem[] @relation("parceiro_lote_itens_lote_id_fkey")
+
+  @@index([status, criadoEm(sort: Desc)], map: "parceiro_lotes_status_idx")
+  @@map("parceiro_lotes")
+}
+
+/// Tabela public.parceiro_lote_itens — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model ParceiroLoteItem {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loteId                String   @map("lote_id") @db.Uuid
+  parceiroId            String   @map("parceiro_id") @db.Uuid
+  comissaoId            String   @unique(map: "parceiro_lote_itens_comissao_unica") @map("comissao_id") @db.Uuid
+  valor                 Decimal  @db.Decimal(12, 2)
+  nomeBeneficiario      String   @map("nome_beneficiario")
+  documentoBeneficiario String?  @map("documento_beneficiario")
+  chavePix              String   @map("chave_pix")
+  tipoChavePix          String   @map("tipo_chave_pix")
+  criadoEm              DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  comissao ParceiroComissao @relation("parceiro_lote_itens_comissao_id_fkey", fields: [comissaoId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  lote     ParceiroLote     @relation("parceiro_lote_itens_lote_id_fkey", fields: [loteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parceiro Parceiro         @relation("parceiro_lote_itens_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([loteId], map: "parceiro_lote_itens_lote_idx")
+  @@index([parceiroId], map: "parceiro_lote_itens_parceiro_idx")
+  @@map("parceiro_lote_itens")
+}
+
+/// Tabela public.parceiro_pagamentos — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model ParceiroPagamento {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parceiroId        String    @map("parceiro_id") @db.Uuid
+  valorTotal        Decimal   @map("valor_total") @db.Decimal(12, 2)
+  metodo            String?
+  referencia        String?
+  competenciaInicio DateTime? @map("competencia_inicio") @db.Date
+  competenciaFim    DateTime? @map("competencia_fim") @db.Date
+  pagoEm            DateTime  @default(dbgenerated("CURRENT_DATE")) @map("pago_em") @db.Date
+  comprovanteUrl    String?   @map("comprovante_url")
+  observacoes       String?
+  /// referencia auth.users(id)
+  registradoPor     String?   @map("registrado_por") @db.Uuid
+  criadoEm          DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  parceiro          Parceiro           @relation("parceiro_pagamentos_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  parceiroComissoes ParceiroComissao[] @relation("parceiro_comissoes_pagamento_id_fkey")
+
+  @@index([parceiroId, pagoEm(sort: Desc)], map: "idx_pagamentos_parceiro")
+  @@map("parceiro_pagamentos")
+}
+
+/// Tabela public.parceiro_percentuais — RLS ligado.
+/// Gatilhos: auditar_escrita_direta, auditar_suporte, tr_fechar_vigencia_anterior.
+/// 6 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_percentual_vigente.
+model ParceiroPercentual {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parceiroId     String    @map("parceiro_id") @db.Uuid
+  percentual     Decimal   @db.Decimal(5, 2)
+  baseCalculo    String    @default("receita_bruta") @map("base_calculo")
+  valorFixo      Decimal?  @map("valor_fixo") @db.Decimal(12, 2)
+  vigenciaInicio DateTime  @default(dbgenerated("CURRENT_DATE")) @map("vigencia_inicio") @db.Date
+  vigenciaFim    DateTime? @map("vigencia_fim") @db.Date
+  motivo         String?
+  /// referencia auth.users(id)
+  criadoPor      String?   @map("criado_por") @db.Uuid
+  criadoEm       DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+  tetoRenovacoes Int?      @map("teto_renovacoes")
+
+  parceiro          Parceiro           @relation("parceiro_percentuais_parceiro_id_fkey", fields: [parceiroId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parceiroComissoes ParceiroComissao[] @relation("parceiro_comissoes_percentual_id_fkey")
+
+  @@index([parceiroId, vigenciaInicio(sort: Desc)], map: "idx_percentual_parceiro")
+  @@map("parceiro_percentuais")
+}
+
+/// Tabela public.plans — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_plans_updated_at.
+model Plan {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String   @unique
+  name         String
+  description  String   @default("")
+  monthlyPrice Decimal  @map("monthly_price") @db.Decimal(10, 2)
+  annualPrice  Decimal  @map("annual_price") @db.Decimal(10, 2)
+  active       Boolean  @default(true)
+  highlighted  Boolean  @default(false)
+  displayOrder Int      @default(0) @map("display_order") @db.SmallInt
+  trialDays    Int      @default(14) @map("trial_days") @db.SmallInt
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  planEntitlements PlanEntitlement[] @relation("plan_entitlements_plan_id_fkey")
+  subscriptions    Subscription[]    @relation("subscriptions_plan_id_fkey")
+
+  @@map("plans")
+}
+
+/// Tabela public.plan_entitlements — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_plan_entitlements_updated_at.
+model PlanEntitlement {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId       String   @map("plan_id") @db.Uuid
+  featureKey   String   @map("feature_key")
+  featureName  String   @map("feature_name")
+  category     String   @default("geral")
+  enabled      Boolean  @default(true)
+  limitValue   Int?     @map("limit_value")
+  unlimited    Boolean  @default(false)
+  displayOrder Int      @default(0) @map("display_order") @db.SmallInt
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  plan Plan @relation("plan_entitlements_plan_id_fkey", fields: [planId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([planId, featureKey])
+  @@map("plan_entitlements")
+}
+
+/// Tabela public.pricing_campaigns — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_pricing_campaigns_updated_at.
+model PricingCampaign {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  discountType     DiscountType @default(percentage) @map("discount_type")
+  discountValue    Decimal      @map("discount_value") @db.Decimal(10, 2)
+  maximumCustomers Int?         @map("maximum_customers")
+  currentCustomers Int          @default(0) @map("current_customers")
+  startsAt         DateTime     @map("starts_at") @db.Timestamptz(6)
+  endsAt           DateTime?    @map("ends_at") @db.Timestamptz(6)
+  durationMonths   Int          @default(12) @map("duration_months")
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("pricing_campaigns")
+}
+
+/// Tabela public.proprietarios — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model Proprietario {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId     String   @map("corretor_id") @db.Uuid
+  nome           String
+  cpfCnpj        String?  @map("cpf_cnpj")
+  email          String?
+  telefone       String?
+  chavePix       String?  @map("chave_pix")
+  tipoChavePix   String?  @map("tipo_chave_pix")
+  dadosBancarios Json?    @map("dados_bancarios")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  corretor             Corretor              @relation("proprietarios_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imoveis              Imovel[]              @relation("imoveis_proprietario_id_fkey")
+  repassesProprietario RepasseProprietario[] @relation("repasses_proprietario_proprietario_id_fkey")
+
+  @@map("proprietarios")
+}
+
+/// Tabela public.public_request_limits — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model PublicRequestLimit {
+  scope       String
+  subjectHash String   @map("subject_hash")
+  hits        Int
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@id([scope, subjectHash])
+  @@index([expiresAt], map: "public_request_limits_expiry")
+  @@map("public_request_limits")
+}
+
+/// Tabela public.receita_eventos — RLS ligado.
+/// Gatilhos: auditar_escrita_direta, auditar_suporte, tr_estornar_comissao, tr_gerar_comissao.
+/// 6 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_receita_confirmado, uq_receita_external.
+model ReceitaEvento {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId     String?   @map("corretor_id") @db.Uuid
+  subscriptionId String?   @map("subscription_id") @db.Uuid
+  origem         String
+  externalId     String?   @map("external_id")
+  tipo           String    @default("assinatura")
+  valorBruto     Decimal   @map("valor_bruto") @db.Decimal(12, 2)
+  valorLiquido   Decimal?  @map("valor_liquido") @db.Decimal(12, 2)
+  moeda          String    @default("BRL")
+  status         String    @default("confirmado")
+  confirmadoEm   DateTime  @default(now()) @map("confirmado_em") @db.Timestamptz(6)
+  competencia    DateTime? @db.Date
+  /// referencia auth.users(id)
+  registradoPor  String?   @map("registrado_por") @db.Uuid
+  motivo         String?
+  estornadoEm    DateTime? @map("estornado_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  estornadoPor   String?   @map("estornado_por") @db.Uuid
+  motivoEstorno  String?   @map("motivo_estorno")
+  criadoEm       DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  corretor         Corretor?         @relation("receita_eventos_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  parceiroComissao ParceiroComissao? @relation("parceiro_comissoes_receita_evento_id_fkey")
+
+  @@index([corretorId, confirmadoEm(sort: Desc)], map: "idx_receita_corretor")
+  @@map("receita_eventos")
+}
+
+/// Tabela public.repasses_proprietario — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// Índices parciais/por expressão só no SQL: uq_repasse_por_fatura.
+model RepasseProprietario {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  faturaOrigemId              String?   @map("fatura_origem_id") @db.Uuid
+  contratoId                  String    @map("contrato_id") @db.Uuid
+  corretorId                  String    @map("corretor_id") @db.Uuid
+  proprietarioNome            String    @map("proprietario_nome")
+  dataPrevista                DateTime  @map("data_prevista") @db.Date
+  valorBrutoRecebido          Decimal   @map("valor_bruto_recebido") @db.Decimal(15, 2)
+  valorTaxaAdm                Decimal   @map("valor_taxa_adm") @db.Decimal(15, 2)
+  valorLiquidoRepasse         Decimal   @map("valor_liquido_repasse") @db.Decimal(15, 2)
+  status                      String    @default("AGENDADO")
+  dataTransferencia           DateTime? @map("data_transferencia") @db.Date
+  comprovanteTransferenciaUrl String?   @map("comprovante_transferencia_url")
+  externalId                  String?   @map("external_id") @db.VarChar(255)
+  createdAt                   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+  proprietarioId              String?   @map("proprietario_id") @db.Uuid
+  transferenciaStatus         String?   @map("transferencia_status")
+  transferenciaEfetivadaEm    DateTime? @map("transferencia_efetivada_em") @db.Timestamptz(6)
+  transferenciaPayload        Json?     @map("transferencia_payload")
+  conciliacaoPendente         String?   @map("conciliacao_pendente")
+
+  contrato     Contrato       @relation("repasses_proprietario_contrato_id_fkey", fields: [contratoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  corretor     Corretor       @relation("repasses_proprietario_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  faturaOrigem FaturaAluguel? @relation("repasses_proprietario_fatura_origem_id_fkey", fields: [faturaOrigemId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  proprietario Proprietario?  @relation("repasses_proprietario_proprietario_id_fkey", fields: [proprietarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([corretorId], map: "idx_repasses_corretor")
+  @@index([status], map: "idx_repasses_status")
+  @@index([corretorId, status, valorLiquidoRepasse], map: "idx_repasses_status_valor")
+  @@map("repasses_proprietario")
+}
+
+/// Tabela public.routine_activity_log — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model RoutineActivityLog {
+  id             BigInt   @id @default(autoincrement())
+  organizationId String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id") @db.Uuid
+  action         String
+  changes        Json     @default("{}")
+  source         String   @default("user")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization RoutineOrganization @relation("routine_activity_log_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([organizationId, entityType, entityId, createdAt(sort: Desc)], map: "idx_routine_activity_entity")
+  @@map("routine_activity_log")
+}
+
+/// Tabela public.routine_automations — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_automations_updated_at.
+/// 1 check constraint(s) só no SQL.
+model RoutineAutomation {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  createdBy           String   @default(dbgenerated("auth.uid()")) @map("created_by") @db.Uuid
+  name                String
+  sourceRule          String   @map("source_rule")
+  actionType          String   @map("action_type")
+  assigneeStrategy    String   @default("entity_owner") @map("assignee_strategy")
+  dueOffsetMinutes    Int      @default(0) @map("due_offset_minutes")
+  notificationChannel String   @default("in_app") @map("notification_channel")
+  enabled             Boolean  @default(true)
+  config              Json     @default("{}")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  organization          RoutineOrganization    @relation("routine_automations_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  routineAutomationRuns RoutineAutomationRun[] @relation("routine_automation_runs_automation_id_fkey")
+
+  @@unique([organizationId, name], map: "uq_routine_automations_org_name")
+  @@map("routine_automations")
+}
+
+/// Tabela public.routine_automation_runs — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 1 check constraint(s) só no SQL.
+model RoutineAutomationRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  automationId   String    @map("automation_id") @db.Uuid
+  sourceEventId  String?   @map("source_event_id")
+  dedupeKey      String    @map("dedupe_key")
+  status         String
+  result         Json      @default("{}")
+  errorCode      String?   @map("error_code")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  automation   RoutineAutomation   @relation("routine_automation_runs_automation_id_fkey", fields: [automationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization RoutineOrganization @relation("routine_automation_runs_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([organizationId, dedupeKey])
+  @@map("routine_automation_runs")
+}
+
+/// Tabela public.routine_entity_links — RLS ligado.
+/// Gatilhos: auditar_suporte.
+/// 2 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_routine_entity_links_event, uq_routine_entity_links_task.
+model RoutineEntityLink {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventId        String?  @map("event_id") @db.Uuid
+  taskId         String?  @map("task_id") @db.Uuid
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id") @db.Uuid
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  event        RoutineEvent?       @relation("routine_entity_links_event_id_fkey", fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization RoutineOrganization @relation("routine_entity_links_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task         RoutineTask?        @relation("routine_entity_links_task_id_fkey", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([eventId, taskId, entityType, entityId])
+  @@map("routine_entity_links")
+}
+
+/// Tabela public.routine_events — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_events_log, tr_routine_events_touch, tr_routine_events_validate_entities.
+/// 7 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_routine_events_calendar.
+model RoutineEvent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  assignedTo     String    @map("assigned_to") @db.Uuid
+  /// referencia auth.users(id)
+  createdBy      String    @default(dbgenerated("auth.uid()")) @map("created_by") @db.Uuid
+  title          String
+  description    String?
+  activityType   String    @default("outro") @map("activity_type")
+  status         String    @default("confirmed")
+  priority       String    @default("medium")
+  startAt        DateTime  @map("start_at") @db.Timestamptz(6)
+  endAt          DateTime  @map("end_at") @db.Timestamptz(6)
+  allDay         Boolean   @default(false) @map("all_day")
+  timezone       String    @default("America/Sao_Paulo")
+  recurrenceRule String?   @map("recurrence_rule")
+  location       String?
+  visibility     String    @default("team")
+  source         String    @default("lotti")
+  clientId       String?   @map("client_id") @db.Uuid
+  propertyId     String?   @map("property_id") @db.Uuid
+  dealId         String?   @map("deal_id") @db.Uuid
+  contractId     String?   @map("contract_id") @db.Uuid
+  rentalId       String?   @map("rental_id") @db.Uuid
+  syncStatus     String    @default("local") @map("sync_status")
+  syncVersion    BigInt    @default(1) @map("sync_version")
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  client                Cliente?               @relation("routine_events_client_id_fkey", fields: [clientId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  contract              Contrato?              @relation("routine_events_contract_id_fkey", fields: [contractId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  deal                  CrmOportunidade?       @relation("routine_events_deal_id_fkey", fields: [dealId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  organization          RoutineOrganization    @relation("routine_events_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  property              Imovel?                @relation("routine_events_property_id_fkey", fields: [propertyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  rental                Contrato?              @relation("routine_events_rental_id_fkey", fields: [rentalId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  calendarEventMappings CalendarEventMapping[] @relation("calendar_event_mappings_routine_event_id_fkey")
+  routineEntityLinks    RoutineEntityLink[]    @relation("routine_entity_links_event_id_fkey")
+  routineInbox          RoutineInbox[]         @relation("routine_inbox_converted_event_id_fkey")
+  routineReminders      RoutineReminder[]      @relation("routine_reminders_event_id_fkey")
+
+  @@map("routine_events")
+}
+
+/// Tabela public.routine_inbox — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_inbox_updated_at.
+/// 2 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_routine_inbox_open.
+model RoutineInbox {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId           String   @map("user_id") @db.Uuid
+  kind             String   @default("note")
+  content          String
+  attachmentUrl    String?  @map("attachment_url")
+  status           String   @default("unprocessed")
+  extractedData    Json     @default("{}") @map("extracted_data")
+  convertedEventId String?  @map("converted_event_id") @db.Uuid
+  convertedTaskId  String?  @map("converted_task_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  convertedEvent RoutineEvent?       @relation("routine_inbox_converted_event_id_fkey", fields: [convertedEventId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  convertedTask  RoutineTask?        @relation("routine_inbox_converted_task_id_fkey", fields: [convertedTaskId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  organization   RoutineOrganization @relation("routine_inbox_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("routine_inbox")
+}
+
+/// Tabela public.routine_memberships — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_memberships_updated_at.
+/// 2 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_routine_membership_ativa_por_usuario.
+model RoutineMembership {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId         String   @map("user_id") @db.Uuid
+  role           String   @default("corretor")
+  status         String   @default("active")
+  teamName       String?  @map("team_name")
+  unitName       String?  @map("unit_name")
+  displayName    String?  @map("display_name")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  jobRole        String?  @map("job_role")
+
+  organization RoutineOrganization @relation("routine_memberships_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status, role], map: "idx_routine_memberships_org")
+  @@index([userId, status, organizationId], map: "idx_routine_memberships_user")
+  @@map("routine_memberships")
+}
+
+/// Tabela public.routine_organizations — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_organizations_updated_at, tr_seed_routine_automations.
+/// 1 check constraint(s) só no SQL.
+model RoutineOrganization {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyCorretorId String   @unique @map("legacy_corretor_id") @db.Uuid
+  name             String
+  timezone         String   @default("America/Sao_Paulo")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  tradeName        String?  @map("trade_name")
+  cnpj             String?
+  phone            String?
+  email            String?
+  city             String?
+  state            String?  @db.Char(2)
+  logoUrl          String?  @map("logo_url")
+  teamSize         String?  @map("team_size")
+  operationTypes   String[] @default(dbgenerated("ARRAY[]::text[]")) @map("operation_types")
+  organizationType String   @default("individual") @map("organization_type")
+
+  legacyCorretor        Corretor               @relation("routine_organizations_legacy_corretor_id_fkey", fields: [legacyCorretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  calendarConnections   CalendarConnection[]   @relation("calendar_connections_organization_id_fkey")
+  calendarEventMappings CalendarEventMapping[] @relation("calendar_event_mappings_organization_id_fkey")
+  externalCalendars     ExternalCalendar[]     @relation("external_calendars_organization_id_fkey")
+  onboardingEvents      OnboardingEvent[]      @relation("onboarding_events_organization_id_fkey")
+  onboardingProfiles    OnboardingProfile[]    @relation("onboarding_profiles_organization_id_fkey")
+  onboardingSampleData  OnboardingSampleData[] @relation("onboarding_sample_data_organization_id_fkey")
+  organizacaoConvites   OrganizacaoConvite[]   @relation("organizacao_convites_organization_id_fkey")
+  routineActivityLog    RoutineActivityLog[]   @relation("routine_activity_log_organization_id_fkey")
+  routineAutomationRuns RoutineAutomationRun[] @relation("routine_automation_runs_organization_id_fkey")
+  routineAutomations    RoutineAutomation[]    @relation("routine_automations_organization_id_fkey")
+  routineEntityLinks    RoutineEntityLink[]    @relation("routine_entity_links_organization_id_fkey")
+  routineEvents         RoutineEvent[]         @relation("routine_events_organization_id_fkey")
+  routineInbox          RoutineInbox[]         @relation("routine_inbox_organization_id_fkey")
+  routineMemberships    RoutineMembership[]    @relation("routine_memberships_organization_id_fkey")
+  routinePreferences    RoutinePreference[]    @relation("routine_preferences_organization_id_fkey")
+  routineReminders      RoutineReminder[]      @relation("routine_reminders_organization_id_fkey")
+  routineTasks          RoutineTask[]          @relation("routine_tasks_organization_id_fkey")
+
+  @@map("routine_organizations")
+}
+
+/// Tabela public.routine_preferences — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_preferences_updated_at.
+/// 3 check constraint(s) só no SQL.
+model RoutinePreference {
+  organizationId         String    @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId                 String    @map("user_id") @db.Uuid
+  timezone               String    @default("America/Sao_Paulo")
+  defaultView            String    @default("week") @map("default_view")
+  workdayStart           DateTime  @default(dbgenerated("'08:00:00'::time without time zone")) @map("workday_start") @db.Time(6)
+  workdayEnd             DateTime  @default(dbgenerated("'18:00:00'::time without time zone")) @map("workday_end") @db.Time(6)
+  defaultEventMinutes    Int       @default(60) @map("default_event_minutes")
+  defaultReminderMinutes Int       @default(120) @map("default_reminder_minutes")
+  quietHoursStart        DateTime? @map("quiet_hours_start") @db.Time(6)
+  quietHoursEnd          DateTime? @map("quiet_hours_end") @db.Time(6)
+  dailySummary           Boolean   @default(true) @map("daily_summary")
+  weeklySummary          Boolean   @default(true) @map("weekly_summary")
+  notificationChannels   String[]  @default(dbgenerated("ARRAY['in_app'::text]")) @map("notification_channels")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  organization RoutineOrganization @relation("routine_preferences_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([organizationId, userId])
+  @@map("routine_preferences")
+}
+
+/// Tabela public.routine_reminders — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_reminders_updated_at.
+/// 4 check constraint(s) só no SQL.
+model RoutineReminder {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  userId         String   @map("user_id") @db.Uuid
+  eventId        String?  @map("event_id") @db.Uuid
+  taskId         String?  @map("task_id") @db.Uuid
+  remindAt       DateTime @map("remind_at") @db.Timestamptz(6)
+  minutesBefore  Int?     @map("minutes_before")
+  channel        String   @default("in_app")
+  status         String   @default("pending")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  event        RoutineEvent?       @relation("routine_reminders_event_id_fkey", fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization RoutineOrganization @relation("routine_reminders_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task         RoutineTask?        @relation("routine_reminders_task_id_fkey", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("routine_reminders")
+}
+
+/// Tabela public.routine_tasks — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_tasks_log, tr_routine_tasks_touch, tr_routine_tasks_validate_entities.
+/// 6 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: idx_routine_tasks_due.
+model RoutineTask {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  /// referencia auth.users(id)
+  assignedTo       String    @map("assigned_to") @db.Uuid
+  /// referencia auth.users(id)
+  createdBy        String    @default(dbgenerated("auth.uid()")) @map("created_by") @db.Uuid
+  title            String
+  description      String?
+  activityType     String    @default("tarefa_administrativa") @map("activity_type")
+  status           String    @default("todo")
+  priority         String    @default("medium")
+  dueAt            DateTime? @map("due_at") @db.Timestamptz(6)
+  estimatedMinutes Int?      @map("estimated_minutes")
+  timezone         String    @default("America/Sao_Paulo")
+  recurrenceRule   String?   @map("recurrence_rule")
+  visibility       String    @default("team")
+  source           String    @default("lotti")
+  clientId         String?   @map("client_id") @db.Uuid
+  propertyId       String?   @map("property_id") @db.Uuid
+  dealId           String?   @map("deal_id") @db.Uuid
+  contractId       String?   @map("contract_id") @db.Uuid
+  rentalId         String?   @map("rental_id") @db.Uuid
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  isSampleData     Boolean   @default(false) @map("is_sample_data")
+
+  client                Cliente?               @relation("routine_tasks_client_id_fkey", fields: [clientId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  contract              Contrato?              @relation("routine_tasks_contract_id_fkey", fields: [contractId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  deal                  CrmOportunidade?       @relation("routine_tasks_deal_id_fkey", fields: [dealId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  organization          RoutineOrganization    @relation("routine_tasks_organization_id_fkey", fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  property              Imovel?                @relation("routine_tasks_property_id_fkey", fields: [propertyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  rental                Contrato?              @relation("routine_tasks_rental_id_fkey", fields: [rentalId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  routineEntityLinks    RoutineEntityLink[]    @relation("routine_entity_links_task_id_fkey")
+  routineInbox          RoutineInbox[]         @relation("routine_inbox_converted_task_id_fkey")
+  routineReminders      RoutineReminder[]      @relation("routine_reminders_task_id_fkey")
+  routineTaskChecklists RoutineTaskChecklist[] @relation("routine_task_checklists_task_id_fkey")
+
+  @@map("routine_tasks")
+}
+
+/// Tabela public.routine_task_checklists — RLS ligado.
+/// Gatilhos: auditar_suporte, tr_routine_task_checklists_updated_at.
+model RoutineTaskChecklist {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  title     String
+  completed Boolean  @default(false)
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  task RoutineTask @relation("routine_task_checklists_task_id_fkey", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("routine_task_checklists")
+}
+
+/// Tabela public.subscriptions — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_subscriptions_updated_at.
+/// Índices parciais/por expressão só no SQL: idx_subscriptions_corretor.
+model Subscription {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId             String             @map("corretor_id") @db.Uuid
+  planId                 String             @map("plan_id") @db.Uuid
+  billingCycle           BillingCycle       @default(monthly) @map("billing_cycle")
+  status                 SubscriptionStatus @default(trialing)
+  trialStartedAt         DateTime?          @map("trial_started_at") @db.Timestamptz(6)
+  trialEndsAt            DateTime?          @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodStart     DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd       DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt             DateTime?          @map("canceled_at") @db.Timestamptz(6)
+  cancelReason           String?            @map("cancel_reason")
+  externalSubscriptionId String?            @map("external_subscription_id")
+  founderCampaignId      String?            @map("founder_campaign_id") @db.Uuid
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  corretor           Corretor            @relation("subscriptions_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  plan               Plan                @relation("subscriptions_plan_id_fkey", fields: [planId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subscriptionAddons SubscriptionAddon[] @relation("subscription_addons_subscription_id_fkey")
+
+  @@map("subscriptions")
+}
+
+/// Tabela public.subscription_addons — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_subscription_addons_updated_at.
+model SubscriptionAddon {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId String      @map("subscription_id") @db.Uuid
+  corretorId     String      @map("corretor_id") @db.Uuid
+  addonCode      String      @map("addon_code")
+  addonName      String      @map("addon_name")
+  quantity       Int         @default(1)
+  unitPrice      Decimal     @map("unit_price") @db.Decimal(10, 2)
+  status         AddonStatus @default(active)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  corretor     Corretor     @relation("subscription_addons_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  subscription Subscription @relation("subscription_addons_subscription_id_fkey", fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("subscription_addons")
+}
+
+/// Tabela public.usage_counters — RLS ligado.
+/// Gatilhos: auditar_suporte, trg_usage_counters_updated_at.
+model UsageCounter {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corretorId   String   @map("corretor_id") @db.Uuid
+  featureKey   String   @map("feature_key")
+  usedQuantity Int      @default(0) @map("used_quantity")
+  periodStart  DateTime @map("period_start") @db.Date
+  periodEnd    DateTime @map("period_end") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  corretor Corretor @relation("usage_counters_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([corretorId, featureKey, periodStart])
+  @@map("usage_counters")
+}
+
+/// Tabela public.user_roles — RLS ligado.
+/// Gatilhos: auditar_escrita_direta, auditar_suporte.
+/// Índices parciais/por expressão só no SQL: uq_user_roles_vigente.
+model UserRole {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  userId       String    @map("user_id") @db.Uuid
+  role         AppRole
+  /// referencia auth.users(id)
+  concedidoPor String?   @map("concedido_por") @db.Uuid
+  concedidoEm  DateTime  @default(now()) @map("concedido_em") @db.Timestamptz(6)
+  revogadoEm   DateTime? @map("revogado_em") @db.Timestamptz(6)
+  /// referencia auth.users(id)
+  revogadoPor  String?   @map("revogado_por") @db.Uuid
+  motivo       String?
+
+  @@index([userId], map: "idx_user_roles_user")
+  @@map("user_roles")
+}
+
+/// Tabela public.webhook_logs — RLS ligado.
+/// Gatilhos: auditar_suporte.
+model WebhookLog {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider    String    @default("ASAAS") @db.VarChar(50)
+  eventType   String?   @map("event_type") @db.VarChar(100)
+  payload     Json?
+  processedAt DateTime? @default(now()) @map("processed_at") @db.Timestamptz(6)
+  status      String?   @db.VarChar(20)
+
+  @@map("webhook_logs")
 }

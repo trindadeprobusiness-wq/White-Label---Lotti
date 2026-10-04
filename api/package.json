@@ -2,13 +2,16 @@
   "name": "@lotti/api",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.build.json",
     "start:prod": "node dist/main.js",
-    "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "test": "jest && node --test scripts/schema/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "schema:gerar": "node scripts/schema/gerar-schema.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
@@ -36,10 +39,16 @@
     "typescript": "^5.7.2"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "transform": { "^.+\\.ts$": "ts-jest" },
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
     "testEnvironment": "node"
   }
 }
