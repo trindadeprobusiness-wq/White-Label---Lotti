@@ -7,7 +7,8 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\
 
 export const apiDisponivel = () => !!API_URL;
 
-async function chamar(caminho: string, init: RequestInit = {}): Promise<Response> {
+/** Chamada autenticada à API Lotti (token do Supabase no cabeçalho). Base dos módulos em src/lib/api/. */
+export async function chamarApi(caminho: string, init: RequestInit = {}): Promise<Response> {
   if (!API_URL) throw new Error('API Lotti indisponível no momento.');
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -21,21 +22,21 @@ async function chamar(caminho: string, init: RequestInit = {}): Promise<Response
 /** Confirma uma visita pedida pelo agente. Lança Error com texto para o usuário. */
 export async function confirmarVisita(visitaId: string): Promise<void> {
   if (!API_URL) throw new Error('Confirmação de visita indisponível no momento.');
-  const res = await chamar(`/api/visitas/${encodeURIComponent(visitaId)}/confirmar`, { method: 'POST' });
+  const res = await chamarApi(`/api/visitas/${encodeURIComponent(visitaId)}/confirmar`, { method: 'POST' });
   if (res.status === 404) throw new Error('Esta visita já foi resolvida por outra pessoa.');
   if (!res.ok) throw new Error('Não foi possível confirmar a visita. Tente de novo.');
 }
 
 /** Alertas do sino, no mesmo formato que o Supabase devolve (colunas do banco). */
 export async function listarAlertasApi(): Promise<Array<Record<string, unknown>>> {
-  const res = await chamar('/api/notificacoes?limite=500');
+  const res = await chamarApi('/api/notificacoes?limite=500');
   if (!res.ok) throw new Error('Não foi possível carregar as notificações.');
   return res.json();
 }
 
 /** Marca como lidas (sem ids, todas). Devolve quantas mudaram. */
 export async function marcarAlertasLidosApi(ids?: string[]): Promise<number> {
-  const res = await chamar('/api/notificacoes/lidas', {
+  const res = await chamarApi('/api/notificacoes/lidas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ids ? { ids } : {}),
@@ -59,7 +60,7 @@ export function lerEventosSse(buffer: string): { eventos: string[]; resto: strin
  * nunca na URL. Termina quando a conexão fecha ou o sinal aborta.
  */
 export async function escutarSino(aoMudar: () => void, sinal: AbortSignal): Promise<void> {
-  const res = await chamar('/api/notificacoes/eventos', { headers: { Accept: 'text/event-stream' }, signal: sinal });
+  const res = await chamarApi('/api/notificacoes/eventos', { headers: { Accept: 'text/event-stream' }, signal: sinal });
   if (!res.ok || !res.body) throw new Error('sino_indisponivel');
   const leitor = res.body.getReader();
   const decodificador = new TextDecoder();
