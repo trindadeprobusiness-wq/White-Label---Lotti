@@ -112,3 +112,13 @@ test('prisma/schema.prisma é exatamente o que as migrations geram (migration e 
   assert.deepEqual({ faltando, sobrando }, { faltando: [], sobrando: [] },
     'rode `npm run schema:gerar` e commite o prisma/schema.prisma junto com a migration');
 });
+
+test('anon e authenticated sem TRUNCATE/REFERENCES/TRIGGER/MAINTAIN; leitura e escrita intactas', async () => {
+  const r = await um(`select
+    (select count(*)::int from pg_class c join pg_namespace n on n.oid=c.relnamespace cross join lateral aclexplode(c.relacl) a join pg_roles g on g.oid=a.grantee
+      where n.nspname in ('public','suporte_privado') and g.rolname in ('anon','authenticated')
+        and a.privilege_type in ('TRUNCATE','REFERENCES','TRIGGER','MAINTAIN')) as perigosos,
+    has_table_privilege('authenticated','public.imoveis','select,insert,update,delete') as crud_authenticated,
+    has_table_privilege('service_role','public.imoveis','truncate') as truncate_service_role`);
+  assert.deepEqual(r, { perigosos: 0, crud_authenticated: true, truncate_service_role: true });
+});
