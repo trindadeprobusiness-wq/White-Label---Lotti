@@ -4,9 +4,10 @@ import { HealthController } from './health/health.controller';
 import { ImoveisModule } from './imoveis/imoveis.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { VisitasModule } from './visitas/visitas.module';
 
 @Module({
-  imports: [EnvModule, PrismaModule, RedisModule, ImoveisModule],
+  imports: [EnvModule, PrismaModule, RedisModule, ImoveisModule, VisitasModule],
   controllers: [HealthController],
 })
 export class AppModule {}
