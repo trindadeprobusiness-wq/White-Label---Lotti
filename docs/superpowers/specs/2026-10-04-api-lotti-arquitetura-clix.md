@@ -103,7 +103,19 @@ dele.
      `authenticated` e `service_role`. Assim as 141 policies e o `TenantDb`
      continuam funcionando fora do Supabase.
    - API de staging apontando para ele.
-4. **Módulos na API, um por vez.**
+4. **Módulos na API, um por vez.** Em andamento.
+   - Molde de cada módulo:
+     1. rotas na API com o mesmo comportamento de hoje, consultando pelo
+        `TenantDb`;
+     2. no front, um adaptador que só liga com `VITE_API_URL` (desligado até a
+        virada);
+     3. testes nos dois lados.
+   - ✅ `notificacoes`:
+     - `GET /api/notificacoes`, `POST /api/notificacoes/lidas` e SSE
+       `/api/notificacoes/eventos`;
+     - gatilho `alertas_avisar_mudanca` (migration `20261004233000`) avisando no
+       canal `lotti_alertas`, e listener pelo `DIRECT_URL`;
+     - front: sino lê, marca e escuta pela API quando ligado.
    - O front troca as chamadas diretas ao Supabase pela API, e as Edge Functions
      viram módulos.
    - Ordem por valor: `notificacoes` (SSE), `imoveis`, `crm`, `rotina`,

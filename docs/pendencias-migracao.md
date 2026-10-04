@@ -44,6 +44,12 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
 - [ ] **PRs abertos:**
   - Lotti-ADM/casa-mente-contrato#51 (API, rascunho);
   - Lotti-ADM/n8n-agent-lotti#20, #21 e #22 (proxies, webhook direto, visitas).
+- [ ] **Índices duplicados em `alertas`.** `idx_alertas_corretor_lido` e
+  `idx_alertas_corretor_nao_lidos` têm as mesmas colunas: um só custa escrita.
+  Apagar um com migration.
+- [ ] **Fase 4 fica "desligada" no front até a virada.** Os módulos novos (sino,
+  visitas…) só passam a valer com `VITE_API_URL`. Na virada: ligar a variável e
+  conferir o sino ao vivo (SSE) com um alerta real.
 - [ ] **Achado de segurança, anterior à migração:** `anon` e `authenticated` podiam
   executar todas as funções novas por padrão (default privileges do Supabase dão
   EXECUTE). Revisar quais funções o `anon` realmente precisa.
