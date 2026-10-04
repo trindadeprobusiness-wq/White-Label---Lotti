@@ -122,3 +122,17 @@ test('anon e authenticated sem TRUNCATE/REFERENCES/TRIGGER/MAINTAIN; leitura e e
     has_table_privilege('service_role','public.imoveis','truncate') as truncate_service_role`);
   assert.deepEqual(r, { perigosos: 0, crud_authenticated: true, truncate_service_role: true });
 });
+
+test('mudança em alertas avisa no canal lotti_alertas com o corretor dono', async () => {
+  const avisos = [];
+  const parar = await banco.listen('lotti_alertas', (payload) => avisos.push(payload));
+  const { id: corretorA } = await um('select id from public.corretores where user_id = $1', [userA]);
+  const { id } = await um(`insert into public.alertas (corretor_id, tipo, mensagem) values ($1, 'GERAL', 'teste') returning id`, [corretorA]);
+  await banco.query('update public.alertas set lido = true where id = $1', [id]);
+  await banco.query('delete from public.alertas where id = $1', [id]);
+  await new Promise((r) => setTimeout(r, 50));
+  await parar();
+  assert.deepEqual(avisos, [corretorA, corretorA, corretorA]);
+  const pode = await um(`select has_function_privilege('authenticated', 'public.alertas_avisar_mudanca()', 'execute') as authenticated`);
+  assert.equal(pode.authenticated, false);
+});

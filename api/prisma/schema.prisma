@@ -282,7 +282,7 @@ model AiRateLimit {
 }
 
 /// Tabela public.alertas — RLS ligado.
-/// Gatilhos: auditar_suporte.
+/// Gatilhos: alertas_avisar_mudanca, auditar_suporte.
 /// 2 check constraint(s) só no SQL.
 /// Índices parciais/por expressão só no SQL: alertas_ia_conversation_unread_idx.
 model Alerta {

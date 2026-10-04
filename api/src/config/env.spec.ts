@@ -13,6 +13,7 @@ describe('loadEnv', () => {
       isProd: false,
       port: 3001,
       databaseUrl: base.DATABASE_URL,
+      directUrl: undefined,
       redisUrl: base.REDIS_URL,
       supabaseUrl: 'https://abc.supabase.co',
       supabaseJwtSecret: undefined,

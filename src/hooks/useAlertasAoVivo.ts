@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useCRMStore } from '@/stores/crmStore';
+import { apiDisponivel, escutarSino } from '@/lib/api';
 
 /**
  * Mantém o sino vivo.
@@ -45,6 +46,8 @@ export function useAlertasAoVivo() {
     let vivo = true;
     let debounce: ReturnType<typeof setTimeout> | undefined;
     let canal: RealtimeChannel | undefined;
+    let controle: AbortController | undefined;
+    let reconexao: ReturnType<typeof setTimeout> | undefined;
 
     const atualizar = () => {
       if (!vivo) return;
@@ -66,9 +69,27 @@ export function useAlertasAoVivo() {
     window.addEventListener('focus', atualizar);
     const intervalo = setInterval(atualizar, INTERVALO_MS);
 
+    // Fase 4: com a API Lotti ligada, o aviso ao vivo vem do SSE dela (gatilho
+    // lotti_alertas no banco). Se a conexão cai, tenta de novo em 5 s; a
+    // sondagem continua valendo no meio-tempo.
+    const escutarApi = async () => {
+      while (vivo) {
+        controle = new AbortController();
+        try {
+          await escutarSino(atualizar, controle.signal);
+        } catch {
+          // queda ou API fora do ar: a sondagem cobre
+        }
+        if (!vivo) return;
+        await new Promise((r) => { reconexao = setTimeout(r, 5000); });
+      }
+    };
+
     // Sem corretor carregado ainda, o filtro do canal seria inválido. A
     // sondagem já cobre o intervalo até o DataLoader terminar.
-    if (corretorId) {
+    if (corretorId && apiDisponivel()) {
+      void escutarApi();
+    } else if (corretorId) {
       canal = supabase
         .channel(`alertas:${corretorId}`)
         .on(
@@ -94,6 +115,8 @@ export function useAlertasAoVivo() {
       document.removeEventListener('visibilitychange', aoVoltar);
       window.removeEventListener('focus', atualizar);
       if (canal) void supabase.removeChannel(canal);
+      controle?.abort();
+      clearTimeout(reconexao);
     };
   }, [corretorId]);
 }

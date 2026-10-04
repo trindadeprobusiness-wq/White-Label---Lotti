@@ -34,7 +34,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { apiDisponivel, confirmarVisita } from '@/lib/api';
+import { apiDisponivel, confirmarVisita, marcarAlertasLidosApi } from '@/lib/api';
 
 /**
  * Sino de notificações, no modelo do painel do Asaas.
@@ -131,9 +131,11 @@ export function PainelNotificacoes() {
       // função. Mas o front NÃO pode depender de a migration já ter sido
       // aplicada — código e banco sobem em momentos diferentes, e assumir o
       // contrário deixou este botão quebrado em produção.
-      const { error } = await supabase.rpc('marcar_alertas_lidos' as never, {
-        _ids: null,
-      } as never);
+      const { error } = apiDisponivel()
+        ? await marcarAlertasLidosApi().then(() => ({ error: null }))
+        : await supabase.rpc('marcar_alertas_lidos' as never, {
+          _ids: null,
+        } as never);
 
       if (error) {
         // PGRST202 = função ausente do schema cache; 42883 = não existe.

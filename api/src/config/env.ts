@@ -4,6 +4,8 @@ export interface AppEnv {
   isProd: boolean;
   port: number;
   databaseUrl: string;
+  /** Conexão de sessão (migrations e LISTEN do sino ao vivo). Opcional. */
+  directUrl?: string;
   redisUrl: string;
   supabaseUrl: string;
   /** Projetos com chave JWT legada (HS256). Vazio: valida pelas chaves públicas (JWKS). */
@@ -29,6 +31,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     isProd,
     port: Number(source.PORT ?? 3001),
     databaseUrl: required(source, 'DATABASE_URL'),
+    directUrl: source.DIRECT_URL?.trim() || undefined,
     redisUrl: required(source, 'REDIS_URL'),
     supabaseUrl: required(source, 'SUPABASE_URL').replace(/\/+$/, ''),
     supabaseJwtSecret: source.SUPABASE_JWT_SECRET?.trim() || undefined,

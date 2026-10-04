@@ -13,6 +13,7 @@ import {
   Preferencias
 } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel, listarAlertasApi, marcarAlertasLidosApi } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { candidatosValidos, clienteDoTelefone, codigoDoErro, type CandidatoCliente } from '@/lib/crm/duplicidade';
 
@@ -240,6 +241,11 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchAlertas: async () => {
     try {
+      // Fase 4: com a API Lotti ligada (VITE_API_URL), o sino lê por ela.
+      if (apiDisponivel()) {
+        set({ alertas: (await listarAlertasApi()) as unknown as Alerta[] });
+        return;
+      }
       const { data, error } = await supabase
         .from('alertas')
         .select('*')
@@ -441,12 +447,16 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   marcarAlertaLido: async (id) => {
     try {
-      const { error } = await supabase
-        .from('alertas')
-        .update({ lido: true })
-        .eq('id', id);
+      if (apiDisponivel()) {
+        await marcarAlertasLidosApi([id]);
+      } else {
+        const { error } = await supabase
+          .from('alertas')
+          .update({ lido: true })
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
       get().fetchAlertas();
     } catch (error) {
       console.error('Erro ao marcar alerta como lido:', error);
