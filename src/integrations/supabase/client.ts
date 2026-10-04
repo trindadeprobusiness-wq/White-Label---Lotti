@@ -22,6 +22,13 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
+// O JWT do cliente fica no servidor. A aba de suporte nao pode assinar
+// eventos Realtime com o JWT administrativo usado pelo transporte.
+if (obterSuporte()) {
+  supabase.realtime.disconnect();
+  supabase.realtime.connect = () => {};
+}
+
 const getUserOriginal = supabase.auth.getUser.bind(supabase.auth);
 supabase.auth.getUser = async (...args) => {
   const suporte = obterSuporte();

@@ -1,5 +1,15 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex - atendimento de contas novas e antigas (2026-10-04)
+- Atendimento em `/admin/onboarding`: tabela sem restricao por data de cadastro ou etapa; status, busca, parceiro/origem, campanha, cliques e receita confirmada. Contas ativas sao o padrao; Ativacao agregada permanece em aba secundaria. Visualizar painel tambem disponivel em Contas Lotti e no detalhe da conta.
+- Suporte em aba separada com prazo de 30 minutos, banner e encerramento, usando permissoes/RLS do titular. Login administrativo preservado. JWT do titular fica no servidor em schema privado, sem refresh token; proxy verifica ator, papel e conta a cada chamada. Realtime desativado no suporte para nao usar o JWT administrativo nos eventos.
+- Abertura, encerramento e mutacoes de tabelas auditados com ator e nomes dos campos alterados, sem copiar conteudo pessoal. Requisicoes de escrita a funcoes e storage registradas antes do envio, sem afirmar sucesso da operacao.
+- Migration `20261004170000_atendimento_suporte.sql` aplicada e registrada no Supabase; Edge Function `admin-suporte` publicada. Restaurada `get_corretor_id` endurecida de `20260927110000`; consulta confirmou validacao da conta ativa. Bootstrap do onboarding anterior tambem foi executado idempotentemente para contas existentes.
+- Verificacao: 20 testes direcionados em seis arquivos passaram, builds local e de release passaram, ESLint dos arquivos novos sem erros e Deno check passou. Tabela conferida no navegador local autenticado com dados reais. Typecheck global ainda acusa problemas preexistentes de schema/tipos, sem mensagens dos novos arquivos no recorte verificado.
+- Fluxo de convite integrado e portal de parceiros incluido no commit `8b7e2f1`. Deploy Vercel `dpl_4UCaekFHyeJcvCNKkvZHfTiz3kTm` Ready; dominio principal agora aponta para Railway, confirmado por DNS/HTTP. PR #50 ja incorporado via `origin/main` em `2059c9a`, preservando Dockerfile, Caddyfile e dependencias; publicacao Git desta versao preparada.
+- Pendencias: abertura/encerramento com titular elegivel online ainda sem teste real. Contas administrativas, nao confirmadas e com MFA verificado nao aceitam suporte. Nenhum convite, pagamento ou dado operacional real foi alterado para testar. Alteracoes alheias da arvore principal nao foram incluidas.
+- Diario - Codex: atendimento independente da idade/etapa implementado e backend instalado; release integrado a hospedagem atual.
+
 ## Claude — migração para o Railway iniciada (2026-10-04)
 - Decisão do Rafael: front, banco/back-end (Supabase) e a stack da VPS vão para o Railway (conta do dono, workspace "Lotti").
 - PR #50 (draft, `feat/railway-front`): Dockerfile + Caddyfile equivalentes ao `vercel.json`. Não testado em container (Docker Desktop parado). O serviço `casa-mente-contrato` criado no Railway falhou porque o Railpack escolheu Bun pelo `bun.lockb`; o Dockerfile resolve.
