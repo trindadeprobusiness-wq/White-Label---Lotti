@@ -32,6 +32,24 @@ export interface AlertaNotificacao {
   metadata?: Record<string, unknown> | null;
 }
 
+/** A tabela alertas não tem coluna prioridade em produção: quem grava põe em metadata. */
+export function prioridadeDoAlerta(
+  alerta: Pick<AlertaNotificacao, 'prioridade' | 'metadata'>,
+): string | null {
+  if (alerta.prioridade) return alerta.prioridade;
+  const p = alerta.metadata?.prioridade;
+  return typeof p === 'string' ? p : null;
+}
+
+/** visita_id de um pedido de visita ainda não confirmado, para o botão do sino. */
+export function visitaPendente(alerta: AlertaNotificacao): string | null {
+  if (alerta.lido) return null;
+  const m = alerta.metadata;
+  const tipo = m?.tipo;
+  const id = m?.visita_id;
+  return (tipo === 'visita_confirmar' || tipo === 'visita_conflito') && typeof id === 'string' ? id : null;
+}
+
 /** Categorias do filtro do painel. */
 export type CategoriaNotificacao = 'todas' | 'financeiro' | 'operacao';
 

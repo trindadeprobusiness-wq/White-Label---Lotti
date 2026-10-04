@@ -25,6 +25,8 @@ import {
   movimentouSaldo,
   agruparPorDia,
   ROTULO_TIPO,
+  prioridadeDoAlerta,
+  visitaPendente,
   type AlertaNotificacao,
   type CategoriaNotificacao,
 } from '@/lib/notificacoes';
@@ -32,6 +34,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { apiDisponivel, confirmarVisita } from '@/lib/api';
 
 /**
  * Sino de notificações, no modelo do painel do Asaas.
@@ -83,7 +86,11 @@ export function PainelNotificacoes() {
   // Realtime + sondagem. Sem isto, todo o resto mostra dado do bootstrap.
   useAlertasAoVivo();
 
-  const lista = alertas as unknown as AlertaNotificacao[];
+  // Quem grava alerta novo põe a prioridade em metadata (não há coluna em produção).
+  const lista = useMemo(
+    () => (alertas as unknown as AlertaNotificacao[]).map((a) => ({ ...a, prioridade: prioridadeDoAlerta(a) })),
+    [alertas],
+  );
   const contagem = useMemo(() => contarNaoLidas(lista), [lista]);
   const grupos = useMemo(
     () => agruparPorDia(
@@ -340,6 +347,26 @@ export function PainelNotificacoes() {
                             )}
                           </span>
                         </button>
+                        {apiDisponivel() && visitaPendente(alerta) && (
+                          <div className="px-4 pb-3 pl-[3.75rem]">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-8"
+                              onClick={async () => {
+                                try {
+                                  await confirmarVisita(visitaPendente(alerta)!);
+                                  toast.success('Visita confirmada.');
+                                  void fetchAlertas();
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : 'Não foi possível confirmar a visita.');
+                                }
+                              }}
+                            >
+                              Confirmar visita
+                            </Button>
+                          </div>
+                        )}
                       </li>
                     );
                   })}

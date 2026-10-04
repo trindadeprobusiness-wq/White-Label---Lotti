@@ -10,6 +10,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  prioridadeDoAlerta,
+  visitaPendente,
   ehFinanceiro,
   filtrarPorCategoria,
   ordenarNotificacoes,
@@ -324,5 +326,26 @@ describe('movimentouSaldo', () => {
   it('alerta operacional urgente não é tratado como falha de dinheiro', () => {
     // Contrato vencendo também é ALTA, e não tem valor nenhum envolvido.
     expect(movimentouSaldo({ tipo: 'GERAL', prioridade: 'ALTA' })).toBe(true);
+  });
+});
+
+describe('alertas de visita', () => {
+  const base = { id: 'a1', tipo: 'GERAL', prioridade: null, mensagem: 'x', lido: false, created_at: '2026-10-05T12:00:00Z' };
+
+  it('prioridade vem de metadata quando a coluna não existe', () => {
+    expect(prioridadeDoAlerta({ prioridade: null, metadata: { prioridade: 'ALTA' } })).toBe('ALTA');
+    expect(prioridadeDoAlerta({ prioridade: 'MEDIA', metadata: { prioridade: 'ALTA' } })).toBe('MEDIA');
+    expect(prioridadeDoAlerta({ prioridade: null, metadata: null })).toBeNull();
+  });
+
+  it('identifica visita pendente só quando não lida', () => {
+    const visita = { ...base, metadata: { tipo: 'visita_conflito', visita_id: 'v1' } };
+    expect(visitaPendente(visita)).toBe('v1');
+    expect(visitaPendente({ ...visita, lido: true })).toBeNull();
+    expect(visitaPendente({ ...base, metadata: { tipo: 'outro', visita_id: 'v1' } })).toBeNull();
+  });
+
+  it('alerta de visita fica vermelho', () => {
+    expect(tomDoAlerta({ tipo: 'GERAL', prioridade: prioridadeDoAlerta({ prioridade: null, metadata: { prioridade: 'ALTA' } }) })).toBe('destructive');
   });
 });
