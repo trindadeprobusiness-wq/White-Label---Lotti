@@ -17,6 +17,7 @@ describe('loadEnv', () => {
       supabaseUrl: 'https://abc.supabase.co',
       supabaseJwtSecret: undefined,
       corsOrigins: [],
+      agentApiToken: undefined,
     });
   });
 
@@ -29,6 +30,11 @@ describe('loadEnv', () => {
 
   it('recusa subir sem variável obrigatória e diz qual falta', () => {
     expect(() => loadEnv({ REDIS_URL: base.REDIS_URL, SUPABASE_URL: base.SUPABASE_URL })).toThrow('DATABASE_URL');
+  });
+
+  it('lê o segredo do agente só quando tem 32+ caracteres', () => {
+    expect(loadEnv({ ...base, AGENT_API_TOKEN: 'curto' }).agentApiToken).toBeUndefined();
+    expect(loadEnv({ ...base, AGENT_API_TOKEN: 'a'.repeat(32) }).agentApiToken).toBe('a'.repeat(32));
   });
 
   it('em produção exige ao menos uma origem de CORS', () => {

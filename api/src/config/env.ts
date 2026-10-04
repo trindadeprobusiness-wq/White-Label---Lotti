@@ -9,6 +9,8 @@ export interface AppEnv {
   /** Projetos com chave JWT legada (HS256). Vazio: valida pelas chaves públicas (JWKS). */
   supabaseJwtSecret?: string;
   corsOrigins: string[];
+  /** Segredo compartilhado com o agente do WhatsApp (header x-lotti-agent). */
+  agentApiToken?: string;
 }
 
 export const ENV = Symbol('ENV');
@@ -31,6 +33,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     supabaseUrl: required(source, 'SUPABASE_URL').replace(/\/+$/, ''),
     supabaseJwtSecret: source.SUPABASE_JWT_SECRET?.trim() || undefined,
     corsOrigins,
+    agentApiToken: (source.AGENT_API_TOKEN?.trim().length ?? 0) >= 32 ? source.AGENT_API_TOKEN!.trim() : undefined,
   };
 }
 
