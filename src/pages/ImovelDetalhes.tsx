@@ -34,6 +34,12 @@ import { VideoCard } from '@/components/midias/VideoCard';
 import { VideoUploadArea } from '@/components/midias/VideoUploadArea';
 import { VideoPlayerDialog } from '@/components/midias/VideoPlayerDialog';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
+import { apiDisponivel } from '@/lib/api';
+import { atualizarImovelApi, listarClientesInteressadosApi, obterImovelApi, removerImovelApi } from '@/lib/api/imoveis';
+import type { ErroApi } from '@/lib/api/http';
+
+/** Chamada da API no formato { error } do supabase-js, para o tratamento de erro servir aos dois caminhos. */
+const comoErro = (p: Promise<unknown>) => p.then(() => ({ error: null }), (error: ErroApi) => ({ error }));
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -109,6 +115,17 @@ export default function ImovelDetalhes() {
     if (!id) return;
 
     setLoading(true);
+    if (apiDisponivel()) {
+      try {
+        setImovel(await obterImovelApi(id) as unknown as ImovelData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Erro ao buscar imóvel:', error);
+        toast({ title: 'Imóvel não encontrado', variant: 'destructive' });
+        navigate('/imoveis');
+      }
+      return;
+    }
     const { data, error } = await supabase
       .from('imoveis')
       .select('*')
@@ -128,6 +145,13 @@ export default function ImovelDetalhes() {
 
   const fetchClientesInteressados = async () => {
     if (!id) return;
+
+    if (apiDisponivel()) {
+      // As duas leituras viram uma rota; falha equivale a lista vazia, como hoje.
+      const lista = await listarClientesInteressadosApi(id).catch(() => [] as ClienteInteressado[]);
+      if (lista.length > 0) setClientesInteressados(lista);
+      return;
+    }
 
     const { data } = await supabase
       .from('cliente_imovel')
@@ -150,10 +174,13 @@ export default function ImovelDetalhes() {
   const handleDelete = async () => {
     if (!id) return;
 
-    const { error } = await supabase
-      .from('imoveis')
-      .delete()
-      .eq('id', id);
+    // Com a API, o 409 de contrato traz code '23503' e "contratos" na mensagem.
+    const { error } = apiDisponivel()
+      ? await comoErro(removerImovelApi(id))
+      : await supabase
+        .from('imoveis')
+        .delete()
+        .eq('id', id);
 
     if (error) {
       // Imóvel com contrato não pode ser apagado: a chave é RESTRICT desde a
@@ -201,10 +228,12 @@ export default function ImovelDetalhes() {
     // Atualiza o estado local imediatamente para melhor UX
     setImovel({ ...imovel, anunciado: checked });
     
-    const { error } = await supabase
-      .from('imoveis')
-      .update({ anunciado: checked } as any)
-      .eq('id', imovel.id);
+    const { error } = apiDisponivel()
+      ? await comoErro(atualizarImovelApi(imovel.id, { anunciado: checked }))
+      : await supabase
+        .from('imoveis')
+        .update({ anunciado: checked } as any)
+        .eq('id', imovel.id);
 
     if (error) {
       // Reverte em caso de erro

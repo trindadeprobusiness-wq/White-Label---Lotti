@@ -3,6 +3,24 @@ import { toast } from 'sonner';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { mensagemDeErro } from '@/lib/errors';
+import { apiDisponivel } from '@/lib/api';
+import {
+  CHAVES_NOVA_OPORTUNIDADE,
+  CHAVES_NOVA_TAREFA,
+  atualizarClienteApi,
+  buscarCandidatosApi,
+  concluirTarefaApi,
+  converterLeadApi,
+  criarOportunidadeApi,
+  criarTarefaApi,
+  excluirOportunidadesApi,
+  listarEtapasApi,
+  listarOportunidadesApi,
+  listarTarefasApi,
+  moverOportunidadeApi,
+  registrarHistoricoApi,
+} from '@/lib/api/crm';
+import { comoResultado, escolher } from '@/lib/api/http';
 import { normalizarLead } from '@/lib/crm/pipeline';
 import { paraRegistro } from '@/lib/crm/historico';
 import { candidatosValidos, codigoDoErro, type CandidatoCliente } from '@/lib/crm/duplicidade';
@@ -93,6 +111,9 @@ export function useModoCrm() {
     queryKey: [...crmKeys.todos, 'modo'] as const,
     staleTime: Infinity, // o schema não muda durante a sessão
     queryFn: async (): Promise<ModoCrm> => {
+      // Com a API as tabelas crm_* existem (baseline e Railway): sem sonda, um
+      // erro passageiro não prende a sessão inteira no modo legado.
+      if (apiDisponivel()) return 'completo';
       const { error } = await db().from('crm_etapas').select('id').limit(1);
       // 42P01 = relation does not exist. Qualquer erro aqui significa "ainda
       // não dá para usar o modo completo" — degrada em vez de quebrar a tela.
@@ -110,6 +131,7 @@ export function useEtapas() {
     enabled: !!modo,
     queryFn: async (): Promise<CrmEtapa[]> => {
       if (modo === 'legado') return ETAPAS_LEGADO;
+      if (apiDisponivel()) return await listarEtapasApi();
       const { data, error } = await db()
         .from('crm_etapas').select('*').eq('ativo', true).order('ordem');
       if (error) throw error;
@@ -151,6 +173,7 @@ export function useOportunidades() {
         });
       }
 
+      if (apiDisponivel()) return await listarOportunidadesApi();
       const { data, error } = await db()
         .from('crm_oportunidades')
         .select('*, clientes(nome, telefone), imoveis(titulo)')
@@ -184,6 +207,7 @@ export function useTarefas() {
         }) as CrmTarefa);
       }
 
+      if (apiDisponivel()) return await listarTarefasApi();
       const { data, error } = await db()
         .from('crm_tarefas')
         .select('*, clientes(nome)')
@@ -234,6 +258,11 @@ export function useClientesParecidos(
     queryKey: crmKeys.candidatos(chave.telefone, chave.email, chave.cpf),
     enabled: habilitado && !!(chave.telefone || chave.email || chave.cpf),
     queryFn: async (): Promise<CandidatoCliente[]> => {
+      if (apiDisponivel()) {
+        return candidatosValidos(await buscarCandidatosApi({
+          telefone: chave.telefone || null, email: chave.email || null, cpf: chave.cpf || null,
+        }));
+      }
       const { data, error } = await db().rpc('crm_clientes_por_telefone', {
         p_telefone: chave.telefone || null, p_email: chave.email || null, p_cpf: chave.cpf || null,
       });
@@ -264,6 +293,11 @@ export function useExcluirOportunidades() {
   return useMutation({
     mutationFn: async (ids: string[]) => {
       if (modo === 'legado') throw new Error('exclusao_no_funil_legado');
+      if (apiDisponivel()) {
+        // A seleção só tem negócios da lista carregada (até 1000), o mesmo teto da rota.
+        await excluirOportunidadesApi(ids);
+        return ids;
+      }
       const { error } = await db().from('crm_oportunidades').delete().in('id', ids);
       if (error) throw error;
       return ids;
@@ -287,6 +321,9 @@ export function useMoverOportunidade() {
         if (error) throw error;
         return { id: args.id };
       }
+
+      // O 409 da API vira ErroApi com message 'CONFLITO', o mesmo aviso do onError.
+      if (apiDisponivel()) return await moverOportunidadeApi(args);
 
       const { data, error } = await db()
         .from('crm_oportunidades')
@@ -330,6 +367,8 @@ export function useCriarOportunidade() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (nova: Partial<CrmOportunidade>) => {
+      // O servidor resolve a conta: id e corretor_id nunca vão.
+      if (apiDisponivel()) return await criarOportunidadeApi(escolher(nova, CHAVES_NOVA_OPORTUNIDADE));
       const { data, error } = await db()
         .from('crm_oportunidades')
         .insert({ ...nova, corretor_id: await corretorId() })
@@ -359,6 +398,14 @@ export function useRegistrarContatoWhatsApp() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { clienteId: string; mensagem: string }) => {
+      if (apiDisponivel()) {
+        await registrarHistoricoApi(args.clienteId, {
+          tipo: 'WHATSAPP', direcao: 'OUT', conteudo: args.mensagem.slice(0, 500), metadata: { tipo_ui: 'WHATSAPP', via: 'wa.me' },
+        });
+        // Melhor esforço, como no ramo do Supabase: o contato já foi registrado.
+        await atualizarClienteApi(args.clienteId, { ultimo_contato: new Date().toISOString() }).catch(() => undefined);
+        return;
+      }
       const { error } = await db().from('historico_contatos').insert(
         paraRegistro({
           clienteId: args.clienteId,
@@ -386,6 +433,10 @@ export function useConcluirTarefa() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { id: string; concluida: boolean }) => {
+      if (apiDisponivel()) {
+        await concluirTarefaApi(args.id, args.concluida);
+        return;
+      }
       const { error } = await db().from('crm_tarefas').update({
         concluida: args.concluida,
         concluida_em: args.concluida ? new Date().toISOString() : null,
@@ -401,6 +452,10 @@ export function useCriarTarefa() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (nova: Partial<CrmTarefa>) => {
+      if (apiDisponivel()) {
+        await criarTarefaApi(escolher(nova, CHAVES_NOVA_TAREFA));
+        return;
+      }
       const { error } = await db()
         .from('crm_tarefas').insert({ ...nova, corretor_id: await corretorId() });
       if (error) throw error;
@@ -448,13 +503,22 @@ export function useConverterLead() {
       clienteExistente?: string | null;
     }): Promise<ResultadoConversao> => {
       const limpo = normalizarLead(args.lead);
-      const { data, error } = await db().rpc('crm_converter_lead', {
-        p_lead: args.lead.id,
-        // No modo legado a "etapa" é o status_funil ('QUALIFICACAO'), não um uuid.
-        p_etapa: modo === 'completo' ? args.etapaId : null,
-        p_dados: { nome: limpo.nome, telefone: limpo.telefone, email: limpo.email },
-        p_cliente: args.clienteExistente ?? null,
-      });
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(converterLeadApi({
+          lead_id: args.lead.id,
+          etapa_id: modo === 'completo' ? args.etapaId : null,
+          nome: limpo.nome,
+          telefone: limpo.telefone,
+          email: limpo.email,
+          cliente_id: args.clienteExistente ?? null,
+        }))
+        : await db().rpc('crm_converter_lead', {
+          p_lead: args.lead.id,
+          // No modo legado a "etapa" é o status_funil ('QUALIFICACAO'), não um uuid.
+          p_etapa: modo === 'completo' ? args.etapaId : null,
+          p_dados: { nome: limpo.nome, telefone: limpo.telefone, email: limpo.email },
+          p_cliente: args.clienteExistente ?? null,
+        });
       if (error) throw error;
       const resultado = data as ResultadoConversao;
       return resultado.status === 'duplicate'

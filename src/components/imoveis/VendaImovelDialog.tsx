@@ -8,6 +8,8 @@ import { useCRMStore } from '@/stores/crmStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { apiDisponivel } from '@/lib/api';
+import { registrarVendaImovelApi } from '@/lib/api/imoveis';
 
 interface VendaImovelDialogProps {
   open: boolean;
@@ -38,23 +40,30 @@ export function VendaImovelDialog({ open, onOpenChange, imovel, onSuccess }: Ven
     setIsSubmitting(true);
 
     try {
-      // 1. Marcar imóvel como VENDIDO
-      const { error: imovelError } = await supabase
-        .from('imoveis')
-        .update({ status_venda: 'VENDIDO' } as any)
-        .eq('id', imovel.id);
-
-      if (imovelError) throw imovelError;
-
-      // 2. Coletar dados do comprador se selecionado
       let cliente: any = null;
-      if (selectedClienteId !== 'none') {
-        cliente = clientes.find(c => c.id === selectedClienteId);
-        // Atualizar status do cliente para FECHADO_GANHO
-        await supabase
-          .from('clientes')
-          .update({ status_funil: 'FECHADO_GANHO' })
-          .eq('id', selectedClienteId);
+      if (apiDisponivel()) {
+        // Passos 1 e 2 numa chamada: o imóvel é confirmado antes do cliente, e a
+        // falha do cliente não desfaz a venda (cliente_atualizado não é lido, como hoje).
+        await registrarVendaImovelApi(imovel.id, selectedClienteId !== 'none' ? selectedClienteId : null);
+        if (selectedClienteId !== 'none') cliente = clientes.find(c => c.id === selectedClienteId);
+      } else {
+        // 1. Marcar imóvel como VENDIDO
+        const { error: imovelError } = await supabase
+          .from('imoveis')
+          .update({ status_venda: 'VENDIDO' } as any)
+          .eq('id', imovel.id);
+
+        if (imovelError) throw imovelError;
+
+        // 2. Coletar dados do comprador se selecionado
+        if (selectedClienteId !== 'none') {
+          cliente = clientes.find(c => c.id === selectedClienteId);
+          // Atualizar status do cliente para FECHADO_GANHO
+          await supabase
+            .from('clientes')
+            .update({ status_funil: 'FECHADO_GANHO' })
+            .eq('id', selectedClienteId);
+        }
       }
 
       // 3. Montar o Payload do UTMify Outbox

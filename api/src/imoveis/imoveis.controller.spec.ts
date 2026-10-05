@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { ImoveisController } from './imoveis.controller';
+import { ImoveisGestaoService } from './imoveis-gestao.service';
 import { ImoveisService } from './imoveis.service';
 
 describe('GET /api/imoveis/busca', () => {
@@ -20,7 +21,7 @@ describe('GET /api/imoveis/busca', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [ImoveisController],
-      providers: [{ provide: ImoveisService, useValue: { buscar } }],
+      providers: [{ provide: ImoveisService, useValue: { buscar } }, { provide: ImoveisGestaoService, useValue: {} }],
     }).overrideGuard(SupabaseAuthGuard).useValue(guard).compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));

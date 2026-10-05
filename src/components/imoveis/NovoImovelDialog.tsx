@@ -20,6 +20,9 @@ import { useFileDrop } from '@/hooks/useFileDrop';
 import { cn } from '@/lib/utils';
 import { useCheckLimit } from '@/hooks/useSubscription';
 import { podeCriarRecurso } from '@/lib/planos';
+import { apiDisponivel } from '@/lib/api';
+import { atualizarImovelApi, criarImovelApi } from '@/lib/api/imoveis';
+import { ErroApi } from '@/lib/api/http';
 
 type Finalidade = 'VENDA' | 'LOCACAO' | 'AMBOS';
 
@@ -165,7 +168,25 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
     try {
       let imovel;
 
-      if (!isEditing) {
+      if (apiDisponivel()) {
+        // Sem get_corretor_id no navegador: o servidor resolve a conta.
+        const campos = {
+          titulo: form.titulo,
+          tipo: form.tipo,
+          finalidade: form.finalidade,
+          valor: Number(form.valor.toString().replace(/\./g, '').replace(',', '.')) || 0,
+          area_m2: Number(form.area_m2) || 0,
+          dormitorios: numeroSeAplicavel(camposAplicaveis.dormitorios, form.dormitorios),
+          garagem: numeroSeAplicavel(camposAplicaveis.garagem, form.garagem),
+          endereco: form.endereco,
+          bairro: form.bairro,
+          cidade: form.cidade,
+          proprietario_nome: form.proprietario_nome,
+          suites: numeroSeAplicavel(camposAplicaveis.suites, form.suites),
+          banheiros: numeroSeAplicavel(camposAplicaveis.banheiros, form.banheiros),
+        };
+        imovel = isEditing ? await atualizarImovelApi(imovelToEdit.id, campos) : await criarImovelApi(campos);
+      } else if (!isEditing) {
         // Get corretor_id only for new inserts
         const { data: corretorId, error: corretorError } = await supabase.rpc('get_corretor_id');
         if (corretorError || !corretorId) {
@@ -247,7 +268,16 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
       if (!isEditing && imovel?.id) onCreated?.(imovel.id);
     } catch (error: any) {
       console.error('Erro ao salvar imóvel:', error);
-      toast({ title: 'Erro ao salvar imóvel', description: error.message, variant: 'destructive' });
+      if (error instanceof ErroApi && error.status === 402) {
+        // Cota do plano recusada no servidor: mesmo aviso da checagem feita aqui no navegador.
+        toast({
+          title: 'Limite de imóveis atingido',
+          description: 'Acesse Plano e Assinatura para liberar mais imóveis.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'Erro ao salvar imóvel', description: error.message, variant: 'destructive' });
+      }
     } finally {
       setSubmitting(false);
     }

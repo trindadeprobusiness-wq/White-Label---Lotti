@@ -21,6 +21,10 @@ import { functionErrorCode, mergeErrorText, renameErrorText, startErrorText } fr
 import { mesmoTelefone } from './deepLink';
 import { temperaturaLegivel, valorLegivel, type Temperatura } from './qualificacaoLegivel';
 import { ENVIO_SEM_CONFIRMACAO, ESPERA_DA_IA, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
+import { apiDisponivel } from '@/lib/api';
+import { obterClienteApi } from '@/lib/api/crm';
+
+type ClienteDaConversa = { nome: string; email: string | null; telefone: string; created_at: string | null; status_funil: string; tipo_interesse: string };
 
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
@@ -274,10 +278,15 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const client = useQuery({
     queryKey: ['lotti-inbox-client', user?.id, selected?.cliente_id], enabled: !!user && !!selected?.cliente_id && !preview,
     queryFn: async () => {
+      if (apiDisponivel()) {
+        // Qualquer erro (inclusive 404) deixa a query em erro e a tela usa os fallbacks.
+        const c = await obterClienteApi(selected!.cliente_id!);
+        return { nome: c.nome, email: c.email, telefone: c.telefone, created_at: c.created_at, status_funil: c.status_funil, tipo_interesse: c.tipo_interesse } as ClienteDaConversa;
+      }
       const { data, error } = await db.from('clientes').select('nome,email,telefone,created_at,status_funil,tipo_interesse')
         .eq('id', selected!.cliente_id!).single();
       if (error) throw error;
-      return data as { nome: string; email: string | null; telefone: string; created_at: string | null; status_funil: string; tipo_interesse: string };
+      return data as ClienteDaConversa;
     },
   });
   const mode = useMutation({

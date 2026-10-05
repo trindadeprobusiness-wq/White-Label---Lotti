@@ -14,6 +14,21 @@ import {
 } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel, listarAlertasApi, marcarAlertasLidosApi } from '@/lib/api';
+import {
+  CHAVES_ALTERAR_CLIENTE,
+  CHAVES_CRIAR_CLIENTE,
+  atualizarClienteApi,
+  buscarCandidatosApi,
+  criarClienteApi,
+  definirImovelDeInteresseApi,
+  listarClientesApi,
+  listarHistoricoApi,
+  moverClienteNoFunilApi,
+  registrarHistoricoApi,
+  removerClienteApi,
+} from '@/lib/api/crm';
+import { listarImoveisApi } from '@/lib/api/imoveis';
+import { comoResultado, escolher } from '@/lib/api/http';
 import { toast } from '@/hooks/use-toast';
 import { candidatosValidos, clienteDoTelefone, codigoDoErro, type CandidatoCliente } from '@/lib/crm/duplicidade';
 
@@ -44,7 +59,9 @@ export type ResultadoCliente =
 // Nome de quem já tem o telefone, para a tela dizer "já é do cliente X". Se a
 // busca falhar, o id que veio no erro basta para abrir o cadastro.
 async function donoDoTelefone(telefone: string, existente: string, editando?: string): Promise<CandidatoCliente[]> {
-  const { data } = await db.rpc('crm_clientes_por_telefone', { p_telefone: telefone });
+  const { data } = apiDisponivel()
+    ? { data: await buscarCandidatosApi({ telefone }).catch(() => null) }
+    : await db.rpc('crm_clientes_por_telefone', { p_telefone: telefone });
   const candidatos = candidatosValidos(data).filter((c) => c.motivo === 'telefone' && c.id !== editando);
   return candidatos.length ? candidatos : [{ id: existente, nome: '', motivo: 'telefone' }];
 }
@@ -150,10 +167,13 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchClientes: async () => {
     try {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('*, cliente_imovel(imovel_id)')
-        .order('created_at', { ascending: false });
+      // Fase 4: com a API Lotti ligada (VITE_API_URL), lê por ela no mesmo formato.
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(listarClientesApi())
+        : await supabase
+          .from('clientes')
+          .select('*, cliente_imovel(imovel_id)')
+          .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -174,10 +194,12 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchImoveis: async () => {
     try {
-      const { data, error } = await supabase
-        .from('imoveis')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(listarImoveisApi())
+        : await supabase
+          .from('imoveis')
+          .select('*')
+          .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -269,6 +291,10 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchHistorico: async (clienteId?: string) => {
     try {
+      if (apiDisponivel() && clienteId) {
+        set({ historico: (await listarHistoricoApi(clienteId)) as unknown as HistoricoContato[] });
+        return;
+      }
       // A coluna é `data_contato`, não `data`. Ordenar por coluna inexistente
       // fazia a query inteira falhar e a timeline vinha sempre vazia.
       let query = supabase
@@ -294,7 +320,9 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
   // número viram um. O dono (corretor_id) é resolvido no servidor.
   addCliente: async (cliente) => {
     try {
-      const { data, error } = await db.rpc('crm_criar_cliente', { p_dados: cliente });
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(criarClienteApi(escolher(cliente, CHAVES_CRIAR_CLIENTE)))
+        : await db.rpc('crm_criar_cliente', { p_dados: cliente });
       if (error) {
         const existente = clienteDoTelefone(error);
         if (existente) return { status: 'duplicate', candidatos: await donoDoTelefone(cliente.telefone, existente) };
@@ -318,10 +346,12 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   updateCliente: async (id, data) => {
     try {
-      const { error } = await db
-        .from('clientes')
-        .update(data)
-        .eq('id', id);
+      const { error } = apiDisponivel()
+        ? await comoResultado(atualizarClienteApi(id, escolher(data, CHAVES_ALTERAR_CLIENTE)))
+        : await db
+          .from('clientes')
+          .update(data)
+          .eq('id', id);
 
       if (error) {
         // Trocar o telefone para o de outro cliente é recusado pelo banco.
@@ -348,6 +378,11 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
     });
 
     try {
+      if (apiDisponivel()) {
+        // A API responde 404 quando nenhuma linha muda.
+        await moverClienteNoFunilApi(id, status);
+        return;
+      }
       // Mesma armadilha do delete: UPDATE sem linha afetada não é erro.
       const { data, error } = await supabase
         .from('clientes')
@@ -366,6 +401,12 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   removeCliente: async (id) => {
     try {
+      if (apiDisponivel()) {
+        // O ErroApi volta inteiro: Clientes.tsx lê code 23503 e "contratos" nele.
+        await removerClienteApi(id);
+        get().fetchClientes();
+        return { success: true };
+      }
       // O `select` não é enfeite: um DELETE barrado pela RLS volta SEM erro e
       // sem linha nenhuma. Sem conferir o que saiu, a tela dizia "excluído" e o
       // cliente continuava lá — que foi exatamente o que o corretor viu.
@@ -418,6 +459,15 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
         texto: String((historico as { descricao?: string; conteudo?: string }).descricao
           ?? (historico as { conteudo?: string }).conteudo ?? ''),
       });
+
+      if (apiDisponivel()) {
+        // data_contato fica com o relógio do servidor.
+        await registrarHistoricoApi(historico.cliente_id, {
+          tipo: registro.tipo, direcao: registro.direcao, conteudo: registro.conteudo, metadata: registro.metadata,
+        });
+        get().fetchHistorico(historico.cliente_id);
+        return;
+      }
 
       // O types.ts gerado ainda descreve o formato ANTIGO desta tabela (com
       // corretor_id/descricao/data), que não é o que existe em produção. Até os
@@ -507,6 +557,12 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   vincularClienteImovel: async (clienteId, imovelId) => {
     try {
+      if (apiDisponivel()) {
+        // 'none' é a opção "Nenhum" do seletor: remove o vínculo. Troca atômica no servidor.
+        await definirImovelDeInteresseApi(clienteId, imovelId && imovelId !== 'none' ? imovelId : null);
+        get().fetchClientes();
+        return;
+      }
       // First, remove existing links to ensure 1:1 relationship for the UI
       await supabase
         .from('cliente_imovel')

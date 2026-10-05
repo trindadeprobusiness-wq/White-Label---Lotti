@@ -24,6 +24,11 @@ import { moeda as moedaBR } from '@/lib/formato';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import FunilVendas from '@/pages/FunilVendas';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { mensagemDeErro } from '@/lib/errors';
+
+// Mesma regra da API na URL e no corpo (8-4-4-4-12 hexadecimal): id que passa aqui passa na rota.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Sem centavos no Kanban: o valor é referência de negócio, não extrato. */
 const moeda = (v: number) => moedaBR(v, true);
@@ -485,6 +490,23 @@ function GerenciarEtapas({ open, onOpenChange, etapas, oportunidades, aoSalvar }
   const [draft, setDraft] = useState(etapas);
   useEffect(() => { if (open) setDraft(etapas); }, [etapas, open]);
   const salvar = async () => {
+    // Dinâmico de propósito: o teste visual roda em node sem mock do cliente do Supabase.
+    const { apiDisponivel } = await import('@/lib/api');
+    if (apiDisponivel()) {
+      // Itens 'novo-…' não vão: hoje também nunca criam nada.
+      const etapas = draft.filter((e) => UUID.test(e.id)).map(({ id, nome, cor, tipo, ordem }) => ({ id, nome, cor, tipo, ordem }));
+      if (etapas.length > 0) {
+        try {
+          const { salvarEtapasApi } = await import('@/lib/api/crm');
+          await salvarEtapasApi(etapas);
+        } catch (e) {
+          toast.error(mensagemDeErro(e, 'Não foi possível salvar as etapas.'));
+          return; // diálogo fica aberto com o rascunho; nada foi gravado (rota atômica)
+        }
+      }
+      aoSalvar(); onOpenChange(false);
+      return;
+    }
     const { supabase } = await import('@/integrations/supabase/client');
     for (const etapa of draft) {
       await (supabase as any).from('crm_etapas').update({ nome: etapa.nome, cor: etapa.cor, tipo: etapa.tipo, ordem: etapa.ordem }).eq('id', etapa.id);

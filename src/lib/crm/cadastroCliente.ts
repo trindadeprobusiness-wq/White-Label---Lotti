@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { completarCpfApi, criarClienteApi } from '@/lib/api/crm';
+import { comoResultado } from '@/lib/api/http';
 import { candidatosValidos, clienteDoTelefone } from './duplicidade';
 
 // crm_* ainda não estão no types.ts gerado.
@@ -24,7 +27,10 @@ export interface DadosClienteNovo {
 export async function cadastrarOuReaproveitarCliente(
   dados: DadosClienteNovo,
 ): Promise<{ id: string; criado: boolean; nome: string }> {
-  const { data, error } = await db.rpc('crm_criar_cliente', { p_dados: dados });
+  // Com a API, o ErroApi traz o código em message e o uuid em details, como o PostgREST.
+  const { data, error } = apiDisponivel()
+    ? await comoResultado(criarClienteApi({ ...dados }))
+    : await db.rpc('crm_criar_cliente', { p_dados: dados });
   if (error) {
     const existente = clienteDoTelefone(error);
     if (existente) return { id: existente, criado: false, nome: '' };
@@ -47,6 +53,10 @@ export async function cadastrarOuReaproveitarCliente(
 export async function completarCpfDoCliente(clienteId: string, cpf: string | null | undefined) {
   const digitos = (cpf ?? '').replace(/\D/g, '');
   if (digitos.length !== 11 && digitos.length !== 14) return;
+  if (apiDisponivel()) {
+    await completarCpfApi(clienteId, digitos).catch((e) => console.error('Não foi possível guardar o CPF do cliente:', e));
+    return;
+  }
   const { error } = await db.from('clientes').update({ cpf: digitos }).eq('id', clienteId).is('cpf', null);
   if (error) console.error('Não foi possível guardar o CPF do cliente:', error);
 }

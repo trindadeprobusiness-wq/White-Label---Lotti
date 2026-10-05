@@ -5,16 +5,25 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
 
 ## Do Rafael (decisão ou acesso)
 
-- [ ] **Ativar o backup (PITR) do Postgres do Railway antes da virada.** Hoje está
-  desligado (`railway postgres pitr status --service Postgres`). Pode ter custo no
-  plano. Para o ensaio não é necessário; antes da virada é obrigatório. Comando:
-  `railway postgres pitr enable --service Postgres`.
+- [x] ~~**Ativar o backup (PITR) do Postgres do Railway antes da virada.**~~ Feito
+  pelo Codex em 2026-10-05 com autorização do Rafael: backups diário (6 dias),
+  semanal (27) e mensal (89), mais PITR `enabled` com bucket ligado (conferido em
+  `railway postgres pitr status`). Custo por armazenamento e egress, sem taxa fixa.
 - [ ] **Pedido ao suporte do Supabase** (linhas apagadas em 2026-10-02): confirmar se
   foi enviado (`pedido-suporte-supabase.md`). Até a resposta, o autovacuum segue
   **pausado** em `contratos`, `clientes`, `cliente_imovel` e `historico_contatos`.
   Não religar antes.
-- [ ] **Produção (Supabase) sem backup restaurável.** A lista de backups está vazia
-  e o PITR desligado. Avaliar ativar no Supabase até a virada.
+- [ ] **Produção (Supabase) sem backup nenhum: o projeto está no plano Free**
+  (conferido pelo Codex no painel em 2026-10-05). O plano Free não tem backups, e a
+  lista está zerada. Opções até a virada:
+  - Pro (~US$25/mês): 7 dias de backups diários.
+  - Exportar os dados por script: `copiar.mjs` hoje só copia para destino vazio.
+
+  Decisão do Rafael.
+- [ ] **PR do job de CI `api`:** commit `a7deff0` pronto em `C:\Users\rafae\lotti-api-ci`
+  (branch `ci/api-job`, só `.github/workflows/security.yml`). O push precisa do escopo
+  `workflow`: criar pelo GitHub da conta do dono ("Propose changes") ou rodar
+  `gh auth refresh -h github.com -s workflow` e empurrar a branch.
 - [ ] **Senha do banco do Supabase / `DATABASE_URL`.** Necessária se algum módulo da
   API precisar falar com a produção antes da virada.
 - [ ] **E-mail da conta na plataforma**, para o canal sandbox do teste do agente.
@@ -38,9 +47,40 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
   (`TO authenticated`).
 - [ ] **Virada da Parte 2 (WhatsApp no Railway).** `AGENT_WORKER_ENABLED=false` no
   Railway até lá. Checklist da virada com o Codex.
-- [ ] **30 conversas esperando resposta da IA desde 2026-09-26**: investigar.
-- [ ] **Volumes soltos no Railway** (`redis-volume` com 308 MB, `postgres-volume`
-  vazio): apagar depois da virada.
+- [x] ~~**30 conversas esperando resposta da IA desde 2026-09-26.**~~ Resolvido sem
+  ação em 2026-10-04. As 30 são de canais sandbox **desligados e arquivados**, e estão
+  arquivadas também, então não aparecem no Inbox. O `lotti_agent_claim` só pega conversa
+  de canal com `enabled`, então o worker nunca vai respondê-las. O script
+  `lotti-inventarios\08-neutralizar-fila.sql` **não precisa rodar**. A única real
+  (`1be72072-…`) está em modo `human` e também não é tocada pelo agente.
+- [ ] **WhatsApp sem nenhuma mensagem desde 2026-10-02 19:36 UTC** (última `in` e
+  `out`). O Codex não tem SSH da VPS para conferir a sessão. Conferir pela tela do
+  WhatsApp no app (status da conexão) ou com uma mensagem de outro celular.
+- [ ] **PRs #21 e #22 do runtime prontos:** mesclam limpo com a `main` (Codex,
+  2026-10-04: 157/157 e 162/162). Origens no Railway (`lotti-inventarios\07`):
+  - Um merge na `main` reconstrói só o `evolution` do Railway. Conferido nos logs: é a
+    instância de teste `lotti-railway-test`, sem WhatsApp conectado. Inofensivo.
+  - `agent`, `webhook-proxy` e `evolution-agent-proxy` são buildados de
+    `claude/webhook-direto`. **Não apagar essa branch ao mesclar.** Trocar esses
+    serviços para a `main` só na virada.
+- [x] ~~**Domínio `api.plataformalotti.com.br`.**~~ Ativo desde 2026-10-05, com
+  certificado válido. `/api/health` responde 200 e `/api/notificacoes` sem login
+  responde 401 (conferido). Na virada, os webhooks externos (Asaas, Google) passam a
+  apontar para este domínio, nunca para o `*.up.railway.app`.
+- [ ] **Backup da produção (Supabase).** O PITR do Supabase custa ~US$100/mês (7 dias)
+  e o Supabase sai na virada, então não vale. Falta conferir o plano no Billing; a lista
+  de backups vazia sugere o gratuito. Até a virada, a proteção é a cópia da produção no
+  Postgres do Railway, que já tem backups. Refazer essa cópia quando precisar.
+- [ ] **Limpeza do Railway depois da virada.** Ficam: `casa-mente-contrato`, `api`,
+  `Postgres`, `Redis`, `agent`, `evolution`, `evolution-db` e `evolution-redis`. Saem:
+  - `n8n`: tinha 0 fluxos. **Parado em 2026-10-05** (deployment removido, serviço e
+    `n8n-volume` preservados). Falta apagar depois da virada.
+  - `webhook-proxy`: o PR #21 manda a Evolution direto ao `agent`.
+  - `evolution-agent-proxy`: só contorna o CORS da Evolution. Sai com o PR
+    Lotti-ADM/n8n-agent-lotti#23 (rascunho, revisado pelo Claude em 2026-10-05: todas
+    as chamadas à Evolution passam pelo helper; 164 testes). Na virada, preencher
+    `EVOLUTION_ORIGIN` no `agent` e apontar `EVOLUTION_URL` direto para a Evolution.
+  - Volumes soltos `redis-volume` (308 MB) e `postgres-volume` (vazio).
 - [ ] **PRs abertos:**
   - Lotti-ADM/casa-mente-contrato#51 (API, rascunho);
   - Lotti-ADM/n8n-agent-lotti#20, #21 e #22 (proxies, webhook direto, visitas).
@@ -52,7 +92,37 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
   conferir o sino ao vivo (SSE) com um alerta real.
 - [ ] **Achado de segurança, anterior à migração:** `anon` e `authenticated` podiam
   executar todas as funções novas por padrão (default privileges do Supabase dão
-  EXECUTE). Revisar quais funções o `anon` realmente precisa.
+  EXECUTE). Medido na produção em 2026-10-04: o `anon` executa 44 das 217 funções de
+  `public`, 25 delas SECURITY DEFINER. Dessas 25, 18 são de gatilho (não dá para chamar
+  direto) e 7 dão para chamar: `estornar_pagamento_fatura`, `registrar_atividade` e
+  `lotti_inbox_event_actor` conferem identidade por dentro; `is_organization_member`,
+  `is_organization_manager`, `fachada_esta_ativa` e `public_fachada_active` só devolvem
+  booleano. **Gravidade baixa.** Correção: migration que revoga EXECUTE do `anon` em
+  tudo, menos nas funções usadas por policies que o `anon` atravessa (fachada/imóvel
+  público), e ajusta os default privileges para funções novas.
+- [ ] **Virada: endereços cadastrados fora do sistema** (inventário do Codex em
+  `lotti-inventarios\02-edge-functions.md`, conferido):
+  - Asaas (aluguel): 1 conexão só, herdada, **sem webhook próprio**. Trocar 1 URL no
+    painel do Asaas (`…supabase.co/functions/v1/asaas-webhook` → API).
+  - Google OAuth: o Google conhece `app.plataformalotti.com.br/google-agenda/callback`,
+    e o Caddy repassa ao Supabase. Na virada, trocar só o destino no `Caddyfile`; não
+    mexer no Google Cloud.
+  - Google Calendar push: `GOOGLE_CALENDAR_WEBHOOK_URL`; o cron renova os canais a cada
+    30 min e pega a URL nova sozinho.
+  - QR das fachadas: apontam para `app…/p/<id>` (domínio do front). Nada a trocar.
+  - Link de captação em `ImovelDetalhes.tsx:224,424` mostra a URL do **Supabase**
+    (`/functions/v1/lead-capture`), que pode ter sido colada em sites e anúncios.
+    Passar a exibir uma URL no nosso domínio (rota no Caddy) **já**, para os links
+    novos sobreviverem à virada. O arquivo é do módulo de imóveis: fazer depois do
+    fluxo da fase 4.
+- [ ] **Checklist da virada do WhatsApp** (`lotti-inventarios\06-virada-whatsapp.md`):
+  faltam (1) o `agent` do Railway ser buildado do código dos PRs #21/#22 do runtime,
+  não de `codex/railway-proxy-fixes`; (2) as flags `AGENT_WORKER_ENABLED` e
+  `CATCHUP_ENABLED`, com um consumidor só; (3) criar antes da janela os domínios
+  `bridge`/`evolution` no Railway e os TXT de verificação. Se o hostname continuar
+  `bridge.plataformalotti.com.br`, o secret `LOTTI_CHANNEL_BRIDGE_URL` não muda.
+- [ ] **Fase 5 (login e arquivos) é pequena:** 3 usuários, todos por e-mail; Storage
+  com 89 objetos e ~85 MiB (80 MiB em `imoveis-fotos`).
 
 ## Resolvidas
 

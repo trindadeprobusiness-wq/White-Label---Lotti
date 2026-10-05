@@ -11,6 +11,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCRMStore } from '@/stores/crmStore';
 import { mensagemDeErro } from '@/lib/errors';
 import { moeda } from '@/lib/formato';
+import { apiDisponivel } from '@/lib/api';
+import { criarImovelApi } from '@/lib/api/imoveis';
+import { comoResultado } from '@/lib/api/http';
 
 /**
  * Escolhe um imóvel — ou cadastra um na hora.
@@ -69,30 +72,37 @@ export function SeletorImovel({ value, onChange }: Props) {
   const salvar = async () => {
     if (!podeSalvar || salvando) return;
 
-    if (!corretor?.id) {
+    // Com a API o servidor resolve a conta: não precisa esperar o corretor carregar.
+    const comApi = apiDisponivel();
+    if (!comApi && !corretor?.id) {
       toast.error('Sua conta ainda está carregando. Tente novamente em instantes.');
       return;
     }
 
     setSalvando(true);
     try {
-      const { data, error } = await supabase
-        .from('imoveis')
-        .insert({
-          corretor_id: corretor.id,
-          titulo: titulo.trim(),
-          tipo: tipo as never,
-          // Valor 0 é aceito: nem todo imóvel tem preço definido no momento em
-          // que o cliente demonstra interesse. É o que o Início sinaliza como
-          // cadastro incompleto.
-          valor: numeroValor,
-          endereco: endereco.trim(),
-          cidade: cidade.trim(),
-          proprietario_nome: 'A definir',
-          ativo: true,
-        })
-        .select('id, titulo')
-        .single();
+      const { data, error } = comApi
+        ? await comoResultado(criarImovelApi({
+          titulo: titulo.trim(), tipo, valor: numeroValor, endereco: endereco.trim(), cidade: cidade.trim(),
+          proprietario_nome: 'A definir', ativo: true,
+        }))
+        : await supabase
+          .from('imoveis')
+          .insert({
+            corretor_id: corretor.id,
+            titulo: titulo.trim(),
+            tipo: tipo as never,
+            // Valor 0 é aceito: nem todo imóvel tem preço definido no momento em
+            // que o cliente demonstra interesse. É o que o Início sinaliza como
+            // cadastro incompleto.
+            valor: numeroValor,
+            endereco: endereco.trim(),
+            cidade: cidade.trim(),
+            proprietario_nome: 'A definir',
+            ativo: true,
+          })
+          .select('id, titulo')
+          .single();
 
       if (error) throw error;
 
