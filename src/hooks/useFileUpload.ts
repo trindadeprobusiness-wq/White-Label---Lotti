@@ -1,7 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { apagarArquivoApi, enviarArquivoApi, urlPublicaFoto, type GrupoUpload } from '@/lib/api/arquivos';
 
 type BucketName = 'imoveis-fotos' | 'documentos' | 'avatars';
+
+// Com a API ligada, imoveis-fotos e documentos passam pela API (Garage). avatars não tem
+// rota na API (sem uso real), então segue pelo Supabase. ai-attachments não passa por aqui.
+const GRUPO_POR_BUCKET: Partial<Record<BucketName, GrupoUpload>> = {
+  'imoveis-fotos': 'foto',
+  documentos: 'documento',
+};
 
 interface UploadResult {
   path: string;
@@ -24,6 +33,14 @@ export function useFileUpload(bucket: BucketName): UseFileUploadReturn {
     setError(null);
 
     try {
+      const grupo = GRUPO_POR_BUCKET[bucket];
+      if (apiDisponivel() && grupo) {
+        // Garage via API; a key (path) é preservada. imoveis-fotos é público (URL da API);
+        // documentos é privado, então devolvemos a própria key como url.
+        await enviarArquivoApi(grupo, path, file);
+        return { path, url: grupo === 'foto' ? urlPublicaFoto(path) : path };
+      }
+
       const { data, error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(path, file, { upsert: true });
@@ -51,6 +68,12 @@ export function useFileUpload(bucket: BucketName): UseFileUploadReturn {
     setError(null);
 
     try {
+      const grupo = GRUPO_POR_BUCKET[bucket];
+      if (apiDisponivel() && grupo) {
+        await apagarArquivoApi(grupo, path);
+        return;
+      }
+
       const { error: removeError } = await supabase.storage
         .from(bucket)
         .remove([path]);

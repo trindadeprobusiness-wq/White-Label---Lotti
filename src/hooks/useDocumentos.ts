@@ -9,6 +9,7 @@ import {
   listarDocumentosApi,
   removerDocumentoApi,
 } from '@/lib/api/contratos';
+import { apagarArquivoApi, baixarPrivadoApi, enviarArquivoApi } from '@/lib/api/arquivos';
 
 export interface DocumentoRow {
   id: string;
@@ -83,17 +84,19 @@ export function useDocumentos() {
       const folder = clienteId || 'geral';
       const filePath = `${corretorId}/${folder}/${timestamp}_${file.name}`;
 
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('documentos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL (for private bucket we'll use signed URLs)
-      const { data: urlData } = supabase.storage
-        .from('documentos')
-        .getPublicUrl(filePath);
+      // Upload. Bucket privado: com a API ligada o arquivo vai para o Garage (via API) e
+      // guardamos a própria key em arquivo_url (sem URL pública); a key é a mesma.
+      let arquivoUrl: string;
+      if (apiDisponivel()) {
+        await enviarArquivoApi('documento', filePath, file);
+        arquivoUrl = filePath;
+      } else {
+        const { error: uploadError } = await supabase.storage
+          .from('documentos')
+          .upload(filePath, file);
+        if (uploadError) throw uploadError;
+        arquivoUrl = supabase.storage.from('documentos').getPublicUrl(filePath).data.publicUrl;
+      }
 
       // Insert record in database
       if (apiDisponivel()) {
@@ -102,7 +105,7 @@ export function useDocumentos() {
           nome,
           tipo,
           arquivo_path: filePath,
-          arquivo_url: urlData.publicUrl,
+          arquivo_url: arquivoUrl,
           cliente_id: clienteId || null,
           imovel_id: imovelId || null,
           data_validade: dataValidade || null,
@@ -119,7 +122,7 @@ export function useDocumentos() {
           nome,
           tipo,
           arquivo_path: filePath,
-          arquivo_url: urlData.publicUrl,
+          arquivo_url: arquivoUrl,
           cliente_id: clienteId || null,
           imovel_id: imovelId || null,
           corretor_id: corretorId,
@@ -146,14 +149,18 @@ export function useDocumentos() {
 
   const deleteDocumento = async (id: string, arquivoPath?: string | null) => {
     try {
-      // Delete from storage if path exists
+      // Delete from storage if path exists (Garage via API quando ligada).
       if (arquivoPath) {
-        const { error: storageError } = await supabase.storage
-          .from('documentos')
-          .remove([arquivoPath]);
-
-        if (storageError) {
-          console.error('Erro ao deletar arquivo do storage:', storageError);
+        if (apiDisponivel()) {
+          await apagarArquivoApi('documento', arquivoPath).catch((e) =>
+            console.error('Erro ao deletar arquivo do storage:', e));
+        } else {
+          const { error: storageError } = await supabase.storage
+            .from('documentos')
+            .remove([arquivoPath]);
+          if (storageError) {
+            console.error('Erro ao deletar arquivo do storage:', storageError);
+          }
         }
       }
 
@@ -180,6 +187,11 @@ export function useDocumentos() {
 
   const getSignedUrl = async (arquivoPath: string): Promise<string | null> => {
     try {
+      // Bucket privado: com a API ligada, baixa pela API (token no cabeçalho) e devolve
+      // uma object URL. Quem exibe é responsável por revogar quando trocar/fechar.
+      if (apiDisponivel()) {
+        return await baixarPrivadoApi('documento', arquivoPath);
+      }
       const { data, error } = await supabase.storage
         .from('documentos')
         .createSignedUrl(arquivoPath, 3600); // 1 hour
@@ -195,14 +207,19 @@ export function useDocumentos() {
 
   const downloadDocumento = async (arquivoPath: string, nomeArquivo: string) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('documentos')
-        .download(arquivoPath);
-
-      if (error) throw error;
+      // Com a API ligada, baixa pela API (token no cabeçalho) como object URL.
+      let url: string;
+      if (apiDisponivel()) {
+        url = await baixarPrivadoApi('documento', arquivoPath);
+      } else {
+        const { data, error } = await supabase.storage
+          .from('documentos')
+          .download(arquivoPath);
+        if (error) throw error;
+        url = URL.createObjectURL(data);
+      }
 
       // Create download link
-      const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
       a.download = nomeArquivo;

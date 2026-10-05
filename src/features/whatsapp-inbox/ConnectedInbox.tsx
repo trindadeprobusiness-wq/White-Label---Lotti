@@ -23,6 +23,7 @@ import { temperaturaLegivel, valorLegivel, type Temperatura } from './qualificac
 import { ENVIO_SEM_CONFIRMACAO, ESPERA_DA_IA, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
 import { apiDisponivel } from '@/lib/api';
 import { obterClienteApi } from '@/lib/api/crm';
+import { baixarInboxApi } from '@/lib/api/arquivos';
 
 type ClienteDaConversa = { nome: string; email: string | null; telefone: string; created_at: string | null; status_funil: string; tipo_interesse: string };
 
@@ -73,6 +74,15 @@ function MessageBody({ message }: { message: Message }) {
   useEffect(() => {
     if (!isFile || !message.media_path || message.preview_kind) return;
     let live = true;
+    // Com a API ligada, baixa do Garage pela API (token no cabeçalho) como object URL,
+    // revogada no cleanup. Sem a API, segue a signed URL do Supabase, renovada em ciclo.
+    if (apiDisponivel()) {
+      let objetoUrl = '';
+      baixarInboxApi('lotti-inbox-files', message.media_path)
+        .then((u) => { if (live) { objetoUrl = u; setUrl(u); } else { URL.revokeObjectURL(u); } })
+        .catch(() => { if (live) setUrl(''); });
+      return () => { live = false; if (objetoUrl) URL.revokeObjectURL(objetoUrl); };
+    }
     const refresh = () => {
       void supabase.storage.from('lotti-inbox-files').createSignedUrl(message.media_path!, 3600)
         .then(({ data }) => { if (live) setUrl(data?.signedUrl || ''); })

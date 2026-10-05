@@ -19,6 +19,7 @@ import { apiDisponivel } from '@/lib/api';
 import { removerClienteApi } from '@/lib/api/crm';
 import { criarImovelApi, removerImovelApi } from '@/lib/api/imoveis';
 import { criarContratoApi } from '@/lib/api/contratos';
+import { apagarArquivoApi, enviarArquivoApi } from '@/lib/api/arquivos';
 import { analisarContratoCentral } from '@/services/contractExtractionService';
 import type { ExtractedCentralContract, ParteContrato } from '@/services/contractExtractionService';
 import { useFileDrop } from '@/hooks/useFileDrop';
@@ -308,8 +309,13 @@ export function AnalisarContratoDialog({
       // 3. Arquivo (bucket documentos exige corretor_id como 1ª pasta)
       const safeName = file.name.replace(/[^\w.-]+/g, '_');
       const path = `${corretorId}/contratos/${Date.now()}_${safeName}`;
-      const { error: upErr } = await supabase.storage.from('documentos').upload(path, file, { upsert: false });
-      if (upErr) throw upErr;
+      if (apiDisponivel()) {
+        // Garage via API; a key é a mesma que vai para contratos.arquivo_url.
+        await enviarArquivoApi('documento', path, file);
+      } else {
+        const { error: upErr } = await supabase.storage.from('documentos').upload(path, file, { upsert: false });
+        if (upErr) throw upErr;
+      }
       arquivoPath = path;
 
       // 4. Contrato
@@ -360,7 +366,11 @@ export function AnalisarContratoDialog({
       // o que esta tentativa criou. Deixar cliente/imóvel para trás só gera registro
       // fantasma que o corretor não encontra — e o retry partiria sujo.
       if (arquivoPath) {
-        await supabase.storage.from('documentos').remove([arquivoPath]).catch(() => undefined);
+        if (apiDisponivel()) {
+          await apagarArquivoApi('documento', arquivoPath).catch(() => undefined);
+        } else {
+          await supabase.storage.from('documentos').remove([arquivoPath]).catch(() => undefined);
+        }
       }
       // O rollback não pode derrubar o tratamento do erro original: sem rede o
       // .delete() rejeita, e o dialog ficaria preso em "Salvando..." para sempre.

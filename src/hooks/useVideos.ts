@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { apiDisponivel } from '@/lib/api';
+import { apagarArquivoApi, enviarArquivoApi, urlPublicaVideo } from '@/lib/api/arquivos';
 
 export type TipoVideo = 'TOUR_VIRTUAL' | 'APRESENTACAO' | 'DEPOIMENTO' | 'DRONE' | 'INSTITUCIONAL' | 'OUTRO';
 
@@ -79,20 +81,24 @@ export function useVideos() {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 500);
 
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('videos')
-        .upload(filePath, file);
-
-      clearInterval(progressInterval);
+      // Upload + URL pública. Com a API ligada, o vídeo (até 500 MB) sobe por streaming
+      // para o Garage via API e a URL é a rota pública da API; a key é a mesma.
+      let videoUrl: string;
+      try {
+        if (apiDisponivel()) {
+          await enviarArquivoApi('video', filePath, file);
+          videoUrl = urlPublicaVideo(filePath);
+        } else {
+          const { error: uploadError } = await supabase.storage
+            .from('videos')
+            .upload(filePath, file);
+          if (uploadError) throw uploadError;
+          videoUrl = supabase.storage.from('videos').getPublicUrl(filePath).data.publicUrl;
+        }
+      } finally {
+        clearInterval(progressInterval);
+      }
       setUploadProgress(95);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('videos')
-        .getPublicUrl(filePath);
 
       // Insert record in database
       const { data: videoData, error: insertError } = await supabase
@@ -102,7 +108,7 @@ export function useVideos() {
           tipo,
           descricao: descricao || null,
           video_path: filePath,
-          video_url: urlData.publicUrl,
+          video_url: videoUrl,
           imovel_id: imovelId || null,
           corretor_id: corretorId,
         })
@@ -127,11 +133,15 @@ export function useVideos() {
 
   const deleteVideo = async (id: string, videoPath?: string) => {
     try {
-      // Delete from storage if path provided
+      // Delete from storage if path provided (Garage via API quando ligada).
       if (videoPath) {
-        await supabase.storage
-          .from('videos')
-          .remove([videoPath]);
+        if (apiDisponivel()) {
+          await apagarArquivoApi('video', videoPath);
+        } else {
+          await supabase.storage
+            .from('videos')
+            .remove([videoPath]);
+        }
       }
 
       // Delete from database
@@ -190,6 +200,10 @@ export function useVideos() {
 
   const getTemporaryShareUrl = async (videoPath: string, expiresIn = 604800): Promise<string> => {
     try {
+      // Bucket público: com a API ligada, a rota pública serve sem expiração.
+      if (apiDisponivel()) {
+        return urlPublicaVideo(videoPath);
+      }
       const { data, error } = await supabase.storage
         .from('videos')
         .createSignedUrl(videoPath, expiresIn);

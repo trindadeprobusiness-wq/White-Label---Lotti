@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from './config/env';
+import { ArquivosModule } from './arquivos/arquivos.module';
 import { AssinaturaModule } from './assinatura/assinatura.module';
 import { ContratosModule } from './contratos/contratos.module';
 import { CrmClientesModule } from './crm/clientes/crm-clientes.module';
@@ -13,6 +14,7 @@ import { ParceirosModule } from './parceiros/parceiros.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { RotinaModule } from './rotina/rotina.module';
+import { StorageModule } from './storage/storage.module';
 import { VisitasModule } from './visitas/visitas.module';
 
 @Module({
@@ -20,6 +22,8 @@ import { VisitasModule } from './visitas/visitas.module';
     EnvModule,
     PrismaModule,
     RedisModule,
+    StorageModule,
+    ArquivosModule,
     ImoveisModule,
     CrmClientesModule,
     CrmFunilModule,

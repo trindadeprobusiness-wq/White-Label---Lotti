@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { novaOrdemPara } from '@/lib/ordemFotos';
+import { apiDisponivel } from '@/lib/api';
+import { apagarArquivoApi, enviarArquivoApi, urlPublicaFoto } from '@/lib/api/arquivos';
 
 export interface ImovelFoto {
   id: string;
@@ -63,17 +65,19 @@ export function useImovelFotos(imovelId?: string) {
       const fileExt = file.name.split('.').pop();
       const filePath = `${targetImovelId}/${timestamp}_${file.name}`;
 
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('imoveis-fotos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('imoveis-fotos')
-        .getPublicUrl(filePath);
+      // Upload + URL pública. Com a API ligada, o arquivo vai para o Garage (via API)
+      // e a URL é a rota pública da API; a key (filePath) é a mesma dos dois lados.
+      let arquivoUrl: string;
+      if (apiDisponivel()) {
+        await enviarArquivoApi('foto', filePath, file);
+        arquivoUrl = urlPublicaFoto(filePath);
+      } else {
+        const { error: uploadError } = await supabase.storage
+          .from('imoveis-fotos')
+          .upload(filePath, file);
+        if (uploadError) throw uploadError;
+        arquivoUrl = supabase.storage.from('imoveis-fotos').getPublicUrl(filePath).data.publicUrl;
+      }
 
       // Get current max order
       const { data: existingFotos } = await supabase
@@ -100,7 +104,7 @@ export function useImovelFotos(imovelId?: string) {
         .from('imovel_fotos')
         .insert({
           imovel_id: targetImovelId,
-          arquivo_url: urlData.publicUrl,
+          arquivo_url: arquivoUrl,
           arquivo_path: filePath,
           principal: isPrincipal || nextOrder === 0, // First photo is principal by default
           ordem: nextOrder,
@@ -142,13 +146,17 @@ export function useImovelFotos(imovelId?: string) {
 
   const deleteFoto = async (id: string, arquivoPath: string) => {
     try {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('imoveis-fotos')
-        .remove([arquivoPath]);
-
-      if (storageError) {
-        console.error('Erro ao deletar do storage:', storageError);
+      // Delete from storage (Garage via API quando ligada; a key é a mesma).
+      if (apiDisponivel()) {
+        await apagarArquivoApi('foto', arquivoPath).catch((e) =>
+          console.error('Erro ao deletar do storage:', e));
+      } else {
+        const { error: storageError } = await supabase.storage
+          .from('imoveis-fotos')
+          .remove([arquivoPath]);
+        if (storageError) {
+          console.error('Erro ao deletar do storage:', storageError);
+        }
       }
 
       // Delete from database

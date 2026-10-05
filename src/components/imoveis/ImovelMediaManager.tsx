@@ -5,7 +5,16 @@ import { cn } from '@/lib/utils';
 import { useImovelFotos } from '@/hooks/useImovelFotos';
 import { useVideos } from '@/hooks/useVideos';
 import { useFileDrop } from '@/hooks/useFileDrop';
+import { apiDisponivel } from '@/lib/api';
+import { urlPublicaFoto, urlPublicaVideo } from '@/lib/api/arquivos';
 import { OrganizarFotosIA } from './OrganizarFotosIA';
+
+// Com a API ligada, a exibição deriva da key (arquivo_path/video_path): a rota pública
+// da API serve o arquivo do Garage. Sem a API, usa a arquivo_url/video_url já gravada.
+const srcFoto = (arquivoPath: string, arquivoUrl: string) =>
+  apiDisponivel() ? urlPublicaFoto(arquivoPath) : arquivoUrl;
+const srcVideo = (videoPath: string, videoUrl: string) =>
+  apiDisponivel() ? urlPublicaVideo(videoPath) : videoUrl;
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 5 * 1024 * 1024; // 5MB
@@ -187,7 +196,7 @@ export function ImovelMediaManager({
                 arrastando === indice && 'opacity-40 ring-2 ring-primary',
               )}
             >
-              <img src={foto.arquivo_url} alt="" className="w-full h-full object-cover pointer-events-none" />
+              <img src={srcFoto(foto.arquivo_path, foto.arquivo_url)} alt="" className="w-full h-full object-cover pointer-events-none" />
 
               {/* A posição é o que o visitante vê na fachada, então mostrar o número
                   deixa claro que a ordem é editável e o que arrastar mudou. */}
@@ -297,7 +306,7 @@ export function ImovelMediaManager({
               {video.thumbnail_url ? (
                 <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover" />
               ) : (
-                <video src={video.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+                <video src={srcVideo(video.video_path, video.video_url)} className="w-full h-full object-cover" muted preload="metadata" />
               )}
               <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                 <div className="p-1.5 rounded-full bg-white/20 backdrop-blur-sm">

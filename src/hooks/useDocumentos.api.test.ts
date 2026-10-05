@@ -18,11 +18,18 @@ vi.mock('@/lib/api/contratos', () => ({
   alterarDocumentoApi: vi.fn(),
   removerDocumentoApi: vi.fn(),
 }));
+vi.mock('@/lib/api/arquivos', () => ({
+  enviarArquivoApi: vi.fn(async () => 'key'),
+  apagarArquivoApi: vi.fn(async () => undefined),
+  baixarPrivadoApi: vi.fn(async () => 'blob:obj'),
+}));
 
 import * as api from '@/lib/api/contratos';
+import * as arquivos from '@/lib/api/arquivos';
 import { useDocumentos } from './useDocumentos';
 
 const m = vi.mocked(api);
+const a = vi.mocked(arquivos);
 const DOC = '11111111-1111-4111-8111-111111111111';
 const CORRETOR = '22222222-2222-4222-8222-222222222222';
 
@@ -59,25 +66,34 @@ describe('useDocumentos com a API Lotti', () => {
     expect(m.alterarDocumentoApi).toHaveBeenCalledWith(DOC, { nome: 'CNH' });
   });
 
-  it('upload: Storage igual e depois cria pela API sem corretor_id', async () => {
+  it('upload: arquivo vai pela API (Garage) e o registro é criado sem corretor_id', async () => {
     rpc.mockResolvedValue({ data: CORRETOR, error: null });
     m.criarDocumentoApi.mockResolvedValue({ id: DOC });
     const { result } = await montar();
     const file = new File(['x'], 'rg.pdf', { type: 'application/pdf' });
     await act(async () => { await result.current.uploadDocumento(file, 'RG', 'RG'); });
-    expect(storage.upload).toHaveBeenCalled();
+    // Nada de Storage do Supabase: o upload passa pela API.
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(a.enviarArquivoApi).toHaveBeenCalledTimes(1);
+    const [grupo, key, enviado] = a.enviarArquivoApi.mock.calls[0];
+    expect(grupo).toBe('documento');
+    expect(String(key).startsWith(`${CORRETOR}/geral/`)).toBe(true);
+    expect(enviado).toBe(file);
     const corpo = m.criarDocumentoApi.mock.calls[0][0] as Record<string, unknown>;
-    expect(String(corpo.arquivo_path).startsWith(`${CORRETOR}/geral/`)).toBe(true);
+    expect(corpo.arquivo_path).toBe(key);
+    // Bucket privado: arquivo_url é a própria key, não uma URL pública.
+    expect(corpo.arquivo_url).toBe(key);
     expect(corpo).not.toHaveProperty('corretor_id');
     expect(corpo).not.toHaveProperty('validado');
     expect(from).not.toHaveBeenCalled();
   });
 
-  it('excluir: remove do Storage e depois pela API', async () => {
+  it('excluir: remove pela API (Garage) e depois o registro pela API', async () => {
     m.removerDocumentoApi.mockResolvedValue(undefined);
     const { result } = await montar();
     await act(() => result.current.deleteDocumento(DOC, `${CORRETOR}/geral/a.pdf`));
-    expect(storage.remove).toHaveBeenCalledWith([`${CORRETOR}/geral/a.pdf`]);
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(a.apagarArquivoApi).toHaveBeenCalledWith('documento', `${CORRETOR}/geral/a.pdf`);
     expect(m.removerDocumentoApi).toHaveBeenCalledWith(DOC);
   });
 });

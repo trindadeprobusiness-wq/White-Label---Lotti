@@ -4,6 +4,8 @@ import {Button} from '@/components/ui/button';
 import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
 import {safeAttachmentName,validateAttachment} from './attachments';
 import {FALHA_CERTA,codigoDoErro} from './bridgeError';
+import {apiDisponivel} from '@/lib/api';
+import {baixarInboxApi} from '@/lib/api/arquivos';
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
 export type EnvioPendente={key:string;kind:'text'|'file'|'audio';content:string};
 type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void;
@@ -117,6 +119,10 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
 }
 export function AudioMessage({path}:{path:string}){
  const [url,setUrl]=useState('');const [failed,setFailed]=useState(false);
- useEffect(()=>{let live=true;async function refresh(){const {data,error}=await supabase.storage.from('lotti-inbox-audio').createSignedUrl(path,3600);if(live){setUrl(data?.signedUrl||'');setFailed(!!error);}}void refresh();const timer=setInterval(refresh,3000000);return()=>{live=false;clearInterval(timer)}},[path]);
+ // Com a API ligada, baixa do Garage pela API (token no cabeçalho) como object URL,
+ // revogada no cleanup. Sem a API, segue a signed URL do Supabase renovada em ciclo.
+ useEffect(()=>{let live=true;
+  if(apiDisponivel()){let objetoUrl='';baixarInboxApi('lotti-inbox-audio',path).then(u=>{if(live){objetoUrl=u;setUrl(u);setFailed(false);}else URL.revokeObjectURL(u);}).catch(()=>{if(live){setUrl('');setFailed(true);}});return()=>{live=false;if(objetoUrl)URL.revokeObjectURL(objetoUrl);};}
+  async function refresh(){const {data,error}=await supabase.storage.from('lotti-inbox-audio').createSignedUrl(path,3600);if(live){setUrl(data?.signedUrl||'');setFailed(!!error);}}void refresh();const timer=setInterval(refresh,3000000);return()=>{live=false;clearInterval(timer)}},[path]);
  return url?<audio controls preload="metadata" src={url} className="max-w-full"/>:<span className="text-xs">{failed?'Áudio indisponível no momento.':'Carregando áudio…'}</span>;
 }
