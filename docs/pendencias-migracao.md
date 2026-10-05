@@ -95,6 +95,28 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
   de ligar em qualquer build, fazer a conferência de banco único: um "mover" pela API
   e a leitura do mesmo negócio pelo PostgREST precisam devolver o mesmo `updated_at`.
   Hoje dá diferente de propósito, porque a API aponta para a cópia.
+- [ ] **Onda 2 (contratos, financeiro/Asaas e rotina/Google), entregue em `ce18dfd`.**
+  Contratos das etapas em `docs/superpowers/specs/2026-10-05-api-lotti-*-contrato.md`.
+  No Railway, todas as rotas novas respondem e recusam sem login (401). Falta:
+  - **Variáveis no serviço `api` do Railway** (hoje ausentes, e por isso cada módulo
+    responde 503 com texto claro): `GEMINI_API_KEY` e `LOTTI_AI_FAST_MODEL`
+    (gerar/analisar contrato); `ASAAS_*` (webhook e cobrança, os mesmos nomes do
+    Supabase); `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`,
+    `GOOGLE_TOKEN_ENCRYPTION_KEY`, `GOOGLE_CALENDAR_REDIRECT_URI`,
+    `GOOGLE_CALENDAR_APP_REDIRECT_URL`, `GOOGLE_CALENDAR_WEBHOOK_URL` e
+    `ROUTINE_CALENDAR_MAINTAIN_ENABLED` (Google Agenda).
+  - **Migrations propostas, nenhuma aplicada** (estão nos contratos das etapas):
+    `documentos.updated_at` com gatilho e policy de equipe; `'OUTRO'` no enum
+    `tipo_contrato`; colunas `modelo_ia`, `tempo_geracao_ms` e `versao` em
+    `contratos`; `revoke all on public.contratos from anon`; grants de
+    `reserve_contract_quota` e `finish_contract_quota` para o papel da API; índices
+    de `external_calendars` e `calendar_webhook_receipts`.
+  - **Na virada:** desligar o cron `routine-google-calendar-maintain` do Supabase
+    antes de ligar `ROUTINE_CALENDAR_MAINTAIN_ENABLED` na API, para não existirem
+    dois.
+  - Revisão por lentes e fumaça com login real não foram feitas: a máquina do Rafael
+    desligou no meio. A validação foi por testes (485 Jest, 69 de SQL real nos
+    módulos novos, 1435 no front, builds) e pelo smoke das rotas sem login.
 - [ ] **Módulo 2 (imóveis e CRM), entregue em `d062954`.** Pendências (§7.2 do
   contrato `docs/superpowers/specs/2026-10-04-api-lotti-modulo2-contrato.md`):
   - ~~**Dois defeitos de produção.**~~ **Corrigidos em 2026-10-05** com a migration
