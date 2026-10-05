@@ -8,6 +8,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { chamarRpc, BackOfficeNaoInstaladoError } from '@/lib/admin/api';
+import { apiDisponivel } from '@/lib/api';
+import { meusPapeisApi } from '@/lib/api/parceiros';
 import { ehAdmin, ehSuperAdmin, type Recurso, podeAcessar, podeExecutar, type Acao } from '@/lib/admin/permissoes';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -44,7 +46,7 @@ export function usePapeis() {
 
   const consulta = useQuery({
     queryKey: adminKeys.papeis(),
-    queryFn: () => chamarRpc<string[]>('meus_papeis'),
+    queryFn: () => (apiDisponivel() ? meusPapeisApi() : chamarRpc<string[]>('meus_papeis')),
     enabled: isAuthenticated,
     // Papel muda raramente e é consultado em toda navegação do painel.
     staleTime: 5 * 60_000,

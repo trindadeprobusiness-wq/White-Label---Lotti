@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/select';
 import { useCRMStore } from '@/stores/crmStore';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { criarTemplateApi } from '@/lib/api/fachadas';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { cn } from '@/lib/utils';
@@ -174,25 +176,32 @@ export function CriarFachadaDialog({
         finalTemplateId = result.url;
 
         try {
-          // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
-          // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
-          await (supabase as any).from('fachada_templates').insert({
-            corretor_id: corretorId,
-            nome: `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`,
-            categoria: tipoNegocio,
-            padrao: false,
-            config: {
-              imagem_url: result.url,
-              qrPosition: { x: qrPosition.x, y: qrPosition.y },
-              qrSize: qrSizePercent,
-              corPrimaria: '#000000',
-              corSecundaria: '#ffffff',
-              corTexto: '#ffffff',
-              corFundo: '#000000',
-              estilo: 'profissional',
-              layout: 'vertical',
-            },
-          } as any);
+          const nomeTemplate = `Avulso - ${selectedImovel?.titulo || 'Imóvel'}`;
+          const config = {
+            imagem_url: result.url,
+            qrPosition: { x: qrPosition.x, y: qrPosition.y },
+            qrSize: qrSizePercent,
+            corPrimaria: '#000000',
+            corSecundaria: '#ffffff',
+            corTexto: '#ffffff',
+            corFundo: '#000000',
+            estilo: 'profissional',
+            layout: 'vertical',
+          };
+
+          if (apiDisponivel()) {
+            await criarTemplateApi({ nome: nomeTemplate, categoria: tipoNegocio, padrao: false, config });
+          } else {
+            // `fachada_templates` ainda não está no types.ts gerado — mesmo cast usado
+            // no resto do projeto (crmStore, NewContractDialog) enquanto os tipos não sobem.
+            await (supabase as any).from('fachada_templates').insert({
+              corretor_id: corretorId,
+              nome: nomeTemplate,
+              categoria: tipoNegocio,
+              padrao: false,
+              config,
+            } as any);
+          }
         } catch (e) {
           // Aqui o catch é intencional e diferente do outro caso: a fachada já
           // tem a arte pelo `finalTemplateId`, e ela funciona mesmo que o
@@ -288,7 +297,9 @@ export function CriarFachadaDialog({
                   </Button>
                 </div>
               </div>
-              <Select value={imovelId} onValueChange={setImovelId}>
+              {/* Com a API ligada, F3 não aceita imovel_id: o QR impresso aponta para a placa.
+                  Sem VITE_API_URL o campo segue editável, exatamente como hoje. */}
+              <Select value={imovelId} onValueChange={setImovelId} disabled={isEditing && apiDisponivel()}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um imóvel" />
                 </SelectTrigger>

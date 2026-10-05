@@ -23,6 +23,23 @@ import { getParceiroLinkUrl } from '@/lib/publicBaseUrl';
 import { ROTULO_BASE } from '@/lib/admin/comissao';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { ErroApi } from '@/lib/api/http';
+import { convidarParceiroApi, type RespostaConvite } from '@/lib/api/parceiros';
+
+/**
+ * Texto do toast quando o convite não sai.
+ *
+ * Só a `message` da API é mensagem para o operador — ela vem em português do
+ * próprio contrato (por exemplo o 503 `provedor_de_email_nao_configurado`). O
+ * erro do supabase-js é técnico e em inglês ("Edge Function returned a non-2xx
+ * status code"), então no ramo Supabase vale o `error` do corpo da resposta e,
+ * na falta dele, o texto padrão — exatamente como antes da troca pela API.
+ */
+export function textoErroConvite(erro: unknown, erroDaResposta?: string): string {
+  if (erro instanceof ErroApi && erro.message) return erro.message;
+  return erroDaResposta ?? 'Não foi possível enviar o convite. Confira o provedor de e-mail.';
+}
 
 const COR_STATUS: Record<string, string> = {
   ativo: 'bg-success/10 text-success border-success/20',
@@ -113,10 +130,21 @@ export default function AdminParceiroDetalhe() {
             {podeExecutar('editar_parceiro') && parceiro.convite_status !== 'aceito' && (
               <Button size="sm" disabled={enviandoConvite || parceiro.status !== 'ativo'} onClick={async () => {
                 setEnviandoConvite(true);
-                const { data: resposta, error: erroConvite } = await supabase.functions.invoke('parceiro-convidar', { body: { parceiro_id: id } });
+                let resposta: RespostaConvite | null = null;
+                let erroConvite: unknown = null;
+                if (apiDisponivel()) {
+                  // 503 provedor_nao_configurado cai aqui com a message em
+                  // português da API — o mesmo toast de sempre.
+                  try { resposta = await convidarParceiroApi({ parceiro_id: id as string }); }
+                  catch (e) { erroConvite = e; }
+                } else {
+                  const r = await supabase.functions.invoke('parceiro-convidar', { body: { parceiro_id: id } });
+                  resposta = r.data as RespostaConvite | null;
+                  erroConvite = r.error;
+                }
                 setEnviandoConvite(false);
                 if (erroConvite || !resposta?.ok) {
-                  toast.error(resposta?.error ?? 'Não foi possível enviar o convite. Confira o provedor de e-mail.');
+                  toast.error(textoErroConvite(erroConvite, resposta?.error));
                   return;
                 }
                 toast.success(`Convite enviado para ${resposta.email}.`);

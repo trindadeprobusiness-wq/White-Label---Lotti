@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import * as assinaturaApi from '@/lib/api/assinatura';
 import {
   normalizarContextoOnboarding,
   type ContextoOnboarding,
@@ -21,6 +23,13 @@ function recursoAindaNaoAplicado(error: { code?: string; message?: string } | nu
 }
 
 async function buscarContexto(): Promise<ContextoOnboarding | null> {
+  if (apiDisponivel()) {
+    // A rota responde 503 quando a migration ainda não foi aplicada, e o
+    // cliente da API já traduz isso para null: o mesmo silêncio de hoje.
+    const contexto = await assinaturaApi.contextoOnboardingApi();
+    if (!contexto || typeof contexto !== 'object') return null;
+    return normalizarContextoOnboarding(contexto as ContextoOnboardingBruto);
+  }
   const { data, error } = await client.rpc('get_onboarding_contexto');
   if (error) {
     // A migration pode ainda estar na fila do SQL Editor. O onboarding nunca
@@ -78,6 +87,12 @@ export function useOnboarding() {
 
   const salvar = useMutation({
     mutationFn: async (input: SalvarOnboardingInput) => {
+      if (apiDisponivel()) {
+        const contexto = await assinaturaApi.salvarOnboardingApi(input);
+        return contexto && typeof contexto === 'object'
+          ? normalizarContextoOnboarding(contexto as ContextoOnboardingBruto)
+          : null;
+      }
       const { data, error } = await client.rpc('salvar_onboarding', {
         p_profile: input.profile ?? {},
         p_progress: input.progress ?? {},
@@ -97,6 +112,7 @@ export function useOnboarding() {
 
   const executarAcao = useMutation({
     mutationFn: async ({ action, payload }: AcaoOnboardingInput) => {
+      if (apiDisponivel()) return assinaturaApi.executarAcaoOnboardingApi(action, payload);
       const { data, error } = await client.rpc('onboarding_executar_acao', {
         p_action: action,
         p_payload: payload ?? {},
@@ -109,6 +125,8 @@ export function useOnboarding() {
 
   const atualizarPerfilProfissional = useMutation({
     mutationFn: async (campos: Record<string, unknown>) => {
+      // Com API o user_id sai de claims.sub no servidor: sem auth.getUser().
+      if (apiDisponivel()) return assinaturaApi.atualizarPerfilOnboardingApi(campos);
       const permitidos = [
         'nome', 'telefone', 'foto_url', 'cidade', 'estado', 'tipo_atuacao', 'creci',
         'regioes_atendidas', 'especialidade', 'fuso_horario', 'creci_status',
@@ -122,6 +140,8 @@ export function useOnboarding() {
 
   const atualizarOrganizacao = useMutation({
     mutationFn: async ({ id, ...campos }: Record<string, unknown> & { id: string }) => {
+      // Com API as chaves seguem em português; o mapa para as colunas inglesas é do servidor.
+      if (apiDisponivel()) return assinaturaApi.atualizarOrganizacaoOnboardingApi(id, campos);
       const mapa: Record<string, string> = {
         nome: 'name', nome_comercial: 'trade_name', cnpj: 'cnpj', telefone: 'phone',
         email: 'email', cidade: 'city', estado: 'state', logo_url: 'logo_url',
@@ -144,6 +164,7 @@ export function useOnboarding() {
     stepKey?: string,
     metadata?: Record<string, string | number | boolean | null>,
   ) => {
+    if (apiDisponivel()) return assinaturaApi.registrarEventoOnboardingApi(eventName, stepKey, metadata);
     const { error } = await client.rpc('registrar_onboarding_evento', {
       p_event_name: eventName,
       p_step_key: stepKey ?? null,
@@ -155,6 +176,7 @@ export function useOnboarding() {
 
   const criarConvite = useMutation({
     mutationFn: async ({ email, papel }: { email: string; papel: string }) => {
+      if (apiDisponivel()) return assinaturaApi.criarConviteApi({ email, papel });
       const { data, error } = await client.rpc('criar_convite_organizacao', {
         p_email: email,
         p_papel: papel,
@@ -167,6 +189,7 @@ export function useOnboarding() {
 
   const aceitarConvite = useMutation({
     mutationFn: async (token: string) => {
+      if (apiDisponivel()) return assinaturaApi.aceitarConviteApi(token);
       const { data, error } = await client.rpc('aceitar_convite_organizacao', { p_token: token });
       if (error) throw error;
       return data as { organization_id: string; papel: string };
@@ -178,6 +201,7 @@ export function useOnboarding() {
     mutationFn: async ({ minimized, dismissed }: { minimized?: boolean; dismissed?: boolean }) => {
       const profileId = contexto.data?.profileId;
       if (!profileId) return;
+      if (apiDisponivel()) return assinaturaApi.salvarChecklistOnboardingApi({ minimized, dismissed });
       const campos: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
       if (typeof minimized === 'boolean') campos.minimized = minimized;
       if (dismissed) campos.dismissed_at = new Date().toISOString();
@@ -188,6 +212,11 @@ export function useOnboarding() {
   });
 
   const salvarTour = async (tourKey: string, status: 'concluido' | 'dispensado', currentStep = 0) => {
+    if (apiDisponivel()) {
+      await assinaturaApi.salvarTourOnboardingApi(tourKey, status, currentStep);
+      await invalidar();
+      return;
+    }
     const { error } = await client.rpc('salvar_onboarding_tour', {
       p_tour_key: tourKey,
       p_status: status,

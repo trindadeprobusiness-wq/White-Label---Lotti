@@ -3,6 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { obterVisitanteId, marcarAtribuicaoPendente } from '@/lib/admin/atribuicao';
+import { apiDisponivel } from '@/lib/api';
+import { registrarCliqueApi } from '@/lib/api/parceiros';
 
 /**
  * Rota /r/:slug — destino do link exclusivo do parceiro.
@@ -49,14 +51,16 @@ export default function RedirectParceiro() {
           fbclid: searchParams.get('fbclid') ?? undefined,
         };
 
-        const { data } = await supabase.functions.invoke('parceiro-clique', {
-          body: {
-            slug,
-            visitante_id: visitanteId,
-            utm,
-            referer: document.referrer || undefined,
-          },
-        });
+        const corpo = {
+          slug,
+          visitante_id: visitanteId,
+          utm,
+          referer: document.referrer || undefined,
+        };
+
+        const data = apiDisponivel()
+          ? await registrarCliqueApi(corpo)
+          : (await supabase.functions.invoke('parceiro-clique', { body: corpo })).data;
 
         // Só marca pendente se o servidor confirmou o vínculo. Marcar sempre
         // faria o app chamar parceiro-atribuir em todo login, à toa.

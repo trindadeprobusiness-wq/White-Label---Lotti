@@ -6,6 +6,8 @@ import { QRCodeGenerator } from './QRCodeGenerator';
 import { DEFAULT_TEMPLATES, TIPO_NEGOCIO_LABELS, CTA_LABELS } from '@/types/fachada';
 import type { FachadaComImovel, TemplateConfig } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { obterMidiasImovelApi, obterTemplatePorImagemApi } from '@/lib/api/fachadas';
 import { getFachadaPublicUrl } from '@/lib/publicBaseUrl';
 import { baixarFachadaComQr } from './fachadaExport';
 import { toast } from 'sonner';
@@ -46,6 +48,7 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
 
   // Resolve a foto principal (ou a primeira) direto de imovel_fotos, para o preview
   // refletir a mídia atual do imóvel, não um snapshot antigo.
+  const fotoEmCache = fachada?.foto_principal_url ?? null;
   useEffect(() => {
     const imovelId = fachada?.imovel_id;
     if (!imovelId) {
@@ -54,6 +57,15 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
     }
     let ativo = true;
     (async () => {
+      if (apiDisponivel()) {
+        try {
+          const r = await obterMidiasImovelApi(imovelId);
+          if (ativo) setFotoImovel(r.foto_principal_url ?? fotoEmCache);
+        } catch {
+          // Silently ignore — mantém a foto que já estava no estado
+        }
+        return;
+      }
       const { data: principal } = await supabase
         .from('imovel_fotos')
         .select('arquivo_url')
@@ -76,7 +88,7 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
     return () => {
       ativo = false;
     };
-  }, [fachada?.imovel_id]);
+  }, [fachada?.imovel_id, fotoEmCache]);
 
   // Fetch custom template QR position when template is a URL
   useEffect(() => {
@@ -88,12 +100,14 @@ export function FachadaPreview({ fachada, open, onOpenChange }: FachadaPreviewPr
 
     const fetchTemplateConfig = async () => {
       try {
-        const { data } = await supabase
-          .from('fachada_templates')
-          .select('config')
-          .filter('config->>imagem_url', 'eq', fachada.template_id)
-          .limit(1)
-          .maybeSingle();
+        const data: Record<string, unknown> | null = apiDisponivel()
+          ? await obterTemplatePorImagemApi(fachada.template_id)
+          : (await supabase
+              .from('fachada_templates')
+              .select('config')
+              .filter('config->>imagem_url', 'eq', fachada.template_id)
+              .limit(1)
+              .maybeSingle()).data as unknown as Record<string, unknown> | null;
 
         if (data?.config) {
           const cfg = data.config as any;

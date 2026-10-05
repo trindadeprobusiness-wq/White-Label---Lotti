@@ -17,6 +17,8 @@ import { TIPO_NEGOCIO_LABELS, CTA_LABELS } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
 import { getFachadaPublicUrl } from '@/lib/publicBaseUrl';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { obterMidiasImovelApi } from '@/lib/api/fachadas';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { StatusBadge } from '@/components/shell/primitivos';
 
@@ -35,6 +37,18 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate, onViewLe
   useEffect(() => {
     const fetchMedia = async () => {
       if (!fachada.imovel_id) return;
+
+      if (apiDisponivel()) {
+        // Uma chamada no lugar das três consultas do ramo antigo.
+        try {
+          const r = await obterMidiasImovelApi(fachada.imovel_id);
+          setFotoPrincipal(r.foto_principal_url ?? fachada.foto_principal_url ?? null);
+          setMediaCounts({ fotos: r.fotos, videos: r.videos });
+        } catch (err) {
+          console.warn('Falha ao carregar mídias do imóvel:', err);
+        }
+        return;
+      }
 
       // Resolve a foto principal SEMPRE ao vivo — imovel_fotos é a fonte única; o
       // cache fachada.foto_principal_url pode estar desatualizado após editar o imóvel.
@@ -63,7 +77,7 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate, onViewLe
       setMediaCounts({ fotos: fotosCount || 0, videos: videosCount || 0 });
     };
     fetchMedia();
-  }, [fachada.imovel_id]);
+  }, [fachada.imovel_id, fachada.foto_principal_url]);
 
   const taxa =
     fachada.total_escaneamentos > 0

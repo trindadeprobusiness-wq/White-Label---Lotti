@@ -4,6 +4,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import * as assinaturaApi from '@/lib/api/assinatura';
 import { useCRMStore } from '@/stores/crmStore';
 import type {
   Plan,
@@ -26,6 +28,16 @@ export function useAllPlans() {
   return useQuery({
     queryKey: ['plans'],
     queryFn: async (): Promise<PlanWithEntitlements[]> => {
+      if (apiDisponivel()) {
+        const [plans, entitlements] = await Promise.all([
+          assinaturaApi.listarPlanosApi() as Promise<unknown> as Promise<Plan[]>,
+          assinaturaApi.listarEntitlementsApi() as Promise<unknown> as Promise<PlanEntitlement[]>,
+        ]);
+        return plans.map((plan) => ({
+          ...plan,
+          entitlements: entitlements.filter((e) => e.plan_id === plan.id),
+        }));
+      }
       const { data: plans, error: pErr } = await supabase
         .from('plans')
         .select('*')
@@ -60,6 +72,7 @@ export function useCurrentSubscription() {
     queryKey: ['subscription', corretorId],
     queryFn: async (): Promise<Subscription | null> => {
       if (!corretorId) return null;
+      if (apiDisponivel()) return (await assinaturaApi.assinaturaAtualApi()) as unknown as Subscription | null;
 
       const { data, error } = await supabase
         .from('subscriptions')
@@ -84,6 +97,31 @@ export function useUsage() {
     queryKey: ['usage', corretorId],
     queryFn: async (): Promise<UsageCounter[]> => {
       if (!corretorId) return [];
+      if (apiDisponivel()) {
+        const uso = await assinaturaApi.usoAssinaturaApi();
+        const agora = new Date().toISOString();
+        const counters = [...(uso.contadores as unknown as UsageCounter[])];
+        const ativosApi: Array<[FeatureKey, number]> = [
+          ['max_imoveis', uso.ativos.max_imoveis],
+          ['max_contratos_locacao', uso.ativos.max_contratos_locacao],
+          ['max_fachadas', uso.ativos.max_fachadas],
+        ];
+        for (const [featureKey, used] of ativosApi) {
+          const existing = counters.find((counter) => counter.feature_key === featureKey);
+          if (existing) existing.used_quantity = used;
+          else counters.push({
+            id: `active:${featureKey}`,
+            corretor_id: corretorId,
+            feature_key: featureKey,
+            used_quantity: used,
+            period_start: uso.period_start,
+            period_end: uso.period_end,
+            created_at: agora,
+            updated_at: agora,
+          });
+        }
+        return counters;
+      }
 
       const now = new Date();
       const { start: periodStart, end: periodEnd } = monthlyUsagePeriod(now);
@@ -137,6 +175,7 @@ export function useAddons() {
     queryKey: ['addons', corretorId],
     queryFn: async (): Promise<SubscriptionAddon[]> => {
       if (!corretorId) return [];
+      if (apiDisponivel()) return (await assinaturaApi.addonsApi()) as unknown as SubscriptionAddon[];
 
       const { data, error } = await supabase
         .from('subscription_addons')
@@ -156,6 +195,7 @@ export function useActiveCampaign() {
   return useQuery({
     queryKey: ['campaign'],
     queryFn: async (): Promise<PricingCampaign | null> => {
+      if (apiDisponivel()) return (await assinaturaApi.campanhaAtivaApi()) as unknown as PricingCampaign | null;
       const { data, error } = await supabase
         .from('pricing_campaigns')
         .select('*')
@@ -181,6 +221,7 @@ export function useContaAntigaSemLimite() {
   return useQuery({
     queryKey: ['conta-antiga-sem-limite', corretorId],
     queryFn: async (): Promise<boolean> => {
+      if (apiDisponivel()) return assinaturaApi.contaAntigaSemLimiteApi();
       const { data, error } = await supabase.rpc('conta_antiga_sem_limite' as never, {
         _corretor_id: corretorId,
       } as never);

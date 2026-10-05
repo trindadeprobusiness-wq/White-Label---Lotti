@@ -18,6 +18,8 @@ import { LeadsTable } from '@/components/fachadas/LeadsTable';
 import { DEFAULT_TEMPLATES } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { criarTemplateApi, excluirTemplateApi, listarTemplatesApi } from '@/lib/api/fachadas';
 import { toast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { MetricStrip, SectionCard } from '@/components/shell/primitivos';
@@ -161,16 +163,24 @@ export default function FachadasInteligentes() {
 
   const fetchCustomTemplates = async () => {
     try {
-      const { data: corretorId } = await supabase.rpc('get_corretor_id');
-      if (!corretorId) return;
+      let data: unknown[] | null;
+      if (apiDisponivel()) {
+        // A rota resolve o corretor no servidor: o get_corretor_id daqui some.
+        data = await listarTemplatesApi('meus');
+      } else {
+        const { data: corretorId } = await supabase.rpc('get_corretor_id');
+        if (!corretorId) return;
 
-      const { data, error } = await db()
-        .from('fachada_templates')
-        .select('*')
-        .eq('corretor_id', corretorId)
-        .order('created_at', { ascending: false });
+        const res = await db()
+          .from('fachada_templates')
+          .select('*')
+          .eq('corretor_id', corretorId)
+          .order('created_at', { ascending: false });
+        if (res.error) return;
+        data = res.data;
+      }
 
-      if (!error && data) {
+      if (data) {
         setCustomTemplates(
           data.map((t: any) => ({
             id: t.id,
@@ -211,31 +221,34 @@ export default function FachadasInteligentes() {
       // "Template salvo com sucesso!" mesmo sem nada ter sido gravado: o
       // template aparecia na lista vindo só do estado local e sumia no primeiro
       // reload. Falhar visivelmente é melhor que perder em silêncio.
-      const { data: salvo, error: erroInsert } = await db()
-        .from('fachada_templates')
-        .insert({
-          corretor_id: corretorId,
-          nome,
-          categoria: 'VENDA',
-          padrao: false,
-          config: {
-            imagem_url: result.url,
-            corPrimaria: '#000000',
-            corSecundaria: '#ffffff',
-            corTexto: '#ffffff',
-            corFundo: '#000000',
-            estilo: 'profissional',
-            layout: 'vertical',
-            qrPosition: { x: qrPosition.x, y: qrPosition.y },
-            qrSize,
-          },
-        } as any)
-        // O genérico tipa a linha devolvida sem `as any`: `db()` perde o
-        // schema, mas o formato deste SELECT é conhecido aqui.
-        .select('id, created_at')
-        .single<{ id: string; created_at: string | null }>();
+      const config = {
+        imagem_url: result.url,
+        corPrimaria: '#000000',
+        corSecundaria: '#ffffff',
+        corTexto: '#ffffff',
+        corFundo: '#000000',
+        estilo: 'profissional',
+        layout: 'vertical',
+        qrPosition: { x: qrPosition.x, y: qrPosition.y },
+        qrSize,
+      };
 
-      if (erroInsert) throw erroInsert;
+      let salvo: { id: string; created_at: string | null };
+      if (apiDisponivel()) {
+        const linha = await criarTemplateApi({ nome, categoria: 'VENDA', padrao: false, config });
+        salvo = { id: linha.id as string, created_at: (linha.created_at as string | null) ?? null };
+      } else {
+        const { data: linha, error: erroInsert } = await db()
+          .from('fachada_templates')
+          .insert({ corretor_id: corretorId, nome, categoria: 'VENDA', padrao: false, config } as any)
+          // O genérico tipa a linha devolvida sem `as any`: `db()` perde o
+          // schema, mas o formato deste SELECT é conhecido aqui.
+          .select('id, created_at')
+          .single<{ id: string; created_at: string | null }>();
+
+        if (erroInsert) throw erroInsert;
+        salvo = linha;
+      }
 
       // Usa o id real da linha. Antes era `local-<timestamp>`, que não é UUID —
       // excluir o template recém-criado sem recarregar a página falhava.
@@ -268,7 +281,8 @@ export default function FachadasInteligentes() {
     setCustomTemplates((prev) => prev.filter((t) => t.id !== template.id));
     try {
       if (!template.id.startsWith('local-')) {
-        await db().from('fachada_templates').delete().eq('id', template.id);
+        if (apiDisponivel()) await excluirTemplateApi(template.id);
+        else await db().from('fachada_templates').delete().eq('id', template.id);
       }
       toast({ title: 'Template removido' });
     } catch {

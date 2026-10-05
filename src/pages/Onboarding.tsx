@@ -252,6 +252,9 @@ export default function Onboarding() {
     navigate((location.state as { returnTo?: string } | null)?.returnTo || '/', { replace: true });
   };
 
+  // Com VITE_API_URL o texto mostrado aqui é o `message` em português da API
+  // (o tradutor de erro do módulo assinatura); sem ela, segue a mensagem crua
+  // das funções do banco pelo supabase-js. O código é o mesmo nos dois casos.
   const executar = async (acao: () => Promise<void>) => {
     if (processando) return;
     setProcessando(true);

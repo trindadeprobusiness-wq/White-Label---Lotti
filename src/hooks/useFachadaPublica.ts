@@ -1,10 +1,18 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { FachadaComImovel, FachadaLead } from '@/types/fachada';
+import { apiDisponivel } from '@/lib/api';
+import {
+  enviarLeadPublicoApi,
+  obterFachadaPublicaApi,
+  registrarEscaneamentoApi,
+} from '@/lib/api/fachadas';
+import type { FachadaComImovel } from '@/types/fachada';
 
 /**
  * Hook usado na landing page pública (/p/:fachadaId).
- * Todas as operações usam a anon key (sem autenticação obrigatória).
+ * Todas as operações são sem autenticação: com a API Lotti ligada vão pelas
+ * rotas /api/publico/fachadas (role anon no banco, mesmas policies, mesmos
+ * gatilhos e o mesmo limite de uso); sem ela, seguem pela anon key do Supabase.
  */
 export function useFachadaPublica() {
   const [fachada, setFachada] = useState<FachadaComImovel | null>(null);
@@ -15,22 +23,30 @@ export function useFachadaPublica() {
   const fetchFachadaPublica = useCallback(async (fachadaId: string) => {
     setLoading(true);
     try {
-      // Busca via Edge Function (service_role): o RLS esconde do anônimo os imóveis
-      // não-anunciados e a tabela corretores inteira, o que deixava a landing VAZIA.
-      // A função devolve só campos seguros (sem PII de proprietário).
-      const { data, error } = await supabase.functions.invoke('fachada-publica', {
-        body: { fachadaId },
-      });
+      let data: { fachada?: unknown; fotos?: unknown; error?: string } | null;
 
-      if (error) throw error;
+      if (apiDisponivel()) {
+        data = await obterFachadaPublicaApi(fachadaId);
+      } else {
+        // Busca via Edge Function (service_role): o RLS esconde do anônimo os imóveis
+        // não-anunciados e a tabela corretores inteira, o que deixava a landing VAZIA.
+        // A função devolve só campos seguros (sem PII de proprietário).
+        const res = await supabase.functions.invoke('fachada-publica', {
+          body: { fachadaId },
+        });
+
+        if (res.error) throw res.error;
+        data = res.data;
+      }
+
       if (!data?.fachada) throw new Error(data?.error || 'Fachada não encontrada');
 
-      const f = data.fachada;
+      const f = data.fachada as Record<string, unknown>;
       setFachada({
         ...f,
         imovel: f.imovel ?? undefined,
         corretor: f.corretor ?? undefined,
-      } as FachadaComImovel);
+      } as unknown as FachadaComImovel);
 
       setFotos(Array.isArray(data.fotos) ? data.fotos : []);
     } catch (err) {
@@ -43,10 +59,15 @@ export function useFachadaPublica() {
 
   const registrarEscaneamento = useCallback(async (fachadaId: string) => {
     try {
-      await supabase.from('fachada_escaneamentos').insert({
-        fachada_id: fachadaId,
-        user_agent: navigator.userAgent,
-      } as any);
+      if (apiDisponivel()) {
+        // O user_agent vai no cabeçalho da própria requisição, não no corpo.
+        await registrarEscaneamentoApi(fachadaId);
+      } else {
+        await supabase.from('fachada_escaneamentos').insert({
+          fachada_id: fachadaId,
+          user_agent: navigator.userAgent,
+        } as any);
+      }
     } catch (err) {
       // Falha silenciosa — não bloqueia a experiência do visitante
       console.warn('Falha ao registrar escaneamento:', err);
@@ -59,12 +80,21 @@ export function useFachadaPublica() {
       dados: { nome: string; telefone: string; email?: string },
     ): Promise<boolean> => {
       try {
-        const { error } = await supabase.from('fachada_leads').insert({
-          fachada_id: fachadaId,
-          ...dados,
-        } as any);
+        if (apiDisponivel()) {
+          // `email` vazio não é enviado: o DTO público recusa string vazia.
+          await enviarLeadPublicoApi(fachadaId, {
+            nome: dados.nome,
+            telefone: dados.telefone,
+            email: dados.email || undefined,
+          });
+        } else {
+          const { error } = await supabase.from('fachada_leads').insert({
+            fachada_id: fachadaId,
+            ...dados,
+          } as any);
 
-        if (error) throw error;
+          if (error) throw error;
+        }
 
         setLeadCapturado(true);
         return true;

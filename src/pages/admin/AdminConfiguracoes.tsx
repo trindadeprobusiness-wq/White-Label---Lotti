@@ -13,6 +13,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { tabelaAdmin } from '@/lib/admin/api';
+import { apiDisponivel } from '@/lib/api';
+import { atualizarConfigApi, listarLinhasConfigApi } from '@/lib/api/parceiros';
 import { adminKeys } from '@/hooks/admin/usePapeis';
 import { mensagemDeErro } from '@/lib/errors';
 
@@ -30,6 +32,7 @@ export default function AdminConfiguracoes() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [...adminKeys.todos, 'config'],
     queryFn: async () => {
+      if (apiDisponivel()) return (await listarLinhasConfigApi()) as unknown as LinhaConfig[];
       const { data, error } = await tabelaAdmin('admin_config').select('*').order('chave');
       if (error) throw error;
       return (data ?? []) as unknown as LinhaConfig[];
@@ -56,11 +59,15 @@ export default function AdminConfiguracoes() {
       const numerico = Number(bruto);
       const valorJson = bruto !== '' && !Number.isNaN(numerico) ? numerico : bruto;
 
-      const { error } = await tabelaAdmin('admin_config')
-        .update({ valor: valorJson, atualizado_em: new Date().toISOString() })
-        .eq('chave', chave);
+      if (apiDisponivel()) {
+        await atualizarConfigApi(chave, valorJson);
+      } else {
+        const { error } = await tabelaAdmin('admin_config')
+          .update({ valor: valorJson, atualizado_em: new Date().toISOString() })
+          .eq('chave', chave);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast.success('Configuração salva.');
       void qc.invalidateQueries({ queryKey: adminKeys.todos });

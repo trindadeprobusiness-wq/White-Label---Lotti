@@ -9,6 +9,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { chamarRpc, tabelaAdmin } from '@/lib/admin/api';
+import { apiDisponivel } from '@/lib/api';
+import {
+  convidarParceiroApi, criarLinkApi, criarParceiroApi, editarParceiroApi, parceiroApi, revogarLinkApi,
+} from '@/lib/api/parceiros';
 import { adminKeys } from './usePapeis';
 import { mensagemDeErro } from '@/lib/errors';
 import type { Periodo } from '@/lib/admin/periodo';
@@ -165,6 +169,8 @@ export function useParceiro(id: string | null) {
   return useQuery({
     queryKey: adminKeys.parceiro(id ?? ''),
     queryFn: async () => {
+      if (apiDisponivel()) return parceiroApi(id as string);
+
       const [parceiro, percentuais, links, atribuicoes] = await Promise.all([
         tabelaAdmin('parceiros').select('*').eq('id', id).single(),
         tabelaAdmin('parceiro_percentuais')
@@ -201,6 +207,9 @@ export function useSalvarParceiro() {
   return useMutation({
     mutationFn: async (dados: Partial<Parceiro> & { id?: string }) => {
       const { id, ...campos } = dados;
+      if (apiDisponivel()) {
+        return id ? editarParceiroApi(id, campos) : criarParceiroApi(campos);
+      }
       const consulta = id
         ? tabelaAdmin('parceiros').update(campos).eq('id', id).select('id').single()
         : tabelaAdmin('parceiros').insert(campos).select('id').single();
@@ -221,6 +230,11 @@ export function useCriarParceiroConvidar() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (dados: Record<string, unknown>) => {
+      if (apiDisponivel()) {
+        const resposta = await convidarParceiroApi({ acao: 'criar', dados });
+        if (!resposta.parceiro_id) throw new Error(resposta.error ?? 'Não foi possível criar o parceiro.');
+        return resposta;
+      }
       const { data, error } = await supabase.functions.invoke<{
         ok: boolean; parceiro_id?: string; email_enviado?: boolean; error?: string;
       }>('parceiro-convidar', { body: { acao: 'criar', dados } });
@@ -272,6 +286,11 @@ export function useCriarLink() {
       campanha?: string | null;
       principal?: boolean;
     }) => {
+      if (apiDisponivel()) {
+        return criarLinkApi(dados.parceiroId, {
+          slug: dados.slug, campanha: dados.campanha ?? null, principal: dados.principal ?? false,
+        });
+      }
       const { data, error } = await tabelaAdmin('parceiro_links')
         .insert({
           parceiro_id: dados.parceiroId,
@@ -302,6 +321,7 @@ export function useRevogarLink() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (linkId: string) => {
+      if (apiDisponivel()) { await revogarLinkApi(linkId); return; }
       const { error } = await tabelaAdmin('parceiro_links')
         .update({ ativo: false, revogado_em: new Date().toISOString() })
         .eq('id', linkId);

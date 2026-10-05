@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { CabecalhoAdmin } from '@/components/admin/CabecalhoAdmin';
+import { apiDisponivel } from '@/lib/api';
+import { atualizarStatusDiagnosticoApi, listarDiagnosticosApi } from '@/lib/api/parceiros';
 
 type Diagnostic = {
   id: string; created_at: string; name: string; phone: string; email: string | null; city: string | null; company: string | null;
@@ -24,7 +26,13 @@ export default function AdminDiagnosticos() {
 
   useEffect(() => {
     let active = true;
-    void client.from('commercial_diagnostics').select('*').order('created_at', { ascending: false }).limit(200).then(({ data, error: failure }) => {
+    const carregar = apiDisponivel()
+      ? listarDiagnosticosApi({ por_pagina: 200 }).then(linhas => ({ data: linhas, error: null as unknown }),
+          (erro: unknown) => ({ data: null, error: erro }))
+      : client.from('commercial_diagnostics').select('*').order('created_at', { ascending: false }).limit(200)
+          .then(({ data, error: failure }) => ({ data, error: failure as unknown }));
+
+    void carregar.then(({ data, error: failure }) => {
       if (!active) return;
       if (failure) setError('Não foi possível carregar os diagnósticos.');
       else setItems((data ?? []) as Diagnostic[]);
@@ -34,8 +42,17 @@ export default function AdminDiagnosticos() {
   }, []);
 
   async function updateStatus(id: string, status: Diagnostic['status']) {
-    const { error: failure } = await client.from('commercial_diagnostics').update({ status }).eq('id', id);
-    if (failure) { setError('Não foi possível atualizar o status.'); return; }
+    if (apiDisponivel()) {
+      try {
+        await atualizarStatusDiagnosticoApi(id, status);
+      } catch {
+        setError('Não foi possível atualizar o status.');
+        return;
+      }
+    } else {
+      const { error: failure } = await client.from('commercial_diagnostics').update({ status }).eq('id', id);
+      if (failure) { setError('Não foi possível atualizar o status.'); return; }
+    }
     setItems(current => current.map(item => item.id === id ? { ...item, status } : item));
   }
 

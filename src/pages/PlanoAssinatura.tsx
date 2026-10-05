@@ -88,6 +88,10 @@ export function criarAssinaturaDemonstracao(
 }
 
 export function PlanoAssinatura() {
+  // Plano, consumo e campanha passam a vir da API Lotti quando VITE_API_URL
+  // existir — a troca é dentro de useSubscription, atrás de apiDisponivel().
+  // Troca e cancelamento de plano continuam no paymentProvider (fora do
+  // contrato da onda 3), por isso o aviso de billingIntegrationReady fica.
   const { data: summary, isLoading } = useSubscriptionSummary();
   const { data: plans } = useAllPlans();
   const demoParametro = new URLSearchParams(window.location.search).get('demo');

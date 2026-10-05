@@ -11,6 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { moeda, dataBR } from '@/lib/formato';
 import { getParceiroLinkUrl } from '@/lib/publicBaseUrl';
 import { chamarRpc } from '@/lib/admin/api';
+import { apiDisponivel } from '@/lib/api';
+import { ErroApi } from '@/lib/api/http';
+import { portalParceiroApi, salvarRepasseApi } from '@/lib/api/parceiros';
 
 type PortalData = {
   parceiro: { id: string; nome: string; email: string; status: string; comissao: number; valor_fixo: number | null; base_calculo: string; renovacoes: string; documento: string | null; chave_pix: string | null; tipo_chave_pix: string | null };
@@ -25,6 +28,15 @@ type PortalData = {
 };
 
 const money = (amount: number | undefined) => moeda(Number(amount ?? 0));
+
+/**
+ * Pela API, o caso é identificado por código — o texto deixa de ser contrato.
+ * No ramo Supabase, o `includes('parceiro')` da mensagem da RPC continua.
+ */
+function semVinculo(erro: Error): boolean {
+  if (erro instanceof ErroApi) return erro.codigo === 'parceiro_nao_vinculado';
+  return erro.message.includes('parceiro');
+}
 
 function Card({ title, value, detail, icon: Icon }: { title: string; value: string; detail?: string; icon: typeof Wallet }) {
   return <section className="min-w-0 border-t border-slate-700 py-5 sm:px-4 sm:first:pl-0">
@@ -47,19 +59,30 @@ export default function ParceiroPortal() {
     enabled: !!user,
     retry: false,
     queryFn: async () => {
-      await chamarRpc<boolean>('parceiro_portal_registrar_aceite');
-      const [result, teto] = await Promise.all([
-        chamarRpc<PortalData>('parceiro_portal_resumo'),
-        chamarRpc<number | null>('parceiro_portal_teto_renovacoes'),
-      ]);
-      setDocumento(result.parceiro.documento ?? '');
-      setTipoChave(result.parceiro.tipo_chave_pix ?? 'cpf');
-      setChave(result.parceiro.chave_pix ?? '');
-      return { ...result, teto_renovacoes: teto };
+      // Com a API, aceite + resumo + teto vêm numa chamada só: não existe mais
+      // o estado "aceite carimbado, resumo falhou".
+      const dados: PortalData = apiDisponivel()
+        ? ((await portalParceiroApi()) as unknown as PortalData)
+        : await (async () => {
+            await chamarRpc<boolean>('parceiro_portal_registrar_aceite');
+            const [result, teto] = await Promise.all([
+              chamarRpc<PortalData>('parceiro_portal_resumo'),
+              chamarRpc<number | null>('parceiro_portal_teto_renovacoes'),
+            ]);
+            return { ...result, teto_renovacoes: teto };
+          })();
+      setDocumento(dados.parceiro.documento ?? '');
+      setTipoChave(dados.parceiro.tipo_chave_pix ?? 'cpf');
+      setChave(dados.parceiro.chave_pix ?? '');
+      return dados;
     },
   });
   const save = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) {
+        await salvarRepasseApi({ documento, tipo_chave: tipoChave, chave });
+        return;
+      }
       await chamarRpc<boolean>('parceiro_portal_salvar_repasse', {
         p_documento: documento, p_tipo_chave: tipoChave, p_chave: chave,
       });
@@ -73,7 +96,7 @@ export default function ParceiroPortal() {
   if (query.error || !data) return <main className="grid min-h-screen place-items-center bg-[#06152b] px-5 text-white"><section className="max-w-md text-center">
     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-400">Lotti Parceiros</p><h1 className="mt-4 text-2xl font-semibold">Acesso ao portal</h1>
     <p className="mt-3 text-sm leading-6 text-slate-300">Entre com o mesmo e-mail que recebeu o convite. Se o acesso acabou de ser enviado, abra o link do e-mail para definir sua senha.</p>
-    {query.error && <p className="mt-4 text-sm text-rose-300">{query.error.message.includes('parceiro') ? 'Este e-mail ainda não está vinculado a um parceiro ativo.' : 'Não foi possível carregar seu painel.'}</p>}
+    {query.error && <p className="mt-4 text-sm text-rose-300">{semVinculo(query.error) ? 'Este e-mail ainda não está vinculado a um parceiro ativo.' : 'Não foi possível carregar seu painel.'}</p>}
     <Button className="mt-6" asChild><Link to="/auth">Ir para entrar</Link></Button>
   </section></main>;
 
