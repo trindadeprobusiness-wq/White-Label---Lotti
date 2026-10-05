@@ -7,8 +7,8 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Inclui chamadas fetch diretas das telas, sem entregar credenciais do cliente ao navegador.
-const fetchSuporte = criarFetchSuporte(SUPABASE_URL, window.fetch.bind(window));
-window.fetch = fetchSuporte;
+const fetchSuporte = criarFetchSuporte(SUPABASE_URL, globalThis.fetch.bind(globalThis));
+if (typeof window !== 'undefined') window.fetch = fetchSuporte;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
