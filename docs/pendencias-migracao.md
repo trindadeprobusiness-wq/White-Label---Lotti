@@ -90,6 +90,32 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
 - [ ] **Fase 4 fica "desligada" no front até a virada.** Os módulos novos (sino,
   visitas…) só passam a valer com `VITE_API_URL`. Na virada: ligar a variável e
   conferir o sino ao vivo (SSE) com um alerta real.
+- [ ] **`VITE_API_URL` só com banco único** (contrato do módulo 2, §4.0 e §5.4). Antes
+  de ligar em qualquer build, fazer a conferência de banco único: um "mover" pela API
+  e a leitura do mesmo negócio pelo PostgREST precisam devolver o mesmo `updated_at`.
+  Hoje dá diferente de propósito, porque a API aponta para a cópia.
+- [ ] **Módulo 2 (imóveis e CRM), entregue em `d062954`.** Pendências (§7.2 do
+  contrato `docs/superpowers/specs/2026-10-04-api-lotti-modulo2-contrato.md`):
+  - **Dois defeitos de produção, já com correção.** A migration
+    `20261005020000_corrige_funil_e_historico` está testada no PGlite e **aguarda o OK
+    do Rafael para ir à produção**:
+    - trocar o status do funil de um cliente falha sempre (22P02, gatilho
+      `lotti_inbox_record_legacy_stage`). Conferido: o `coalesce` do enum com
+      'Sem etapa' dá erro na própria produção;
+    - "Registrar contato" falha sempre: `historico_contatos` não tem policy de INSERT
+      para usuário logado.
+  - Fumaça autenticada (§5.3) não feita: precisa do token de uma conta, e o agente
+    não entra com senha. Os testes de SQL só conferem o texto. Falta rodar o SQL
+    real das rotas num Postgres (PGlite) com RLS.
+  - Na venda, o `webhook_logs` falha sempre (coluna `endpoint_url` não existe e não
+    há policy). Falta decidir o destino do evento de conversão (UTMify).
+  - O SeletorImovel oferece o tipo RURAL, que não existe no enum.
+  - O GerenciarEtapas não cria nem remove etapa de verdade.
+  - Excluir negócios não avisa quando dá erro (falta `onError`).
+  - Juntar os três `*.erros.ts` e as declarações de `FORMATO_UUID` num arquivo só.
+  - Paginação no lugar do teto de 1000 por lista.
+  - A virada depende de zerar a §7.1 do contrato: tudo o que ainda lê ou grava
+    imóveis e clientes pelo Supabase.
 - [ ] **Achado de segurança, anterior à migração:** `anon` e `authenticated` podiam
   executar todas as funções novas por padrão (default privileges do Supabase dão
   EXECUTE). Medido na produção em 2026-10-04: o `anon` executa 44 das 217 funções de

@@ -116,6 +116,14 @@ dele.
      - gatilho `alertas_avisar_mudanca` (migration `20261004233000`) avisando no
        canal `lotti_alertas`, e listener pelo `DIRECT_URL`;
      - front: sino lê, marca e escuta pela API quando ligado.
+   - ✅ `imoveis` + `crm` (`d062954`, contrato em
+     `2026-10-04-api-lotti-modulo2-contrato.md`):
+     - `/api/imoveis` (CRUD, interessados, venda), `/api/clientes` (CRUD, status,
+       candidatos, histórico, vínculo) e `/api/crm` (etapas, oportunidades com mover
+       por token, exclusão em lote, tarefas);
+     - front: adaptadores em `src/lib/api/{http,imoveis,crm}.ts` e nas telas;
+     - o que ainda lê ou grava imóveis e clientes pelo Supabase está na §7.1 do
+       contrato e sai com os próximos módulos (a virada depende de zerar essa lista).
    - O front troca as chamadas diretas ao Supabase pela API, e as Edge Functions
      viram módulos.
    - Ordem por valor: `notificacoes` (SSE), `imoveis`, `crm`, `rotina`,

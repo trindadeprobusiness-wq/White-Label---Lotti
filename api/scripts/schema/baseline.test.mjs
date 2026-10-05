@@ -136,3 +136,28 @@ test('mudança em alertas avisa no canal lotti_alertas com o corretor dono', asy
   const pode = await um(`select has_function_privilege('authenticated', 'public.alertas_avisar_mudanca()', 'execute') as authenticated`);
   assert.equal(pode.authenticated, false);
 });
+
+test('o dono troca o status do funil e registra contato; outra conta não grava no histórico', async () => {
+  const { id: corretorA } = await um('select id from public.corretores where user_id = $1', [userA]);
+  const { id: cliente } = await um(`insert into public.clientes (corretor_id, nome, telefone) values ($1, 'Cliente da A', '62999990000') returning id`, [corretorA]);
+  const comoUsuario = async (sub, trabalho) => {
+    await banco.exec('begin');
+    try {
+      await banco.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub, role: 'authenticated' })]);
+      await banco.exec('set local role authenticated');
+      return await trabalho();
+    } finally {
+      await banco.exec('rollback');
+    }
+  };
+  const status = await comoUsuario(userA, async () =>
+    (await um(`update public.clientes set status_funil = 'VISITA_PROPOSTA' where id = $1 returning status_funil::text as s`, [cliente])).s);
+  assert.equal(status, 'VISITA_PROPOSTA');
+  const gravado = await comoUsuario(userA, async () =>
+    (await um(`insert into public.historico_contatos (cliente_id, tipo, direcao, conteudo) values ($1, 'WHATSAPP', 'OUT', 'oi') returning conteudo`, [cliente])).conteudo);
+  assert.equal(gravado, 'oi');
+  await assert.rejects(
+    comoUsuario(userB, () => banco.query(`insert into public.historico_contatos (cliente_id, tipo, direcao, conteudo) values ($1, 'WHATSAPP', 'OUT', 'invasão')`, [cliente])),
+    /row-level security/,
+  );
+});
