@@ -9,6 +9,7 @@ vi.mock('./MobileTopBar', () => ({ MobileTopBar: () => null }));
 vi.mock('../onboarding/OnboardingTour', () => ({ OnboardingTour: () => null }));
 vi.mock('@/hooks/routine/useGoogleCalendarReturn', () => ({ useGoogleCalendarReturn: () => undefined }));
 vi.mock('../ai/AIChatWidget', () => ({ AIChatWidget: () => <div>Assistente flutuante</div> }));
+vi.mock('@/components/admin/SuporteBoundary', () => ({ SuporteBanner: () => null }));
 
 afterEach(cleanup);
 
