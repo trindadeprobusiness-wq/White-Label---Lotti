@@ -12,6 +12,9 @@ import { TipoContrato, TIPO_CONTRATO_LABELS } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, Sparkles, Download, FileText, Loader2, X, Edit3, Check, Upload, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { comoResultado } from '@/lib/api/http';
+import { gerarContratoIaApi } from '@/lib/api/contratos';
 import { formatContractForPreview } from '@/utils/contractPreview';
 import { generateLocalContract } from '@/utils/contractTemplate';
 import { useFileDrop } from '@/hooks/useFileDrop';
@@ -205,9 +208,12 @@ export function GerarContratoDialog({ open, onOpenChange, clienteId }: GerarCont
         },
       };
 
-      const { data, error } = await supabase.functions.invoke('gerar-contrato', {
-        body: requestBody,
-      });
+      // Fase 4 (módulo contratos): com a API ligada, gera por ela; qualquer erro cai no mesmo fallback local.
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(gerarContratoIaApi(requestBody))
+        : await supabase.functions.invoke('gerar-contrato', {
+          body: requestBody,
+        });
 
       clearInterval(progressInterval);
 

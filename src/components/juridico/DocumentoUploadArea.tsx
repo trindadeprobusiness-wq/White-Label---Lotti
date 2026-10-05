@@ -15,6 +15,8 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { opcoesImoveisApi } from '@/lib/api/contratos';
 
 interface Cliente {
   id: string;
@@ -113,6 +115,11 @@ export function DocumentoUploadArea({
   // Fetch imóveis
   useEffect(() => {
     const fetchImoveis = async () => {
+      if (apiDisponivel()) {
+        const imoveisApi = await opcoesImoveisApi<Imovel>(['id', 'titulo', 'endereco']).catch(() => null);
+        if (imoveisApi) setImoveis(imoveisApi);
+        return;
+      }
       const { data } = await supabase
         .from('imoveis')
         .select('id, titulo, endereco')

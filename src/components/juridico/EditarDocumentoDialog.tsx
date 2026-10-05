@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { alterarDocumentoApi, opcoesImoveisApi } from '@/lib/api/contratos';
 import { DocumentoRow } from '@/hooks/useDocumentos';
 
 interface Cliente {
@@ -102,6 +104,11 @@ export function EditarDocumentoDialog({
   // Fetch imóveis
   useEffect(() => {
     const fetchImoveis = async () => {
+      if (apiDisponivel()) {
+        const imoveisApi = await opcoesImoveisApi<Imovel>(['id', 'titulo', 'endereco']).catch(() => null);
+        if (imoveisApi) setImoveis(imoveisApi);
+        return;
+      }
       const { data } = await supabase
         .from('imoveis')
         .select('id, titulo, endereco')
@@ -140,6 +147,22 @@ export function EditarDocumentoDialog({
 
     try {
       setSaving(true);
+
+      if (apiDisponivel()) {
+        // documentos não tem updated_at: a API não o envia (corrige D2).
+        await alterarDocumentoApi(documento.id, {
+          nome: nome.trim(),
+          tipo,
+          cliente_id: clienteId && clienteId !== 'NENHUM' ? clienteId : null,
+          imovel_id: imovelId && imovelId !== 'NENHUM' ? imovelId : null,
+          data_validade: dataValidade || null,
+          observacoes: observacoes.trim() || null,
+        });
+        toast.success('Documento atualizado com sucesso!');
+        onUpdate();
+        onOpenChange(false);
+        return;
+      }
 
       const { error } = await supabase
         .from('documentos')

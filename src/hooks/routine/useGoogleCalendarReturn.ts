@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { sincronizarGoogleApi } from '@/lib/api/rotina';
 
 /**
  * Trata a volta do consentimento do Google Agenda, em qualquer página.
@@ -38,8 +40,10 @@ export function useGoogleCalendarReturn() {
 
     if (result === 'connected') {
       toast.success('Google Agenda conectado. A primeira sincronização começou.');
-      void supabase.functions
-        .invoke('google-calendar-sync', { body: { action: 'sync' } })
+      const primeiraSync: Promise<unknown> = apiDisponivel()
+        ? sincronizarGoogleApi('sync')
+        : supabase.functions.invoke('google-calendar-sync', { body: { action: 'sync' } });
+      void primeiraSync
         .catch(() => undefined)
         .finally(() => {
           void qc.invalidateQueries({ queryKey: ['routine'] });

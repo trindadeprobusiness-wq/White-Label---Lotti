@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { confirmarRepasseApi, listarRepassesApi } from "@/lib/api/financeiro";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +23,9 @@ export function RepassesList() {
     const { data: payouts, isLoading } = useQuery({
         queryKey: ["rental-payouts"],
         queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mesmo formato do embed do Supabase
+            if (apiDisponivel()) return (await listarRepassesApi()) as any[];
+
             // Fetch repasses with contract info
             const { data, error } = await (supabase as any)
                 .from("repasses_proprietario")
@@ -43,6 +48,13 @@ export function RepassesList() {
         if (!confirm("Confirmar que a transferência via PIX foi realizada para o proprietário?")) return;
 
         try {
+            if (apiDisponivel()) {
+                await confirmarRepasseApi(payoutId);
+                toast.success("Repasse confirmado e registrado com sucesso!");
+                queryClient.invalidateQueries({ queryKey: ["rental-payouts"] });
+                return;
+            }
+
             const { error } = await (supabase as any)
                 .from("repasses_proprietario")
                 .update({

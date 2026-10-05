@@ -44,6 +44,47 @@ import {
 import { parseContratoContent } from "@/types/rental";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
 import { Dinheiro } from "@/components/ui/dinheiro";
+import { apiDisponivel } from "@/lib/api";
+import type { ErroApi } from "@/lib/api/http";
+import {
+    acaoAsaasApi,
+    alterarVencimentoApi,
+    cancelarFaturaApi,
+    darBaixaApi,
+    estornarFaturaApi,
+    garantirFaturaApi,
+    listarContratosAtivosApi,
+    listarFaturasApi,
+    reativarFaturaApi,
+    saldoAsaasApi,
+} from "@/lib/api/financeiro";
+
+/** Com a API: grava a fatura virtual (ou pega a do mês que já existe) e devolve o id. */
+// eslint-disable-next-line react-refresh/only-export-components
+export async function garantirFaturaPelaApi(bill: { contract: { id: string }; mesReferencia?: string; dueDate: Date }, referenceMonthStr: string): Promise<string> {
+    const r = await garantirFaturaApi({
+        contrato_id: bill.contract.id,
+        mes_referencia: bill.mesReferencia || referenceMonthStr,
+        data_vencimento: bill.dueDate.toISOString().split('T')[0],
+    });
+    return r.id;
+}
+
+/** Com a API: saldo do Asaas no mesmo formato de estado que o cartão usa. */
+// eslint-disable-next-line react-refresh/only-export-components
+export async function saldoPelaApi(): Promise<{ naoConectado: boolean; saldo: number | null; nota: string | null }> {
+    try {
+        const data = await saldoAsaasApi();
+        if (data?.unavailable || data?.balance == null) {
+            return { naoConectado: false, saldo: null, nota: data?.message || "Saldo indisponível no momento." };
+        }
+        return { naoConectado: false, saldo: Number(data.balance), nota: null };
+    } catch (e) {
+        // Conta não conectada é convite, decidido pelo código (não pelo texto).
+        if ((e as ErroApi)?.codigo === 'ASAAS_NAO_CONECTADO') return { naoConectado: true, saldo: null, nota: null };
+        return { naoConectado: false, saldo: null, nota: "Não foi possível carregar o saldo agora." };
+    }
+}
 
 export function BillsList() {
     const queryClient = useQueryClient();
@@ -79,6 +120,8 @@ export function BillsList() {
     const { data: activeContracts, isLoading: loadingContracts } = useQuery({
         queryKey: ["active-contracts-for-bills"],
         queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mesmo formato do embed do Supabase
+            if (apiDisponivel()) return (await listarContratosAtivosApi()) as any[];
             const { data, error } = await supabase
                 .from('contratos')
                 .select(`
@@ -97,6 +140,7 @@ export function BillsList() {
     const { data: allBills, isLoading: loadingBills } = useQuery({
         queryKey: ["rental-bills-all"],
         queryFn: async () => {
+            if (apiDisponivel()) return listarFaturasApi();
             const { data, error } = await (supabase as any)
                 .from("faturas_aluguel")
                 .select('*');
@@ -461,6 +505,7 @@ export function BillsList() {
     // handle_bill_payment() rodar uma única vez.
     const ensureFatura = async (bill: any): Promise<string> => {
         if (!bill.isVirtual) return bill.id;
+        if (apiDisponivel()) return garantirFaturaPelaApi(bill, referenceMonthStr);
         const { data, error } = await (supabase as any)
             .from('faturas_aluguel')
             .insert({
@@ -483,6 +528,7 @@ export function BillsList() {
     // Invoca a asaas-sync com o JWT do corretor e desembrulha a mensagem de erro que
     // a função devolve no corpo (o invoke sozinho só entrega "non-2xx status code").
     const chamarAsaas = async (action: string, faturaId: string, extra: Record<string, unknown> = {}) => {
+        if (apiDisponivel()) return acaoAsaasApi(faturaId, action, extra as { data_pagamento?: string });
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
         const { data, error } = await supabase.functions.invoke('asaas-sync', {
@@ -524,15 +570,19 @@ export function BillsList() {
 
             // 2. Banco. O trigger handle_bill_payment() cria o repasse ao proprietário
             // e o lançamento de comissão (fonte única).
-            const { error } = await (supabase as any)
-                .from("faturas_aluguel")
-                .update({
-                    status: 'PAGO',
-                    data_pagamento: dataPagamento,
-                    valor_pago: bill.valor_total,
-                })
-                .eq('id', faturaId);
-            if (error) throw error;
+            if (apiDisponivel()) {
+                await darBaixaApi(faturaId, dataPagamento);
+            } else {
+                const { error } = await (supabase as any)
+                    .from("faturas_aluguel")
+                    .update({
+                        status: 'PAGO',
+                        data_pagamento: dataPagamento,
+                        valor_pago: bill.valor_total,
+                    })
+                    .eq('id', faturaId);
+                if (error) throw error;
+            }
 
             toast.dismiss(loadingToast);
             toast.success("Pagamento confirmado!" + complemento);
@@ -555,8 +605,12 @@ export function BillsList() {
         const loadingToast = toast.loading("Desfazendo pagamento...");
         const avisos: string[] = [];
         try {
-            const { error } = await (supabase as any).rpc('estornar_pagamento_fatura', { p_fatura_id: bill.id });
-            if (error) throw error;
+            if (apiDisponivel()) {
+                await estornarFaturaApi(bill.id);
+            } else {
+                const { error } = await (supabase as any).rpc('estornar_pagamento_fatura', { p_fatura_id: bill.id });
+                if (error) throw error;
+            }
 
             // Reabre a cobrança no Asaas — senão a fatura volta a pendente aqui mas
             // continua como recebida lá, e o inquilino não consegue mais pagar.
@@ -595,6 +649,8 @@ export function BillsList() {
             if (bill.externalId) {
                 const r = await chamarAsaas('excluir_cobranca', bill.id);
                 if (Array.isArray(r?.avisos) && r.avisos.length) avisos.push(...r.avisos);
+            } else if (apiDisponivel()) {
+                await cancelarFaturaApi(bill.id);
             } else {
                 // Fatura local sem cobrança: marca direto como CANCELADO
                 const { error } = await (supabase as any)
@@ -623,6 +679,13 @@ export function BillsList() {
         setProcessingId(bill.id);
         const loadingToast = toast.loading("Reativando fatura...");
         try {
+            if (apiDisponivel()) {
+                await reativarFaturaApi(bill.id);
+                toast.dismiss(loadingToast);
+                toast.success("Fatura reativada com sucesso — agora está pendente novamente.");
+                queryClient.invalidateQueries({ queryKey: ["rental-bills-all"] });
+                return;
+            }
             const { error } = await (supabase as any)
                 .from('faturas_aluguel')
                 .update({
@@ -659,11 +722,15 @@ export function BillsList() {
         const loadingToast = toast.loading("Atualizando vencimento...");
         try {
             const faturaId = await ensureFatura(billToEditDate);
-            const { error } = await (supabase as any)
-                .from('faturas_aluguel')
-                .update({ data_vencimento: newDueDate })
-                .eq('id', faturaId);
-            if (error) throw error;
+            if (apiDisponivel()) {
+                await alterarVencimentoApi(faturaId, newDueDate);
+            } else {
+                const { error } = await (supabase as any)
+                    .from('faturas_aluguel')
+                    .update({ data_vencimento: newDueDate })
+                    .eq('id', faturaId);
+                if (error) throw error;
+            }
 
             // Se já emitida, atualiza o boleto no Asaas (a função lê a nova data).
             let boletoMsg = "";
@@ -739,6 +806,13 @@ export function BillsList() {
         setSaldoLoading(true);
         setSaldoNote(null);
         try {
+            if (apiDisponivel()) {
+                const r = await saldoPelaApi();
+                setNaoConectado(r.naoConectado);
+                setSaldoAsaas(r.saldo);
+                setSaldoNote(r.nota);
+                return;
+            }
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("no session");
             const { data, error } = await supabase.functions.invoke('asaas-sync', {

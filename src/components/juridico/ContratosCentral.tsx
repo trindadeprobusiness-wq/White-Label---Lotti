@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { listarContratosCentralApi, opcoesClientesApi, opcoesImoveisApi } from '@/lib/api/contratos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +74,13 @@ export function ContratosCentral() {
 
   const fetchContratos = useCallback(async () => {
     setLoading(true);
+    if (apiDisponivel()) {
+      // Erro de leitura ignorado como hoje: lista vazia.
+      const linhas = await listarContratosCentralApi().catch(() => []);
+      setContratos(linhas as unknown as ContratoRow[]);
+      setLoading(false);
+      return;
+    }
     const { data } = await supabase
       .from('contratos')
       .select('id, tipo, status, valor, data_inicio, data_fim, observacoes, arquivo_url, imovel_id, cliente_id, created_at, imoveis(titulo), clientes(nome)')
@@ -83,6 +92,15 @@ export function ContratosCentral() {
   useEffect(() => {
     fetchContratos();
     (async () => {
+      if (apiDisponivel()) {
+        const [imApi, clApi] = await Promise.all([
+          opcoesImoveisApi<{ id: string; titulo: string; endereco?: string | null }>(['id', 'titulo', 'endereco']).catch(() => null),
+          opcoesClientesApi<{ id: string; nome: string }>(['id', 'nome']).catch(() => null),
+        ]);
+        if (imApi) setImoveis(imApi);
+        if (clApi) setClientes(clApi);
+        return;
+      }
       const [im, cl] = await Promise.all([
         supabase.from('imoveis').select('id, titulo, endereco').order('titulo'),
         supabase.from('clientes').select('id, nome').order('nome'),

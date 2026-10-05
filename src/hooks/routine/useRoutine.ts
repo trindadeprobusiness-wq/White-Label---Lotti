@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { apiDisponivel } from '@/lib/api';
+import * as rotinaApi from '@/lib/api/rotina';
 import { mensagemDeErro } from '@/lib/errors';
 import { expandRecurringEvents, type DateRange } from '@/lib/routine/calendar';
 import type {
@@ -45,6 +47,7 @@ export function useRoutineContext() {
     enabled: !!user,
     retry: false,
     queryFn: async (): Promise<RoutineContext | null> => {
+      if (apiDisponivel()) return rotinaApi.contextoRotinaApi();
       const { data, error } = await db()
         .from('routine_memberships')
         .select('*, routine_organizations(*)')
@@ -75,6 +78,7 @@ export function useRoutineMembers(context?: RoutineContext | null) {
     queryKey: routineKeys.members(context?.organization.id),
     enabled: !!context,
     queryFn: async (): Promise<RoutineMember[]> => {
+      if (apiDisponivel()) return rotinaApi.listarMembrosApi();
       const { data, error } = await db().from('routine_memberships')
         .select('*')
         .eq('organization_id', context!.organization.id)
@@ -99,6 +103,10 @@ export function useRoutineEvents(
     queryKey: routineKeys.events(context?.organization.id, start, end, scope, memberId),
     enabled: !!context && !!user,
     queryFn: async (): Promise<RoutineEvent[]> => {
+      if (apiDisponivel()) {
+        const responsavel = memberId || (scope === 'mine' ? user!.id : undefined);
+        return expandRecurringEvents(await rotinaApi.listarEventosApi({ inicio: start, fim: end, responsavel }), range);
+      }
       const base = () => {
         let query = db().from('routine_events').select('*')
           .eq('organization_id', context!.organization.id)
@@ -128,6 +136,9 @@ export function useRoutineTasks(context?: RoutineContext | null, scope: RoutineS
     queryKey: [...routineKeys.tasks(context?.organization.id), scope, memberId, user?.id] as const,
     enabled: !!context && !!user,
     queryFn: async (): Promise<RoutineTask[]> => {
+      if (apiDisponivel()) {
+        return rotinaApi.listarTarefasApi({ responsavel: memberId || (scope === 'mine' ? user!.id : undefined) });
+      }
       let query = db().from('routine_tasks').select('*')
         .eq('organization_id', context!.organization.id)
         .is('deleted_at', null)
@@ -146,6 +157,7 @@ export function useRoutineActivity(context?: RoutineContext | null) {
     queryKey: routineKeys.activity(context?.organization.id),
     enabled: !!context,
     queryFn: async (): Promise<RoutineActivity[]> => {
+      if (apiDisponivel()) return rotinaApi.listarAtividadeApi();
       const { data, error } = await db().from('routine_activity_log').select('*')
         .eq('organization_id', context!.organization.id)
         .order('created_at', { ascending: false })
@@ -163,6 +175,7 @@ export function useRoutineInbox(context?: RoutineContext | null) {
     queryKey: routineKeys.inbox(context?.organization.id),
     enabled: !!context && !!user,
     queryFn: async (): Promise<RoutineInboxItem[]> => {
+      if (apiDisponivel()) return rotinaApi.listarInboxApi();
       const { data, error } = await db().from('routine_inbox').select('*')
         .eq('organization_id', context!.organization.id)
         .eq('user_id', user!.id)
@@ -176,6 +189,10 @@ export function useRoutineInbox(context?: RoutineContext | null) {
   const add = useMutation({
     mutationFn: async ({ content, kind = 'note' }: { content: string; kind?: RoutineInboxItem['kind'] }) => {
       if (!context || !user) throw new Error('Contexto da Rotina indisponível.');
+      if (apiDisponivel()) {
+        await rotinaApi.criarInboxApi({ content: content.trim(), kind });
+        return;
+      }
       const { error } = await db().from('routine_inbox').insert({
         organization_id: context.organization.id,
         user_id: user.id,
@@ -190,6 +207,7 @@ export function useRoutineInbox(context?: RoutineContext | null) {
 
   const archive = useMutation({
     mutationFn: async (id: string) => {
+      if (apiDisponivel()) return rotinaApi.arquivarInboxApi(id);
       const { error } = await db().from('routine_inbox').update({ status: 'archived' }).eq('id', id);
       if (error) throw error;
     },
@@ -217,6 +235,37 @@ async function pushEventToGoogle(eventId: string) {
   if (error) console.warn('Evento salvo; sincronização Google ficou pendente.');
 }
 
+/**
+ * Criação pela API: conflito, insert, lembrete e push para o Google ficam no
+ * servidor, numa transação. Os campos saem normalizados como no insert do Supabase.
+ */
+async function criarPelaApi(draft: RoutineDraft): Promise<RoutineEvent | RoutineTask> {
+  const comum = {
+    title: draft.title,
+    description: draft.description || null,
+    activity_type: draft.activity_type,
+    priority: draft.priority,
+    assigned_to: draft.assigned_to,
+    visibility: draft.visibility,
+    recurrence_rule: draft.recurrence_rule || null,
+    source: draft.source || 'lotti',
+    client_id: draft.client_id || null,
+    property_id: draft.property_id || null,
+  };
+  if (draft.kind === 'event') {
+    if (!draft.start_at || !draft.end_at) throw new Error('Informe início e fim do compromisso.');
+    return rotinaApi.criarEventoApi({
+      ...comum,
+      start_at: draft.start_at,
+      end_at: draft.end_at,
+      all_day: !!draft.all_day,
+      location: draft.location || null,
+      reminder_minutes: draft.reminder_minutes ?? null,
+    });
+  }
+  return rotinaApi.criarTarefaApi({ ...comum, due_at: draft.due_at || null });
+}
+
 export function useRoutineActions(context?: RoutineContext | null) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -231,6 +280,7 @@ export function useRoutineActions(context?: RoutineContext | null) {
   const create = useMutation({
     mutationFn: async (draft: RoutineDraft) => {
       if (!context || !user) throw new Error('Contexto da Rotina indisponível.');
+      if (apiDisponivel()) return criarPelaApi(draft);
       if (draft.kind === 'event') {
         if (!draft.start_at || !draft.end_at) throw new Error('Informe início e fim do compromisso.');
         const { data: conflicts, error: conflictError } = await db().rpc('routine_detect_conflicts', {
@@ -317,6 +367,7 @@ export function useRoutineActions(context?: RoutineContext | null) {
       patch: Partial<RoutineEvent>;
       expectedUpdatedAt?: string;
     }) => {
+      if (apiDisponivel()) return rotinaApi.editarEventoApi(id, patch, expectedUpdatedAt);
       let query = db().from('routine_events').update(patch).eq('id', id);
       if (expectedUpdatedAt) query = query.eq('updated_at', expectedUpdatedAt);
       const { data, error } = await query.select('*').maybeSingle();
@@ -339,6 +390,7 @@ export function useRoutineActions(context?: RoutineContext | null) {
       patch: Partial<RoutineTask>;
       expectedUpdatedAt?: string;
     }) => {
+      if (apiDisponivel()) return rotinaApi.editarTarefaApi(id, patch, expectedUpdatedAt);
       let query = db().from('routine_tasks').update(patch).eq('id', id);
       if (expectedUpdatedAt) query = query.eq('updated_at', expectedUpdatedAt);
       const { data, error } = await query.select('*').maybeSingle();
@@ -356,6 +408,7 @@ export function useRoutineActions(context?: RoutineContext | null) {
 
   const complete = useMutation({
     mutationFn: async (item: RoutineEvent | RoutineTask) => {
+      if (apiDisponivel()) return rotinaApi.concluirItemApi('start_at' in item ? 'event' : 'task', item.id);
       const completedAt = new Date().toISOString();
       const table = 'start_at' in item ? 'routine_events' : 'routine_tasks';
       const { data, error } = await db().from(table).update({
@@ -372,6 +425,7 @@ export function useRoutineActions(context?: RoutineContext | null) {
 
   const remove = useMutation({
     mutationFn: async (item: RoutineEvent | RoutineTask) => {
+      if (apiDisponivel()) return rotinaApi.removerItemApi('start_at' in item ? 'event' : 'task', item.id);
       const table = 'start_at' in item ? 'routine_events' : 'routine_tasks';
       const { error } = await db().from(table).update({ deleted_at: new Date().toISOString() }).eq('id', item.id);
       if (error) throw error;
@@ -383,6 +437,10 @@ export function useRoutineActions(context?: RoutineContext | null) {
 
   const resolveSyncConflict = useMutation({
     mutationFn: async ({ eventId, strategy }: { eventId: string; strategy: 'lotti' | 'google' }) => {
+      if (apiDisponivel()) {
+        await rotinaApi.sincronizarGoogleApi(`resolve_conflict_${strategy}`, eventId);
+        return;
+      }
       const { error } = await supabase.functions.invoke('google-calendar-sync', {
         body: { action: `resolve_conflict_${strategy}`, event_id: eventId },
       });
@@ -393,6 +451,11 @@ export function useRoutineActions(context?: RoutineContext | null) {
   });
 
   const checkConflicts = async (assignedTo: string, startAt: string, endAt: string, excludeId?: string) => {
+    if (apiDisponivel()) {
+      return rotinaApi.detectarConflitosApi({
+        assigned_to: assignedTo, start_at: startAt, end_at: endAt, exclude_event_id: excludeId || null,
+      });
+    }
     const { data, error } = await db().rpc('routine_detect_conflicts', {
       p_assigned_to: assignedTo,
       p_start_at: startAt,
@@ -413,6 +476,7 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
     enabled: !!context,
     retry: false,
     queryFn: async (): Promise<CalendarConnectionStatus> => {
+      if (apiDisponivel()) return rotinaApi.statusGoogleApi();
       const { data, error } = await supabase.functions.invoke('google-calendar-auth', {
         body: { action: 'status' },
       });
@@ -425,6 +489,7 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
     queryKey: routineKeys.calendars(context?.organization.id),
     enabled: !!context && status.data?.connected,
     queryFn: async (): Promise<ExternalCalendar[]> => {
+      if (apiDisponivel()) return rotinaApi.listarCalendariosApi();
       const { data, error } = await db().from('external_calendars').select('*')
         .eq('organization_id', context!.organization.id)
         .order('is_primary', { ascending: false });
@@ -435,6 +500,12 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
 
   const connect = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) {
+        const { authorization_url } = await rotinaApi.conectarGoogleApi();
+        if (!authorization_url) throw new Error('URL de autorização ausente.');
+        window.location.assign(authorization_url);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke('google-calendar-auth', {
         body: { action: 'start' },
       });
@@ -446,6 +517,7 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
 
   const sync = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) return rotinaApi.sincronizarGoogleApi('sync');
       const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
         body: { action: 'sync' },
       });
@@ -461,6 +533,10 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
 
   const disconnect = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) {
+        await rotinaApi.desconectarGoogleApi();
+        return;
+      }
       const { error } = await supabase.functions.invoke('google-calendar-auth', {
         body: { action: 'disconnect' },
       });
@@ -475,6 +551,10 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
 
   const configureCalendar = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<ExternalCalendar> }) => {
+      if (apiDisponivel()) {
+        await rotinaApi.configurarCalendarioApi(id, patch);
+        return;
+      }
       if (patch.is_default) {
         const { error: clearError } = await db().from('external_calendars')
           .update({ is_default: false })
@@ -489,6 +569,10 @@ export function useGoogleCalendarConnection(context?: RoutineContext | null) {
 
   const configurePrivacy = useMutation({
     mutationFn: async (privacyMode: 'full' | 'partial' | 'busy_only') => {
+      if (apiDisponivel()) {
+        await rotinaApi.configurarPrivacidadeApi(privacyMode);
+        return;
+      }
       const { error } = await supabase.functions.invoke('google-calendar-auth', {
         body: { action: 'configure', privacy_mode: privacyMode },
       });

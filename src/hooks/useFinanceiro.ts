@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { alterarLancamentoApi, criarLancamentoApi, excluirLancamentoApi, listarLancamentosApi } from '@/lib/api/financeiro';
 import { useCRMStore } from '@/stores/crmStore';
 import {
   LancamentoFinanceiro,
@@ -45,6 +47,17 @@ export function useFinanceiro() {
 
     setLoading(true);
     try {
+      if (apiDisponivel()) {
+        const lista = (await listarLancamentosApi({
+          tipo: filtros?.tipo,
+          categoria: filtros?.categoria,
+          de: filtros?.dataInicio ? format(filtros.dataInicio, 'yyyy-MM-dd') : undefined,
+          ate: filtros?.dataFim ? format(filtros.dataFim, 'yyyy-MM-dd') : undefined,
+        })) as unknown as LancamentoFinanceiro[];
+        setLancamentos(lista);
+        return lista;
+      }
+
       let query = supabase
         .from('lancamentos_financeiros')
         .select('*')
@@ -79,6 +92,18 @@ export function useFinanceiro() {
 
   const addLancamento = useCallback(async (novoLancamento: NovoLancamento) => {
     if (!corretor?.id) throw new Error('Corretor não encontrado');
+
+    if (apiDisponivel()) {
+      // Com a API, a recorrência (12 meses) é montada no servidor.
+      const data = (await criarLancamentoApi(novoLancamento)) as unknown as LancamentoFinanceiro[];
+      if (data && data.length > 0) {
+        setLancamentos(prev => [...data, ...prev].sort((a, b) =>
+          new Date(b.data).getTime() - new Date(a.data).getTime()
+        ));
+        return data[0];
+      }
+      throw new Error('Erro ao inserir lançamentos');
+    }
 
     const lancamentosParaInserir = [];
     const dataInicial = new Date(novoLancamento.data + 'T12:00:00'); // Ensure timezone consistency
@@ -131,6 +156,12 @@ export function useFinanceiro() {
   }, [corretor?.id]);
 
   const updateLancamento = useCallback(async (id: string, updates: Partial<NovoLancamento>) => {
+    if (apiDisponivel()) {
+      const linha = (await alterarLancamentoApi(id, updates)) as unknown as LancamentoFinanceiro;
+      setLancamentos(prev => prev.map(l => l.id === id ? linha : l));
+      return linha;
+    }
+
     const { data, error } = await supabase
       .from('lancamentos_financeiros')
       .update(updates)
@@ -145,6 +176,12 @@ export function useFinanceiro() {
   }, []);
 
   const deleteLancamento = useCallback(async (id: string) => {
+    if (apiDisponivel()) {
+      await excluirLancamentoApi(id);
+      setLancamentos(prev => prev.filter(l => l.id !== id));
+      return;
+    }
+
     const { error } = await supabase
       .from('lancamentos_financeiros')
       .delete()
@@ -200,16 +237,24 @@ export function useFinanceiro() {
     const inicioAno = new Date(hoje.getFullYear(), 0, 1);
     const fimAno = new Date(hoje.getFullYear(), 11, 31);
 
-    const { data, error } = await supabase
-      .from('lancamentos_financeiros')
-      .select('*')
-      .eq('corretor_id', corretor.id)
-      .gte('data', format(inicioAno, 'yyyy-MM-dd'))
-      .lte('data', format(fimAno, 'yyyy-MM-dd'));
+    let lancamentosAno: LancamentoFinanceiro[];
+    if (apiDisponivel()) {
+      lancamentosAno = (await listarLancamentosApi({
+        de: format(inicioAno, 'yyyy-MM-dd'),
+        ate: format(fimAno, 'yyyy-MM-dd'),
+      })) as unknown as LancamentoFinanceiro[];
+    } else {
+      const { data, error } = await supabase
+        .from('lancamentos_financeiros')
+        .select('*')
+        .eq('corretor_id', corretor.id)
+        .gte('data', format(inicioAno, 'yyyy-MM-dd'))
+        .lte('data', format(fimAno, 'yyyy-MM-dd'));
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const lancamentosAno = data as LancamentoFinanceiro[];
+      lancamentosAno = data as LancamentoFinanceiro[];
+    }
     const meses: ProjecaoMensal[] = [];
 
     // Calcular média dos meses passados para projeção

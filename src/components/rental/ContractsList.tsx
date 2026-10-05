@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { alterarContratoApi, listarContratosLocacaoApi, removerContratoApi } from "@/lib/api/contratos";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,21 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dinheiro } from "@/components/ui/dinheiro";
 import { LimitGuard } from "@/components/subscription/LimitGuard";
 
+async function lerLocacoesSupabase() {
+    const { data, error } = await supabase
+        .from("contratos")
+        .select(`
+                    *,
+                    clientes ( nome, telefone ),
+                    imoveis ( titulo, endereco, proprietario_nome )
+                `)
+        .eq("tipo", "LOCACAO_RESIDENCIAL")
+        .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data;
+}
+
 export function ContractsList() {
     const queryClient = useQueryClient(); // Ensure this hook is used or imported if checking logic
     const [isCalcOpen, setIsCalcOpen] = useState(false);
@@ -35,12 +52,16 @@ export function ContractsList() {
     const handleDeleteContract = async () => {
         if (!contractToTerminate) return;
         try {
-            const { error } = await supabase
-                .from('contratos')
-                .delete()
-                .eq('id', contractToTerminate.id);
+            if (apiDisponivel()) {
+                await removerContratoApi(contractToTerminate.id);
+            } else {
+                const { error } = await supabase
+                    .from('contratos')
+                    .delete()
+                    .eq('id', contractToTerminate.id);
 
-            if (error) throw error;
+                if (error) throw error;
+            }
 
             toast.success("Contrato excluído com sucesso.");
             setContractToTerminate(null);
@@ -55,12 +76,16 @@ export function ContractsList() {
     const handleFinishContract = async () => {
         if (!contractToFinish) return;
         try {
-            const { error } = await supabase
-                .from('contratos')
-                .update({ status: 'ENCERRADO' })
-                .eq('id', contractToFinish.id);
+            if (apiDisponivel()) {
+                await alterarContratoApi(contractToFinish.id, { status: 'ENCERRADO' });
+            } else {
+                const { error } = await supabase
+                    .from('contratos')
+                    .update({ status: 'ENCERRADO' })
+                    .eq('id', contractToFinish.id);
 
-            if (error) throw error;
+                if (error) throw error;
+            }
 
             toast.success("Contrato encerrado com sucesso.");
             setContractToFinish(null);
@@ -75,18 +100,11 @@ export function ContractsList() {
     const { data: contracts, isLoading } = useQuery({
         queryKey: ["rental-contracts"],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("contratos")
-                .select(`
-                    *,
-                    clientes ( nome, telefone ),
-                    imoveis ( titulo, endereco, proprietario_nome )
-                `)
-                .eq("tipo", "LOCACAO_RESIDENCIAL")
-                .order("created_at", { ascending: false });
-
-            if (error) throw error;
-            return data;
+            // Fase 4 (módulo contratos): com a API ligada, mesmo formato com os embeds.
+            if (apiDisponivel()) {
+                return (await listarContratosLocacaoApi('LOCACAO_RESIDENCIAL')) as unknown as Awaited<ReturnType<typeof lerLocacoesSupabase>>;
+            }
+            return lerLocacoesSupabase();
         },
     });
 

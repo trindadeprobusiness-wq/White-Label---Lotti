@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { resumoLocacaoApi } from "@/lib/api/financeiro";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { VALOR_MASCARADO } from '@/lib/privacidade';
@@ -12,10 +14,18 @@ export function DashboardCharts() {
         queryKey: ["rental-charts"],
         queryFn: async () => {
             // Fetch all active contracts - using only existing columns
-            const { data: contracts } = await supabase
-                .from("contratos")
-                .select("valor")
-                .eq("status", "ATIVO");
+            let contracts: Array<{ valor: number | null }> | null;
+            if (apiDisponivel()) {
+                // A API devolve só a soma; os 10% abaixo dão o mesmo resultado sobre o total.
+                const resumo = await resumoLocacaoApi();
+                contracts = [{ valor: resumo.soma_valor }];
+            } else {
+                const { data } = await supabase
+                    .from("contratos")
+                    .select("valor")
+                    .eq("status", "ATIVO");
+                contracts = data;
+            }
 
             let totalRent = 0;
             let totalCommission = 0;

@@ -2,6 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { completarCpfApi } from "@/lib/api/crm";
+import {
+    criarLocacaoApi,
+    editarLocacaoApi,
+    opcoesClientesApi,
+    opcoesImoveisApi,
+    primeiraFaturaLocacao,
+    somenteData,
+} from "@/lib/api/contratos";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -107,6 +117,9 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
     const { data: clients } = useQuery({
         queryKey: ["clients-select"],
         queryFn: async () => {
+            if (apiDisponivel()) {
+                return opcoesClientesApi<{ id: string; nome: string; cpf: string | null }>(["id", "nome", "cpf"]);
+            }
             const { data } = await supabase.from("clientes").select("id, nome, cpf").order("nome");
             return data || [];
         }
@@ -132,6 +145,10 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
     const { data: properties } = useQuery({
         queryKey: ["properties-select"],
         queryFn: async () => {
+            if (apiDisponivel()) {
+                return opcoesImoveisApi<{ id: string; titulo: string; proprietario_nome: string; endereco: string }>(
+                    ["id", "titulo", "proprietario_nome", "endereco"], true);
+            }
             const { data } = await supabase.from("imoveis").select("id, titulo, proprietario_nome, endereco").eq("ativo", true).order("titulo");
             return data || [];
         }
@@ -231,10 +248,18 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             if (!podeCriarRecurso(checkLimit('max_contratos_locacao'), isEditing)) {
                 throw new Error('Limite de contratos de aluguel atingido. Veja as opções de plano.');
             }
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error("Usuário não autenticado");
+            let corretor: { id: string } | null;
+            if (apiDisponivel()) {
+                // Só para o caminho do Storage: o corretor da conta (inclui membro de equipe, D4).
+                const { data: corretorId } = await supabase.rpc("get_corretor_id");
+                corretor = corretorId ? { id: corretorId as string } : null;
+            } else {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error("Usuário não autenticado");
 
-            const { data: corretor } = await supabase.from("corretores").select("id").eq("user_id", user.id).single();
+                const { data: corretorRow } = await supabase.from("corretores").select("id").eq("user_id", user.id).single();
+                corretor = corretorRow;
+            }
             if (!corretor) throw new Error("Perfil de corretor não encontrado");
 
             let arquivoPath = contractToEdit?.arquivo_url;
@@ -286,7 +311,44 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
 
             let result;
 
-            if (isEditing && contractToEdit) {
+            if (apiDisponivel()) {
+                // Fase 4 (módulo contratos): contrato e faturas no servidor, num passo só.
+                const dadosApi = { ...contractData, data_inicio: somenteData(contractData.data_inicio) };
+                if (isEditing && contractToEdit) {
+                    const { contrato, faturas_emitidas } = await editarLocacaoApi(contractToEdit.id, dadosApi);
+                    result = contrato;
+
+                    // Boletos já emitidos: re-sincroniza valor/data no Asaas (mesmo link).
+                    try {
+                        if (faturas_emitidas.length > 0) {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (session) {
+                                await Promise.all(faturas_emitidas.map((faturaId) =>
+                                    supabase.functions.invoke('asaas-sync', {
+                                        body: { action: 'atualizar_cobranca', fatura_id: faturaId },
+                                        headers: { Authorization: `Bearer ${session.access_token}` },
+                                    })
+                                ));
+                            }
+                        }
+                    } catch (syncError) {
+                        console.error("Erro ao sincronizar faturas:", syncError);
+                        toast.error("Contrato salvo, mas houve erro ao atualizar as faturas pendentes.");
+                    }
+
+                    toast.success("Contrato atualizado com sucesso!", {
+                        description: "Faturas pendentes foram recalculadas."
+                    });
+                } else {
+                    const start = new Date(startDate || new Date());
+                    const dueDate = new Date(start.getFullYear(), start.getMonth(), parseInt(dueDay));
+                    const { contrato } = await criarLocacaoApi(dadosApi, primeiraFaturaLocacao(dueDate));
+                    result = contrato;
+                    toast.success("Contrato e fatura criados com sucesso!", {
+                        description: "Contrato ativo e primeira fatura gerada."
+                    });
+                }
+            } else if (isEditing && contractToEdit) {
                 const { data, error } = await supabase
                     .from("contratos")
                     .update(contractData)
@@ -403,7 +465,15 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             // Idempotente; só grava quando tem 11 dígitos. RLS já permite o corretor
             // atualizar o próprio cliente.
             const cpfClean = inquilinoCpf.replace(/\D/g, '');
-            if (clientId && cpfClean.length === 11) {
+            if (clientId && cpfClean.length === 11 && apiDisponivel()) {
+                // Só preenche se o cadastro ainda não tem CPF (D8).
+                try {
+                    await completarCpfApi(clientId, cpfClean);
+                } catch (cpfError) {
+                    console.error("Erro ao salvar CPF do inquilino:", cpfError);
+                    toast.error("Contrato salvo, mas não foi possível gravar o CPF do inquilino.");
+                }
+            } else if (clientId && cpfClean.length === 11) {
                 const { error: cpfError } = await supabase
                     .from('clientes')
                     .update({ cpf: cpfClean })

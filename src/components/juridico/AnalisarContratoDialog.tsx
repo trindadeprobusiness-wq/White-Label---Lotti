@@ -15,6 +15,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { removerClienteApi } from '@/lib/api/crm';
+import { criarImovelApi, removerImovelApi } from '@/lib/api/imoveis';
+import { criarContratoApi } from '@/lib/api/contratos';
 import { analisarContratoCentral } from '@/services/contractExtractionService';
 import type { ExtractedCentralContract, ParteContrato } from '@/services/contractExtractionService';
 import { useFileDrop } from '@/hooks/useFileDrop';
@@ -257,7 +261,28 @@ export function AnalisarContratoDialog({
 
       // 2. Imóvel: idem. Sem endereço não criamos nada — evita imóvel fantasma na lista.
       let imovelFinal = imovelId !== 'NENHUM' ? imovelId : null;
-      if (criarImovel) {
+      if (criarImovel && apiDisponivel()) {
+        // Fase 4: a API põe o corretor_id do servidor.
+        let novo: { id: string };
+        try {
+          novo = await criarImovelApi({
+            titulo: imovelEndereco.trim(),
+            tipo: imovelTipo,
+            valor: Number(valor) || 0,
+            area_m2: 0,
+            dormitorios: 0,
+            garagem: 0,
+            endereco: imovelEndereco.trim(),
+            bairro: imovelBairro.trim(),
+            cidade: imovelCidade.trim(),
+            proprietario_nome: proprietarioNome.trim(),
+          });
+        } catch (error) {
+          throw new Error('Erro ao cadastrar o imóvel: ' + mensagemDeErro(error));
+        }
+        imovelFinal = novo.id;
+        novos.imovel = novo.id;
+      } else if (criarImovel) {
         const { data: novo, error } = await supabase
           .from('imoveis')
           .insert({
@@ -288,20 +313,36 @@ export function AnalisarContratoDialog({
       arquivoPath = path;
 
       // 4. Contrato
-      const { error: insErr } = await supabase.from('contratos').insert({
-        corretor_id: corretorId,
-        tipo,
-        cliente_id: clienteFinal,
-        imovel_id: imovelFinal,
-        valor: Number(valor) || 0,
-        data_inicio: dataInicio || new Date().toISOString().slice(0, 10),
-        data_fim: dataFim,
-        observacoes: observacoes.trim() || null,
-        arquivo_url: path,
-        conteudo: '', // contrato enviado (não gerado): sem texto estruturado
-        status: 'VIGENTE',
-      });
-      if (insErr) throw insErr;
+      if (apiDisponivel()) {
+        // tipo 'OUTRO' (aceito pela IA) volta 400 da API e cai no mesmo toast de erro.
+        await criarContratoApi({
+          tipo,
+          cliente_id: clienteFinal,
+          imovel_id: imovelFinal,
+          valor: Number(valor) || 0,
+          data_inicio: dataInicio || new Date().toISOString().slice(0, 10),
+          data_fim: dataFim,
+          observacoes: observacoes.trim() || null,
+          arquivo_url: path,
+          conteudo: '',
+          status: 'VIGENTE',
+        });
+      } else {
+        const { error: insErr } = await supabase.from('contratos').insert({
+          corretor_id: corretorId,
+          tipo,
+          cliente_id: clienteFinal,
+          imovel_id: imovelFinal,
+          valor: Number(valor) || 0,
+          data_inicio: dataInicio || new Date().toISOString().slice(0, 10),
+          data_fim: dataFim,
+          observacoes: observacoes.trim() || null,
+          arquivo_url: path,
+          conteudo: '', // contrato enviado (não gerado): sem texto estruturado
+          status: 'VIGENTE',
+        });
+        if (insErr) throw insErr;
+      }
       // Cadastro que já existia só ganha o CPF/CNPJ se ainda não tiver um, e só
       // depois que o contrato entrou (o desfazer abaixo não mexe em quem já existia).
       if (clienteFinal && !novos.cliente) await completarCpfDoCliente(clienteFinal, clienteDoc);
@@ -326,6 +367,11 @@ export function AnalisarContratoDialog({
       const sobraram: string[] = [];
       const apagar = async (tabela: 'imoveis' | 'clientes', id: string, rotulo: string) => {
         try {
+          if (apiDisponivel()) {
+            // Fase 4: o desfazer fica todo na API (corrige D7).
+            await (tabela === 'imoveis' ? removerImovelApi(id) : removerClienteApi(id));
+            return;
+          }
           const { error } = await supabase.from(tabela).delete().eq('id', id);
           if (error) sobraram.push(rotulo);
         } catch {

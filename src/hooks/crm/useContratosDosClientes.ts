@@ -1,5 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { listarContratosDosClientesApi } from '@/lib/api/contratos';
 
 /**
  * Contratos dos clientes que alguém quer excluir.
@@ -48,10 +50,13 @@ export function useContratosDosClientes(ids: string[], habilitado: boolean) {
     // Sempre a leitura mais nova: um contrato criado há segundos tem de aparecer.
     staleTime: 0,
     queryFn: async (): Promise<ContratoEmRisco[]> => {
-      const { data, error } = await supabase
-        .from('contratos')
-        .select('id, cliente_id, tipo, status, imoveis(titulo)')
-        .in('cliente_id', chave);
+      // Fase 4 (módulo contratos): com a API ligada, o erro sobe para o React Query.
+      const { data, error } = apiDisponivel()
+        ? { data: await listarContratosDosClientesApi(chave), error: null }
+        : await supabase
+          .from('contratos')
+          .select('id, cliente_id, tipo, status, imoveis(titulo)')
+          .in('cliente_id', chave);
       if (error) throw error;
       return ((data ?? []) as unknown as Linha[]).map((linha) => {
         const imovel = Array.isArray(linha.imoveis) ? linha.imoveis[0] : linha.imoveis;

@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { ErroApi } from "@/lib/api/http";
+import { analisarContratoIaApi } from "@/lib/api/contratos";
 
 // Extração automática de dados de contratos de locação (PDF ou imagem).
 //
@@ -81,7 +84,26 @@ class FunctionUnavailableError extends Error {
     }
 }
 
+/** Com a API ligada: rede fora (TypeError) ou 404/413/503 caem no fallback; o resto vira erro com a mensagem. */
+async function analyzeViaApi(file: File): Promise<ExtractedContractData> {
+    const fileBase64 = await fileToBase64(file);
+    let dados: unknown;
+    try {
+        dados = await analisarContratoIaApi({ fileBase64, mimeType: file.type });
+    } catch (e) {
+        if (e instanceof TypeError) throw new FunctionUnavailableError();
+        if (e instanceof ErroApi) {
+            if (e.status === 404 || e.status === 413 || e.status === 503) throw new FunctionUnavailableError();
+            throw new Error(e.message);
+        }
+        throw e;
+    }
+    if (!dados) throw new Error("A IA não retornou dados do contrato");
+    return sanitizeExtraction(dados as Record<string, unknown>);
+}
+
 async function analyzeViaEdgeFunction(file: File): Promise<ExtractedContractData> {
+    if (apiDisponivel()) return analyzeViaApi(file);
     const fileBase64 = await fileToBase64(file);
 
     // Token da sessão explícito: o invoke sozinho não anexa o JWT do corretor de
@@ -245,6 +267,16 @@ export interface ExtractedCentralContract {
  */
 export async function analisarContratoCentral(file: File): Promise<ExtractedCentralContract> {
     const fileBase64 = await fileToBase64(file);
+    if (apiDisponivel()) {
+        let dados: unknown;
+        try {
+            dados = await analisarContratoIaApi({ fileBase64, mimeType: file.type, modo: "central" });
+        } catch (e) {
+            throw new Error(e instanceof Error ? e.message : "Erro ao analisar o contrato");
+        }
+        if (!dados) throw new Error("A IA não retornou dados do contrato");
+        return dados as ExtractedCentralContract;
+    }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("Sua sessão expirou. Entre novamente.");
 

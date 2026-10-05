@@ -28,6 +28,8 @@ import { useDocumentos, DocumentoRow } from '@/hooks/useDocumentos';
 import { ContratosCentral } from '@/components/juridico/ContratosCentral';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { opcoesClientesApi, opcoesImoveisApi } from '@/lib/api/contratos';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
@@ -149,6 +151,16 @@ export default function Juridico() {
   // Fetch clientes and imoveis from Supabase
   useEffect(() => {
     const fetchData = async () => {
+      if (apiDisponivel()) {
+        // Fase 4: imóveis e clientes pela API (módulo 2), ordenados no cliente.
+        const [clientesApi, imoveisApi] = await Promise.all([
+          opcoesClientesApi<ClienteSimples>(['id', 'nome']).catch(() => null),
+          opcoesImoveisApi<ImovelSimples>(['id', 'titulo']).catch(() => null),
+        ]);
+        if (clientesApi) setClientes(clientesApi);
+        if (imoveisApi) setImoveis(imoveisApi);
+        return;
+      }
       const [clientesRes, imoveisRes] = await Promise.all([
         supabase.from('clientes').select('id, nome').order('nome'),
         supabase.from('imoveis').select('id, titulo').order('titulo'),

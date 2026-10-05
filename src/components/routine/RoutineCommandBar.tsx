@@ -3,6 +3,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertTriangle, ArrowRight, Bot, CalendarClock, Check, Loader2, Inbox, Sparkles, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { comoResultado } from '@/lib/api/http';
+import { interpretarComandoApi } from '@/lib/api/rotina';
 import { interpretRoutineCommandLocally, isRoutineActivity } from '@/lib/routine/command';
 import { getRoutineCategory } from '@/lib/routine/categories';
 import { Button } from '@/components/ui/button';
@@ -104,9 +107,12 @@ export function RoutineCommandBar({
     setLoading(true);
     setError('');
     try {
-      const { data, error: functionError } = await supabase.functions.invoke('routine-command', {
-        body: { command: command.trim(), timezone },
-      });
+      // Com a API, qualquer erro (inclusive 503 sem GEMINI_API_KEY) cai no intérprete local.
+      const { data, error: functionError } = apiDisponivel()
+        ? await comoResultado(interpretarComandoApi(command.trim(), timezone))
+        : await supabase.functions.invoke('routine-command', {
+          body: { command: command.trim(), timezone },
+        });
       let base: RoutineCommandProposal;
       if (!functionError && validProposal(data?.proposal)) {
         base = { ...data.proposal, requires_confirmation: true, conflicts: [], interpretation_source: 'ai' };

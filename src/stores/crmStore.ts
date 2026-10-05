@@ -28,6 +28,7 @@ import {
   removerClienteApi,
 } from '@/lib/api/crm';
 import { listarImoveisApi } from '@/lib/api/imoveis';
+import { criarContratoApi, listarContratosApi } from '@/lib/api/contratos';
 import { comoResultado, escolher } from '@/lib/api/http';
 import { toast } from '@/hooks/use-toast';
 import { candidatosValidos, clienteDoTelefone, codigoDoErro, type CandidatoCliente } from '@/lib/crm/duplicidade';
@@ -216,13 +217,16 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchContratos: async () => {
     try {
-      const { data, error } = await supabase
-        .from('contratos')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fase 4 (módulo contratos): com a API ligada, lê por ela no mesmo formato.
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(listarContratosApi())
+        : await supabase
+          .from('contratos')
+          .select('*')
+          .order('created_at', { ascending: false });
 
       if (error) throw error;
-      set({ contratos: (data || []) as Contrato[] });
+      set({ contratos: (data || []) as unknown as Contrato[] });
     } catch (error) {
       console.error('Erro ao buscar contratos:', error);
     }
@@ -515,6 +519,13 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   addContrato: async (contrato) => {
     try {
+      if (apiDisponivel()) {
+        // A API resolve o corretor e o escolher descarta versao/modelo_ia/tempo_geracao_ms.
+        const criado = await criarContratoApi({ ...contrato, status: 'RASCUNHO' });
+        get().fetchContratos();
+        return criado.id as string;
+      }
+
       const { data: corretorData } = await supabase.rpc('get_corretor_id');
       if (!corretorData) throw new Error('Corretor não encontrado');
 

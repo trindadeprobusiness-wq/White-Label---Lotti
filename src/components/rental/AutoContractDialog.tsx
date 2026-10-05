@@ -2,6 +2,9 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { criarImovelApi } from "@/lib/api/imoveis";
+import { criarLocacaoApi, opcoesClientesApi, opcoesImoveisApi, primeiraFaturaLocacao } from "@/lib/api/contratos";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -77,6 +80,7 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
     const { data: clients } = useQuery({
         queryKey: ["clients-select"],
         queryFn: async () => {
+            if (apiDisponivel()) return opcoesClientesApi<{ id: string; nome: string }>(["id", "nome"]);
             const { data } = await supabase.from("clientes").select("id, nome").order("nome");
             return data || [];
         },
@@ -86,6 +90,10 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
     const { data: properties } = useQuery({
         queryKey: ["properties-select"],
         queryFn: async () => {
+            if (apiDisponivel()) {
+                return opcoesImoveisApi<{ id: string; titulo: string; proprietario_nome: string; endereco: string }>(
+                    ["id", "titulo", "proprietario_nome", "endereco"], true);
+            }
             const { data } = await supabase.from("imoveis").select("id, titulo, proprietario_nome, endereco").eq("ativo", true).order("titulo");
             return data || [];
         },
@@ -204,7 +212,27 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
 
             // 2. Imóvel: usa o cadastrado se casar pelo endereço, senão cria
             let imovelId = matchedProperty?.id;
-            if (!imovelId) {
+            if (!imovelId && apiDisponivel()) {
+                // Fase 4: a API põe o corretor_id do servidor.
+                const tipoImovel = (extracted?.imovel.tipo || "APARTAMENTO") as Database["public"]["Enums"]["tipo_imovel"];
+                try {
+                    const novo = await criarImovelApi({
+                        titulo: propertyAddress.trim(),
+                        tipo: tipoImovel,
+                        valor: rent,
+                        area_m2: 0,
+                        dormitorios: 0,
+                        garagem: 0,
+                        endereco: propertyAddress.trim(),
+                        bairro: extracted?.imovel.bairro || "",
+                        cidade: propertyCity.trim(),
+                        proprietario_nome: ownerName.trim(),
+                    });
+                    imovelId = novo.id;
+                } catch (err) {
+                    throw new Error("Erro ao criar imóvel: " + mensagemDeErro(err));
+                }
+            } else if (!imovelId) {
                 const tipoImovel = (extracted?.imovel.tipo || "APARTAMENTO") as Database["public"]["Enums"]["tipo_imovel"];
                 const { data: newProperty, error } = await supabase
                     .from("imoveis")
@@ -251,6 +279,35 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
 
             const obsParts = ["Contrato importado automaticamente via IA"];
             if (extracted?.observacoes) obsParts.push(extracted.observacoes);
+
+            if (apiDisponivel()) {
+                // Fase 4: contrato ATIVO e primeira fatura juntos (atômico); o servidor decide ATRASADO/PENDENTE.
+                const dueDateApi = makeDueDate(start.getFullYear(), start.getMonth(), dueD);
+                let contratoApi;
+                try {
+                    ({ contrato: contratoApi } = await criarLocacaoApi({
+                        cliente_id: clienteId,
+                        imovel_id: imovelId,
+                        tipo,
+                        valor: rent,
+                        data_inicio: startDate,
+                        dia_vencimento: dueD,
+                        conteudo: JSON.stringify({
+                            obs: obsParts.join(" — "),
+                            dia_repasse: payoutDay,
+                            taxa_administracao: feePct,
+                            meses_duracao: months.toString(),
+                            data_fim_calculada: end.toISOString(),
+                        }),
+                        arquivo_url: arquivoPath,
+                    }, primeiraFaturaLocacao(dueDateApi)));
+                } catch (err) {
+                    throw new Error("Erro ao criar contrato: " + mensagemDeErro(err));
+                }
+                // Inquilino que já existia só ganha o CPF se ainda não tiver um.
+                if (!clienteCriado) await completarCpfDoCliente(clienteId, tenantCpf);
+                return contratoApi;
+            }
 
             const { data: contract, error: contractError } = await supabase
                 .from("contratos")

@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { apiDisponivel } from '@/lib/api';
+import { comoResultado } from '@/lib/api/http';
+import {
+  alterarDocumentoApi,
+  criarDocumentoApi,
+  listarDocumentosApi,
+  removerDocumentoApi,
+} from '@/lib/api/contratos';
 
 export interface DocumentoRow {
   id: string;
@@ -26,10 +34,13 @@ export function useDocumentos() {
   const fetchDocumentos = useCallback(async (silent = false) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('documentos')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fase 4 (módulo contratos): com a API ligada, lê por ela no mesmo formato.
+      const { data, error } = apiDisponivel()
+        ? await comoResultado(listarDocumentosApi() as unknown as Promise<DocumentoRow[]>)
+        : await supabase
+          .from('documentos')
+          .select('*')
+          .order('created_at', { ascending: false });
 
       if (error) throw error;
       setDocumentos(data || []);
@@ -85,6 +96,23 @@ export function useDocumentos() {
         .getPublicUrl(filePath);
 
       // Insert record in database
+      if (apiDisponivel()) {
+        // A API põe corretor_id e validado=false; o caminho tem de começar pelo corretor.
+        const docApi = await criarDocumentoApi({
+          nome,
+          tipo,
+          arquivo_path: filePath,
+          arquivo_url: urlData.publicUrl,
+          cliente_id: clienteId || null,
+          imovel_id: imovelId || null,
+          data_validade: dataValidade || null,
+          observacoes: observacoes || null,
+        });
+        toast.success('Documento enviado com sucesso!');
+        await fetchDocumentos();
+        return docApi;
+      }
+
       const { data: docData, error: insertError } = await supabase
         .from('documentos')
         .insert({
@@ -130,12 +158,16 @@ export function useDocumentos() {
       }
 
       // Delete from database
-      const { error } = await supabase
-        .from('documentos')
-        .delete()
-        .eq('id', id);
+      if (apiDisponivel()) {
+        await removerDocumentoApi(id);
+      } else {
+        const { error } = await supabase
+          .from('documentos')
+          .delete()
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast.success('Documento removido com sucesso!');
       await fetchDocumentos();
@@ -188,12 +220,17 @@ export function useDocumentos() {
 
   const toggleValidacao = async (id: string, validado: boolean) => {
     try {
-      const { error } = await supabase
-        .from('documentos')
-        .update({ validado, updated_at: new Date().toISOString() })
-        .eq('id', id);
+      if (apiDisponivel()) {
+        // documentos não tem updated_at: a API não o envia (corrige D2).
+        await alterarDocumentoApi(id, { validado });
+      } else {
+        const { error } = await supabase
+          .from('documentos')
+          .update({ validado, updated_at: new Date().toISOString() })
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       setDocumentos(prev =>
         prev.map(doc =>
@@ -210,12 +247,16 @@ export function useDocumentos() {
 
   const updateDocumento = async (id: string, updates: Partial<Pick<DocumentoRow, 'nome' | 'tipo' | 'cliente_id' | 'imovel_id' | 'data_validade' | 'observacoes'>>) => {
     try {
-      const { error } = await supabase
-        .from('documentos')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id);
+      if (apiDisponivel()) {
+        await alterarDocumentoApi(id, updates);
+      } else {
+        const { error } = await supabase
+          .from('documentos')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast.success('Documento atualizado com sucesso!');
       await fetchDocumentos();

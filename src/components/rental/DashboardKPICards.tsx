@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { resumoLocacaoApi } from "@/lib/api/financeiro";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, Users, Wallet } from "lucide-react";
 import { Dinheiro } from "@/components/ui/dinheiro";
@@ -8,6 +10,17 @@ export function DashboardKPICards() {
     const { data: stats, isLoading } = useQuery({
         queryKey: ["rental-kpis"],
         queryFn: async () => {
+            if (apiDisponivel()) {
+                const resumo = await resumoLocacaoApi();
+                const totalReceivable = resumo.soma_valor || 0;
+                return {
+                    totalReceivable,
+                    totalTransferred: totalReceivable * 0.90,
+                    activeContracts: resumo.contratos_ativos || 0,
+                    estimatedCommission: totalReceivable * 0.10
+                };
+            }
+
             // Get active contracts and calculate estimates
             const { data: contracts, count: activeContracts } = await supabase
                 .from("contratos")
