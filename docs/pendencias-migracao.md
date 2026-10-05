@@ -98,13 +98,23 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
 - [ ] **Onda 2 (contratos, financeiro/Asaas e rotina/Google), entregue em `ce18dfd`.**
   Contratos das etapas em `docs/superpowers/specs/2026-10-05-api-lotti-*-contrato.md`.
   No Railway, todas as rotas novas respondem e recusam sem login (401). Falta:
-  - **Variáveis no serviço `api` do Railway** (hoje ausentes, e por isso cada módulo
-    responde 503 com texto claro): `GEMINI_API_KEY` e `LOTTI_AI_FAST_MODEL`
-    (gerar/analisar contrato); `ASAAS_*` (webhook e cobrança, os mesmos nomes do
-    Supabase); `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`,
-    `GOOGLE_TOKEN_ENCRYPTION_KEY`, `GOOGLE_CALENDAR_REDIRECT_URI`,
-    `GOOGLE_CALENDAR_APP_REDIRECT_URL`, `GOOGLE_CALENDAR_WEBHOOK_URL` e
-    `ROUTINE_CALENDAR_MAINTAIN_ENABLED` (Google Agenda).
+  - **Variáveis no serviço `api` do Railway.** `GEMINI_API_KEY` ligada em 2026-10-05,
+    por referência ao serviço `agent`. Faltam as do Asaas e do Google. **O Supabase
+    não devolve o valor de um secret** (só nome e digest), então elas não podem ser
+    copiadas de lá. Medido na produção em 2026-10-05, o que isso custa:
+    - `ASAAS_TOKEN_ENCRYPTION_KEY`: **gerar nova.** `asaas_conexao_segredos` tem
+      **0 linhas**, então ela não decifra nada hoje. A única conexão existente é
+      `herdada_do_ambiente`, e o módulo novo removeu de propósito a chave global:
+      essa conta reconecta uma vez pela tela, com a chave da própria Asaas.
+    - `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_URL_BASE`: opcionais, não são segredo.
+    - `GOOGLE_CALENDAR_CLIENT_ID` e `GOOGLE_CALENDAR_CLIENT_SECRET`: ficam no Google
+      Cloud Console (o secret, se não aparecer, se cria de novo no mesmo cliente).
+    - `GOOGLE_TOKEN_ENCRYPTION_KEY`: **gerar nova.** Ela cifra os tokens de
+      `calendar_connections`, que tem **2 linhas**: as duas contas reconectam o
+      Google uma vez. `external_calendars` e `calendar_watch_channels` estão vazias.
+    - `GOOGLE_CALENDAR_REDIRECT_URI`, `GOOGLE_CALENDAR_APP_REDIRECT_URL` e
+      `GOOGLE_CALENDAR_WEBHOOK_URL`: URLs, não são segredo.
+    - `ROUTINE_CALENDAR_MAINTAIN_ENABLED` e `ASAAS_PROCESSAR_FILA`: só na virada.
   - **Migrations propostas, nenhuma aplicada** (estão nos contratos das etapas):
     `documentos.updated_at` com gatilho e policy de equipe; `'OUTRO'` no enum
     `tipo_contrato`; colunas `modelo_ia`, `tempo_geracao_ms` e `versao` em
