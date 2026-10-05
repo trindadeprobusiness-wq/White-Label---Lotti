@@ -227,7 +227,8 @@ export function traduzirErroBanco(e: unknown, op: OpcoesErro = {}): never {
     if (mensagem === 'Atendimento expirado.') throw erroApi(403, 'atendimento_expirado', 'Atendimento expirado.');
     throw erroApi(403, 'sem_permissao', op.semPermissao ?? 'Você não tem permissão para fazer esta alteração.');
   }
-  if (sqlstate === '23503') {
+  // 23001: no Postgres 18 (o do Railway), a FK ON DELETE RESTRICT de contratos dá restrict_violation, e não 23503.
+  if (sqlstate === '23503' || sqlstate === '23001') {
     if (op.entidade && /contratos/.test(bruto)) {
       throw erroApi(409, `${op.entidade}_com_contrato`, `Existem contratos vinculados a este ${ROTULO[op.entidade]}.`, { sqlstate: '23503' });
     }
@@ -250,7 +251,7 @@ Resumo da tradução:
 | P0001 `PLAN_LIMIT_REACHED:x` | 402 | `PLAN_LIMIT_REACHED` | 'Limite de imóveis atingido. Acesse Plano e Assinatura para liberar mais imóveis.' (+ `recurso`) |
 | 42501 'Atendimento expirado.' | 403 | `atendimento_expirado` | 'Atendimento expirado.' |
 | 42501 (RLS) | 403 | `sem_permissao` | `op.semPermissao` |
-| 23503 citando contratos | 409 | `imovel_com_contrato` / `cliente_com_contrato` | 'Existem contratos vinculados a este imóvel/cliente.' (+ `sqlstate: '23503'`) |
+| 23503 (ou 23001 no Postgres 18) citando contratos | 409 | `imovel_com_contrato` / `cliente_com_contrato` | 'Existem contratos vinculados a este imóvel/cliente.' (+ `sqlstate: '23503'`) |
 | outro 23503 | 422 | `referencia_invalida` | o texto acima |
 | 23505 | 409 | `registro_repetido` | `op.repetido` |
 | 22P02, 22007, 22008, 22003, 22001, 23502, 23514 | 400 | `dados_invalidos` | 'Dados inválidos. Confira os campos e tente de novo.' |
@@ -898,7 +899,7 @@ export class CriarTarefaDto {
 - Num único `run`:
   1. `select 1 from public.crm_etapas where id = ${dto.etapa_id}::uuid`. Sem linha → `422 etapa_invalida`, com o texto acima.
   2. `update public.crm_oportunidades set etapa_id = ${dto.etapa_id}::uuid, ordem = ${dto.ordem}::int where id = ${id}::uuid and updated_at = ${dto.updated_at}::timestamptz returning id`
-- Zero linhas no passo 2 → **`409 { codigo: 'CONFLITO', message: 'Este negócio foi movido em outro lugar.' }`**. Isso cobre o membro que só tem leitura e o registro alterado em outra aba.
+- Zero linhas no passo 2 → **`409 { codigo: 'CONFLITO', message: 'Este negócio foi movido em outro lugar.' }`**. Isso cobre o registro alterado em outra aba. (O teste com SQL real mostrou que o membro que só lê não chega aqui: sem etapa visível, ele para no passo 1 com 422 `etapa_invalida`. Nada é gravado.)
 - `updated_at` mal formado → 22007/22008 → 400 `dados_invalidos`.
 - Os gatilhos `trg_crm_oport_updated_at` e `lotti_inbox_record_crm_stage` rodam com as claims do usuário.
 - Erros: `traduzirErroBanco(e)`.

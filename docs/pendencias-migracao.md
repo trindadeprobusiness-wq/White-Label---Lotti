@@ -20,10 +20,11 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
   - Exportar os dados por script: `copiar.mjs` hoje só copia para destino vazio.
 
   Decisão do Rafael.
-- [ ] **PR do job de CI `api`:** commit `a7deff0` pronto em `C:\Users\rafae\lotti-api-ci`
-  (branch `ci/api-job`, só `.github/workflows/security.yml`). O push precisa do escopo
-  `workflow`: criar pelo GitHub da conta do dono ("Propose changes") ou rodar
-  `gh auth refresh -h github.com -s workflow` e empurrar a branch.
+- [ ] **Job de CI `api`:** commit `a7deff0` pronto em `C:\Users\rafae\lotti-api-ci`
+  (só `.github/workflows/security.yml`). O push direto na `feat/api-lotti-fundacao`
+  foi recusado em 2026-10-05: o token da conta do dono no gh não tem o escopo
+  `workflow`. Falta o Rafael rodar `gh auth refresh -h github.com -s workflow`; depois
+  o Claude sobe o job direto, sem PR.
 - [ ] **Senha do banco do Supabase / `DATABASE_URL`.** Necessária se algum módulo da
   API precisar falar com a produção antes da virada.
 - [ ] **E-mail da conta na plataforma**, para o canal sandbox do teste do agente.
@@ -96,17 +97,29 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
   Hoje dá diferente de propósito, porque a API aponta para a cópia.
 - [ ] **Módulo 2 (imóveis e CRM), entregue em `d062954`.** Pendências (§7.2 do
   contrato `docs/superpowers/specs/2026-10-04-api-lotti-modulo2-contrato.md`):
-  - **Dois defeitos de produção, já com correção.** A migration
-    `20261005020000_corrige_funil_e_historico` está testada no PGlite e **aguarda o OK
-    do Rafael para ir à produção**:
+  - ~~**Dois defeitos de produção.**~~ **Corrigidos em 2026-10-05** com a migration
+    `20261005020000_corrige_funil_e_historico`, aplicada na produção com o OK do
+    Rafael e registrada em `_prisma_migrations`. Prova na produção, desfeita no fim:
+    como dono, trocar o status e registrar contato funcionam, sem sobras.
+    `conferir-producao` igual. Os defeitos eram:
     - trocar o status do funil de um cliente falha sempre (22P02, gatilho
       `lotti_inbox_record_legacy_stage`). Conferido: o `coalesce` do enum com
       'Sem etapa' dá erro na própria produção;
     - "Registrar contato" falha sempre: `historico_contatos` não tem policy de INSERT
       para usuário logado.
-  - Fumaça autenticada (§5.3) não feita: precisa do token de uma conta, e o agente
-    não entra com senha. Os testes de SQL só conferem o texto. Falta rodar o SQL
-    real das rotas num Postgres (PGlite) com RLS.
+  - ~~Rodar o SQL real das rotas.~~ **Feito em 2026-10-05.** `api/test/sql-real/`
+    tem 108 testes no PGlite com todas as migrations, RLS e o TenantDb real, cobrindo
+    todos os métodos de imóveis, clientes e funil. Eles entram no `npm test` e no CI.
+    O que apareceu:
+    - no Postgres 18 (o do Railway), apagar imóvel ou cliente com contrato dá 23001,
+      não 23503, e a rota responderia 500. Corrigido nos três tradutores (409, como
+      no contrato);
+    - o membro que só lê o funil recebe 422 `etapa_invalida`, e não 409, ao mover.
+      Nada é gravado; o texto do contrato foi corrigido;
+    - trocar o nome entre duas etapas num mesmo salvar dá 409, porque o índice
+      único não é adiável. Hoje o front ignora o erro.
+
+    Ainda falta a fumaça com login real (§5.3), que precisa do token de uma conta.
   - Na venda, o `webhook_logs` falha sempre (coluna `endpoint_url` não existe e não
     há policy). Falta decidir o destino do evento de conversão (UTMify).
   - O SeletorImovel oferece o tipo RURAL, que não existe no enum.

@@ -274,6 +274,17 @@ describe('ImoveisGestaoService.remover', () => {
     });
   });
 
+  it('no Postgres 18 o RESTRICT de contratos chega como 23001 e também vira 409 com sqlstate 23503', async () => {
+    const { tx, service } = montar();
+    tx.$queryRaw.mockRejectedValueOnce(erroBanco('23001',
+      'ERROR: update or delete on table "imoveis" violates RESTRICT setting of foreign key constraint "contratos_imovel_id_fkey" on table "contratos"\nDETAIL: Key is referenced from table "contratos".'));
+    const e = await falha(service.remover(claims, A));
+    expect(e.getStatus()).toBe(409);
+    expect(e.getResponse()).toEqual({
+      statusCode: 409, codigo: 'imovel_com_contrato', message: 'Existem contratos vinculados a este imóvel.', sqlstate: '23503',
+    });
+  });
+
   it('outra FK vira 422 referencia_invalida', async () => {
     const { tx, service } = montar();
     tx.$queryRaw.mockRejectedValueOnce(erroBanco('23503', 'ERROR: violates foreign key constraint "x" on table "y"'));

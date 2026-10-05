@@ -56,7 +56,8 @@ export function traduzirErroBanco(e: unknown, op: OpcoesErro = {}): never {
     if (mensagem === 'Atendimento expirado.') throw erroApi(403, 'atendimento_expirado', 'Atendimento expirado.');
     throw erroApi(403, 'sem_permissao', op.semPermissao ?? 'Você não tem permissão para fazer esta alteração.');
   }
-  if (sqlstate === '23503') {
+  // 23001: no Postgres 18 (o do Railway), a FK ON DELETE RESTRICT de contratos dá restrict_violation, e não 23503.
+  if (sqlstate === '23503' || sqlstate === '23001') {
     if (op.entidade && /contratos/.test(bruto)) {
       throw erroApi(409, `${op.entidade}_com_contrato`, `Existem contratos vinculados a este ${ROTULO[op.entidade]}.`, { sqlstate: '23503' });
     }

@@ -275,6 +275,16 @@ describe('CrmClientesService', () => {
         corpo: { statusCode: 409, codigo: 'cliente_com_contrato', message: 'Existem contratos vinculados a este cliente.', sqlstate: '23503' },
       });
     });
+
+    it('no Postgres 18 o RESTRICT de contratos chega como 23001 e também vira 409 com sqlstate 23503', async () => {
+      const { tx, servico } = montar();
+      tx.$queryRaw.mockRejectedValueOnce(erroBanco('23001',
+        'ERROR: update or delete on table "clientes" violates RESTRICT setting of foreign key constraint "contratos_cliente_id_fkey" on table "contratos"\nDETAIL: Key is referenced from table "contratos".'));
+      expect(await capturar(servico.remover(claims, A))).toEqual({
+        status: 409,
+        corpo: { statusCode: 409, codigo: 'cliente_com_contrato', message: 'Existem contratos vinculados a este cliente.', sqlstate: '23503' },
+      });
+    });
   });
 
   describe('imóvel de interesse', () => {
