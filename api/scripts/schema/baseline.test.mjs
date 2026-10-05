@@ -161,3 +161,16 @@ test('o dono troca o status do funil e registra contato; outra conta não grava 
     /row-level security/,
   );
 });
+
+test('anon só escreve nas duas tabelas da fachada pública', async () => {
+  const r = await um(`select
+    (select count(*)::int from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      cross join lateral aclexplode(c.relacl) a join pg_roles g on g.oid=a.grantee
+      where n.nspname='public' and g.rolname='anon' and a.privilege_type in ('INSERT','UPDATE','DELETE')
+        and c.relname not in ('fachada_leads','fachada_escaneamentos')) as escrita_indevida,
+    has_table_privilege('anon','public.fachada_leads','insert') as lead,
+    has_table_privilege('anon','public.fachada_escaneamentos','insert') as escaneamento,
+    has_table_privilege('anon','public.clientes','select') as leitura_intacta,
+    has_table_privilege('authenticated','public.clientes','insert,update,delete') as authenticated_intacto`);
+  assert.deepEqual(r, { escrita_indevida: 0, lead: true, escaneamento: true, leitura_intacta: true, authenticated_intacto: true });
+});

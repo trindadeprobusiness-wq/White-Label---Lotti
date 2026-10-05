@@ -199,3 +199,16 @@ Lista viva: toda decisão adiada ou ponto em aberto entra aqui. Quem resolver ri
 
 - ~~TRUNCATE/REFERENCES/TRIGGER/MAINTAIN para anon e authenticated~~: migration
   `20261004220000_menor_privilegio_papeis_publicos`, aplicada em 2026-10-04.
+
+## Resolvidas (continuação)
+
+- ~~**`anon` com escrita em 64 objetos de `public`**~~ (INSERT/UPDATE/DELETE em
+  `user_roles`, `admin_config`, `plans`, `corretores`, `clientes`, `contratos`,
+  `faturas_aluguel` e outras). O RLS segurava quase tudo, mas bastava uma policy nova
+  permissiva para virar escrita real, e os default privileges faziam **toda tabela nova
+  nascer assim**. Migration `20261005140000_anon_sem_escrita`, aplicada na produção em
+  2026-10-05: 161 permissões de escrita → **0**. Continuam intactas a leitura do `anon`
+  (72), a escrita do `authenticated` (177) e o `service_role`. As duas escritas públicas
+  de verdade (lead e escaneamento da fachada) foram preservadas e testadas.
+  Sobraram 17 default privileges do `supabase_admin` e de outros esquemas (`storage`,
+  `graphql`), que o papel `postgres` não pode alterar: só a Supabase mexe neles.
