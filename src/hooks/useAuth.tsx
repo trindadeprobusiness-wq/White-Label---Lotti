@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { User, Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { clienteAuth } from '@/lib/api/auth';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
 import { isolarTrocaDeSessao } from '@/lib/auth/isolamentoSessao';
@@ -114,6 +116,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   useEffect(() => {
+    // Login próprio da API (saída do Supabase Auth). Só entra aqui com
+    // VITE_API_URL presente; sem ela, o bloco abaixo (supabase.auth) roda igual
+    // a antes. A sessão vem do clienteAuth, que guarda o access em memória e
+    // renova pelo cookie de refresh.
+    if (apiDisponivel()) {
+      const cancelar = clienteAuth.aoMudar((sessao) => {
+        aplicarSessao(sessao);
+        setLoading(false);
+      });
+      // Restaura a sessão a partir do cookie de refresh (se houver). Falha em
+      // silêncio: sem cookie válido, simplesmente não há sessão.
+      clienteAuth.restaurar().finally(() => setLoading(false));
+      return cancelar;
+    }
+
     // O listener vem antes do getSession para não perder o evento que chega
     // entre uma coisa e outra.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((evento, sessao) => {
@@ -169,6 +186,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    // Login próprio: o clienteAuth notifica o listener do useEffect, que aplica
+    // a sessão no contexto. Resposta de erro única e genérica.
+    if (apiDisponivel()) return clienteAuth.login(email, password);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       console.error('Erro no login:', error);
@@ -185,6 +206,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       limparSuporte();
       window.location.replace('/admin/onboarding');
+      return;
+    }
+    // Login próprio: revoga a família de refresh no servidor e limpa o estado
+    // (o listener do useEffect zera user/session). Suporte continua no Supabase
+    // acima; por isso o ramo da API fica depois dele.
+    if (apiDisponivel()) {
+      await clienteAuth.logout();
+      toast.success('Você saiu da sua conta.');
       return;
     }
     const { error } = await supabase.auth.signOut();
@@ -227,6 +256,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * projeto: quem esquecia a senha ficava trancado para sempre.
    */
   const pedirRecuperacao = useCallback(async (email: string) => {
+    // Login próprio: a rota devolve sempre resposta genérica (o e-mail/Resend
+    // ainda não existe), sem revelar se a conta existe.
+    if (apiDisponivel()) return clienteAuth.pedirRecuperacao(email);
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/nova-senha`,
     });
@@ -240,6 +273,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Grava a nova senha. Só funciona com a sessão de recuperação ativa. */
   const definirNovaSenha = useCallback(async (senha: string) => {
     if (obterSuporte()) return { ok: false, erro: 'A senha não pode ser alterada durante o atendimento.' };
+    // Login próprio: o token de recuperação vem no link (query ou hash). A rota
+    // está desabilitada nesta fase (503 neutro) até o e-mail existir.
+    if (apiDisponivel()) {
+      const bruto = (window.location.hash.replace(/^#/, '') || window.location.search.replace(/^\?/, ''));
+      const token = new URLSearchParams(bruto).get('token') ?? '';
+      return clienteAuth.definirNovaSenha(token, senha);
+    }
     const { error } = await supabase.auth.updateUser({ password: senha });
     if (error) {
       console.error('Erro ao definir nova senha:', error);

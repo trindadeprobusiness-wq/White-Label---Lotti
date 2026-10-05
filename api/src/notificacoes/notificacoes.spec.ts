@@ -40,7 +40,7 @@ describe('AlertasListener', () => {
     };
     return c;
   }
-  const env = (directUrl?: string) => ({ isProd: false, port: 1, databaseUrl: 'x', directUrl, redisUrl: 'x', supabaseUrl: 'x', corsOrigins: [] });
+  const env = (directUrl?: string) => ({ isProd: false, port: 1, databaseUrl: 'x', directUrl, redisUrl: 'x', supabaseUrl: 'x', corsOrigins: [], authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer: 'lotti-api', emailHabilitado: false });
 
   it('escuta lotti_alertas e repassa só ids válidos para o hub', async () => {
     const hub = new AlertasHub();

@@ -4,6 +4,7 @@ import { AgentTokenGuard } from './agent-token.guard';
 
 const env = (agentApiToken?: string): AppEnv => ({
   isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', supabaseUrl: 'https://abc.supabase.co', corsOrigins: [], agentApiToken,
+  authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer: 'lotti-api', emailHabilitado: false,
 });
 const ctx = (header?: string) =>
   ({ switchToHttp: () => ({ getRequest: () => ({ headers: header ? { 'x-lotti-agent': header } : {} }) }) }) as unknown as ExecutionContext;

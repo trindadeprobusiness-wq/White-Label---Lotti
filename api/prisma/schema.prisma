@@ -433,6 +433,25 @@ model AuditoriaFinanceira {
   @@map("auditoria_financeira")
 }
 
+/// Tabela public.auth_refresh_tokens — RLS ligado.
+model AuthRefreshTokem {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  familyId       String    @map("family_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash")
+  sessionVersion Int       @default(0) @map("session_version")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt         DateTime? @map("used_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user Usuario @relation("auth_refresh_tokens_user_id_fkey", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([familyId])
+  @@index([userId])
+  @@map("auth_refresh_tokens")
+}
+
 /// Tabela public.billing_legacy_accounts — RLS ligado.
 /// Gatilhos: auditar_suporte.
 model BillingLegacyAccount {
@@ -2659,6 +2678,23 @@ model UserRole {
 
   @@index([userId], map: "idx_user_roles_user")
   @@map("user_roles")
+}
+
+/// Tabela public.usuarios — RLS ligado.
+/// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: usuarios_email_normalizado_key.
+model Usuario {
+  id             String   @id @db.Uuid
+  email          String
+  passwordHash   String?  @map("password_hash")
+  status         String   @default("ativo")
+  sessionVersion Int      @default(0) @map("session_version")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  authRefreshTokens AuthRefreshTokem[] @relation("auth_refresh_tokens_user_id_fkey")
+
+  @@map("usuarios")
 }
 
 /// Tabela public.webhook_logs — RLS ligado.

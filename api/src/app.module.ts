@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from './config/env';
 import { ArquivosModule } from './arquivos/arquivos.module';
+import { AuthModule } from './auth/auth.module';
 import { AssinaturaModule } from './assinatura/assinatura.module';
 import { ContratosModule } from './contratos/contratos.module';
 import { CrmClientesModule } from './crm/clientes/crm-clientes.module';
@@ -22,6 +23,7 @@ import { VisitasModule } from './visitas/visitas.module';
     EnvModule,
     PrismaModule,
     RedisModule,
+    AuthModule,
     StorageModule,
     ArquivosModule,
     ImoveisModule,

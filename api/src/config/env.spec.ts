@@ -19,7 +19,42 @@ describe('loadEnv', () => {
       supabaseJwtSecret: undefined,
       corsOrigins: [],
       agentApiToken: undefined,
+      authJwtSecret: undefined,
+      authAccessTtl: 900,
+      authRefreshTtl: 2592000,
+      authIssuer: 'lotti-api',
+      authCookieDomain: undefined,
+      resendApiKey: undefined,
+      emailFrom: undefined,
+      emailReplyTo: undefined,
+      emailDomain: undefined,
+      passwordResetUrl: undefined,
+      emailHabilitado: false,
     });
+  });
+
+  it('lê o segredo do login próprio só com 32+ caracteres e recusa chave curta', () => {
+    expect(loadEnv({ ...base }).authJwtSecret).toBeUndefined();
+    expect(loadEnv({ ...base, AUTH_JWT_SECRET: 'x'.repeat(40) }).authJwtSecret).toBe('x'.repeat(40));
+    expect(() => loadEnv({ ...base, AUTH_JWT_SECRET: 'curto' })).toThrow('AUTH_JWT_SECRET');
+  });
+
+  it('AUTH_ISSUER não pode ser igual ao issuer do Supabase', () => {
+    expect(() => loadEnv({ ...base, AUTH_ISSUER: 'https://abc.supabase.co/auth/v1' })).toThrow('AUTH_ISSUER');
+  });
+
+  it('emailHabilitado só com todas as variáveis de e-mail presentes', () => {
+    expect(loadEnv({ ...base }).emailHabilitado).toBe(false);
+    const comEmail = loadEnv({
+      ...base, RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b', EMAIL_REPLY_TO: 'r@b', EMAIL_DOMAIN: 'b', PASSWORD_RESET_URL: 'https://b/reset',
+    });
+    expect(comEmail.emailHabilitado).toBe(true);
+  });
+
+  it('TTLs aceitam override inteiro positivo e caem no padrão quando inválidos', () => {
+    expect(loadEnv({ ...base, AUTH_ACCESS_TTL: '600', AUTH_REFRESH_TTL: '100' }).authAccessTtl).toBe(600);
+    expect(loadEnv({ ...base, AUTH_ACCESS_TTL: 'abc' }).authAccessTtl).toBe(900);
+    expect(loadEnv({ ...base, AUTH_REFRESH_TTL: '-5' }).authRefreshTtl).toBe(2592000);
   });
 
   it('separa as origens de CORS e tira a barra final da URL do Supabase', () => {
