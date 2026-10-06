@@ -57,7 +57,42 @@ export function sqlInsercao(t) {
  * origem(sql) → linhas; destino.query(sql, params) → { rows, rowCount }.
  * Devolve só contagens por tabela (nada de conteúdo).
  */
+/**
+ * Tabelas com dados que existem na origem e não no destino. A cópia lê a lista do
+ * destino; sem esta checagem, uma tabela que faltasse nas migrations (foi o caso de
+ * public.videos) ficaria para trás em silêncio, e a conferência diria "tudo igual".
+ */
+export async function tabelasSoNaOrigem({ origem, destino }) {
+  const chave = (t) => `${t.esquema}.${t.tabela}`;
+  const noDestino = new Set((await destino.query(SQL_TABELAS)).rows.map(chave));
+  const faltam = [];
+  for (const t of await origem(SQL_TABELAS)) {
+    if (noDestino.has(chave(t))) continue;
+    const [{ n }] = await origem(sqlContagem(t));
+    faltam.push({ tabela: chave(t), linhas: n });
+  }
+  return faltam;
+}
+
+/** Colunas que a origem tem e o destino não: a cópia as descartaria sem avisar. */
+export async function colunasSoNaOrigem({ origem, destino }) {
+  const chave = (t) => `${t.esquema}.${t.tabela}`;
+  const naOrigem = new Map((await origem(SQL_TABELAS)).map((t) => [chave(t), new Set(t.colunas)]));
+  const faltam = [];
+  for (const t of (await destino.query(SQL_TABELAS)).rows) {
+    const o = naOrigem.get(chave(t));
+    if (!o) continue;
+    const d = new Set(t.colunas);
+    for (const c of o) if (!d.has(c)) faltam.push(`${chave(t)}.${c}`);
+  }
+  return faltam;
+}
+
 export async function copiar({ origem, destino, pagina = 5000, log = () => {} }) {
+  const faltam = await tabelasSoNaOrigem({ origem, destino });
+  if (faltam.length) throw new Error(`tabelas da origem que não existem no destino (crie a migration antes): ${JSON.stringify(faltam)}`);
+  const colunas = await colunasSoNaOrigem({ origem, destino });
+  if (colunas.length) throw new Error(`colunas da origem que não existem no destino (crie a migration antes): ${JSON.stringify(colunas)}`);
   const tabelas = (await destino.query(SQL_TABELAS)).rows;
   const relatorio = [];
   await destino.query('begin');
@@ -92,7 +127,9 @@ export async function conferirContagens({ origem, destino }) {
     const { rows: [{ n: d }] } = await destino.query(sqlContagem(t));
     if (o !== d) diferencas.push({ tabela: `${t.esquema}.${t.tabela}`, origem: o, destino: d });
   }
-  return { tabelas: tabelas.length, diferencas };
+  const soNaOrigem = await tabelasSoNaOrigem({ origem, destino });
+  const colunasSoOrigem = await colunasSoNaOrigem({ origem, destino });
+  return { tabelas: tabelas.length, diferencas, soNaOrigem, colunasSoOrigem };
 }
 
 /** O que cada usuário enxerga com o RLS (padrão TenantDb), nos dois lados. */
@@ -134,6 +171,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`\ncopiadas ${total} linhas em ${relatorio.filter((r) => r.copiadas).length} tabelas com dados (${relatorio.length} tabelas).`);
     const conf = await conferirContagens({ origem, destino });
     console.log(conf.diferencas.length ? `DIFERENÇAS: ${JSON.stringify(conf.diferencas)}` : `contagens iguais nas ${conf.tabelas} tabelas.`);
+    if (conf.soNaOrigem.length) console.log(`SÓ NA ORIGEM: ${JSON.stringify(conf.soNaOrigem)}`);
+    if (conf.colunasSoOrigem.length) console.log(`COLUNAS SÓ NA ORIGEM: ${JSON.stringify(conf.colunasSoOrigem)}`);
   } finally {
     await destino.end();
   }

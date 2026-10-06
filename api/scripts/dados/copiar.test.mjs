@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp';
-import { conferirContagens, copiar, sqlInsercao, sqlPagina, sqlVisaoDoUsuario } from './copiar.mjs';
+import { conferirContagens, copiar, sqlInsercao, sqlPagina, sqlVisaoDoUsuario, tabelasSoNaOrigem, colunasSoNaOrigem } from './copiar.mjs';
 
 const pasta = fileURLToPath(new URL('../../prisma/migrations/', import.meta.url));
 const migrations = readdirSync(pasta, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
@@ -73,4 +73,27 @@ test('a visão de cada usuário pelo RLS é a mesma nos dois bancos', async () =
   const visao = async (db) => { const r = await db.exec(sqlVisaoDoUsuario(userA)); return r.find((x) => x.rows?.length && 'clientes' in x.rows[0]).rows[0]; };
   assert.deepEqual(await visao(destino), await visao(origem));
   assert.equal((await visao(destino)).imoveis, 1);
+});
+
+test('tabela que só existe na origem barra a cópia (antes passava em silêncio)', async () => {
+  const o = await bancoNovo();
+  const d = await bancoNovo();
+  try {
+    await o.exec(`create table public.videos_teste (id uuid primary key); insert into public.videos_teste values (gen_random_uuid());`);
+    const ler = async (sql) => (await o.query(sql)).rows;
+    assert.deepEqual(await tabelasSoNaOrigem({ origem: ler, destino: comoPg(d) }), [{ tabela: 'public.videos_teste', linhas: 1 }]);
+    await assert.rejects(copiar({ origem: ler, destino: comoPg(d) }), /não existem no destino/);
+    assert.equal((await d.query('select count(*)::int as n from public.corretores')).rows[0].n, 0);
+  } finally { await o.close(); await d.close(); }
+});
+
+test('coluna que só existe na origem também barra a cópia', async () => {
+  const o = await bancoNovo();
+  const d = await bancoNovo();
+  try {
+    await o.exec('alter table public.imoveis add column extra_so_origem text');
+    const ler = async (sql) => (await o.query(sql)).rows;
+    assert.deepEqual(await colunasSoNaOrigem({ origem: ler, destino: comoPg(d) }), ['public.imoveis.extra_so_origem']);
+    await assert.rejects(copiar({ origem: ler, destino: comoPg(d) }), /colunas da origem/);
+  } finally { await o.close(); await d.close(); }
 });
