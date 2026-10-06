@@ -13,6 +13,8 @@ ARG VITE_PUBLIC_BASE_URL
 ARG VITE_CRM_ENABLED
 ARG VITE_OAUTH_PROVIDERS
 ARG VITE_UTMIFY_WEBHOOK_URL
+# Sem ela o front segue inteiro no Supabase; com ela, passa a usar a API do Railway.
+ARG VITE_API_URL
 RUN npm run build
 
 FROM caddy:2.10.2-alpine
