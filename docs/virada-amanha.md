@@ -13,7 +13,7 @@ Marcação: **[VOCÊ]** é decisão ou clique seu · **[CODEX]** roda com a CLI 
 
 | # | Quem | O quê | Pronto quando |
 |---|------|-------|---------------|
-| A1 | [VOCÊ] | Decidir o backup: Supabase Pro (PITR) ou dump manual feito pelo Codex | um dos dois feito |
+| A1 | — | Backup sem custo: o dump da A3 + o próprio Supabase, que não é apagado na virada | (sem plano pago) |
 | A2 | [CODEX] | Diagnóstico do Gemini/geração de contratos (relatório 23) | causa conhecida e corrigida **no Supabase** |
 | A3 | [CODEX] | `pg_dump` da produção (só leitura) guardado fora do repositório | arquivo + contagem por tabela |
 
