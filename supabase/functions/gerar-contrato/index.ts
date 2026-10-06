@@ -256,6 +256,8 @@ ESTRUTURA OBRIGATÓRIA DO CONTRATO:
       ],
       stream: false,
       temperature: 0.2,
+      // Sem "thinking": com ele a minuta passava de 90 s e caía em TimeoutError.
+      reasoning_effort: "none",
     }, { timeoutMs: 90_000 });
 
     const endTime = Date.now();
