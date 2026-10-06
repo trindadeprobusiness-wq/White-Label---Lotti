@@ -8,11 +8,11 @@
 	root * /srv
 	encode zstd gzip
 
-	# Callback do Google Agenda vai para a API no Railway (a URL no Google Console não muda).
+	# Callback do Google Agenda vai para a Edge Function no Supabase.
 	handle /google-agenda/callback {
 		header Cache-Control "no-store"
-		rewrite * /api/google-agenda/callback
-		reverse_proxy {$GOOGLE_CALLBACK_ORIGIN:https://api.plataformalotti.com.br} {
+		rewrite * /functions/v1/google-calendar-auth/callback
+		reverse_proxy {$SUPABASE_FUNCTIONS_ORIGIN:https://dqlolypbmsjgqrvdesev.supabase.co} {
 			header_up Host {upstream_hostport}
 		}
 	}
