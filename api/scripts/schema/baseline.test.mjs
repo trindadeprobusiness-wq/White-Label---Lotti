@@ -174,3 +174,14 @@ test('anon só escreve nas duas tabelas da fachada pública', async () => {
     has_table_privilege('authenticated','public.clientes','insert,update,delete') as authenticated_intacto`);
   assert.deepEqual(r, { escrita_indevida: 0, lead: true, escaneamento: true, leitura_intacta: true, authenticated_intacto: true });
 });
+
+test('ajustes dos módulos: updated_at de documentos, gatilhos e índices da agenda', async () => {
+  const r = await um(`select
+    exists (select 1 from information_schema.columns
+      where table_schema='public' and table_name='documentos' and column_name='updated_at') as coluna,
+    (select count(*)::int from pg_trigger
+      where tgname in ('tr_contratos_updated_at','tr_documentos_updated_at') and not tgisinternal) as gatilhos,
+    to_regclass('public.uq_external_calendars_default') is not null as padrao_unico,
+    to_regclass('public.idx_calendar_webhook_receipts_received_at') is not null as recibos`);
+  assert.deepEqual(r, { coluna: true, gatilhos: 2, padrao_unico: true, recibos: true });
+});

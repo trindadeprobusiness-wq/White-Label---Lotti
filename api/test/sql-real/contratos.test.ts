@@ -350,7 +350,8 @@ describe('documentos', () => {
     assert.equal(doc.validado, false);
     assert.equal(doc.corretor_id, banco.corretorA);
     assert.match(doc.data_validade as string, TIMESTAMPTZ);
-    assert.ok(!('updated_at' in doc));
+    // A coluna existe desde 20261006120000_ajustes_modulos; quem preenche é o banco.
+    assert.match(doc.updated_at as string, TIMESTAMPTZ);
 
     const lista = await documentos.listar(banco.claimsA);
     assert.ok(lista.some((l) => l.id === doc.id));

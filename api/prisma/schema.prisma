@@ -574,6 +574,7 @@ model CalendarWebhookReceipt {
   receivedAt    DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
 
   @@unique([channelId, messageNumber])
+  @@index([receivedAt], map: "idx_calendar_webhook_receipts_received_at")
   @@map("calendar_webhook_receipts")
 }
 
@@ -783,7 +784,7 @@ model ContractQuotaReservation {
 }
 
 /// Tabela public.contratos — RLS ligado.
-/// Gatilhos: auditar_suporte, contratos_limite_plano.
+/// Gatilhos: auditar_suporte, contratos_limite_plano, tr_contratos_updated_at.
 /// 1 check constraint(s) só no SQL.
 model Contrato {
   id                          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1016,7 +1017,7 @@ model CrmTarefa {
 }
 
 /// Tabela public.documentos — RLS ligado.
-/// Gatilhos: auditar_suporte.
+/// Gatilhos: auditar_suporte, tr_documentos_updated_at.
 model Documento {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt    DateTime  @default(dbgenerated("timezone('utc'::text, now())")) @map("created_at") @db.Timestamptz(6)
@@ -1030,6 +1031,7 @@ model Documento {
   observacoes  String?
   validado     Boolean?  @default(false)
   arquivoUrl   String?   @map("arquivo_url")
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   cliente  Cliente?  @relation("documentos_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   corretor Corretor? @relation("documentos_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -1041,6 +1043,7 @@ model Documento {
 /// Tabela public.external_calendars — RLS ligado.
 /// Gatilhos: auditar_suporte, tr_external_calendars_updated_at.
 /// 1 check constraint(s) só no SQL.
+/// Índices parciais/por expressão só no SQL: uq_external_calendars_default.
 model ExternalCalendar {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   connectionId       String   @map("connection_id") @db.Uuid
