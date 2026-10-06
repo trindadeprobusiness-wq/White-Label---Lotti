@@ -35,11 +35,19 @@ import { VideoUploadArea } from '@/components/midias/VideoUploadArea';
 import { VideoPlayerDialog } from '@/components/midias/VideoPlayerDialog';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import { apiDisponivel } from '@/lib/api';
-import { atualizarImovelApi, listarClientesInteressadosApi, obterImovelApi, removerImovelApi } from '@/lib/api/imoveis';
+import { atualizarImovelApi, listarClientesInteressadosApi, obterImovelApi, removerImovelApi, urlCapturaLeadApi } from '@/lib/api/imoveis';
 import type { ErroApi } from '@/lib/api/http';
 
 /** Chamada da API no formato { error } do supabase-js, para o tratamento de erro servir aos dois caminhos. */
 const comoErro = (p: Promise<unknown>) => p.then(() => ({ error: null }), (error: ErroApi) => ({ error }));
+
+/**
+ * Webhook de captura de lead do imóvel (vai para landing page, Meta Ads, PerfectPay). No modo API é a
+ * rota pública da API, que sobrevive à saída do Supabase; sem VITE_API_URL segue a Edge Function.
+ */
+const urlWebhookLead = (imovelId: string) => (apiDisponivel()
+  ? urlCapturaLeadApi(imovelId)
+  : `${import.meta.env.VITE_SUPABASE_URL || 'https://sua-url-supabase'}/functions/v1/lead-capture?imovel_id=${imovelId}`);
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -250,7 +258,7 @@ export default function ImovelDetalhes() {
 
   const copyWebhook = () => {
     if (!imovel) return;
-    const url = `${import.meta.env.VITE_SUPABASE_URL || 'https://sua-url-supabase'}/functions/v1/lead-capture?imovel_id=${imovel.id}`;
+    const url = urlWebhookLead(imovel.id);
     navigator.clipboard.writeText(url);
     setIsCopied(true);
     toast({ title: 'Webhook Copiado!', description: 'Cole na configuração do Meta Ads, PerfectPay ou Landing Page.' });
@@ -450,7 +458,7 @@ export default function ImovelDetalhes() {
                 <Input 
                   readOnly 
                   className="font-mono text-xs text-muted-foreground pr-12 focus-visible:ring-0" 
-                  value={`${import.meta.env.VITE_SUPABASE_URL || 'https://sua-url'}/functions/v1/lead-capture?imovel_id=${imovel.id}`} 
+                  value={urlWebhookLead(imovel.id)}
                 />
                 <Button variant="secondary" size="icon" onClick={copyWebhook} className="absolute right-1 w-8 h-8">
                   {isCopied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}

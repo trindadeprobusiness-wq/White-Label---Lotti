@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { EMPTY, from, Observable, switchMap } from 'rxjs';
 import { Claims } from '../auth/claims.decorator';
+import { RecusaTokenSuporte } from '../auth/sessao-suporte';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { SupabaseClaims } from '../prisma/tenant-db';
 import { AlertasHub, EventoSino } from './alertas-hub';
@@ -32,8 +33,12 @@ export class NotificacoesController {
     return { marcadas: await this.servico.marcarLidas(claims, corpo.ids) };
   }
 
-  /** Sino ao vivo (SSE). O front abre com fetch + Authorization: token fora da URL. */
+  /**
+   * Sino ao vivo (SSE). O front abre com fetch + Authorization: token fora da URL. Fora do
+   * atendimento: a conexão longa escaparia da conferência da sessão a cada requisição.
+   */
   @Sse('eventos')
+  @RecusaTokenSuporte()
   eventos(@Claims() claims: SupabaseClaims): Observable<EventoSino> {
     return from(this.servico.corretorId(claims)).pipe(switchMap((id) => (id ? this.hub.observar(id) : EMPTY)));
   }

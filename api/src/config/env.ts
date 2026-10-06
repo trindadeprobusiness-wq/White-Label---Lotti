@@ -11,6 +11,12 @@ export interface AppEnv {
   /** Projetos com chave JWT legada (HS256). Vazio: valida pelas chaves públicas (JWKS). */
   supabaseJwtSecret?: string;
   corsOrigins: string[];
+  /**
+   * Origens das rotas públicas que outros sites chamam (vitrine do site institucional e captura de
+   * lead das landing pages). SEM credenciais, sempre. '*' (padrão) é o que as Edge Functions faziam.
+   * Ver config/cors.ts.
+   */
+  publicCorsOrigins?: '*' | string[];
   /** Segredo compartilhado com o agente do WhatsApp (header x-lotti-agent). */
   agentApiToken?: string;
   /**
@@ -64,6 +70,17 @@ function origensCors(bruto: string | undefined, isProd: boolean): string[] {
   return [...new Set([...padrao, ...extras])];
 }
 
+/**
+ * PUBLIC_CORS_ORIGINS: vazia ou '*' → qualquer origem (como as Edge Functions); lista → só essas
+ * origens, mais as do app. Nunca vale para rota com cookie: as rotas públicas respondem sem
+ * Access-Control-Allow-Credentials (config/cors.ts).
+ */
+function origensCorsPublicas(bruto: string | undefined, origensApp: string[]): '*' | string[] {
+  const lista = (bruto ?? '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean);
+  if (lista.length === 0 || lista.includes('*')) return '*';
+  return [...new Set([...origensApp, ...lista])];
+}
+
 function required(source: NodeJS.ProcessEnv, name: string): string {
   const value = source[name];
   if (!value || value.trim() === '') throw new Error(`Variável de ambiente obrigatória ausente: ${name}`);
@@ -110,6 +127,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     supabaseUrl,
     supabaseJwtSecret: source.SUPABASE_JWT_SECRET?.trim() || undefined,
     corsOrigins,
+    publicCorsOrigins: origensCorsPublicas(source.PUBLIC_CORS_ORIGINS, corsOrigins),
     agentApiToken: (source.AGENT_API_TOKEN?.trim().length ?? 0) >= 32 ? source.AGENT_API_TOKEN!.trim() : undefined,
     authJwtSecret: authJwtBruto || undefined,
     authAccessTtl: inteiroPositivo(source, 'AUTH_ACCESS_TTL', 900),

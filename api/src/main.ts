@@ -13,6 +13,8 @@ async function bootstrap(): Promise<void> {
   app.useBodyParser('json', { limit: '21mb' });
   const env = app.get<AppEnv>(ENV);
   // Com credenciais: o refresh do login próprio viaja num cookie de api.* (ver config/cors.ts).
+  // Exceção: as rotas públicas que outros sites chamam (publico/imoveis, publico/leads) têm CORS
+  // próprio, sem credenciais ('*' ou PUBLIC_CORS_ORIGINS).
   app.enableCors(opcoesCors(env));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.setGlobalPrefix('api');

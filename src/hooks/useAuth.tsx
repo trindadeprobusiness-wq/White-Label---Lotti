@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
 import { clienteAuth } from '@/lib/api/auth';
 import { reivindicarAtribuicaoApi } from '@/lib/api/parceiros';
+import { encerrarSuporteApi } from '@/lib/api/suporte';
 import { registrarAtividadeApi } from '@/lib/api/perfil';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
@@ -229,7 +230,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (obterSuporte()) {
-      const { error } = await supabase.functions.invoke('admin-suporte', { body: { acao: 'encerrar', sessao_id: obterSuporte()?.id } });
+      let error: unknown = null;
+      if (apiDisponivel()) {
+        // Modo API: encerra com o token do ADMINISTRADOR (a rota recusa o de atendimento).
+        try { await encerrarSuporteApi(obterSuporte()?.id ?? ''); } catch (e) { error = e; }
+      } else {
+        ({ error } = await supabase.functions.invoke('admin-suporte', { body: { acao: 'encerrar', sessao_id: obterSuporte()?.id } }));
+      }
       if (error && Date.parse(obterSuporte()?.expira_em ?? '') > Date.now() && session) {
         toast.error('Não foi possível encerrar o atendimento. Tente novamente.'); return;
       }
@@ -238,8 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     // Login próprio: revoga a família de refresh no servidor e limpa o estado
-    // (o listener do useEffect zera user/session). Suporte continua no Supabase
-    // acima; por isso o ramo da API fica depois dele.
+    // (o listener do useEffect zera user/session). O atendimento é encerrado
+    // acima (pela API ou pela Edge); por isso o ramo da API fica depois dele.
     if (apiDisponivel()) {
       await clienteAuth.logout();
       toast.success('Você saiu da sua conta.');

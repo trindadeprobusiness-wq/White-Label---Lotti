@@ -126,6 +126,13 @@ describe('API de imóveis no front', () => {
     expect(JSON.parse(chamada(1).init.body as string)).toEqual({ imovel_ids: [ids[1000]] });
   });
 
+  it('webhook de captura de lead: rota pública da API (bloco B4), sem a barra final da base e sem fetch', async () => {
+    const api = await carregar();
+    expect(api.urlCapturaLeadApi(IMOVEL)).toBe(`${BASE}/api/publico/leads?imovel_id=${IMOVEL}`);
+    expect(api.urlCapturaLeadApi('a&b')).toBe(`${BASE}/api/publico/leads?imovel_id=a%26b`);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('codifica o id na URL', async () => {
     const api = await carregar();
     fetchMock.mockResolvedValueOnce(json({ id: 'a/b' }));

@@ -29,6 +29,18 @@ export type AlteracaoImovelApi = Partial<Omit<DadosImovelApi, 'ativo'>> & { anun
 
 const rota = (id: string) => `/api/imoveis/${encodeURIComponent(id)}`;
 
+// Mesma leitura de VITE_API_URL do src/lib/api.ts (a base das rotas públicas, que não levam token).
+const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '');
+
+/**
+ * URL pública de captura de lead do imóvel: o "webhook" que o corretor cola em landing page, Meta Ads
+ * ou PerfectPay. Substitui `${VITE_SUPABASE_URL}/functions/v1/lead-capture?imovel_id=` (mesmo corpo,
+ * mesma resposta, sem login).
+ */
+export function urlCapturaLeadApi(imovelId: string): string {
+  return `${BASE}/api/publico/leads?imovel_id=${encodeURIComponent(imovelId)}`;
+}
+
 export async function listarImoveisApi(): Promise<LinhaImovel[]> {
   return lerJson(await chamarApi('/api/imoveis'), 'Não foi possível carregar os imóveis.');
 }

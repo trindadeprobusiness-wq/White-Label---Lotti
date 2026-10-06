@@ -18,6 +18,7 @@ describe('loadEnv', () => {
       supabaseUrl: 'https://abc.supabase.co',
       supabaseJwtSecret: undefined,
       corsOrigins: [ORIGEM_APP, ...ORIGENS_LOCAIS],
+      publicCorsOrigins: '*',
       agentApiToken: undefined,
       authJwtSecret: undefined,
       authAccessTtl: 900,
@@ -83,6 +84,16 @@ describe('loadEnv', () => {
 
   it('recusa "*" em CORS_ORIGINS (o login usa cookie com credenciais)', () => {
     expect(() => loadEnv({ ...base, CORS_ORIGINS: '*' })).toThrow('CORS_ORIGINS');
+  });
+
+  it('PUBLIC_CORS_ORIGINS: vazia ou "*" libera qualquer origem; lista soma as do app sem repetir', () => {
+    expect(loadEnv({ ...base, NODE_ENV: 'production' }).publicCorsOrigins).toBe('*');
+    expect(loadEnv({ ...base, PUBLIC_CORS_ORIGINS: ' * ' }).publicCorsOrigins).toBe('*');
+    expect(loadEnv({ ...base, PUBLIC_CORS_ORIGINS: 'https://a.example,*' }).publicCorsOrigins).toBe('*');
+    const lista = loadEnv({ ...base, NODE_ENV: 'production', PUBLIC_CORS_ORIGINS: 'https://site.example/, https://lp.example,https://site.example' });
+    expect(lista.publicCorsOrigins).toEqual([ORIGEM_APP, 'https://site.example', 'https://lp.example']);
+    // A lista pública nunca mexe na lista com credenciais.
+    expect(lista.corsOrigins).toEqual([ORIGEM_APP]);
   });
 
   it('fora de produção libera o front local nas portas 8080 e 5173', () => {

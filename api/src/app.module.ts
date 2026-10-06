@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from './config/env';
+import { AgendamentosModule } from './agendamentos/agendamentos.module';
 import { ArquivosModule } from './arquivos/arquivos.module';
 import { AuthModule } from './auth/auth.module';
 import { AssinaturaModule } from './assinatura/assinatura.module';
 import { ContratosModule } from './contratos/contratos.module';
 import { CrmClientesModule } from './crm/clientes/crm-clientes.module';
 import { CrmFunilModule } from './crm/funil/crm-funil.module';
+import { CrmIntegracoesModule } from './crm/integracoes/crm-integracoes.module';
 import { FachadasModule } from './fachadas/fachadas.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { HealthController } from './health/health.controller';
@@ -17,6 +19,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { RotinaModule } from './rotina/rotina.module';
 import { StorageModule } from './storage/storage.module';
+import { SuporteModule } from './suporte/suporte.module';
 import { VisitasModule } from './visitas/visitas.module';
 
 @Module({
@@ -30,6 +33,7 @@ import { VisitasModule } from './visitas/visitas.module';
     ImoveisModule,
     CrmClientesModule,
     CrmFunilModule,
+    CrmIntegracoesModule,
     ContratosModule,
     FinanceiroModule,
     RotinaModule,
@@ -39,6 +43,8 @@ import { VisitasModule } from './visitas/visitas.module';
     NotificacoesModule,
     VisitasModule,
     IaModule,
+    AgendamentosModule,
+    SuporteModule,
   ],
   controllers: [HealthController],
 })

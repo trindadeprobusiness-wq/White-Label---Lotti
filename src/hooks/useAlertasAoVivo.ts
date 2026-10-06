@@ -3,6 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useCRMStore } from '@/stores/crmStore';
 import { apiDisponivel, escutarSino } from '@/lib/api';
+import { obterSuporte } from '@/lib/admin/suporte';
 
 /**
  * Mantém o sino vivo.
@@ -87,8 +88,11 @@ export function useAlertasAoVivo() {
 
     // Sem corretor carregado ainda, o filtro do canal seria inválido. A
     // sondagem já cobre o intervalo até o DataLoader terminar.
+    // No atendimento do backoffice o aviso ao vivo fica desligado (como o Realtime
+    // no modo Supabase): a API recusa o SSE com o token de atendimento. A sondagem
+    // segue valendo.
     if (corretorId && apiDisponivel()) {
-      void escutarApi();
+      if (!obterSuporte()) void escutarApi();
     } else if (corretorId) {
       canal = supabase
         .channel(`alertas:${corretorId}`)

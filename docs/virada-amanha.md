@@ -40,7 +40,7 @@ Marcação: **[VOCÊ]** é decisão ou clique seu · **[CODEX]** roda com a CLI 
 | # | Quem | O quê | Volta atrás |
 |---|------|-------|-------------|
 | C1 | [VOCÊ] | Avisar o dono: ~1h sem gravar nada | — |
-| C2 | [CODEX] | Desligar o cron `routine-google-calendar-maintain` do Supabase | `cron.schedule` de novo |
+| C2 | [CODEX] | Desligar os crons do Supabase: `routine-google-calendar-maintain`, `gerar-faturas-mensais`, `marcar-faturas-atrasadas`, `sweeper-webhook-events` e `gerar-alertas-vencimento` (os quatro últimos passam à API no D5) | `cron.schedule` de novo |
 | C3 | [CODEX] | Repetir B2–B5 com os dados do momento (cópia final) | Supabase segue intacto |
 
 ## D. Noite: virar
@@ -51,7 +51,8 @@ Marcação: **[VOCÊ]** é decisão ou clique seu · **[CODEX]** roda com a CLI 
 | D2 | [VOCÊ] | Definir `VITE_API_URL=https://api.plataformalotti.com.br` no **app** e redeploy | **apagar a variável e redeploy: o front volta inteiro para o Supabase** |
 | D3 | [VOCÊ] | Asaas (Menu do usuário → Integrações → Webhooks): de `https://dqlolypbmsjgqrvdesev.supabase.co/functions/v1/asaas-webhook` para `https://api.plataformalotti.com.br/api/financeiro/asaas/webhook?t=<webhook_slug>`. Conferir na tela antes de salvar; reconectar o Asaas (chave nova) | voltar a URL antiga |
 | D4 | [CLAUDE] | Caddyfile, linhas 14–15: callback `app.plataformalotti.com.br/google-agenda/callback` passa a ir para a API em `/api/google-agenda/callback` (no Google Console **nada muda**). Push do Google: `https://api.plataformalotti.com.br/api/google-agenda/webhook`. As 2 contas reconectam o Google | reverter o commit do Caddyfile |
-| D5 | [VOCÊ] | `ROUTINE_CALENDAR_MAINTAIN_ENABLED=true` e `ASAAS_PROCESSAR_FILA=true` na **api** | apagar |
+| D5 | [VOCÊ] | `ROUTINE_CALENDAR_MAINTAIN_ENABLED=true`, `ASAAS_PROCESSAR_FILA=true` e `AGENDAMENTOS_ENABLED=true` na **api**; `N8N_SHARED_SECRET` igual ao do n8n (opcional: `PUBLIC_CORS_ORIGINS`, vazio = qualquer origem nas rotas públicas) | apagar |
+| D5b | [VOCÊ] | Trocar URLs externas: site institucional (`public-imoveis` → `/api/publico/imoveis`, `imovel-detalhe?id=` → `/api/publico/imoveis/detalhe?id=`), webhooks de lead colados em landing pages/Meta Ads/PerfectPay (`/functions/v1/lead-capture?imovel_id=` → `/api/publico/leads?imovel_id=`) e a variável `SUPABASE_EDGE_URL` do n8n → `https://api.plataformalotti.com.br/api/integracoes/n8n` | voltar as URLs |
 | D6 | [CLAUDE] | Fumaça: login, listar imóveis/clientes, abrir foto, baixar documento, gerar contrato | — |
 
 **Regra de rollback:** qualquer falha em D6 → apagar `VITE_API_URL` (D2) e religar o cron (C2).

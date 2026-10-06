@@ -5,6 +5,7 @@ import { SupabaseClaims } from '../prisma/tenant-db';
 import { AuthService, SessaoEmitida } from './auth.service';
 import { Claims } from './claims.decorator';
 import { CadastroDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
+import { RecusaTokenSuporte } from './sessao-suporte';
 import { SupabaseAuthGuard } from './supabase-auth.guard';
 
 /** Nome do cookie do refresh token. Escopo em /api/auth: nenhuma outra rota o recebe. */
@@ -71,6 +72,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(SupabaseAuthGuard)
+  @RecusaTokenSuporte() // Auth é do administrador, nunca do titular atendido.
   me(@Claims() claims: SupabaseClaims): { sub: string; email?: string; role: string } {
     return { sub: claims.sub, email: claims.email, role: claims.role };
   }

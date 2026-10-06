@@ -6,6 +6,12 @@ export interface SessaoSuporte {
   nome: string;
   expira_em: string;
   user: User;
+  /**
+   * Só no modo API (VITE_API_URL): token curto de atendimento assinado pela API (sub = titular),
+   * que vale enquanto a sessão estiver ativa no servidor e nunca é renovado. No modo Supabase o
+   * JWT do titular fica no servidor e este campo não existe.
+   */
+  token?: string;
 }
 
 export const CHAVE_SUPORTE = 'lotti:suporte';
@@ -22,6 +28,16 @@ export function salvarSuporte(sessao: SessaoSuporte) {
 }
 
 export function limparSuporte() { sessionStorage.removeItem(CHAVE_SUPORTE); }
+
+/**
+ * Token de atendimento da API para o Bearer. Null quando não há atendimento, quando ele não tem
+ * token (sessão aberta pelo Supabase) ou quando já venceu — quem chama NUNCA cai no token do
+ * administrador nesses casos.
+ */
+export function tokenSuporteApi(sessao: SessaoSuporte | null = obterSuporte()): string | null {
+  if (!sessao?.token || !(Date.parse(sessao.expira_em) > Date.now())) return null;
+  return sessao.token;
+}
 
 /** Somente APIs de dados passam pelo atendimento; Auth continua sendo do administrador. */
 export function criarFetchSuporte(base: string, original: typeof fetch): typeof fetch {

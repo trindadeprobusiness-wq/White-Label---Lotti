@@ -1,3 +1,4 @@
+import { obterSuporte, tokenSuporteApi } from '@/lib/admin/suporte';
 import { clienteAuth } from '@/lib/api/auth';
 
 // API Lotti (Railway, padrão do Clix). Sem VITE_API_URL, o front segue falando
@@ -8,6 +9,14 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\
 export const apiDisponivel = () => !!API_URL;
 
 const MSG_SESSAO_EXPIRADA = 'Sua sessão expirou. Entre de novo.';
+const MSG_ATENDIMENTO_EXPIRADO = 'O atendimento expirou. Abra uma nova sessão pelo backoffice.';
+
+/** Token do login próprio de quem está logado (o administrador, durante o atendimento). */
+async function obterTokenDoLogin(): Promise<string> {
+  const token = await clienteAuth.obterTokenValido();
+  if (!token) throw new Error(MSG_SESSAO_EXPIRADA);
+  return token;
+}
 
 /**
  * Bearer das chamadas à API. Com VITE_API_URL o login é o próprio da API
@@ -15,11 +24,18 @@ const MSG_SESSAO_EXPIRADA = 'Sua sessão expirou. Entre de novo.';
  * cookie de refresh uma vez. NUNCA cai na sessão do Supabase: um token antigo
  * guardado no navegador (de antes da virada, ou de outra pessoa) faria a API
  * responder como outra conta. Exportado para quem faz fetch próprio (SSE).
+ *
+ * Durante o atendimento do backoffice (aba com obterSuporte()), o Bearer é SÓ o
+ * token de atendimento (sub = titular). Sem ele, ou vencido, a chamada falha: o
+ * token do administrador nunca vai buscar dados da conta atendida.
  */
 export async function obterTokenApi(): Promise<string> {
-  const token = await clienteAuth.obterTokenValido();
-  if (!token) throw new Error(MSG_SESSAO_EXPIRADA);
-  return token;
+  if (obterSuporte()) {
+    const token = tokenSuporteApi();
+    if (!token) throw new Error(MSG_ATENDIMENTO_EXPIRADO);
+    return token;
+  }
+  return obterTokenDoLogin();
 }
 
 /** Corpo que dá para mandar de novo depois de um 401 (stream já consumido não dá). */
@@ -35,15 +51,34 @@ function corpoReenviavel(body: RequestInit['body']): boolean {
  */
 export async function chamarApi(caminho: string, init: RequestInit = {}): Promise<Response> {
   if (!API_URL) throw new Error('API Lotti indisponível no momento.');
-  const enviar = (token: string) => fetch(`${API_URL}${caminho}`, {
+  // Atendimento: token de atendimento e nenhuma renovação — renovar devolveria o
+  // token do administrador. 401/403 (sessão encerrada no servidor) voltam como vieram.
+  if (obterSuporte()) return enviarComToken(caminho, init, await obterTokenApi());
+  return chamarComLogin(caminho, init);
+}
+
+/**
+ * Chamada como quem está LOGADO, mesmo numa aba de atendimento: só para abrir e
+ * encerrar o atendimento (rotas do administrador, que recusam o token de atendimento).
+ */
+export async function chamarApiAdministrador(caminho: string, init: RequestInit = {}): Promise<Response> {
+  if (!API_URL) throw new Error('API Lotti indisponível no momento.');
+  return chamarComLogin(caminho, init);
+}
+
+function enviarComToken(caminho: string, init: RequestInit, token: string): Promise<Response> {
+  return fetch(`${API_URL}${caminho}`, {
     ...init,
     headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
   });
-  const token = await obterTokenApi();
-  const res = await enviar(token);
+}
+
+async function chamarComLogin(caminho: string, init: RequestInit): Promise<Response> {
+  const token = await obterTokenDoLogin();
+  const res = await enviarComToken(caminho, init, token);
   if (res.status !== 401 || !corpoReenviavel(init.body) || init.signal?.aborted) return res;
   const novo = await clienteAuth.renovarAposRecusa(token);
-  return novo ? enviar(novo) : res;
+  return novo ? enviarComToken(caminho, init, novo) : res;
 }
 
 /** Confirma uma visita pedida pelo agente. Lança Error com texto para o usuário. */

@@ -36,6 +36,18 @@ describe('TenantDb', () => {
     ]);
   });
 
+  it('atendimento: session_id e a marca suporte chegam inteiros em request.jwt.claims (o gatilho de auditoria lê session_id)', async () => {
+    const { prisma, calls } = fakePrisma();
+    const db = new TenantDb(prisma as never);
+    const deSuporte = {
+      ...claims, session_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      suporte: { sessao_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', ator: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+    };
+    await db.run(deSuporte, async () => 1);
+    const aplicadas = JSON.parse(JSON.parse(calls[0].split('|')[1])[0]);
+    expect(aplicadas).toEqual(deSuporte);
+  });
+
   it('recusa claims sem usuário autenticado', async () => {
     const { prisma } = fakePrisma();
     const db = new TenantDb(prisma as never);

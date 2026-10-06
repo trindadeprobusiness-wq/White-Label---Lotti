@@ -3,6 +3,7 @@ import { SupabaseClaims } from '../prisma/tenant-db';
 import { Claims } from './claims.decorator';
 import { AtualizarCorretorDto, RegistrarAtividadeDto } from './perfil.dto';
 import { PerfilCorretor, PerfilService } from './perfil.service';
+import { RecusaTokenSuporte } from './sessao-suporte';
 import { SupabaseAuthGuard } from './supabase-auth.guard';
 
 /**
@@ -25,8 +26,10 @@ export class PerfilController {
     return this.perfil.atualizar(claims, dto);
   }
 
+  /** Presença do titular: o atendimento não conta como acesso dele (o front já não chama). */
   @Post('atividade')
   @HttpCode(204)
+  @RecusaTokenSuporte()
   registrarAtividade(@Claims() claims: SupabaseClaims, @Body() dto: RegistrarAtividadeDto): Promise<void> {
     return this.perfil.registrarAtividade(claims, dto);
   }
