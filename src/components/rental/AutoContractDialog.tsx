@@ -7,6 +7,7 @@ import { comoResultado } from "@/lib/api/http";
 import { corretorIdDaContaApi } from "@/stores/crmStore";
 import { criarImovelApi } from "@/lib/api/imoveis";
 import { criarLocacaoApi, opcoesClientesApi, opcoesImoveisApi, primeiraFaturaLocacao } from "@/lib/api/contratos";
+import { enviarArquivoApi } from "@/lib/api/arquivos";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -265,13 +266,23 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
             if (contractFile) {
                 const fileExt = contractFile.name.split(".").pop();
                 const filePath = `${corretorId}/${Date.now()}_contrato.${fileExt}`;
-                const { error: uploadError } = await supabase.storage
-                    .from("documentos")
-                    .upload(filePath, contractFile);
-                if (uploadError) {
-                    toast.warning("Contrato será criado, mas o upload do arquivo falhou: " + uploadError.message);
+                if (apiDisponivel()) {
+                    // Mesma key no Garage, pela API (bucket privado 'documentos').
+                    try {
+                        await enviarArquivoApi("documento", filePath, contractFile);
+                        arquivoPath = filePath;
+                    } catch (err) {
+                        toast.warning("Contrato será criado, mas o upload do arquivo falhou: " + mensagemDeErro(err));
+                    }
                 } else {
-                    arquivoPath = filePath;
+                    const { error: uploadError } = await supabase.storage
+                        .from("documentos")
+                        .upload(filePath, contractFile);
+                    if (uploadError) {
+                        toast.warning("Contrato será criado, mas o upload do arquivo falhou: " + uploadError.message);
+                    } else {
+                        arquivoPath = filePath;
+                    }
                 }
             }
 

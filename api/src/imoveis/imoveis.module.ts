@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { ImoveisController } from './imoveis.controller';
+import { ImoveisFotosController } from './imoveis-fotos.controller';
+import { ImoveisFotosService } from './imoveis-fotos.service';
 import { ImoveisGestaoService } from './imoveis-gestao.service';
+import { ImoveisVendaEventoService } from './imoveis-venda-evento.service';
 import { ImoveisService } from './imoveis.service';
 
 @Module({
-  controllers: [ImoveisController],
-  providers: [ImoveisService, ImoveisGestaoService, SupabaseAuthGuard],
+  controllers: [ImoveisController, ImoveisFotosController],
+  providers: [ImoveisService, ImoveisGestaoService, ImoveisFotosService, ImoveisVendaEventoService, SupabaseAuthGuard],
   exports: [ImoveisService],
 })
 export class ImoveisModule {}

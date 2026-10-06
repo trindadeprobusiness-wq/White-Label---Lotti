@@ -28,7 +28,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 let apiLigada = false;
 vi.mock('@/lib/api', () => ({ apiDisponivel: () => apiLigada }));
 const arquivos = vi.hoisted(() => ({
-  enviarArquivoApi: vi.fn(async () => 'key'),
+  enviarArquivoApi: vi.fn(async (_grupo: string, _key: string, _file: File) => 'key'),
   apagarArquivoApi: vi.fn(async () => undefined),
   urlPublicaFoto: vi.fn((k: string) => `https://api/foto/${k}`),
   urlPublicaVideo: vi.fn((k: string) => `https://api/video/${k}`),
@@ -37,12 +37,78 @@ vi.mock('@/lib/api/arquivos', () => arquivos);
 // Com a API, o corretor da conta vem do perfil (crmStore), nunca do rpc do Supabase.
 const corretorIdDaContaApi = vi.hoisted(() => vi.fn(async () => 'corretor-1'));
 vi.mock('@/stores/crmStore', () => ({ corretorIdDaContaApi }));
+// Linhas de imovel_fotos pela API (bloco B1).
+const fotosApi = vi.hoisted(() => ({
+  listarFotosImovelApi: vi.fn(async () => [] as Array<Record<string, unknown>>),
+  criarFotoImovelApi: vi.fn(async (imovel_id: string, d: Record<string, unknown>) => ({ id: 'foto-api', imovel_id, ...d })),
+  removerFotoImovelApi: vi.fn(async () => undefined),
+  reordenarFotosImovelApi: vi.fn(async () => ({ atualizadas: 2 })),
+  definirFotoPrincipalApi: vi.fn(async () => ({ imovel_id: 'imovel-1', foto_id: 'f2' })),
+}));
+vi.mock('@/lib/api/imoveis', () => fotosApi);
 
+import { toast } from 'sonner';
 import { useImovelFotos } from './useImovelFotos';
-import { useVideos } from './useVideos';
+import { MSG_VIDEOS_INDISPONIVEIS, useVideos } from './useVideos';
 
 beforeEach(() => { vi.clearAllMocks(); rpc.mockResolvedValue({ data: 'corretor-1', error: null }); });
 afterEach(() => { apiLigada = false; });
+
+describe('useImovelFotos — linhas pela API (bloco B1), nenhuma chamada ao Supabase', () => {
+  const F1 = { id: 'f1', imovel_id: 'imovel-1', arquivo_url: 'u1', arquivo_path: 'imovel-1/1', principal: true, ordem: 0, created_at: null };
+  const F2 = { ...F1, id: 'f2', arquivo_url: 'u2', arquivo_path: 'imovel-1/2', principal: false, ordem: 1 };
+
+  it('fetchFotos lista pela API', async () => {
+    apiLigada = true;
+    fotosApi.listarFotosImovelApi.mockResolvedValueOnce([F1, F2]);
+    const { result } = renderHook(() => useImovelFotos('imovel-1'));
+    await act(async () => { await result.current.fetchFotos(); });
+    expect(fotosApi.listarFotosImovelApi).toHaveBeenCalledWith('imovel-1');
+    expect(result.current.fotos.map((f) => f.id)).toEqual(['f1', 'f2']);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('upload grava a linha pela API com a key e a URL pública; o servidor decide ordem e principal', async () => {
+    apiLigada = true;
+    const { result } = renderHook(() => useImovelFotos('imovel-1'));
+    const file = new File(['x'], 'a.jpg', { type: 'image/jpeg' });
+    let foto: unknown;
+    await act(async () => { foto = await result.current.uploadFoto('imovel-1', file, true); });
+    const [, key] = arquivos.enviarArquivoApi.mock.calls[0];
+    expect(fotosApi.criarFotoImovelApi).toHaveBeenCalledWith('imovel-1', {
+      arquivo_url: `https://api/foto/${key}`, arquivo_path: key, principal: true,
+    });
+    expect((foto as { id: string }).id).toBe('foto-api');
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('apagar, reordenar e definir principal usam as rotas da API', async () => {
+    apiLigada = true;
+    fotosApi.listarFotosImovelApi.mockResolvedValue([F1, F2]);
+    const { result } = renderHook(() => useImovelFotos('imovel-1'));
+    await act(async () => { await result.current.fetchFotos(); });
+    await act(async () => { await result.current.reordenarFotos('imovel-1', ['f2', 'f1']); });
+    expect(fotosApi.reordenarFotosImovelApi).toHaveBeenCalledWith('imovel-1', ['f2', 'f1']);
+    await act(async () => { await result.current.setFotoPrincipal('f2', 'imovel-1'); });
+    expect(fotosApi.definirFotoPrincipalApi).toHaveBeenCalledWith('imovel-1', 'f2');
+    await act(async () => { await result.current.deleteFoto('f1', 'imovel-1/1'); });
+    expect(fotosApi.removerFotoImovelApi).toHaveBeenCalledWith('f1');
+    expect(from).not.toHaveBeenCalled();
+    fotosApi.listarFotosImovelApi.mockResolvedValue([]);
+  });
+
+  it('getFotoPrincipal: a principal única, senão a primeira pela ordem', async () => {
+    apiLigada = true;
+    const { result } = renderHook(() => useImovelFotos('imovel-1'));
+    fotosApi.listarFotosImovelApi.mockResolvedValueOnce([F1, { ...F2, principal: true }]);
+    expect(await result.current.getFotoPrincipal('imovel-1')).toBe('u1');
+    fotosApi.listarFotosImovelApi.mockResolvedValueOnce([{ ...F1, principal: false }, F2]);
+    expect(await result.current.getFotoPrincipal('imovel-1')).toBe('u1');
+    fotosApi.listarFotosImovelApi.mockResolvedValueOnce([{ ...F1, principal: false }, { ...F2, principal: true }]);
+    expect(await result.current.getFotoPrincipal('imovel-1')).toBe('u2');
+    expect(from).not.toHaveBeenCalled();
+  });
+});
 
 describe('useImovelFotos — Garage atrás de apiDisponivel()', () => {
   it('sem API: usa o Storage do Supabase, nenhuma chamada à API', async () => {
@@ -95,20 +161,31 @@ describe('useVideos — Garage atrás de apiDisponivel()', () => {
     expect(arquivos.enviarArquivoApi).not.toHaveBeenCalled();
   });
 
-  it('com API: vídeo sobe pela API (streaming do File) e URL pública da API', async () => {
+  it('com API: a tabela videos não existe — lista vazia, sem Supabase', async () => {
+    apiLigada = true;
+    const { result } = await montar();
+    expect(result.current.videos).toEqual([]);
+    await act(async () => { await result.current.fetchVideos(); });
+    expect(from).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('com API: criar, editar e apagar avisam "Vídeos indisponíveis no momento" sem subir arquivo nem chamar o Supabase', async () => {
     apiLigada = true;
     const { result } = await montar();
     const file = new File([new Uint8Array(2048)], 'v.mp4', { type: 'video/mp4' });
-    await act(async () => { await result.current.uploadVideo(file, 'Tour', 'OUTRO', 'imovel-1'); });
+    await expect(result.current.uploadVideo(file, 'Tour', 'OUTRO', 'imovel-1')).rejects.toThrow(MSG_VIDEOS_INDISPONIVEIS);
+    await expect(result.current.updateVideo('v1', { titulo: 'X' })).rejects.toThrow(MSG_VIDEOS_INDISPONIVEIS);
+    await expect(result.current.deleteVideo('v1', 'corretor-1/geral/v.mp4')).rejects.toThrow(MSG_VIDEOS_INDISPONIVEIS);
+    await act(async () => { await result.current.incrementVisualizacoes('v1'); });
+    expect(toast.error).toHaveBeenCalledTimes(3);
+    expect(toast.error).toHaveBeenCalledWith(MSG_VIDEOS_INDISPONIVEIS);
+    expect(arquivos.enviarArquivoApi).not.toHaveBeenCalled();
+    expect(arquivos.apagarArquivoApi).not.toHaveBeenCalled();
     expect(storage.upload).not.toHaveBeenCalled();
-    const [grupo, key, enviado] = arquivos.enviarArquivoApi.mock.calls[0];
-    expect(grupo).toBe('video');
-    expect(String(key).startsWith('corretor-1/imovel-1/')).toBe(true);
-    expect(enviado).toBe(file);
-    expect(arquivos.urlPublicaVideo).toHaveBeenCalledWith(key);
+    expect(from).not.toHaveBeenCalled();
     // Sem sessão do Supabase no login próprio: nada de rpc('get_corretor_id').
     expect(rpc).not.toHaveBeenCalled();
-    expect(corretorIdDaContaApi).toHaveBeenCalledTimes(1);
   });
 
   it('com API: getTemporaryShareUrl devolve a rota pública (sem signed url)', async () => {

@@ -6,6 +6,8 @@ import { BuscaImoveisDto } from './busca-imoveis.dto';
 import { erroApi } from './imoveis.erros';
 import { AtualizarImovelDto, CriarImovelDto, RegistrarVendaDto } from './imoveis-gestao.dto';
 import { ClienteInteressado, ImoveisGestaoService, LinhaImovel, ResultadoVenda } from './imoveis-gestao.service';
+import { EventoVendaDto } from './imoveis-fotos.dto';
+import { ImoveisVendaEventoService } from './imoveis-venda-evento.service';
 import { ImovelResumo, ImoveisService } from './imoveis.service';
 
 const ID = new ParseUUIDPipe({ exceptionFactory: () => erroApi(400, 'id_invalido', 'Identificador inválido.') });
@@ -13,7 +15,11 @@ const ID = new ParseUUIDPipe({ exceptionFactory: () => erroApi(400, 'id_invalido
 @Controller('imoveis')
 @UseGuards(SupabaseAuthGuard)
 export class ImoveisController {
-  constructor(private readonly imoveis: ImoveisService, private readonly gestao: ImoveisGestaoService) {}
+  constructor(
+    private readonly imoveis: ImoveisService,
+    private readonly gestao: ImoveisGestaoService,
+    private readonly eventoVenda: ImoveisVendaEventoService,
+  ) {}
 
   // Rotas estáticas antes das rotas com :id.
   @Get('busca')
@@ -56,5 +62,16 @@ export class ImoveisController {
   @HttpCode(200)
   registrarVenda(@Claims() claims: SupabaseClaims, @Param('id', ID) id: string, @Body() dto: RegistrarVendaDto): Promise<ResultadoVenda> {
     return this.gestao.registrarVenda(claims, id, dto);
+  }
+
+  /** Evento de conversão (UTMify) na fila webhook_logs, depois da venda registrada. */
+  @Post(':id/venda/evento')
+  @HttpCode(200)
+  enfileirarEventoVenda(
+    @Claims() claims: SupabaseClaims,
+    @Param('id', ID) id: string,
+    @Body() dto: EventoVendaDto,
+  ): Promise<{ enfileirado: true; id: string }> {
+    return this.eventoVenda.enfileirar(claims, id, dto);
   }
 }

@@ -24,6 +24,18 @@ export interface VideoRow {
   updated_at: string;
 }
 
+/**
+ * A tabela public.videos não existe na produção nem no Railway (a funcionalidade nunca funcionou).
+ * Com a API ligada não há sessão do Supabase: a lista vem vazia e criar, editar ou apagar avisa
+ * com esta mensagem, sem chamar o Supabase e sem subir arquivo que ficaria órfão.
+ */
+export const MSG_VIDEOS_INDISPONIVEIS = 'Vídeos indisponíveis no momento.';
+
+function videosIndisponiveis(): never {
+  toast.error(MSG_VIDEOS_INDISPONIVEIS);
+  throw new Error(MSG_VIDEOS_INDISPONIVEIS);
+}
+
 export function useVideos() {
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +43,11 @@ export function useVideos() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const fetchVideos = useCallback(async (silent = false) => {
+    if (apiDisponivel()) {
+      setVideos([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -61,6 +78,7 @@ export function useVideos() {
     imovelId?: string,
     descricao?: string
   ) => {
+    if (apiDisponivel()) videosIndisponiveis();
     try {
       setUploading(true);
       setUploadProgress(0);
@@ -137,6 +155,7 @@ export function useVideos() {
   };
 
   const deleteVideo = async (id: string, videoPath?: string) => {
+    if (apiDisponivel()) videosIndisponiveis();
     try {
       // Delete from storage if path provided (Garage via API quando ligada).
       if (videoPath) {
@@ -167,6 +186,7 @@ export function useVideos() {
   };
 
   const updateVideo = async (id: string, updates: Partial<Pick<VideoRow, 'titulo' | 'descricao' | 'tipo' | 'imovel_id'>>) => {
+    if (apiDisponivel()) videosIndisponiveis();
     try {
       const { error } = await supabase
         .from('videos')
@@ -185,6 +205,7 @@ export function useVideos() {
   };
 
   const incrementVisualizacoes = async (id: string) => {
+    if (apiDisponivel()) return; // sem tabela videos: nada a contar
     try {
       const video = videos.find(v => v.id === id);
       if (!video) return;

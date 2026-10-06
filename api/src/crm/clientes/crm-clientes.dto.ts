@@ -5,8 +5,9 @@ export const TIPOS_INTERESSE = ['COMPRA', 'LOCACAO', 'AMBOS'] as const;
 export const CANAIS_CONTATO = ['WHATSAPP', 'EMAIL', 'TELEFONE', 'PRESENCIAL', 'OUTRO'] as const;
 export const DIRECOES_CONTATO = ['IN', 'OUT'] as const;
 export const LIMITE_LISTA = 1000;
-// cpf fica de fora de propósito: BillsList e NewContractDialog seguem no Supabase (contrato §7.1).
-export const COLUNAS_EDICAO_CLIENTE = ['nome', 'telefone', 'email', 'tipo_interesse', 'observacoes', 'ultimo_contato'] as const;
+// cpf entra no bloco B1: o BillsList grava o CPF que o corretor confirmou na leitura do contrato pela IA
+// (sobrescreve, como fazia pelo Supabase). Quem só completa CPF vazio segue usando POST :id/completar-cpf.
+export const COLUNAS_EDICAO_CLIENTE = ['nome', 'telefone', 'email', 'tipo_interesse', 'observacoes', 'ultimo_contato', 'cpf'] as const;
 
 const definido = (_o: unknown, v: unknown) => v !== undefined;
 /** Mesma regra do ParseUUIDPipe sem versão: qualquer 8-4-4-4-12 hexadecimal. */
@@ -38,6 +39,7 @@ export class AtualizarClienteDto {
   @ValidateIf(definido) @IsIn(TIPOS_INTERESSE, { message: 'Tipo de interesse inválido.' }) tipo_interesse?: string;
   @IsOptional() @IsString({ message: 'Observações inválidas.' }) @MaxLength(5000, { message: 'As observações podem ter até 5000 caracteres.' }) observacoes?: string | null;
   @IsOptional() @IsISO8601({}, { message: 'Data do último contato inválida.' }) ultimo_contato?: string | null;
+  @IsOptional() @IsString({ message: 'CPF/CNPJ inválido.' }) @MaxLength(40, { message: 'CPF/CNPJ inválido.' }) cpf?: string | null;
 }
 
 export class MoverClienteDto {

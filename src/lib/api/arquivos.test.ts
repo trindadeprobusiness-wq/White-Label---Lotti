@@ -151,4 +151,35 @@ describe('cliente de arquivos da API Lotti', () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
     await expect(apagarArquivoApi('documento', 'sumiu.pdf')).resolves.toBeUndefined();
   });
+
+  it('abrirPrivadoApi: abre a aba antes do download, põe o blob nela e revoga depois', async () => {
+    vi.useFakeTimers();
+    try {
+      const { abrirPrivadoApi } = await carregar();
+      const aba = { location: { href: '' }, close: vi.fn() };
+      const abrir = vi.spyOn(window, 'open').mockReturnValue(aba as unknown as Window);
+      fetchMock.mockResolvedValue(bin('%PDF', 200, 'application/pdf'));
+      await abrirPrivadoApi('documento', 'corretor/contratos_aluguel/c.pdf');
+      expect(abrir).toHaveBeenCalledWith('', '_blank');
+      expect(chamada().url).toBe(`${BASE}/api/arquivos/documento/corretor/contratos_aluguel/c.pdf`);
+      expect(chamada().headers.Authorization).toBe('Bearer tok');
+      expect(aba.location.href).toBe('blob:objeto');
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:objeto');
+      abrir.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('abrirPrivadoApi: download negado fecha a aba vazia e o erro sobe', async () => {
+    const { abrirPrivadoApi } = await carregar();
+    const aba = { location: { href: '' }, close: vi.fn() };
+    const abrir = vi.spyOn(window, 'open').mockReturnValue(aba as unknown as Window);
+    fetchMock.mockResolvedValue(json({ statusCode: 403, codigo: 'arquivo_de_outra_conta', message: 'Sem acesso.' }, 403));
+    await expect(abrirPrivadoApi('documento', 'x.pdf')).rejects.toThrow('Sem acesso.');
+    expect(aba.close).toHaveBeenCalled();
+    abrir.mockRestore();
+  });
 });

@@ -85,6 +85,27 @@ export async function baixarPrivadoApi(grupo: GrupoPrivado, key: string): Promis
   return URL.createObjectURL(blob);
 }
 
+/** Tempo que a object URL de um arquivo aberto numa aba nova fica viva (o visualizador de PDF relê o blob). */
+const VIDA_ABA_MS = 10 * 60 * 1000;
+
+/**
+ * Abre um arquivo privado numa aba nova (no lugar de `window.open(signedUrl)`). A aba é aberta antes do
+ * download, ainda dentro do clique, para o bloqueador de pop-up não barrar; o blob entra nela depois. A object
+ * URL é revogada sozinha depois de um tempo. Se o download falhar, a aba vazia é fechada e o erro sobe.
+ */
+export async function abrirPrivadoApi(grupo: GrupoPrivado, key: string): Promise<void> {
+  const aba = window.open('', '_blank');
+  try {
+    const url = await baixarPrivadoApi(grupo, key);
+    if (aba) aba.location.href = url;
+    else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), VIDA_ABA_MS);
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
+}
+
 /** Baixa uma mídia privada do Inbox pela API e devolve uma object URL (revogar depois). */
 export async function baixarInboxApi(bucket: BucketInbox, key: string): Promise<string> {
   const res = await chamarApi(`/api/arquivos/inbox/${bucket}/${encodeKey(key)}`);

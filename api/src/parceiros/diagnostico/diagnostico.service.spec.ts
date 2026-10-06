@@ -84,6 +84,14 @@ describe('D1 submit', () => {
     expect(sql(prisma.$executeRaw, 1).values).toEqual([SESSAO, 'diagnostic_completed', null]);
   });
 
+  it('formulário sem e-mail, cidade e empresa (o front manda "") passa, como na Edge; e-mail preenchido errado não', async () => {
+    const { prisma, servico } = montar();
+    const r = await servico.receber(submit({ email: '', city: '', company: '', attribution: { landing_page: 'x' } }));
+    expect(r.success).toBe(true);
+    expect(prisma.$executeRaw).toHaveBeenCalled();
+    expect(await erroDe(servico.receber(submit({ email: 'sem-arroba' })))).toMatchObject({ status: 400 });
+  });
+
   it('telefone com 55 também grava 55 + local', async () => {
     const { prisma, servico } = montar();
     await servico.receber(submit({ phone: '+55 (11) 99999-9999' }));

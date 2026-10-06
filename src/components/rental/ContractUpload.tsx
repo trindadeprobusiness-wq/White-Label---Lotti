@@ -3,6 +3,8 @@ import { Upload, FileText, X, Eye, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { abrirPrivadoApi } from "@/lib/api/arquivos";
 import { toast } from "sonner";
 
 interface ContractUploadProps {
@@ -81,6 +83,11 @@ export function ContractUpload({ onFileSelect, existingFileUrl }: ContractUpload
     const handleViewExisting = async () => {
         if (!existingFileUrl) return;
         try {
+            if (apiDisponivel()) {
+                // Bucket privado pela API (token no cabeçalho), aberto numa aba nova.
+                await abrirPrivadoApi('documento', existingFileUrl);
+                return;
+            }
             const { data, error } = await supabase.storage
                 .from('documentos')
                 .createSignedUrl(existingFileUrl, 60 * 60);

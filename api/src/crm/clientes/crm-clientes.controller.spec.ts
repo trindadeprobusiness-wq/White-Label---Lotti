@@ -132,10 +132,14 @@ describe('CrmClientesController', () => {
       expect(ruim.body.message).toContain('Tipo de interesse inválido.');
     });
 
-    it('PATCH /api/clientes/:id recusa cpf (fora da edição) com 400', async () => {
+    it('PATCH /api/clientes/:id aceita cpf (BillsList, bloco B1); cpf que não é texto vira 400', async () => {
       const res = await http().patch(`/api/clientes/${A}`).send({ cpf: '12345678909' });
-      expect(res.status).toBe(400);
-      expect(servico.atualizar).not.toHaveBeenCalled();
+      expect(res.status).toBe(200);
+      expect(servico.atualizar).toHaveBeenCalledWith(claims, A, expect.objectContaining({ cpf: '12345678909' }));
+      const ruim = await http().patch(`/api/clientes/${A}`).send({ cpf: 12345678909 });
+      expect(ruim.status).toBe(400);
+      expect(ruim.body.message).toContain('CPF/CNPJ inválido.');
+      expect(servico.atualizar).toHaveBeenCalledTimes(1);
     });
 
     it('DELETE /api/clientes/:id responde 204 sem corpo', async () => {

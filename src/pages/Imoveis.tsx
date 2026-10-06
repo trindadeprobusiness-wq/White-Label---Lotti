@@ -17,6 +17,8 @@ import { TipoImovel, Imovel } from '@/types/crm';
 import { NovoImovelDialog } from '@/components/imoveis/NovoImovelDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { LimitGuard } from '@/components/subscription/LimitGuard';
+import { apiDisponivel } from '@/lib/api';
+import { type FotoResumoApi, resumoFotosImoveisApi } from '@/lib/api/imoveis';
 
 const tipoLabels: Record<TipoImovel, string> = {
   APARTAMENTO: 'Apartamento',
@@ -92,11 +94,15 @@ export default function Imoveis() {
     const fetchFotosPrincipais = async () => {
       if (imoveis.length === 0) return;
 
-      const { data } = await supabase
-        .from('imovel_fotos')
-        .select('imovel_id, arquivo_url, principal')
-        .in('imovel_id', imoveis.map(i => i.id))
-        .order('created_at', { ascending: true });
+      // Com a API: as mesmas colunas e a mesma ordem pela rota de miniaturas. Falha
+      // não derruba a lista (o ramo do Supabase também só ignorava o erro).
+      const { data }: { data: FotoResumoApi[] | null } = apiDisponivel()
+        ? { data: await resumoFotosImoveisApi(imoveis.map(i => i.id)).catch(() => null) }
+        : await supabase
+          .from('imovel_fotos')
+          .select('imovel_id, arquivo_url, principal')
+          .in('imovel_id', imoveis.map(i => i.id))
+          .order('created_at', { ascending: true });
 
       if (data) {
         const fotosMap: Record<string, string[]> = {};

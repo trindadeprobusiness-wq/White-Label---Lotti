@@ -9,6 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { TipoVideo } from '@/hooks/useVideos';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { opcoesImoveisApi } from '@/lib/api/contratos';
 
 interface ImovelSimples {
   id: string;
@@ -46,6 +48,10 @@ export function VideoUploadArea({ onUpload, uploading, uploadProgress }: VideoUp
 
   useEffect(() => {
     const fetchImoveis = async () => {
+      if (apiDisponivel()) {
+        setImoveis(await opcoesImoveisApi<ImovelSimples>(['id', 'titulo']).catch(() => []));
+        return;
+      }
       const { data } = await supabase.from('imoveis').select('id, titulo').order('titulo');
       if (data) setImoveis(data);
     };

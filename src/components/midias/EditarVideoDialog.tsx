@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { VideoRow, TipoVideo } from '@/hooks/useVideos';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { opcoesImoveisApi } from '@/lib/api/contratos';
 
 interface ImovelSimples {
   id: string;
@@ -40,6 +42,10 @@ export function EditarVideoDialog({ video, open, onOpenChange, onUpdate }: Edita
 
   useEffect(() => {
     const fetchImoveis = async () => {
+      if (apiDisponivel()) {
+        setImoveis(await opcoesImoveisApi<ImovelSimples>(['id', 'titulo']).catch(() => []));
+        return;
+      }
       const { data } = await supabase.from('imoveis').select('id, titulo').order('titulo');
       if (data) setImoveis(data);
     };

@@ -4,6 +4,13 @@ import { toast } from 'sonner';
 import { novaOrdemPara } from '@/lib/ordemFotos';
 import { apiDisponivel } from '@/lib/api';
 import { apagarArquivoApi, enviarArquivoApi, urlPublicaFoto } from '@/lib/api/arquivos';
+import {
+  criarFotoImovelApi,
+  definirFotoPrincipalApi,
+  listarFotosImovelApi,
+  removerFotoImovelApi,
+  reordenarFotosImovelApi,
+} from '@/lib/api/imoveis';
 
 export interface ImovelFoto {
   id: string;
@@ -26,6 +33,11 @@ export function useImovelFotos(imovelId?: string) {
 
     try {
       setLoading(true);
+      if (apiDisponivel()) {
+        // Mesma ordem pela API (ordem, created_at, id); sem sessão do Supabase no modo API.
+        setFotos(await listarFotosImovelApi(targetId));
+        return;
+      }
       // Desempate por created_at: as fotos antigas ficaram todas com o default
       // ordem = 0 e, sem critério secundário, o Postgres devolvia em ordem
       // imprevisível — a galeria mudava sozinha a cada carregamento.
@@ -77,6 +89,16 @@ export function useImovelFotos(imovelId?: string) {
           .upload(filePath, file);
         if (uploadError) throw uploadError;
         arquivoUrl = supabase.storage.from('imoveis-fotos').getPublicUrl(filePath).data.publicUrl;
+      }
+
+      if (apiDisponivel()) {
+        // Numa chamada: o servidor calcula a próxima ordem, desmarca as outras se esta
+        // for a principal e grava (a primeira foto do imóvel é principal, como abaixo).
+        return await criarFotoImovelApi(targetImovelId, {
+          arquivo_url: arquivoUrl,
+          arquivo_path: filePath,
+          principal: isPrincipal,
+        });
       }
 
       // Get current max order
@@ -160,12 +182,16 @@ export function useImovelFotos(imovelId?: string) {
       }
 
       // Delete from database
-      const { error } = await supabase
-        .from('imovel_fotos')
-        .delete()
-        .eq('id', id);
+      if (apiDisponivel()) {
+        await removerFotoImovelApi(id);
+      } else {
+        const { error } = await supabase
+          .from('imovel_fotos')
+          .delete()
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast.success('Foto removida com sucesso!');
       setFotos(prev => prev.filter(f => f.id !== id));
@@ -188,6 +214,11 @@ export function useImovelFotos(imovelId?: string) {
     setFotos(idsNaOrdem.map((id, i) => ({ ...porId.get(id)!, ordem: i })).filter(Boolean));
 
     try {
+      if (apiDisponivel()) {
+        // Uma instrução no servidor: ordem = posição na lista (o mesmo que novaOrdemPara).
+        await reordenarFotosImovelApi(targetImovelId, idsNaOrdem);
+        return;
+      }
       const resultados = await Promise.all(
         novaOrdemPara(idsNaOrdem).map(({ id, ordem }) =>
           supabase.from('imovel_fotos').update({ ordem }).eq('id', id),
@@ -205,19 +236,24 @@ export function useImovelFotos(imovelId?: string) {
 
   const setFotoPrincipal = async (id: string, targetImovelId: string) => {
     try {
-      // Unset all as principal
-      await supabase
-        .from('imovel_fotos')
-        .update({ principal: false })
-        .eq('imovel_id', targetImovelId);
+      if (apiDisponivel()) {
+        // Desmarca as outras e marca esta numa instrução só (principal única).
+        await definirFotoPrincipalApi(targetImovelId, id);
+      } else {
+        // Unset all as principal
+        await supabase
+          .from('imovel_fotos')
+          .update({ principal: false })
+          .eq('imovel_id', targetImovelId);
 
-      // Set selected as principal
-      const { error } = await supabase
-        .from('imovel_fotos')
-        .update({ principal: true })
-        .eq('id', id);
+        // Set selected as principal
+        const { error } = await supabase
+          .from('imovel_fotos')
+          .update({ principal: true })
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       // A principal também vai para o início. Sem isto a fachada pública mostrava
       // a principal ao fundo e começava o carrossel noutra foto — o visitante via
@@ -235,6 +271,12 @@ export function useImovelFotos(imovelId?: string) {
 
   const getFotoPrincipal = async (targetImovelId: string): Promise<string | null> => {
     try {
+      if (apiDisponivel()) {
+        // Mesma regra do ramo abaixo: a principal, se houver exatamente uma; senão a primeira pela ordem.
+        const lista = await listarFotosImovelApi(targetImovelId);
+        const principais = lista.filter((f) => f.principal === true);
+        return (principais.length === 1 ? principais[0] : lista[0])?.arquivo_url || null;
+      }
       const { data, error } = await supabase
         .from('imovel_fotos')
         .select('arquivo_url')

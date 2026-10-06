@@ -5,10 +5,14 @@ import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { erroApi } from './imoveis.erros';
 import { ImoveisController } from './imoveis.controller';
 import { ImoveisGestaoService } from './imoveis-gestao.service';
+import { ImoveisFotosController } from './imoveis-fotos.controller';
+import { ImoveisFotosService } from './imoveis-fotos.service';
+import { ImoveisVendaEventoService } from './imoveis-venda-evento.service';
 import { ImoveisService } from './imoveis.service';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
+const C = '33333333-3333-4333-8333-333333333333';
 const NAO_V4 = '11111111-1111-1111-1111-111111111111';
 const claims = { sub: 'u1', role: 'authenticated' };
 const MSG_TIPO = 'Tipo de imóvel inválido. Use apartamento, casa, comercial ou terreno.';
@@ -36,12 +40,26 @@ describe('ImoveisController (gestão)', () => {
       imovel_id: id, status_venda: 'VENDIDO' as const, cliente_atualizado: false,
     })),
   };
+  const eventoVenda = { enfileirar: jest.fn(async (_c: unknown, _id: string, _d: unknown) => ({ enfileirado: true as const, id: C })) };
+  const fotos = {
+    listar: jest.fn(async (_c: unknown, _id: string) => [{ id: C }] as Record<string, unknown>[]),
+    criar: jest.fn(async (_c: unknown, _id: string, _d: unknown) => ({ id: C }) as Record<string, unknown>),
+    remover: jest.fn(async (_c: unknown, _id: string) => undefined),
+    reordenar: jest.fn(async (_c: unknown, _id: string, _d: unknown) => ({ atualizadas: 2 })),
+    definirPrincipal: jest.fn(async (_c: unknown, id: string, fotoId: string) => ({ imovel_id: id, foto_id: fotoId })),
+    resumo: jest.fn(async (_c: unknown, _d: unknown) => []),
+  };
   const libera: CanActivate = { canActivate: (ctx) => { ctx.switchToHttp().getRequest().claims = claims; return true; } };
 
   beforeAll(async () => {
     const ref = await Test.createTestingModule({
-      controllers: [ImoveisController],
-      providers: [{ provide: ImoveisService, useValue: busca }, { provide: ImoveisGestaoService, useValue: gestao }],
+      controllers: [ImoveisController, ImoveisFotosController],
+      providers: [
+        { provide: ImoveisService, useValue: busca },
+        { provide: ImoveisGestaoService, useValue: gestao },
+        { provide: ImoveisVendaEventoService, useValue: eventoVenda },
+        { provide: ImoveisFotosService, useValue: fotos },
+      ],
     }).overrideGuard(SupabaseAuthGuard).useValue(libera).compile();
     app = ref.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
@@ -253,6 +271,83 @@ describe('ImoveisController (gestão)', () => {
       const res = await http().post(`/api/imoveis/${NAO_V4}/venda`).send({ cliente_id: NAO_V4 });
       expect(res.status).toBe(200);
       expect(gestao.registrarVenda).toHaveBeenCalledWith(claims, NAO_V4, { cliente_id: NAO_V4 });
+    });
+  });
+
+  describe('POST /api/imoveis/:id/venda/evento', () => {
+    it('responde 200 e repassa valor e cliente; não cai na rota da venda', async () => {
+      const res = await http().post(`/api/imoveis/${A}/venda/evento`).send({ valor: 500000, cliente_id: B });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ enfileirado: true, id: C });
+      expect(eventoVenda.enfileirar).toHaveBeenCalledWith(claims, A, { valor: 500000, cliente_id: B });
+      expect(gestao.registrarVenda).not.toHaveBeenCalled();
+    });
+
+    it('valor negativo ou texto e campo fora do DTO respondem 400', async () => {
+      expect((await http().post(`/api/imoveis/${A}/venda/evento`).send({ valor: -1 })).body.message)
+        .toContain('O valor da venda não pode ser negativo.');
+      expect((await http().post(`/api/imoveis/${A}/venda/evento`).send({ valor: '10' })).status).toBe(400);
+      expect((await http().post(`/api/imoveis/${A}/venda/evento`).send({ payload: { x: 1 } })).status).toBe(400);
+      expect(eventoVenda.enfileirar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fotos (ImoveisFotosController)', () => {
+    it('GET /api/imoveis/:id/fotos lista e não é capturada por :id', async () => {
+      const res = await http().get(`/api/imoveis/${A}/fotos`);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([{ id: C }]);
+      expect(fotos.listar).toHaveBeenCalledWith(claims, A);
+      expect(gestao.obter).not.toHaveBeenCalled();
+    });
+
+    it('POST /api/imoveis/:id/fotos valida o corpo e repassa', async () => {
+      const corpo = { arquivo_path: `${A}/1_casa.jpg`, arquivo_url: 'https://api.exemplo/api/arquivos/publico/foto/x.jpg', principal: true };
+      const res = await http().post(`/api/imoveis/${A}/fotos`).send(corpo);
+      expect(res.status).toBe(201);
+      expect(fotos.criar).toHaveBeenCalledWith(claims, A, corpo);
+      const semUrl = await http().post(`/api/imoveis/${A}/fotos`).send({ ...corpo, arquivo_url: 'javascript:alert(1)' });
+      expect(semUrl.status).toBe(400);
+      expect(semUrl.body.message).toContain('Endereço da foto inválido.');
+      const nul = await http().post(`/api/imoveis/${A}/fotos`).send({ ...corpo, arquivo_path: `${A}/a\u0000.jpg` });
+      expect(nul.body.message).toContain('Caminho da foto inválido.');
+      expect((await http().post(`/api/imoveis/${A}/fotos`).send({ ...corpo, principal: 'sim' })).status).toBe(400);
+      expect(fotos.criar).toHaveBeenCalledTimes(1);
+    });
+
+    it('DELETE /api/imoveis/fotos/:fotoId responde 204 e não cai no DELETE do imóvel', async () => {
+      const res = await http().delete(`/api/imoveis/fotos/${C}`);
+      expect(res.status).toBe(204);
+      expect(fotos.remover).toHaveBeenCalledWith(claims, C);
+      expect(gestao.remover).not.toHaveBeenCalled();
+      expect((await http().delete('/api/imoveis/fotos/x')).status).toBe(400);
+    });
+
+    it('PATCH /api/imoveis/:id/fotos/ordem exige ids únicos', async () => {
+      const ok = await http().patch(`/api/imoveis/${A}/fotos/ordem`).send({ ids: [C, B] });
+      expect(ok.status).toBe(200);
+      expect(fotos.reordenar).toHaveBeenCalledWith(claims, A, { ids: [C, B] });
+      const repetido = await http().patch(`/api/imoveis/${A}/fotos/ordem`).send({ ids: [C, C] });
+      expect(repetido.status).toBe(400);
+      expect(repetido.body.message).toContain('A mesma foto apareceu duas vezes na ordem.');
+      expect((await http().patch(`/api/imoveis/${A}/fotos/ordem`).send({ ids: [] })).status).toBe(400);
+      expect(gestao.atualizar).not.toHaveBeenCalled();
+    });
+
+    it('PATCH /api/imoveis/:id/fotos/:fotoId/principal', async () => {
+      const res = await http().patch(`/api/imoveis/${A}/fotos/${C}/principal`);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ imovel_id: A, foto_id: C });
+      expect(fotos.definirPrincipal).toHaveBeenCalledWith(claims, A, C);
+    });
+
+    it('POST /api/imoveis/fotos/resumo responde 200 e recusa id inválido', async () => {
+      const res = await http().post('/api/imoveis/fotos/resumo').send({ imovel_ids: [A, B] });
+      expect(res.status).toBe(200);
+      expect(fotos.resumo).toHaveBeenCalledWith(claims, { imovel_ids: [A, B] });
+      const ruim = await http().post('/api/imoveis/fotos/resumo').send({ imovel_ids: ['x'] });
+      expect(ruim.status).toBe(400);
+      expect(ruim.body.message).toContain('Imóvel inválido.');
     });
   });
 });

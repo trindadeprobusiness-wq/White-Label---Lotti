@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { apiDisponivel } from '@/lib/api';
-import { registrarVendaImovelApi } from '@/lib/api/imoveis';
+import { registrarEventoVendaApi, registrarVendaImovelApi } from '@/lib/api/imoveis';
 
 interface VendaImovelDialogProps {
   open: boolean;
@@ -90,20 +90,35 @@ export function VendaImovelDialog({ open, onOpenChange, imovel, onSuccess }: Ven
       };
 
       // 4. Inserir no Webhook Logs para fila garantida
-      const { error: logError } = await (supabase as any)
-        .from('webhook_logs')
-        .insert({
-          event_type: 'SALE_PURCHASE',
-          payload: utmPayload,
-          status: 'PENDING',
-          // O URL de endpoint real deverá ser configurado ou inserido aqui.
-          // Estamos colocando um genérico para ser capturado pela Edge Function futuramente ou processado client-side
-          endpoint_url: 'UTMIFY_DEFAULT_ENDPOINT' 
-        });
+      let eventoEnfileirado = true;
+      if (apiDisponivel()) {
+        // O servidor monta o mesmo payload com os dados do banco e grava na fila
+        // (webhook_logs não tem policy para o usuário: pelo Supabase o insert sempre falhava).
+        try {
+          await registrarEventoVendaApi(imovel.id, {
+            valor: baseValue,
+            cliente_id: selectedClienteId !== 'none' ? selectedClienteId : null,
+          });
+        } catch (logError) {
+          console.error("Erro ao enfileirar o evento de conversão:", logError);
+          eventoEnfileirado = false; // a venda já foi gravada: não cancela, mas avisa
+        }
+      } else {
+        const { error: logError } = await (supabase as any)
+          .from('webhook_logs')
+          .insert({
+            event_type: 'SALE_PURCHASE',
+            payload: utmPayload,
+            status: 'PENDING',
+            // O URL de endpoint real deverá ser configurado ou inserido aqui.
+            // Estamos colocando um genérico para ser capturado pela Edge Function futuramente ou processado client-side
+            endpoint_url: 'UTMIFY_DEFAULT_ENDPOINT'
+          });
 
-      if (logError) {
-        console.error("Erro ao inserir log:", logError);
-        // Não jogamos throw para não cancelar a venda visual
+        if (logError) {
+          console.error("Erro ao inserir log:", logError);
+          // Não jogamos throw para não cancelar a venda visual
+        }
       }
 
       // Agora acionamos via Fetch do frontend também, para garantir processamento rápido no UTMIFY caso a Edge function não esteja ativa
@@ -117,7 +132,12 @@ export function VendaImovelDialog({ open, onOpenChange, imovel, onSuccess }: Ven
           }).catch(console.error);
       }
 
-      toast({ title: 'Venda registrada com sucesso!', description: 'O evento de conversão foi enfileirado no sistema.' });
+      toast({
+        title: 'Venda registrada com sucesso!',
+        description: eventoEnfileirado
+          ? 'O evento de conversão foi enfileirado no sistema.'
+          : 'Mas o evento de conversão não pôde ser enfileirado.',
+      });
       
       await fetchImoveis();
       if (onSuccess) onSuccess();

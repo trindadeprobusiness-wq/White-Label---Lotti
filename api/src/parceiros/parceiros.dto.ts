@@ -357,7 +357,8 @@ export class SubmeterDiagnosticoDto {
   @IsBoolean({ message: 'Confirme o uso dos dados para contato.' }) consent!: boolean;
   @IsString({ message: 'Confira nome, WhatsApp e e-mail.' }) @Length(2, 120, { message: 'Confira nome, WhatsApp e e-mail.' }) name!: string;
   @IsString({ message: 'Confira nome, WhatsApp e e-mail.' }) @MaxLength(32, { message: 'Confira nome, WhatsApp e e-mail.' }) phone!: string;
-  @ValidateIf(definido) @IsEmail({}, { message: 'Confira nome, WhatsApp e e-mail.' })
+  // '' é "sem e-mail": o formulário manda o campo vazio, e a Edge só validava e-mail preenchido.
+  @ValidateIf((_o: unknown, v: unknown) => v !== undefined && v !== '') @IsEmail({}, { message: 'Confira nome, WhatsApp e e-mail.' })
   @MaxLength(254, { message: 'Confira nome, WhatsApp e e-mail.' }) email?: string;
   @ValidateIf(definido) @IsString({ message: 'Cidade inválida.' }) @MaxLength(120, { message: 'Cidade inválida.' }) city?: string;
   @ValidateIf(definido) @IsString({ message: 'Empresa inválida.' }) @MaxLength(120, { message: 'Empresa inválida.' }) company?: string;

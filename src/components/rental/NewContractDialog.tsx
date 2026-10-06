@@ -5,6 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
 import { corretorIdDaContaApi } from "@/stores/crmStore";
 import { completarCpfApi } from "@/lib/api/crm";
+import { enviarArquivoApi } from "@/lib/api/arquivos";
+import { acaoAsaasApi } from "@/lib/api/financeiro";
+import { mensagemDeErro } from "@/lib/errors";
 import {
     criarLocacaoApi,
     editarLocacaoApi,
@@ -270,11 +273,20 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                 const fileName = `${Date.now()}_contrato.${fileExt}`;
                 const filePath = `${corretor.id}/${fileName}`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('documentos')
-                    .upload(filePath, contractFile);
+                if (apiDisponivel()) {
+                    // Mesma key no Garage, pela API (bucket privado 'documentos').
+                    try {
+                        await enviarArquivoApi('documento', filePath, contractFile);
+                    } catch (uploadError) {
+                        throw new Error("Erro ao fazer upload do contrato: " + mensagemDeErro(uploadError));
+                    }
+                } else {
+                    const { error: uploadError } = await supabase.storage
+                        .from('documentos')
+                        .upload(filePath, contractFile);
 
-                if (uploadError) throw new Error("Erro ao fazer upload do contrato: " + uploadError.message);
+                    if (uploadError) throw new Error("Erro ao fazer upload do contrato: " + uploadError.message);
+                }
 
                 arquivoPath = filePath;
             }
@@ -319,18 +331,13 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
                     const { contrato, faturas_emitidas } = await editarLocacaoApi(contractToEdit.id, dadosApi);
                     result = contrato;
 
-                    // Boletos já emitidos: re-sincroniza valor/data no Asaas (mesmo link).
+                    // Boletos já emitidos: re-sincroniza valor/data no Asaas (mesmo link),
+                    // pela rota da API (sem sessão do Supabase no login próprio).
                     try {
                         if (faturas_emitidas.length > 0) {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (session) {
-                                await Promise.all(faturas_emitidas.map((faturaId) =>
-                                    supabase.functions.invoke('asaas-sync', {
-                                        body: { action: 'atualizar_cobranca', fatura_id: faturaId },
-                                        headers: { Authorization: `Bearer ${session.access_token}` },
-                                    })
-                                ));
-                            }
+                            await Promise.all(faturas_emitidas.map((faturaId) =>
+                                acaoAsaasApi(faturaId, 'atualizar_cobranca')
+                            ));
                         }
                     } catch (syncError) {
                         console.error("Erro ao sincronizar faturas:", syncError);

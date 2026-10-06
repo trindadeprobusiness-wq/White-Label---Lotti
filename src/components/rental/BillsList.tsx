@@ -45,7 +45,10 @@ import { parseContratoContent } from "@/types/rental";
 import { extractContractData, type ExtractedContractData } from "@/services/contractExtractionService";
 import { Dinheiro } from "@/components/ui/dinheiro";
 import { apiDisponivel } from "@/lib/api";
-import type { ErroApi } from "@/lib/api/http";
+import { comoResultado, type ErroApi } from "@/lib/api/http";
+import { baixarPrivadoApi, enviarArquivoApi } from "@/lib/api/arquivos";
+import { alterarContratoApi } from "@/lib/api/contratos";
+import { atualizarClienteApi, obterClienteApi } from "@/lib/api/crm";
 import {
     acaoAsaasApi,
     alterarVencimentoApi,
@@ -97,6 +100,11 @@ export function BillsList() {
     const [loadingContractId, setLoadingContractId] = useState<string | null>(null);
     const [isUploadingContract, setIsUploadingContract] = useState(false);
     const contractFileInputRef = useRef<HTMLInputElement>(null);
+    // Com a API, o visualizador recebe uma object URL (blob:): revoga a anterior ao trocar ou fechar.
+    useEffect(() => {
+        const url = contractViewerUrl;
+        return () => { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); };
+    }, [contractViewerUrl]);
 
     // Leitura do contrato por IA: extrai o CPF do inquilino do PDF anexado.
     // Nada é gravado sem o corretor confirmar (CPF errado = cobrança errada).
@@ -318,7 +326,10 @@ export function BillsList() {
             });
 
             // Try to load the PDF if there's an arquivo_url
-            if (contract.arquivo_url) {
+            if (contract.arquivo_url && apiDisponivel()) {
+                // Bucket privado pela API: object URL (revogada quando o visualizador troca ou fecha).
+                setContractViewerUrl(await baixarPrivadoApi('documento', contract.arquivo_url).catch(() => null));
+            } else if (contract.arquivo_url) {
                 const { data, error } = await supabase.storage
                     .from('documentos')
                     .createSignedUrl(contract.arquivo_url, 60 * 60); // 1h
@@ -351,28 +362,37 @@ export function BillsList() {
             // A policy do bucket 'documentos' exige que a primeira pasta seja o corretor_id
             const filePath = `${contractViewerDetails.corretorId}/contratos_aluguel/${fileName}`;
 
-            // Upload the file
-            const { error: uploadError } = await supabase.storage
-                .from('documentos')
-                .upload(filePath, file, { cacheControl: '3600', upsert: false });
+            if (apiDisponivel()) {
+                // Mesma key, pela API: sobe no Garage, grava contratos.arquivo_url e já
+                // baixa para o visualizador (o download confere o dono pela linha do contrato).
+                await enviarArquivoApi('documento', filePath, file);
+                await alterarContratoApi(contractViewerDetails.id, { arquivo_url: filePath });
+                const url = await baixarPrivadoApi('documento', filePath).catch(() => null);
+                if (url) setContractViewerUrl(url);
+            } else {
+                // Upload the file
+                const { error: uploadError } = await supabase.storage
+                    .from('documentos')
+                    .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
-            if (uploadError) throw uploadError;
+                if (uploadError) throw uploadError;
 
-            // Update contract record
-            const { error: updateError } = await supabase
-                .from('contratos')
-                .update({ arquivo_url: filePath })
-                .eq('id', contractViewerDetails.id);
+                // Update contract record
+                const { error: updateError } = await supabase
+                    .from('contratos')
+                    .update({ arquivo_url: filePath })
+                    .eq('id', contractViewerDetails.id);
 
-            if (updateError) throw updateError;
+                if (updateError) throw updateError;
 
-            // Fetch the signed URL immediately to show in the viewer
-            const { data: urlData } = await supabase.storage
-                .from('documentos')
-                .createSignedUrl(filePath, 60 * 60);
+                // Fetch the signed URL immediately to show in the viewer
+                const { data: urlData } = await supabase.storage
+                    .from('documentos')
+                    .createSignedUrl(filePath, 60 * 60);
 
-            if (urlData?.signedUrl) {
-                setContractViewerUrl(urlData.signedUrl);
+                if (urlData?.signedUrl) {
+                    setContractViewerUrl(urlData.signedUrl);
+                }
             }
 
             toast.success("Contrato anexado com sucesso!", { id: toastId });
@@ -449,11 +469,15 @@ export function BillsList() {
 
         setSavingCpf(true);
         try {
-            const { data: atual, error: readErr } = await (supabase as any)
-                .from('clientes')
-                .select('telefone, email')
-                .eq('id', clienteId)
-                .single();
+            // Com a API: lê o cadastro e grava pelas rotas de clientes (o PATCH aceita cpf).
+            const usarApi = apiDisponivel();
+            const { data: atual, error: readErr } = usarApi
+                ? await comoResultado(obterClienteApi(clienteId))
+                : await (supabase as any)
+                    .from('clientes')
+                    .select('telefone, email')
+                    .eq('id', clienteId)
+                    .single();
             if (readErr) throw readErr;
 
             const patch: Record<string, unknown> = { cpf: inq.cpf.replace(/\D/g, '') };
@@ -464,13 +488,16 @@ export function BillsList() {
             if (!atual?.telefone && telefone) patch.telefone = telefone;
             if (!atual?.email && inq.email) patch.email = inq.email;
 
-            let { error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId);
+            const gravar = () => usarApi
+                ? comoResultado(atualizarClienteApi(clienteId, patch))
+                : (supabase as any).from('clientes').update(patch).eq('id', clienteId);
+            let { error } = await gravar();
             // O telefone lido pode ser de outro cliente da conta, e o banco não
             // deixa dois clientes com o mesmo número: grava o resto sem ele.
             const telefoneDeOutro = !!clienteDoTelefone(error);
             if (telefoneDeOutro) {
                 delete patch.telefone;
-                ({ error } = await (supabase as any).from('clientes').update(patch).eq('id', clienteId));
+                ({ error } = await gravar());
             }
             if (error) throw error;
 

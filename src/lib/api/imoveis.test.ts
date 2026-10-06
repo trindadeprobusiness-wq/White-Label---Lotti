@@ -78,6 +78,54 @@ describe('API de imóveis no front', () => {
     expect(JSON.parse(chamada(4).init.body as string)).toEqual({ cliente_id: null });
   });
 
+  it('fotos (bloco B1): rotas, métodos e corpos exatos', async () => {
+    const api = await carregar();
+    const FOTO = '33333333-3333-4333-8333-333333333333';
+    fetchMock.mockResolvedValueOnce(json([{ id: FOTO }]));
+    expect(await api.listarFotosImovelApi(IMOVEL)).toEqual([{ id: FOTO }]);
+    expect(chamada(0).url).toBe(`${BASE}/api/imoveis/${IMOVEL}/fotos`);
+    expect(chamada(0).init.method).toBeUndefined();
+
+    const nova = { arquivo_url: 'https://api/foto/x.jpg', arquivo_path: `${IMOVEL}/1_x.jpg`, principal: false };
+    fetchMock.mockResolvedValueOnce(json({ id: FOTO }, 201));
+    await api.criarFotoImovelApi(IMOVEL, nova);
+    expect([chamada(1).url, chamada(1).init.method]).toEqual([`${BASE}/api/imoveis/${IMOVEL}/fotos`, 'POST']);
+    expect(JSON.parse(chamada(1).init.body as string)).toEqual(nova);
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(api.removerFotoImovelApi(FOTO)).resolves.toBeUndefined();
+    expect([chamada(2).url, chamada(2).init.method]).toEqual([`${BASE}/api/imoveis/fotos/${FOTO}`, 'DELETE']);
+
+    fetchMock.mockResolvedValueOnce(json({ atualizadas: 1 }));
+    await api.reordenarFotosImovelApi(IMOVEL, [FOTO]);
+    expect([chamada(3).url, chamada(3).init.method]).toEqual([`${BASE}/api/imoveis/${IMOVEL}/fotos/ordem`, 'PATCH']);
+    expect(JSON.parse(chamada(3).init.body as string)).toEqual({ ids: [FOTO] });
+
+    fetchMock.mockResolvedValueOnce(json({ imovel_id: IMOVEL, foto_id: FOTO }));
+    await api.definirFotoPrincipalApi(IMOVEL, FOTO);
+    expect([chamada(4).url, chamada(4).init.method]).toEqual([`${BASE}/api/imoveis/${IMOVEL}/fotos/${FOTO}/principal`, 'PATCH']);
+
+    fetchMock.mockResolvedValueOnce(json({ enfileirado: true, id: FOTO }));
+    await api.registrarEventoVendaApi(IMOVEL, { valor: 500000, cliente_id: null });
+    expect([chamada(5).url, chamada(5).init.method]).toEqual([`${BASE}/api/imoveis/${IMOVEL}/venda/evento`, 'POST']);
+    expect(JSON.parse(chamada(5).init.body as string)).toEqual({ valor: 500000, cliente_id: null });
+  });
+
+  it('miniaturas: POST /fotos/resumo em lotes de 1000 imóveis, juntando as respostas', async () => {
+    const api = await carregar();
+    const ids = Array.from({ length: 1001 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    fetchMock
+      .mockResolvedValueOnce(json([{ imovel_id: ids[0], arquivo_url: 'a', principal: true }]))
+      .mockResolvedValueOnce(json([{ imovel_id: ids[1000], arquivo_url: 'b', principal: false }]));
+    expect(await api.resumoFotosImoveisApi(ids)).toEqual([
+      { imovel_id: ids[0], arquivo_url: 'a', principal: true },
+      { imovel_id: ids[1000], arquivo_url: 'b', principal: false },
+    ]);
+    expect(chamada(0).url).toBe(`${BASE}/api/imoveis/fotos/resumo`);
+    expect(JSON.parse(chamada(0).init.body as string).imovel_ids).toHaveLength(1000);
+    expect(JSON.parse(chamada(1).init.body as string)).toEqual({ imovel_ids: [ids[1000]] });
+  });
+
   it('codifica o id na URL', async () => {
     const api = await carregar();
     fetchMock.mockResolvedValueOnce(json({ id: 'a/b' }));

@@ -202,9 +202,17 @@ describe('CrmClientesService', () => {
     it('nunca usa coluna fora da lista, mesmo que venha no objeto', async () => {
       const { tx, servico, consulta } = montar();
       tx.$queryRaw.mockResolvedValueOnce([{ linha: { id: A } }]);
-      await servico.atualizar(claims, A, { ultimo_contato: '2026-10-04T12:00:00.000Z', cpf: '1', corretor_id: B } as never);
+      await servico.atualizar(claims, A, { ultimo_contato: '2026-10-04T12:00:00.000Z', status_funil: 'FECHADO_GANHO', corretor_id: B } as never);
       expect(consulta(0).text).toMatch(/set \(ultimo_contato\) = \(select r\.ultimo_contato from/);
       expect(JSON.parse(consulta(0).values[0] as string)).toEqual({ ultimo_contato: '2026-10-04T12:00:00.000Z' });
+    });
+
+    it('grava cpf quando vem (BillsList, bloco B1)', async () => {
+      const { tx, servico, consulta } = montar();
+      tx.$queryRaw.mockResolvedValueOnce([{ linha: { id: A } }]);
+      await servico.atualizar(claims, A, { cpf: '12345678909', email: 'a@b.c' } as never);
+      expect(consulta(0).text).toMatch(/set \(email, cpf\) = \(select r\.email, r\.cpf from/);
+      expect(JSON.parse(consulta(0).values[0] as string)).toEqual({ email: 'a@b.c', cpf: '12345678909' });
     });
 
     it('sem coluna vira 400 e zero linhas vira 404', async () => {

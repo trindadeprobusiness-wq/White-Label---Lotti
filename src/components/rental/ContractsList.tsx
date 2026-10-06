@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
 import { alterarContratoApi, listarContratosLocacaoApi, removerContratoApi } from "@/lib/api/contratos";
+import { abrirPrivadoApi } from "@/lib/api/arquivos";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -132,6 +133,11 @@ export function ContractsList() {
 
     const handleViewContract = async (path: string) => {
         try {
+            if (apiDisponivel()) {
+                // Bucket privado pela API (token no cabeçalho), aberto numa aba nova.
+                await abrirPrivadoApi('documento', path);
+                return;
+            }
             const { data, error } = await supabase.storage
                 .from('documentos')
                 .createSignedUrl(path, 60 * 60);

@@ -2,14 +2,28 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, LockKeyhole } from 'lucide-react';
 import { LottiLogo } from '@/components/brand/LottiLogo';
+import { apiDisponivel } from '@/lib/api';
 import { questions, scoreDiagnostic, visibleQuestions, type Answers } from '../../supabase/functions/_shared/commercial-diagnostic';
 
 type Draft = { sessionId: string; answers: Answers; index: number; started: boolean };
 type Contact = { name: string; phone: string; email: string; city: string; company: string; consent: boolean };
 const KEY = 'lotti:commercial-diagnostic:v1';
 const emptyContact: Contact = { name: '', phone: '', email: '', city: '', company: '', consent: false };
-const api = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/commercial-diagnostic`;
-const headers = { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY };
+// Com a API ligada, a rota pública da API (sem sessão e sem apikey), com os mesmos corpos
+// `event`/`submit` e a mesma resposta { success, result }; sem ela, a Edge Function de hoje.
+const API_LOTTI = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '');
+const api = apiDisponivel()
+  ? `${API_LOTTI}/api/diagnostico-comercial`
+  : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/commercial-diagnostic`;
+const headers: Record<string, string> = apiDisponivel()
+  ? { 'Content-Type': 'application/json' }
+  : { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY };
+
+/** Texto de erro da resposta: a Edge devolve `error`; a API devolve `message` (5xx não tem texto útil). */
+function erroDaResposta(body: { error?: unknown; message?: unknown } | null, status: number): string {
+  const texto = apiDisponivel() ? (status < 500 ? body?.message : undefined) : body?.error;
+  return typeof texto === 'string' && texto ? texto : 'Não foi possível salvar agora.';
+}
 
 function initialDraft(): Draft {
   try {
@@ -110,7 +124,7 @@ export default function CommercialDiagnostic() {
     try {
       const response = await fetch(api, { method: 'POST', headers, body: JSON.stringify({ action: 'submit', session_id: draft.sessionId, answers: draft.answers, ...contact, attribution: source }) });
       const body = await response.json();
-      if (!response.ok || !body.success) throw new Error(body.error || 'Não foi possível salvar agora.');
+      if (!response.ok || !body.success) throw new Error(erroDaResposta(body, response.status));
       setResult(body.result);
       sessionStorage.removeItem(KEY);
     } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível salvar agora.'); }

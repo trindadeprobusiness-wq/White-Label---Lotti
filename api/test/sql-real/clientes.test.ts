@@ -253,10 +253,10 @@ describe('obter', () => {
 describe('atualizar', () => {
   test('grava só as colunas enviadas da lista de edição e devolve a linha atualizada', async () => {
     const antes = await clienteNoBanco(maria);
-    // cpf e corretor_id não estão em COLUNAS_EDICAO_CLIENTE: mesmo chegando ao service, não são gravados.
+    // status_funil e corretor_id não estão em COLUNAS_EDICAO_CLIENTE: mesmo chegando ao service, não são gravados.
     const dto = {
       nome: 'Maria Silva Souza', email: null, observacoes: 'Quer 3 quartos', ultimo_contato: '2026-10-02T09:00:00Z',
-      cpf: '000.000.000-00', corretor_id: banco.corretorB,
+      status_funil: 'FECHADO_GANHO', corretor_id: banco.corretorB,
     } as unknown as AtualizarClienteDto;
     const r = await servico.atualizar(banco.claimsA, maria, dto);
     assert.deepEqual(Object.keys(r).sort(), CHAVES_CLIENTE);
@@ -265,6 +265,17 @@ describe('atualizar', () => {
     for (const coluna of ['telefone', 'cpf', 'tipo_interesse', 'status_funil', 'corretor_id', 'tracking_data', 'created_at']) {
       assert.deepEqual(r[coluna], antes[coluna], coluna);
     }
+  });
+
+  test('cpf entra na edição (BillsList, bloco B1): sobrescreve, e B não grava no cliente de A', async () => {
+    const cliente = (await banco.inserir('clientes', {
+      corretor_id: banco.corretorA, nome: 'Inquilino do contrato', telefone: '62981110099', cpf: '111.111.111-11',
+    })).id as string;
+    const r = await servico.atualizar(banco.claimsA, cliente, { cpf: '52998224725' } as AtualizarClienteDto);
+    assert.equal(r.cpf, '52998224725');
+    assert.equal((await clienteNoBanco(cliente)).cpf, '52998224725');
+    assert.deepEqual(await capturarErroHttp(servico.atualizar(banco.claimsB, cliente, { cpf: '00000000000' } as AtualizarClienteDto)), NAO_ENCONTRADO);
+    assert.equal((await clienteNoBanco(cliente)).cpf, '52998224725');
   });
 
   test('nada para gravar → 400 nada_para_atualizar, sem abrir transação', async () => {

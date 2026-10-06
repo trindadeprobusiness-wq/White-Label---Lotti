@@ -17,6 +17,8 @@ import { EditarVideoDialog } from '@/components/midias/EditarVideoDialog';
 import { CompartilharVideoDialog } from '@/components/midias/CompartilharVideoDialog';
 import { FotosIA } from '@/components/midias/FotosIA';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { opcoesImoveisApi } from '@/lib/api/contratos';
 import { PageHeader } from '@/components/shell/PageHeader';
 import {
   abasSublinhadas, MetricStrip, SectionCard, EmptyState,
@@ -58,6 +60,11 @@ export default function Midias() {
 
   useEffect(() => {
     const fetchImoveis = async () => {
+      if (apiDisponivel()) {
+        // Lista de imóveis da API, só id e título, ordenada por título como abaixo.
+        setImoveis(await opcoesImoveisApi<ImovelSimples>(['id', 'titulo']).catch(() => []));
+        return;
+      }
       const { data } = await supabase.from('imoveis').select('id, titulo').order('titulo');
       if (data) setImoveis(data);
     };
