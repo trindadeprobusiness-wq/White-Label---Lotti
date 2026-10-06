@@ -22,6 +22,10 @@ Marcação: **[VOCÊ]** é decisão ou clique seu · **[CODEX]** roda com a CLI 
 
 ## B. Ensaio final (tarde, sem tocar na produção)
 
+> **Feito em 2026-10-06** (relatório 23): 105 tabelas iguais, 3/3 usuários, 89 arquivos no Garage,
+> mesma visão por usuário. Gemini corrigido (gerar-contrato v44, minuta em 6,9 s). Dump (A3)
+> exige Docker: o backup é a cópia do Railway + o Supabase intacto.
+
 | # | Quem | O quê | Volta atrás |
 |---|------|-------|-------------|
 | B1 | [CLAUDE] | Migrações no Railway: **já aplicadas** (deploy `a2776b6` SUCCESS, health ok) | — |
