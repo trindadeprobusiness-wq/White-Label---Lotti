@@ -77,6 +77,11 @@ export async function listarHistoricoApi(clienteId: string): Promise<Linha[]> {
   return lerJson(await chamarApi(`${cliente(clienteId)}/historico`), 'Não foi possível carregar o histórico.');
 }
 
+/** Histórico de todos os clientes que a conta enxerga (a timeline sem cliente escolhido). */
+export async function listarHistoricoGeralApi(): Promise<Linha[]> {
+  return lerJson(await chamarApi('/api/clientes/historico'), 'Não foi possível carregar o histórico.');
+}
+
 export async function registrarHistoricoApi(
   clienteId: string,
   r: { tipo: string; direcao?: 'IN' | 'OUT'; conteudo: string; metadata?: Record<string, unknown> },

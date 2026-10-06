@@ -167,6 +167,16 @@ describe('controllers de fachadas (HTTP)', () => {
     await http().delete(`/fachadas/templates/${FACHADA}`).expect(204);
   });
 
+  it('F5 com convertido=false lista só os pendentes; valor fora de true/false dá 400', async () => {
+    await http().get('/fachadas/leads?convertido=false').expect(200);
+    expect(leads.listar).toHaveBeenCalledWith(claims, { convertido: false });
+    await http().get('/fachadas/leads?convertido=true').expect(200);
+    expect(leads.listar).toHaveBeenLastCalledWith(claims, { convertido: true });
+    leads.listar.mockClear();
+    await http().get('/fachadas/leads?convertido=talvez').expect(400);
+    expect(leads.listar).not.toHaveBeenCalled();
+  });
+
   it('id fora do formato dá 400 id_invalido, inclusive nas rotas públicas', async () => {
     for (const caminho of ['/fachadas/nao-e-uuid', '/fachadas/leads/nao-e-uuid', '/fachadas/templates/nao-e-uuid',
       '/fachadas/midias/nao-e-uuid', '/publico/fachadas/nao-e-uuid']) {

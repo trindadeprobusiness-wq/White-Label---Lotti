@@ -3,6 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Dublê do supabase-js só para o chamarApi pegar o token da sessão.
+// chamarApi tira o Bearer do login próprio (clienteAuth), nunca da sessão do Supabase.
+vi.mock('@/lib/api/auth', () => ({ clienteAuth: { obterTokenValido: async () => 'tok', renovarAposRecusa: async () => null } }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) },

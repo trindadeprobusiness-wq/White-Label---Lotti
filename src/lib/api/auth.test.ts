@@ -170,3 +170,92 @@ describe('clienteAuth — login próprio da API', () => {
     expect(clienteAuth.obterAccessToken()).toBeNull();
   });
 });
+
+describe('clienteAuth — token para chamarApi', () => {
+  const refreshes = () => fetchMock.mock.calls.filter(([u]) => (u as string).endsWith('/api/auth/refresh')).length;
+
+  it('token em dia: devolve o da memória sem ir ao servidor', async () => {
+    const { clienteAuth } = await carregar();
+    rotear({ accessToken: 'acc-1', expiresIn: 900 }, CLAIMS);
+    await clienteAuth.login('a@b.com', 'segredo');
+    fetchMock.mockClear();
+
+    await expect(clienteAuth.obterTokenValido()).resolves.toBe('acc-1');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('token vencido (aba que dormiu): renova pelo cookie antes de devolver', async () => {
+    vi.useFakeTimers();
+    const { clienteAuth } = await carregar();
+    rotear({ accessToken: 'acc-1', expiresIn: 900 }, CLAIMS);
+    await clienteAuth.login('a@b.com', 'segredo');
+    // Relógio pula 20 min sem o timer rodar (computador suspenso).
+    vi.setSystemTime(Date.now() + 1_200_000);
+    rotear({ accessToken: 'acc-2', expiresIn: 900 }, CLAIMS);
+
+    await expect(clienteAuth.obterTokenValido()).resolves.toBe('acc-2');
+    expect(refreshes()).toBe(1);
+  });
+
+  it('sem sessão em memória (boot): tenta o cookie; sem cookie válido devolve null', async () => {
+    const { clienteAuth } = await carregar();
+    fetchMock.mockResolvedValue(json({ message: 'sem cookie' }, 401));
+    await expect(clienteAuth.obterTokenValido()).resolves.toBeNull();
+    expect(refreshes()).toBe(1);
+  });
+
+  it('chamadas simultâneas com token vencido fazem UM refresh só (rotação não vira "reuso")', async () => {
+    const { clienteAuth } = await carregar();
+    rotear({ accessToken: 'acc-9', expiresIn: 900 }, CLAIMS);
+    const tokens = await Promise.all([clienteAuth.obterTokenValido(), clienteAuth.obterTokenValido(), clienteAuth.restaurar()]);
+    expect(tokens[0]).toBe('acc-9');
+    expect(tokens[1]).toBe('acc-9');
+    expect(refreshes()).toBe(1);
+  });
+
+  it('renovarAposRecusa: se outra chamada já renovou, usa o novo sem outro refresh', async () => {
+    const { clienteAuth } = await carregar();
+    rotear({ accessToken: 'acc-1', expiresIn: 900 }, CLAIMS);
+    await clienteAuth.login('a@b.com', 'segredo');
+    rotear({ accessToken: 'acc-2', expiresIn: 900 }, CLAIMS);
+
+    await expect(clienteAuth.renovarAposRecusa('acc-0')).resolves.toBe('acc-1');
+    expect(refreshes()).toBe(0);
+    await expect(clienteAuth.renovarAposRecusa('acc-1')).resolves.toBe('acc-2');
+    expect(refreshes()).toBe(1);
+  });
+});
+
+describe('clienteAuth — cadastro', () => {
+  const DADOS = { email: 'nova@b.com', senha: 'segredo1', nome: 'Nova', cnpj: '11.222.333/0001-81', telefone: '(62) 99999-0000' };
+
+  it('POST /cadastro com credentials e, no sucesso, já entra (sessão montada)', async () => {
+    const { clienteAuth } = await carregar();
+    rotear({ accessToken: 'acc-novo', expiresIn: 900 }, CLAIMS);
+
+    await expect(clienteAuth.cadastrar(DADOS)).resolves.toEqual({ ok: true });
+
+    const cad = chamada(0);
+    expect(cad.url).toBe(`${BASE}/api/auth/cadastro`);
+    expect(cad.method).toBe('POST');
+    expect(cad.init.credentials).toBe('include');
+    expect(JSON.parse(cad.init.body as string)).toEqual(DADOS);
+    expect(clienteAuth.obterAccessToken()).toBe('acc-novo');
+    expect(clienteAuth.obterSessao()?.user.id).toBe('user-uuid-1');
+  });
+
+  it('409, 400 e 429 mostram o texto da API; 5xx vira mensagem genérica', async () => {
+    const { clienteAuth } = await carregar();
+    fetchMock.mockResolvedValueOnce(json({ message: 'Não foi possível criar a conta com este e-mail.' }, 409));
+    expect((await clienteAuth.cadastrar(DADOS)).erro).toBe('Não foi possível criar a conta com este e-mail.');
+    fetchMock.mockResolvedValueOnce(json({ message: ['CNPJ inválido', 'Telefone inválido'] }, 400));
+    expect((await clienteAuth.cadastrar(DADOS)).erro).toBe('CNPJ inválido Telefone inválido');
+    fetchMock.mockResolvedValueOnce(json({ message: 'Muitas tentativas em pouco tempo.' }, 429));
+    expect((await clienteAuth.cadastrar(DADOS)).erro).toBe('Muitas tentativas em pouco tempo.');
+    fetchMock.mockResolvedValueOnce(json({ message: 'detalhe interno' }, 500));
+    const r = await clienteAuth.cadastrar(DADOS);
+    expect(r.ok).toBe(false);
+    expect(r.erro).not.toContain('detalhe interno');
+    expect(clienteAuth.obterSessao()).toBeNull();
+  });
+});

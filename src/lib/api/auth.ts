@@ -38,8 +38,40 @@ const MSG_SESSAO = 'Sua sessão expirou. Entre de novo.';
 const MSG_GENERICA = 'Se existir uma conta, enviaremos instruções.';
 const MSG_RECUPERACAO_OFF = 'A recuperação de senha ainda não está disponível. Fale com o suporte.';
 
+const MSG_CADASTRO = 'Não foi possível criar a conta agora. Tente novamente em instantes.';
+const MSG_CADASTRO_SEM_SESSAO = 'Sua conta foi criada. Entre com seu e-mail e senha.';
+
+/** Dados do formulário de cadastro, nos nomes do DTO da API. */
+export interface DadosCadastro {
+  email: string;
+  senha: string;
+  nome: string;
+  cnpj: string;
+  telefone: string;
+}
+
+/**
+ * Texto do erro do cadastro. 400 (validação), 409 (e-mail em uso) e 429 (limite)
+ * vêm em português da API; o resto (5xx, 503 sem login próprio) vira o genérico.
+ */
+async function mensagemDoCadastro(res: Response): Promise<string> {
+  if (![400, 409, 429].includes(res.status)) return MSG_CADASTRO;
+  try {
+    const corpo = (await res.json()) as { message?: unknown };
+    const m = corpo?.message;
+    if (typeof m === 'string' && m) return m;
+    if (Array.isArray(m)) {
+      const textos = [...new Set(m.filter((s): s is string => typeof s === 'string'))];
+      if (textos.length) return textos.join(' ');
+    }
+  } catch { /* sem corpo */ }
+  return MSG_CADASTRO;
+}
+
 /** Folga antes do vencimento para renovar; nunca agenda em menos de 10s. */
 const FOLGA_REFRESH_MS = 60_000;
+/** Token a menos disto do fim já é tratado como vencido por quem vai usá-lo agora. */
+const FOLGA_TOKEN_S = 30;
 const MIN_REFRESH_MS = 10_000;
 const TTL_PADRAO_S = 900;
 
@@ -87,6 +119,7 @@ class ClienteAuth {
   private sessao: Session | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private ouvintes = new Set<Ouvinte>();
+  private refreshEmCurso: Promise<boolean> | null = null;
 
   /** Assina mudanças de sessão. Devolve o cancelador. */
   aoMudar(ouvinte: Ouvinte): () => void {
@@ -148,6 +181,32 @@ class ClienteAuth {
     return this.accessToken;
   }
 
+  /** Vencido ou a menos de FOLGA_TOKEN_S do fim (o relógio do aparelho pode estar adiantado). */
+  private venceEmBreve(): boolean {
+    const expiraEm = this.sessao?.expires_at;
+    if (!expiraEm) return true;
+    return expiraEm - FOLGA_TOKEN_S <= Math.floor(Date.now() / 1000);
+  }
+
+  /**
+   * Token para o Bearer das chamadas à API (chamarApi). Se não há token em memória ou ele vence
+   * agora — aba que dormiu e perdeu o timer, boot ainda restaurando —, renova pelo cookie UMA vez
+   * (o refresh é compartilhado entre chamadas simultâneas). Null quando não há sessão nenhuma.
+   */
+  async obterTokenValido(): Promise<string | null> {
+    if (this.accessToken && !this.venceEmBreve()) return this.accessToken;
+    return (await this.refresh()) ? this.accessToken : null;
+  }
+
+  /**
+   * A API recusou (401) o token `usado`. Se outra chamada já renovou nesse meio-tempo, devolve o
+   * novo sem gastar outro refresh; senão renova uma vez. Null: a sessão acabou de verdade.
+   */
+  async renovarAposRecusa(usado: string): Promise<string | null> {
+    if (this.accessToken && this.accessToken !== usado) return this.accessToken;
+    return (await this.refresh()) ? this.accessToken : null;
+  }
+
   /**
    * POST /login. Em qualquer falha devolve a MESMA mensagem genérica — não
    * revela se o e-mail existe nem diferencia senha errada de conta ausente.
@@ -169,11 +228,50 @@ class ClienteAuth {
   }
 
   /**
+   * POST /cadastro. A API cria a conta (auth.users + usuarios; o corretor vem
+   * do gatilho de sempre) e já devolve a sessão, como o login: sem e-mail de
+   * confirmação. 400/409/429 trazem texto em português da própria API.
+   */
+  async cadastrar(dados: DadosCadastro): Promise<Resultado> {
+    let res: Response;
+    try {
+      res = await fetch(url('/api/auth/cadastro'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(dados),
+      });
+    } catch {
+      return { ok: false, erro: MSG_CADASTRO };
+    }
+    if (!res.ok) return { ok: false, erro: await mensagemDoCadastro(res) };
+    try {
+      await this.aplicarToken((await res.json()) as RespostaToken);
+      return { ok: true };
+    } catch {
+      // A conta existe; só a entrada automática falhou.
+      return { ok: false, erro: MSG_CADASTRO_SEM_SESSAO };
+    }
+  }
+
+  /**
    * POST /refresh. Usa só o cookie HttpOnly (rotação no servidor). Em falha,
    * derruba a sessão local e notifica — o usuário cai para a tela de login.
    * Devolve true quando renovou.
+   *
+   * Um refresh por vez: o servidor ROTACIONA o cookie e trata o reuso de um
+   * refresh já usado como roubo (revoga a família inteira). Dois refreshes
+   * simultâneos com o mesmo cookie — o timer, o boot e uma chamada com token
+   * vencido — derrubariam a sessão. Quem chega durante um refresh espera o mesmo.
    */
-  async refresh(): Promise<boolean> {
+  refresh(): Promise<boolean> {
+    if (!this.refreshEmCurso) {
+      this.refreshEmCurso = this.renovar().finally(() => { this.refreshEmCurso = null; });
+    }
+    return this.refreshEmCurso;
+  }
+
+  private async renovar(): Promise<boolean> {
     try {
       const res = await fetch(url('/api/auth/refresh'), {
         method: 'POST',

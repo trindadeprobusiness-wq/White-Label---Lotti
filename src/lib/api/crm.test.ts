@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// chamarApi tira o Bearer do login próprio (clienteAuth), nunca da sessão do Supabase.
+vi.mock('@/lib/api/auth', () => ({ clienteAuth: { obterTokenValido: async () => 'tok', renovarAposRecusa: async () => null } }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: { auth: { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) } },
 }));
@@ -48,6 +50,7 @@ describe('API do CRM no front', () => {
       { chamar: () => api.definirImovelDeInteresseApi(CLIENTE, null), url: `/api/clientes/${CLIENTE}/imovel-interesse`, method: 'PUT', corpo: { imovel_id: null }, resposta: { cliente_id: CLIENTE, imovel_id: null } },
       { chamar: () => api.completarCpfApi(CLIENTE, '12345678909'), url: `/api/clientes/${CLIENTE}/completar-cpf`, method: 'POST', corpo: { cpf: '12345678909' }, resposta: { atualizado: true } },
       { chamar: () => api.listarHistoricoApi(CLIENTE), url: `/api/clientes/${CLIENTE}/historico`, method: 'GET', resposta: [] },
+      { chamar: () => api.listarHistoricoGeralApi(), url: '/api/clientes/historico', method: 'GET', resposta: [] },
       {
         chamar: () => api.registrarHistoricoApi(CLIENTE, { tipo: 'WHATSAPP', direcao: 'OUT', conteudo: 'Oi', metadata: { via: 'wa.me' } }),
         url: `/api/clientes/${CLIENTE}/historico`, method: 'POST', corpo: { tipo: 'WHATSAPP', direcao: 'OUT', conteudo: 'Oi', metadata: { via: 'wa.me' } }, status: 201, resposta: { id: 'h' },

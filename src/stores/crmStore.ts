@@ -23,11 +23,13 @@ import {
   definirImovelDeInteresseApi,
   listarClientesApi,
   listarHistoricoApi,
+  listarHistoricoGeralApi,
   moverClienteNoFunilApi,
   registrarHistoricoApi,
   removerClienteApi,
 } from '@/lib/api/crm';
 import { listarImoveisApi } from '@/lib/api/imoveis';
+import { atualizarCorretorApi, obterPerfilApi } from '@/lib/api/perfil';
 import { criarContratoApi, listarContratosApi } from '@/lib/api/contratos';
 import { comoResultado, escolher } from '@/lib/api/http';
 import { toast } from '@/hooks/use-toast';
@@ -81,6 +83,12 @@ interface CRMStore {
   documentos: Documento[];
   contratos: Contrato[];
   corretor: Corretor | null;
+  /**
+   * O get_corretor_id() da sessão: a conta em uso (para membro de equipe, a do
+   * dono). Só preenchido com a API ligada, junto do perfil; as telas o usam no
+   * lugar do rpc('get_corretor_id'), que sem sessão do Supabase falharia.
+   */
+  corretorContaId: string | null;
   preferencias: Preferencias;
   loading: boolean;
 
@@ -151,6 +159,7 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
   documentos: [],
   contratos: [],
   corretor: null,
+  corretorContaId: null,
   preferencias: defaultPreferencias,
   loading: false,
 
@@ -162,6 +171,7 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
     documentos: [],
     contratos: [],
     corretor: null,
+    corretorContaId: null,
     preferencias: defaultPreferencias,
     loading: false,
   }),
@@ -234,12 +244,22 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchCorretor: async () => {
     try {
-      const { data, error } = await supabase
-        .from('corretores')
-        .select('*')
-        .maybeSingle();
+      // Com a API ligada (login próprio, sem sessão do Supabase), o perfil e o
+      // corretor da conta vêm juntos de /api/perfil/corretor.
+      let data: Record<string, unknown> | null;
+      if (apiDisponivel()) {
+        const perfil = await obterPerfilApi();
+        data = perfil.corretor;
+        set({ corretorContaId: perfil.corretor_id });
+      } else {
+        const resposta = await supabase
+          .from('corretores')
+          .select('*')
+          .maybeSingle();
+        if (resposta.error) throw resposta.error;
+        data = resposta.data as Record<string, unknown> | null;
+      }
 
-      if (error) throw error;
       if (!data) {
         set({ corretor: null, preferencias: defaultPreferencias });
         return;
@@ -295,8 +315,10 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
 
   fetchHistorico: async (clienteId?: string) => {
     try {
-      if (apiDisponivel() && clienteId) {
-        set({ historico: (await listarHistoricoApi(clienteId)) as unknown as HistoricoContato[] });
+      if (apiDisponivel()) {
+        // Sem cliente, a timeline geral: tudo o que a conta enxerga, mais recente primeiro.
+        const linhas = clienteId ? await listarHistoricoApi(clienteId) : await listarHistoricoGeralApi();
+        set({ historico: linhas as unknown as HistoricoContato[] });
         return;
       }
       // A coluna é `data_contato`, não `data`. Ordenar por coluna inexistente
@@ -603,6 +625,13 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       const corretor = get().corretor;
       if (!corretor) return;
 
+      if (apiDisponivel()) {
+        // Só as colunas do perfil vão; a linha gravada volta e substitui a local.
+        const linha = await atualizarCorretorApi(data);
+        set({ corretor: { ...corretor, ...linha } as Corretor });
+        return;
+      }
+
       const { error } = await supabase
         .from('corretores')
         .update(data)
@@ -629,3 +658,19 @@ export const useCRMStore = create<CRMStore>((set, get) => ({
       },
     })),
 }));
+
+/**
+ * O corretor da conta em uso — o que o rpc('get_corretor_id') devolvia —, sem
+ * falar com o Supabase. Só para o ramo da API (apiDisponivel()). Vem do perfil
+ * que o DataLoader já carregou; se ainda não chegou, busca uma vez. Lança com
+ * texto para o usuário quando a sessão não tem conta ativa (suspensa, sem vínculo).
+ */
+export async function corretorIdDaContaApi(): Promise<string> {
+  let id = useCRMStore.getState().corretorContaId;
+  if (!id) {
+    id = (await obterPerfilApi()).corretor_id;
+    if (id) useCRMStore.setState({ corretorContaId: id });
+  }
+  if (!id) throw new Error('Não foi possível identificar sua conta. Entre de novo.');
+  return id;
+}

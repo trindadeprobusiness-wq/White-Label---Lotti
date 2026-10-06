@@ -13,9 +13,10 @@ describe('FachadasLeadsService F5 listar', () => {
     expect(await new FachadasLeadsService(db as never).listar(claims, dto(ListarLeadsDto, { fachada_id: FACHADA }))).toEqual([{ id: LEAD }]);
     expect(texto(tx, 0)).toBe(
       'select to_jsonb(l) as linha from public.fachada_leads l where ($1::uuid is null or l.fachada_id = $2::uuid)'
-      + ' order by l.created_at desc, l.id limit $3::int',
+      + ' and ($3::boolean is null or l.convertido = $4::boolean)'
+      + ' order by l.created_at desc, l.id limit $5::int',
     );
-    expect(sql(tx, 0).values).toEqual([FACHADA, FACHADA, 1000]);
+    expect(sql(tx, 0).values).toEqual([FACHADA, FACHADA, null, null, 1000]);
     confereCasts(tx);
   });
 
@@ -23,7 +24,14 @@ describe('FachadasLeadsService F5 listar', () => {
     const { tx, db } = montar();
     tx.$queryRaw.mockResolvedValueOnce([]);
     await new FachadasLeadsService(db as never).listar(claims, dto(ListarLeadsDto, {}));
-    expect(sql(tx, 0).values).toEqual([null, null, 1000]);
+    expect(sql(tx, 0).values).toEqual([null, null, null, null, 1000]);
+  });
+
+  it('convertido=false (leads pendentes do CRM) filtra pelo booleano; false não vira null', async () => {
+    const { tx, db } = montar();
+    tx.$queryRaw.mockResolvedValueOnce([]);
+    await new FachadasLeadsService(db as never).listar(claims, dto(ListarLeadsDto, { convertido: false }));
+    expect(sql(tx, 0).values).toEqual([null, null, false, false, 1000]);
   });
 
   it('não filtra por corretor no SQL: quem decide é o RLS', async () => {

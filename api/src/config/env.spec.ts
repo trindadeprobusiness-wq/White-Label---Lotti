@@ -1,4 +1,4 @@
-import { loadEnv } from './env';
+import { loadEnv, ORIGEM_APP, ORIGENS_LOCAIS } from './env';
 
 const base = {
   DATABASE_URL: 'postgresql://u:p@db:5432/postgres',
@@ -17,7 +17,7 @@ describe('loadEnv', () => {
       redisUrl: base.REDIS_URL,
       supabaseUrl: 'https://abc.supabase.co',
       supabaseJwtSecret: undefined,
-      corsOrigins: [],
+      corsOrigins: [ORIGEM_APP, ...ORIGENS_LOCAIS],
       agentApiToken: undefined,
       authJwtSecret: undefined,
       authAccessTtl: 900,
@@ -60,7 +60,8 @@ describe('loadEnv', () => {
   it('separa as origens de CORS e tira a barra final da URL do Supabase', () => {
     const env = loadEnv({ ...base, SUPABASE_URL: 'https://abc.supabase.co/', CORS_ORIGINS: 'https://app.plataformalotti.com.br, http://127.0.0.1:8085', PORT: '8080' });
     expect(env.supabaseUrl).toBe('https://abc.supabase.co');
-    expect(env.corsOrigins).toEqual(['https://app.plataformalotti.com.br', 'http://127.0.0.1:8085']);
+    // O app e as locais já vêm por padrão; CORS_ORIGINS soma sem repetir.
+    expect(env.corsOrigins).toEqual([ORIGEM_APP, ...ORIGENS_LOCAIS]);
     expect(env.port).toBe(8080);
   });
 
@@ -73,7 +74,19 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...base, AGENT_API_TOKEN: 'a'.repeat(32) }).agentApiToken).toBe('a'.repeat(32));
   });
 
-  it('em produção exige ao menos uma origem de CORS', () => {
-    expect(() => loadEnv({ ...base, NODE_ENV: 'production' })).toThrow('CORS_ORIGINS');
+  it('em produção o app entra sempre e as origens locais ficam de fora', () => {
+    expect(loadEnv({ ...base, NODE_ENV: 'production' }).corsOrigins).toEqual([ORIGEM_APP]);
+    const comEnsaio = loadEnv({ ...base, NODE_ENV: 'production', CORS_ORIGINS: 'https://app-teste.up.railway.app/' });
+    expect(comEnsaio.corsOrigins).toEqual([ORIGEM_APP, 'https://app-teste.up.railway.app']);
+    expect(comEnsaio.corsOrigins).not.toContain('http://localhost:8080');
+  });
+
+  it('recusa "*" em CORS_ORIGINS (o login usa cookie com credenciais)', () => {
+    expect(() => loadEnv({ ...base, CORS_ORIGINS: '*' })).toThrow('CORS_ORIGINS');
+  });
+
+  it('fora de produção libera o front local nas portas 8080 e 5173', () => {
+    const env = loadEnv({ ...base });
+    expect(env.corsOrigins).toEqual(expect.arrayContaining(['http://localhost:8080', 'http://localhost:5173', ORIGEM_APP]));
   });
 });

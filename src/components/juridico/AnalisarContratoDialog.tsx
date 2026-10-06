@@ -16,6 +16,8 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
+import { comoResultado } from '@/lib/api/http';
+import { corretorIdDaContaApi } from '@/stores/crmStore';
 import { removerClienteApi } from '@/lib/api/crm';
 import { criarImovelApi, removerImovelApi } from '@/lib/api/imoveis';
 import { criarContratoApi } from '@/lib/api/contratos';
@@ -234,7 +236,10 @@ export function AnalisarContratoDialog({
     const novos: { cliente?: string; imovel?: string } = {};
 
     try {
-      const { data: corretorId, error: corrErr } = await supabase.rpc('get_corretor_id');
+      // Com a API ligada não há sessão do Supabase: o corretor da conta vem do perfil.
+      const { data: corretorId, error: corrErr } = apiDisponivel()
+        ? await comoResultado(corretorIdDaContaApi())
+        : await supabase.rpc('get_corretor_id');
       if (corrErr || !corretorId) throw new Error('Não foi possível identificar o corretor.');
 
       // 1. Cliente: usa o vinculado ou cadastra a parte lida no contrato. Se o

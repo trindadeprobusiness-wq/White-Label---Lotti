@@ -1,5 +1,7 @@
-import { Inject, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import {
+  ConflictException, HttpException, Inject, Injectable, ServiceUnavailableException, UnauthorizedException,
+} from '@nestjs/common';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import { AppEnv, ENV } from '../config/env';
 import { emitirAccessToken } from './tokens';
@@ -26,6 +28,25 @@ const HASH_FALSO = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8Dqz9lk7q4m0b3w1q6b0cQF5F2fK2.
 
 const MENSAGEM_LOGIN = 'E-mail ou senha incorretos. Verifique os dados e tente novamente.';
 const MENSAGEM_RECUPERACAO = 'Se existir uma conta com esse e-mail, enviaremos instruções.';
+const MENSAGEM_EMAIL_EM_USO = 'Não foi possível criar a conta com este e-mail. Se ele já é seu, entre ou use "Esqueci minha senha".';
+const MENSAGEM_LIMITE = 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.';
+
+/** Mesmo custo do bcrypt do Supabase ($2a$10$), o que o login já confere. */
+const CUSTO_BCRYPT = 10;
+/** Cadastros por IP por hora (escritório atrás de um NAT cabe folgado) e teto global por minuto. */
+const LIMITE_CADASTRO_IP = 10;
+const JANELA_CADASTRO_IP_S = 3600;
+const LIMITE_CADASTRO_GLOBAL = 60;
+const JANELA_CADASTRO_GLOBAL_S = 60;
+
+/** O que o cadastro recebe (já validado pelo CadastroDto). */
+export interface DadosCadastro {
+  email: string;
+  senha: string;
+  nome: string;
+  cnpj: string;
+  telefone: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -62,7 +83,38 @@ export class AuthService {
     return this.emitirSessao(usuario);
   }
 
-  /** Emite access + refresh novos para uma família nova (chamado só pelo login). */
+  /**
+   * Cadastro pela API (substitui o supabase.auth.signUp). Cria auth.users (o gatilho de sempre
+   * monta corretor, organização e etapas) e public.usuarios numa transação, e já devolve a
+   * sessão, como o login: o e-mail entra confirmado, porque o e-mail transacional ainda não existe.
+   *
+   * Limite por IP (e um teto global) antes de tocar no bcrypt ou no banco da conta. A chave do
+   * IP é um HMAC com o segredo do login: a tabela de limites nunca guarda um IP reversível.
+   */
+  async cadastrar(dados: DadosCadastro, ip: string | null): Promise<SessaoEmitida> {
+    const segredo = this.exigirSecret();
+    const chaveIp = createHmac('sha256', segredo).update(`cadastro:${ip ?? 'sem-ip'}`).digest('hex');
+    const dentroDoLimite = await this.repo.consumirLimite('auth-cadastro-ip', chaveIp, LIMITE_CADASTRO_IP, JANELA_CADASTRO_IP_S)
+      && await this.repo.consumirLimite('auth-cadastro-global', 'global', LIMITE_CADASTRO_GLOBAL, JANELA_CADASTRO_GLOBAL_S);
+    if (!dentroDoLimite) {
+      throw new HttpException({ statusCode: 429, codigo: 'muitas_tentativas', message: MENSAGEM_LIMITE }, 429);
+    }
+
+    const passwordHash = await bcrypt.hash(dados.senha, CUSTO_BCRYPT);
+    const usuario = await this.repo.criarConta({
+      email: this.normalizar(dados.email),
+      passwordHash,
+      nome: dados.nome.trim(),
+      cnpj: dados.cnpj.trim(),
+      telefone: dados.telefone.trim(),
+    });
+    if (!usuario) {
+      throw new ConflictException({ statusCode: 409, codigo: 'email_em_uso', message: MENSAGEM_EMAIL_EM_USO });
+    }
+    return this.emitirSessao(usuario);
+  }
+
+  /** Emite access + refresh novos para uma família nova (chamado pelo login e pelo cadastro). */
   private async emitirSessao(usuario: UsuarioAuth): Promise<SessaoEmitida> {
     const familyId = randomUUID();
     return this.gerarPar(usuario.id, usuario.email, usuario.sessionVersion, familyId);

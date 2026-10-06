@@ -31,6 +31,9 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 vi.mock('@/lib/api', () => ({ apiDisponivel: () => estado.api, chamarApi: vi.fn() }));
+// Com a API, o corretor da conta vem do perfil (crmStore), nunca do rpc do Supabase.
+const corretorIdDaContaApi = vi.hoisted(() => vi.fn(async () => 'corretor-1'));
+vi.mock('@/stores/crmStore', () => ({ corretorIdDaContaApi }));
 vi.mock('@/lib/api/fachadas', () => ({
   listarTemplatesApi: vi.fn(), criarTemplateApi: vi.fn(), excluirTemplateApi: vi.fn(),
 }));
@@ -94,13 +97,14 @@ describe('FachadasInteligentes — templates personalizados', () => {
     expect(sb.from).not.toHaveBeenCalledWith('fachada_templates');
   });
 
-  it('com a API, o upload e o get_corretor_id do caminho do Storage CONTINUAM; só o insert troca', async () => {
+  it('com a API, o caminho do Storage leva o corretor do perfil (sem rpc); só o insert troca', async () => {
     render(<FachadasInteligentes />);
     await waitFor(() => expect(assistente.onSalvar).toBeTypeOf('function'));
     await act(async () => { await assistente.onSalvar!(dadosTemplate); });
 
-    // O caminho do Storage é escopado por fachadas/<corretor_id>/ e segue precisando do rpc.
-    expect(sb.rpc).toHaveBeenCalledWith('get_corretor_id');
+    // O caminho do Storage é escopado por fachadas/<corretor_id>/: o id vem do perfil pela API.
+    expect(corretorIdDaContaApi).toHaveBeenCalledTimes(1);
+    expect(sb.rpc).not.toHaveBeenCalled();
     expect(upload).toHaveBeenCalledTimes(1);
     expect((upload.mock.calls[0][1] as string)).toMatch(/^fachadas\/corretor-1\//);
 

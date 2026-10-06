@@ -19,6 +19,8 @@ import { DEFAULT_TEMPLATES } from '@/types/fachada';
 import type { FachadaComImovel } from '@/types/fachada';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
+import { comoResultado } from '@/lib/api/http';
+import { corretorIdDaContaApi } from '@/stores/crmStore';
 import { criarTemplateApi, excluirTemplateApi, listarTemplatesApi } from '@/lib/api/fachadas';
 import { toast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shell/PageHeader';
@@ -207,7 +209,10 @@ export default function FachadasInteligentes() {
       // carregá-lo: a policy de storage escopa a gravação por
       // `fachadas/<corretor_id>/`. Buscar o id depois era tarde demais — foi
       // essa ordem que deixou o caminho sem dono e fez a RLS negar todo envio.
-      const { data: corretorId } = await supabase.rpc('get_corretor_id');
+      // Com a API ligada não há sessão do Supabase: o corretor da conta vem do perfil.
+      const { data: corretorId } = apiDisponivel()
+        ? await comoResultado(corretorIdDaContaApi())
+        : await supabase.rpc('get_corretor_id');
       if (!corretorId) {
         throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
       }

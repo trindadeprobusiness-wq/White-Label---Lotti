@@ -12,6 +12,9 @@ const storage = vi.hoisted(() => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from, rpc, storage: { from: () => storage } } }));
 vi.mock('@/lib/api', () => ({ apiDisponivel: () => true, chamarApi: vi.fn() }));
+// Com a API, o corretor da conta vem do perfil (crmStore), nunca do rpc do Supabase.
+const corretorIdDaContaApi = vi.hoisted(() => vi.fn(async () => '22222222-2222-4222-8222-222222222222'));
+vi.mock('@/stores/crmStore', () => ({ corretorIdDaContaApi }));
 vi.mock('@/lib/api/contratos', () => ({
   listarDocumentosApi: vi.fn(),
   criarDocumentoApi: vi.fn(),
@@ -67,7 +70,7 @@ describe('useDocumentos com a API Lotti', () => {
   });
 
   it('upload: arquivo vai pela API (Garage) e o registro é criado sem corretor_id', async () => {
-    rpc.mockResolvedValue({ data: CORRETOR, error: null });
+    rpc.mockResolvedValue({ data: 'nunca-usado', error: null });
     m.criarDocumentoApi.mockResolvedValue({ id: DOC });
     const { result } = await montar();
     const file = new File(['x'], 'rg.pdf', { type: 'application/pdf' });
@@ -86,6 +89,9 @@ describe('useDocumentos com a API Lotti', () => {
     expect(corpo).not.toHaveProperty('corretor_id');
     expect(corpo).not.toHaveProperty('validado');
     expect(from).not.toHaveBeenCalled();
+    // Sem sessão do Supabase no login próprio: o corretor vem do perfil, não do rpc.
+    expect(rpc).not.toHaveBeenCalled();
+    expect(corretorIdDaContaApi).toHaveBeenCalledTimes(1);
   });
 
   it('excluir: remove pela API (Garage) e depois o registro pela API', async () => {

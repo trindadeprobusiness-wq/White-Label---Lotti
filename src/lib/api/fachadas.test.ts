@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const getSession = vi.fn(async () => ({ data: { session: { access_token: 'tok' } } }));
 const from = vi.fn();
 const rpc = vi.fn();
+// chamarApi tira o Bearer do login próprio (clienteAuth), nunca da sessão do Supabase.
+vi.mock('@/lib/api/auth', () => ({ clienteAuth: { obterTokenValido: async () => 'tok', renovarAposRecusa: async () => null } }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: { auth: { getSession }, from, rpc },
 }));
@@ -112,6 +114,9 @@ describe('cliente da API de fachadas — rotas autenticadas', () => {
     expect(chamada(0).url).toBe(`${BASE}/api/fachadas/leads?fachada_id=${FACHADA}`);
     await api.listarLeadsApi();
     expect(chamada(1).url).toBe(`${BASE}/api/fachadas/leads`);
+    // Leads pendentes do CRM: o mesmo F5 filtrado por convertido=false.
+    await api.listarLeadsPendentesApi();
+    expect(chamada(2).url).toBe(`${BASE}/api/fachadas/leads?convertido=false`);
   });
 
   it('F6 exclui o lead', async () => {

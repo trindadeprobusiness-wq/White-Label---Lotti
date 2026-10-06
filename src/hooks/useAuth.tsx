@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
 import { clienteAuth } from '@/lib/api/auth';
+import { reivindicarAtribuicaoApi } from '@/lib/api/parceiros';
+import { registrarAtividadeApi } from '@/lib/api/perfil';
 import { toast } from 'sonner';
 import { mensagemDeAuth } from '@/lib/auth/mensagens';
 import { isolarTrocaDeSessao } from '@/lib/auth/isolamentoSessao';
@@ -51,10 +53,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 async function registrarAtividadeSeNecessario(): Promise<void> {
   try {
     if (!deveRegistrarAtividade()) return;
-    await supabase.rpc('registrar_atividade' as never, {
-      p_tipo: 'login',
-      p_rota: window.location.pathname,
-    } as never);
+    if (apiDisponivel()) {
+      // Login próprio: sem sessão do Supabase, o rpc falharia. Mesma função, pela API.
+      await registrarAtividadeApi('login', window.location.pathname);
+    } else {
+      await supabase.rpc('registrar_atividade' as never, {
+        p_tipo: 'login',
+        p_rota: window.location.pathname,
+      } as never);
+    }
     marcarAtividadeRegistrada();
   } catch {
     /* telemetria nunca quebra a sessão */
@@ -72,11 +79,11 @@ async function reivindicarAtribuicaoDeParceiro(): Promise<void> {
   try {
     if (!temAtribuicaoPendente()) return;
 
-    const { data } = await supabase.functions.invoke('parceiro-atribuir', {
-      body: { visitante_id: obterVisitanteId() },
-    });
-
-    const resposta = data as { ok?: boolean; ja_atribuido?: boolean } | null;
+    const resposta: { ok?: boolean; ja_atribuido?: boolean } | null = apiDisponivel()
+      ? await reivindicarAtribuicaoApi(obterVisitanteId())
+      : (await supabase.functions.invoke('parceiro-atribuir', {
+        body: { visitante_id: obterVisitanteId() },
+      })).data as { ok?: boolean; ja_atribuido?: boolean } | null;
 
     // Limpa quando resolveu — para o bem (vinculou) ou para o mal (expirou,
     // parceiro inativo, autoindicação). Insistir a cada login não mudaria o
@@ -121,9 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // a antes. A sessão vem do clienteAuth, que guarda o access em memória e
     // renova pelo cookie de refresh.
     if (apiDisponivel()) {
+      // Os efeitos pós-login rodam quando ENTRA alguém (login, cadastro ou
+      // sessão restaurada pelo cookie), não a cada refresh do token.
+      let usuarioComEfeitos: string | null = null;
       const cancelar = clienteAuth.aoMudar((sessao) => {
         aplicarSessao(sessao);
         setLoading(false);
+        const id = sessao?.user.id ?? null;
+        if (id && id !== usuarioComEfeitos && !obterSuporte()) {
+          void registrarAtividadeSeNecessario();
+          void reivindicarAtribuicaoDeParceiro();
+        }
+        usuarioComEfeitos = id;
       });
       // Restaura a sessão a partir do cookie de refresh (se houver). Falha em
       // silêncio: sem cookie válido, simplesmente não há sessão.
@@ -158,6 +174,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [aplicarSessao]);
 
   const signUp = useCallback(async (email: string, password: string, metadata: SignUpMetadata) => {
+    // Cadastro pela API: cria a conta e já entra (sem e-mail de confirmação); o
+    // clienteAuth notifica o listener do useEffect, que aplica a sessão.
+    if (apiDisponivel()) {
+      const r = await clienteAuth.cadastrar({
+        email,
+        senha: password,
+        nome: metadata.nome,
+        cnpj: metadata.cnpj,
+        telefone: metadata.telefone,
+      });
+      return { ...r, precisaConfirmarEmail: false };
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -235,6 +264,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * esses campos continuam pendentes para um onboarding futuro.
    */
   const entrarCom = useCallback(async (provedor: 'google' | 'azure') => {
+    // Login próprio: a API ainda não tem OAuth. Seguir pelo Supabase criaria uma
+    // sessão que o app (que só escuta o clienteAuth) nunca enxerga — o usuário
+    // voltaria do Google para a tela de login sem explicação.
+    if (apiDisponivel()) {
+      return { ok: false, erro: 'Entrar com Google ou Microsoft ainda não está disponível. Use seu e-mail e senha.' };
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: provedor,
       options: {

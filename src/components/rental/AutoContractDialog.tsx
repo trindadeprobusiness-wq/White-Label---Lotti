@@ -3,6 +3,8 @@ import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
+import { comoResultado } from "@/lib/api/http";
+import { corretorIdDaContaApi } from "@/stores/crmStore";
 import { criarImovelApi } from "@/lib/api/imoveis";
 import { criarLocacaoApi, opcoesClientesApi, opcoesImoveisApi, primeiraFaturaLocacao } from "@/lib/api/contratos";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -178,7 +180,10 @@ export function AutoContractDialog({ open, onOpenChange }: AutoContractDialogPro
             if (!matchedProperty && !podeCriarRecurso(checkLimit('max_imoveis'), false)) {
                 throw new Error('Limite de imóveis atingido. Cadastre este contrato em um imóvel existente ou faça upgrade.');
             }
-            const { data: corretorId, error: corretorError } = await supabase.rpc("get_corretor_id");
+            // Com a API ligada não há sessão do Supabase: o corretor da conta vem do perfil.
+            const { data: corretorId, error: corretorError } = apiDisponivel()
+                ? await comoResultado(corretorIdDaContaApi())
+                : await supabase.rpc("get_corretor_id");
             if (corretorError || !corretorId) throw new Error("Perfil de corretor não encontrado");
 
             const rent = parseFloat(rentValue) || 0;

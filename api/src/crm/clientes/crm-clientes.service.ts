@@ -171,6 +171,13 @@ export class CrmClientesService {
     return linhas.map((l) => l.linha);
   }
 
+  /** O fetchHistorico sem cliente: tudo o que o RLS deixa ver, mais recente primeiro (mesma ordem de hoje). */
+  async listarHistoricoGeral(claims: SupabaseClaims): Promise<LinhaHistorico[]> {
+    const linhas = await this.executar(claims, (tx) => tx.$queryRaw<Linhas>(Prisma.sql`
+      select to_jsonb(h) as linha from public.historico_contatos h order by h.data_contato desc, h.id limit ${LIMITE_LISTA}::int`));
+    return linhas.map((l) => l.linha);
+  }
+
   /**
    * Sem RETURNING de propósito: RETURNING exigiria passar também na policy de SELECT (só o dono lê),
    * e um membro que pode gravar receberia 403. A resposta sai de now(), o mesmo instante dos defaults.

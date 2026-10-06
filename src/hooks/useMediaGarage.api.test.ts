@@ -34,6 +34,9 @@ const arquivos = vi.hoisted(() => ({
   urlPublicaVideo: vi.fn((k: string) => `https://api/video/${k}`),
 }));
 vi.mock('@/lib/api/arquivos', () => arquivos);
+// Com a API, o corretor da conta vem do perfil (crmStore), nunca do rpc do Supabase.
+const corretorIdDaContaApi = vi.hoisted(() => vi.fn(async () => 'corretor-1'));
+vi.mock('@/stores/crmStore', () => ({ corretorIdDaContaApi }));
 
 import { useImovelFotos } from './useImovelFotos';
 import { useVideos } from './useVideos';
@@ -103,6 +106,9 @@ describe('useVideos — Garage atrás de apiDisponivel()', () => {
     expect(String(key).startsWith('corretor-1/imovel-1/')).toBe(true);
     expect(enviado).toBe(file);
     expect(arquivos.urlPublicaVideo).toHaveBeenCalledWith(key);
+    // Sem sessão do Supabase no login próprio: nada de rpc('get_corretor_id').
+    expect(rpc).not.toHaveBeenCalled();
+    expect(corretorIdDaContaApi).toHaveBeenCalledTimes(1);
   });
 
   it('com API: getTemporaryShareUrl devolve a rota pública (sem signed url)', async () => {

@@ -4,12 +4,27 @@ import { AppEnv, ENV } from '../config/env';
 import { SupabaseClaims } from '../prisma/tenant-db';
 import { AuthService, SessaoEmitida } from './auth.service';
 import { Claims } from './claims.decorator';
-import { ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
+import { CadastroDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
 import { SupabaseAuthGuard } from './supabase-auth.guard';
 
 /** Nome do cookie do refresh token. Escopo em /api/auth: nenhuma outra rota o recebe. */
 const COOKIE_REFRESH = 'lotti_refresh';
 const COOKIE_PATH = '/api/auth';
+
+/**
+ * IP de quem chamou, para o limite do cadastro. Atrás do proxy do Railway, o último salto do
+ * x-forwarded-for é o que o proxy anexou (os anteriores vêm do próprio cliente e podem ser
+ * forjados); sem o cabeçalho, x-real-ip e por fim o socket.
+ */
+export function ipDoCliente(req: Pick<Request, 'headers' | 'socket'>): string | null {
+  const valor = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[v.length - 1] : v);
+  const encaminhado = valor(req.headers?.['x-forwarded-for']);
+  const ultimo = encaminhado?.split(',').map((p) => p.trim()).filter(Boolean).pop();
+  if (ultimo) return ultimo;
+  const real = valor(req.headers?.['x-real-ip'])?.trim();
+  if (real) return real;
+  return req.socket?.remoteAddress ?? null;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -22,6 +37,18 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response): Promise<{ accessToken: string; expiresIn: number }> {
     const sessao = await this.servico.login(dto.email, dto.senha);
+    this.gravarCookie(res, sessao);
+    return { accessToken: sessao.accessToken, expiresIn: sessao.accessTtl };
+  }
+
+  /**
+   * Cadastro de conta. Mesma resposta e mesmo cookie do login: quem se cadastra já entra.
+   * 409 genérico para e-mail que já tem conta; 429 acima do limite por IP.
+   */
+  @Post('cadastro')
+  @HttpCode(201)
+  async cadastro(@Body() dto: CadastroDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<{ accessToken: string; expiresIn: number }> {
+    const sessao = await this.servico.cadastrar(dto, ipDoCliente(req));
     this.gravarCookie(res, sessao);
     return { accessToken: sessao.accessToken, expiresIn: sessao.accessTtl };
   }

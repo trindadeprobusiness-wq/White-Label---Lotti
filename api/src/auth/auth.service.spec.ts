@@ -162,3 +162,68 @@ describe('AuthService recuperação (desabilitada nesta fase)', () => {
     await expect(service.resetPassword('token', 'nova-senha-123')).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });
+
+describe('AuthService.cadastrar', () => {
+  const dados = { email: '  Nova@Exemplo.com ', senha: 'senha-nova-1', nome: ' Nova Corretora ', cnpj: '11.222.333/0001-81', telefone: '(62) 99999-0000' };
+
+  /** Repo do cadastro: conta nova em memória, limite contado por escopo/chave. */
+  function montarCadastro(opcoes: { limite?: number; existente?: boolean } = {}) {
+    const { service, repo } = montar();
+    const contagem = new Map<string, number>();
+    const criadas: Array<Record<string, unknown>> = [];
+    const extra = repo as unknown as Record<string, unknown>;
+    extra.consumirLimite = jest.fn(async (escopo: string, chave: string, limite: number) => {
+      const k = `${escopo}:${chave}`;
+      const n = (contagem.get(k) ?? 0) + 1;
+      contagem.set(k, n);
+      return n <= Math.min(limite, opcoes.limite ?? limite);
+    });
+    extra.criarConta = jest.fn(async (d: { email: string; passwordHash: string }) => {
+      if (opcoes.existente) return null;
+      criadas.push(d);
+      const u = usuario({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', email: d.email, passwordHash: d.passwordHash });
+      repo.add(u);
+      return u;
+    });
+    return { service, repo, criadas, consumirLimite: extra.consumirLimite as jest.Mock, contagem };
+  }
+
+  it('cria a conta com e-mail normalizado e bcrypt, e já devolve a sessão (como o login)', async () => {
+    const { service, repo, criadas } = montarCadastro();
+    const sessao = await service.cadastrar(dados, '203.0.113.9');
+    expect(sessao.accessToken.split('.')).toHaveLength(3);
+    expect(repo.tokens.size).toBe(1);
+    expect(criadas[0]).toMatchObject({ email: 'nova@exemplo.com', nome: 'Nova Corretora', cnpj: '11.222.333/0001-81', telefone: '(62) 99999-0000' });
+    const hash = criadas[0].passwordHash as string;
+    expect(hash.startsWith('$2')).toBe(true);
+    expect(await bcrypt.compare('senha-nova-1', hash)).toBe(true);
+    // e o login seguinte com a mesma senha funciona
+    await expect(service.login('nova@exemplo.com', 'senha-nova-1')).resolves.toHaveProperty('accessToken');
+  });
+
+  it('e-mail que já tem conta: 409 genérico, sem sessão', async () => {
+    const { service, repo } = montarCadastro({ existente: true });
+    await expect(service.cadastrar(dados, '203.0.113.9')).rejects.toMatchObject({ status: 409, response: expect.objectContaining({ codigo: 'email_em_uso' }) });
+    expect(repo.tokens.size).toBe(0);
+  });
+
+  it('acima do limite por IP: 429 antes de tocar na conta; a chave do IP não é o IP cru', async () => {
+    const { service, criadas, consumirLimite } = montarCadastro({ limite: 1 });
+    await service.cadastrar(dados, '203.0.113.9');
+    await expect(service.cadastrar({ ...dados, email: 'outra@exemplo.com' }, '203.0.113.9')).rejects.toMatchObject({ status: 429 });
+    expect(criadas).toHaveLength(1);
+    const [escopo, chave] = consumirLimite.mock.calls[0] as [string, string];
+    expect(escopo).toBe('auth-cadastro-ip');
+    expect(chave).toMatch(/^[0-9a-f]{64}$/);
+    expect(chave).not.toContain('203.0.113.9');
+  });
+
+  it('503 sem AUTH_JWT_SECRET, antes de qualquer gravação', async () => {
+    const repo = new RepoFake() as unknown as Record<string, unknown>;
+    repo.consumirLimite = jest.fn();
+    repo.criarConta = jest.fn();
+    const service = new AuthService({ ...baseEnv, authJwtSecret: undefined }, repo as unknown as UsuariosRepo);
+    await expect(service.cadastrar(dados, null)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(repo.criarConta).not.toHaveBeenCalled();
+  });
+});

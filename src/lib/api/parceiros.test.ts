@@ -15,6 +15,8 @@ function encadeada(): unknown {
   return new Proxy(alvo, { get: (t, k) => (k in t ? t[k as keyof typeof t] : () => encadeada()) });
 }
 
+// chamarApi tira o Bearer do login próprio (clienteAuth), nunca da sessão do Supabase.
+vi.mock('@/lib/api/auth', () => ({ clienteAuth: { obterTokenValido: async () => 'tok', renovarAposRecusa: async () => null } }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) },

@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCRMStore } from '@/stores/crmStore';
+import { corretorIdDaContaApi, useCRMStore } from '@/stores/crmStore';
+import { comoResultado } from '@/lib/api/http';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
 import { criarTemplateApi } from '@/lib/api/fachadas';
@@ -161,7 +162,10 @@ export function CriarFachadaDialog({
       if (templateId === 'custom' && customTemplateFile) {
         // O corretor vem ANTES do upload: a policy de storage escopa a gravação
         // por `fachadas/<corretor_id>/`, então o caminho precisa carregá-lo.
-        const { data: corretorId } = await supabase.rpc('get_corretor_id');
+        // Com a API ligada não há sessão do Supabase: o corretor da conta vem do perfil.
+        const { data: corretorId } = apiDisponivel()
+          ? await comoResultado(corretorIdDaContaApi())
+          : await supabase.rpc('get_corretor_id');
         if (!corretorId) {
           throw new Error('Não foi possível identificar sua conta. Recarregue a página e tente de novo.');
         }

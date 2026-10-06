@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { clienteAuth } from '@/lib/api/auth';
 
 // API Lotti (Railway, padrão do Clix). Sem VITE_API_URL, o front segue falando
 // direto com o Supabase, como antes: cada módulo da fase 4 só passa a usar a API
@@ -7,16 +7,43 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\
 
 export const apiDisponivel = () => !!API_URL;
 
-/** Chamada autenticada à API Lotti (token do Supabase no cabeçalho). Base dos módulos em src/lib/api/. */
+const MSG_SESSAO_EXPIRADA = 'Sua sessão expirou. Entre de novo.';
+
+/**
+ * Bearer das chamadas à API. Com VITE_API_URL o login é o próprio da API
+ * (useAuth → clienteAuth): o token vive em memória e, vencido, é renovado pelo
+ * cookie de refresh uma vez. NUNCA cai na sessão do Supabase: um token antigo
+ * guardado no navegador (de antes da virada, ou de outra pessoa) faria a API
+ * responder como outra conta. Exportado para quem faz fetch próprio (SSE).
+ */
+export async function obterTokenApi(): Promise<string> {
+  const token = await clienteAuth.obterTokenValido();
+  if (!token) throw new Error(MSG_SESSAO_EXPIRADA);
+  return token;
+}
+
+/** Corpo que dá para mandar de novo depois de um 401 (stream já consumido não dá). */
+function corpoReenviavel(body: RequestInit['body']): boolean {
+  return !(typeof ReadableStream !== 'undefined' && body instanceof ReadableStream);
+}
+
+/**
+ * Chamada autenticada à API Lotti (token do login próprio no cabeçalho). Base dos
+ * módulos em src/lib/api/. Se a API recusar o token (401: venceu no servidor
+ * antes do relógio daqui, senha trocada), renova uma vez e repete a chamada; se
+ * não houver mais sessão, devolve o 401 para quem chamou tratar.
+ */
 export async function chamarApi(caminho: string, init: RequestInit = {}): Promise<Response> {
   if (!API_URL) throw new Error('API Lotti indisponível no momento.');
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error('Sua sessão expirou. Entre de novo.');
-  return fetch(`${API_URL}${caminho}`, {
+  const enviar = (token: string) => fetch(`${API_URL}${caminho}`, {
     ...init,
     headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
   });
+  const token = await obterTokenApi();
+  const res = await enviar(token);
+  if (res.status !== 401 || !corpoReenviavel(init.body) || init.signal?.aborted) return res;
+  const novo = await clienteAuth.renovarAposRecusa(token);
+  return novo ? enviar(novo) : res;
 }
 
 /** Confirma uma visita pedida pelo agente. Lança Error com texto para o usuário. */

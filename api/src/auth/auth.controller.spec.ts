@@ -1,7 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AppEnv } from '../config/env';
-import { AuthController } from './auth.controller';
+import { AuthController, ipDoCliente } from './auth.controller';
 import { AuthService, SessaoEmitida } from './auth.service';
 
 const envProd: AppEnv = {
@@ -82,5 +82,29 @@ describe('AuthController', () => {
     const servico = { resetPassword: jest.fn(async () => { throw new ServiceUnavailableException(); }) } as unknown as AuthService;
     await expect(new AuthController(envProd, servico).resetPassword({ token: 't', senha: 'nova-senha-123' }))
       .rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
+
+describe('AuthController.cadastro', () => {
+  it('repassa o IP do proxy e grava o mesmo cookie do login', async () => {
+    const cadastrar = jest.fn(async () => sessao);
+    const { res, cookies } = resFake();
+    const req = { headers: { 'x-forwarded-for': '1.1.1.1, 203.0.113.9' }, socket: { remoteAddress: '10.0.0.1' } } as unknown as Request;
+    const dto = { email: 'n@x.com', senha: 'segredo1', nome: 'Nova', cnpj: '11.222.333/0001-81', telefone: '62999990000' };
+    const corpo = await new AuthController(envProd, { cadastrar } as unknown as AuthService).cadastro(dto, req, res);
+    expect(corpo).toEqual({ accessToken: 'a.b.c', expiresIn: 900 });
+    expect(cadastrar).toHaveBeenCalledWith(dto, '203.0.113.9');
+    expect(cookies[0]).toContain('lotti_refresh=refresh-opaco-xyz');
+    expect(cookies[0]).toContain('HttpOnly');
+  });
+});
+
+describe('ipDoCliente', () => {
+  it('usa o último salto do x-forwarded-for, depois x-real-ip, depois o socket', () => {
+    const req = (headers: Record<string, string>, ip?: string) => ({ headers, socket: { remoteAddress: ip } }) as unknown as Request;
+    expect(ipDoCliente(req({ 'x-forwarded-for': 'forjado, 203.0.113.9' }))).toBe('203.0.113.9');
+    expect(ipDoCliente(req({ 'x-real-ip': ' 198.51.100.2 ' }))).toBe('198.51.100.2');
+    expect(ipDoCliente(req({}, '10.0.0.1'))).toBe('10.0.0.1');
+    expect(ipDoCliente(req({}))).toBeNull();
   });
 });

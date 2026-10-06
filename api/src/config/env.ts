@@ -39,6 +39,31 @@ export interface AppEnv {
 
 export const ENV = Symbol('ENV');
 
+/**
+ * O app publicado. Entra sempre na lista de CORS: o login próprio manda o cookie de
+ * refresh com credentials:'include' de app.* para api.*, e uma CORS_ORIGINS no Railway
+ * sem ele derrubaria todo login (foi o que travou a virada de 2026-10-06).
+ */
+export const ORIGEM_APP = 'https://app.plataformalotti.com.br';
+/** Front local (Vite do projeto em 127.0.0.1:8085; 8080 e 5173 de outras configurações). Só fora de produção. */
+export const ORIGENS_LOCAIS = [
+  'http://localhost:8080', 'http://127.0.0.1:8080',
+  'http://localhost:5173', 'http://127.0.0.1:5173',
+  'http://localhost:8085', 'http://127.0.0.1:8085',
+] as const;
+
+/**
+ * Origens aceitas pelo CORS (com credenciais, então nunca '*'). CORS_ORIGINS soma às
+ * padrão (ex.: o serviço de ensaio). Barra final sai: o navegador manda a origem sem
+ * ela e 'https://app.../' nunca casaria.
+ */
+function origensCors(bruto: string | undefined, isProd: boolean): string[] {
+  const extras = (bruto ?? '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean);
+  if (extras.includes('*')) throw new Error('CORS_ORIGINS não aceita "*": o login usa cookie com credenciais.');
+  const padrao = isProd ? [ORIGEM_APP] : [ORIGEM_APP, ...ORIGENS_LOCAIS];
+  return [...new Set([...padrao, ...extras])];
+}
+
 function required(source: NodeJS.ProcessEnv, name: string): string {
   const value = source[name];
   if (!value || value.trim() === '') throw new Error(`Variável de ambiente obrigatória ausente: ${name}`);
@@ -55,8 +80,7 @@ function inteiroPositivo(source: NodeJS.ProcessEnv, name: string, padrao: number
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const isProd = source.NODE_ENV === 'production';
-  const corsOrigins = (source.CORS_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean);
-  if (isProd && corsOrigins.length === 0) throw new Error('Variável de ambiente obrigatória ausente: CORS_ORIGINS');
+  const corsOrigins = origensCors(source.CORS_ORIGINS, isProd);
 
   const authIssuer = source.AUTH_ISSUER?.trim() || 'lotti-api';
   const supabaseUrl = required(source, 'SUPABASE_URL').replace(/\/+$/, '');

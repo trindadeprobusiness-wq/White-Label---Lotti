@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -124,4 +125,78 @@ export class UsuariosRepo {
       where family_id = ${familyId}::uuid and revoked_at is null
     `;
   }
+
+  /**
+   * Cadastro numa transação só, como dono do banco (fora do TenantDb: ainda não há claims).
+   *
+   * auth.users primeiro: o gatilho on_auth_user_created (handle_new_user) cria o corretor, e os
+   * gatilhos do corretor criam organização, onboarding e etapas do funil — o mesmo caminho de quem
+   * se cadastrava pelo Supabase. Depois public.usuarios com o MESMO id e o mesmo bcrypt, para o
+   * login próprio achar a conta. Qualquer falha desfaz as duas.
+   *
+   * Null quando o e-mail já tem conta (em qualquer das tabelas, ou na corrida pelo índice único).
+   * O e-mail chega normalizado (lower/trim) do serviço.
+   */
+  async criarConta(dados: NovaConta): Promise<UsuarioAuth | null> {
+    const id = randomUUID();
+    const app = JSON.stringify({ provider: 'email', providers: ['email'] });
+    // Mesmo raw_user_meta_data que o signUp do front mandava ao Supabase (creci legado NOT NULL).
+    const meta = JSON.stringify({ nome: dados.nome, cnpj: dados.cnpj, creci: 'PENDENTE', telefone: dados.telefone });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existe = await tx.$queryRaw<Array<{ existe: boolean }>>`
+          select exists (select 1 from public.usuarios where lower(btrim(email)) = ${dados.email}::text)
+              or exists (select 1 from auth.users where lower(btrim(email)) = ${dados.email}::text) as existe
+        `;
+        if (existe[0]?.existe) return null;
+        await tx.$executeRaw`
+          insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
+                                  raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+          values (${id}::uuid, 'authenticated', 'authenticated', ${dados.email}::text, ${dados.passwordHash}::text, now(),
+                  ${app}::jsonb, ${meta}::jsonb, now(), now())
+        `;
+        await tx.$executeRaw`
+          insert into public.usuarios (id, email, password_hash)
+          values (${id}::uuid, ${dados.email}::text, ${dados.passwordHash}::text)
+        `;
+        const corretor = await tx.$queryRaw<Array<{ id: string }>>`
+          select id::text as id from public.corretores where user_id = ${id}::uuid limit 1
+        `;
+        // Sem corretor a conta entraria num app vazio e quebrado: desfaz tudo.
+        if (corretor.length === 0) throw new Error('cadastro_sem_corretor');
+        return { id, email: dados.email, passwordHash: dados.passwordHash, status: 'ativo', sessionVersion: 0 };
+      });
+    } catch (e) {
+      if (violacaoDeUnicidade(e)) return null;
+      throw e;
+    }
+  }
+
+  /**
+   * Limite público por chave (public.consume_public_request_limit, o mesmo da captura de lead).
+   * Fora de transação, de propósito: a tentativa conta mesmo quando o cadastro falha depois.
+   */
+  async consumirLimite(escopo: string, chave: string, limite: number, segundos: number): Promise<boolean> {
+    const r = await this.db.$queryRaw<Array<{ ok: boolean | null }>>`
+      select public.consume_public_request_limit(${escopo}::text, ${chave}::text, ${limite}::int, ${segundos}::int) as ok
+    `;
+    return r[0]?.ok === true;
+  }
+}
+
+export interface NovaConta {
+  /** Já normalizado (lower/trim). */
+  email: string;
+  /** bcrypt da senha. */
+  passwordHash: string;
+  nome: string;
+  cnpj: string;
+  telefone: string;
+}
+
+/** 23505 (unique_violation) embrulhado pelo Prisma: dois cadastros do mesmo e-mail ao mesmo tempo. */
+function violacaoDeUnicidade(e: unknown): boolean {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (e.code === 'P2002') return true;
+  return e.code === 'P2010' && (e.meta as { code?: unknown } | undefined)?.code === '23505';
 }

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { apiDisponivel } from '@/lib/api';
+import { comoResultado } from '@/lib/api/http';
+import { corretorIdDaContaApi } from '@/stores/crmStore';
 import { apagarArquivoApi, enviarArquivoApi, urlPublicaVideo } from '@/lib/api/arquivos';
 
 export type TipoVideo = 'TOUR_VIRTUAL' | 'APRESENTACAO' | 'DEPOIMENTO' | 'DRONE' | 'INSTITUCIONAL' | 'OUTRO';
@@ -64,7 +66,10 @@ export function useVideos() {
       setUploadProgress(0);
 
       // Get corretor_id
-      const { data: corretorData, error: corretorError } = await supabase.rpc('get_corretor_id');
+      // Com a API ligada não há sessão do Supabase: o corretor da conta vem do perfil.
+      const { data: corretorData, error: corretorError } = apiDisponivel()
+        ? await comoResultado(corretorIdDaContaApi())
+        : await supabase.rpc('get_corretor_id');
       if (corretorError || !corretorData) {
         throw new Error('Não foi possível identificar o corretor. Faça login novamente.');
       }

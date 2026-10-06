@@ -24,6 +24,7 @@ describe('CrmClientesController', () => {
     definirImovelInteresse: jest.fn(async (_c: unknown, id: string, d: { imovel_id?: string | null }) => ({ cliente_id: id, imovel_id: d.imovel_id ?? null })),
     completarCpf: jest.fn(async (_c: unknown, _id: string, _d: unknown) => ({ atualizado: true })),
     listarHistorico: jest.fn(async (_c: unknown, _id: string) => [] as unknown[]),
+    listarHistoricoGeral: jest.fn(async (_c: unknown) => [{ id: B }] as unknown[]),
     registrarHistorico: jest.fn(async (_c: unknown, _id: string, _d: unknown) => ({ id: B })),
   };
   const libera: CanActivate = { canActivate: (ctx) => { ctx.switchToHttp().getRequest().claims = claims; return true; } };
@@ -192,6 +193,14 @@ describe('CrmClientesController', () => {
   });
 
   describe('histórico', () => {
+    it('GET /api/clientes/historico (sem cliente) não é capturada por :id', async () => {
+      const res = await http().get('/api/clientes/historico');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([{ id: B }]);
+      expect(servico.listarHistoricoGeral).toHaveBeenCalledWith(claims);
+      expect(servico.obter).not.toHaveBeenCalled();
+    });
+
     it('GET /api/clientes/:id/historico', async () => {
       const res = await http().get(`/api/clientes/${A}/historico`);
       expect(res.status).toBe(200);

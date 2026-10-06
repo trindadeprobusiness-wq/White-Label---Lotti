@@ -17,13 +17,16 @@ vi.mock('@/lib/api/crm', async (importOriginal) => ({
   listarClientesApi: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('@/lib/api/fachadas', () => ({ listarLeadsPendentesApi: vi.fn() }));
+
 import { chamarApi } from '@/lib/api';
+import { listarLeadsPendentesApi } from '@/lib/api/fachadas';
 import * as crmApi from '@/lib/api/crm';
 import { ErroApi } from '@/lib/api/http';
 import { useCRMStore } from '@/stores/crmStore';
 import {
   useClientesParecidos, useConverterLead, useCriarOportunidade, useCriarTarefa, useEtapas, useExcluirOportunidades,
-  useModoCrm, useMoverOportunidade, useRegistrarContatoWhatsApp,
+  useLeadsPendentes, useModoCrm, useMoverOportunidade, useRegistrarContatoWhatsApp,
 } from './useCrm';
 
 const api = vi.mocked(crmApi);
@@ -48,6 +51,13 @@ describe('useCrm com a API Lotti', () => {
     const r = montar(() => useModoCrm());
     await waitFor(() => expect(r.current.data).toBe('completo'));
     expect(chamarApi).not.toHaveBeenCalled();
+  });
+
+  it('leads pendentes das fachadas vêm da API (convertido=false), sem tocar o Supabase', async () => {
+    vi.mocked(listarLeadsPendentesApi).mockResolvedValue([{ id: LEAD, nome: 'Lead da placa', convertido: false }]);
+    const r = montar(() => useLeadsPendentes());
+    await waitFor(() => expect(r.current.data).toEqual([{ id: LEAD, nome: 'Lead da placa', convertido: false }]));
+    expect(listarLeadsPendentesApi).toHaveBeenCalledTimes(1);
   });
 
   it('etapas vêm da API', async () => {

@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
+import { corretorIdDaContaApi } from "@/stores/crmStore";
 import { completarCpfApi } from "@/lib/api/crm";
 import {
     criarLocacaoApi,
@@ -251,8 +252,8 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             let corretor: { id: string } | null;
             if (apiDisponivel()) {
                 // Só para o caminho do Storage: o corretor da conta (inclui membro de equipe, D4).
-                const { data: corretorId } = await supabase.rpc("get_corretor_id");
-                corretor = corretorId ? { id: corretorId as string } : null;
+                // Vem do perfil pela API: com o login próprio não há sessão do Supabase.
+                corretor = { id: await corretorIdDaContaApi() };
             } else {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) throw new Error("Usuário não autenticado");

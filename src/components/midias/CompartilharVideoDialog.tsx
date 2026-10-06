@@ -14,6 +14,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { VideoRow } from '@/hooks/useVideos';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { useCRMStore } from '@/stores/crmStore';
 import { toast } from 'sonner';
 import { format, addDays, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -57,6 +59,15 @@ export function CompartilharVideoDialog({
   // Fetch corretor info
   useEffect(() => {
     const fetchCorretor = async () => {
+      if (apiDisponivel()) {
+        // Login próprio, sem sessão do Supabase: a assinatura vem do perfil já
+        // carregado no crmStore (busca uma vez se ainda não chegou).
+        const store = useCRMStore.getState();
+        if (!store.corretor) await store.fetchCorretor();
+        const c = useCRMStore.getState().corretor;
+        if (c) setCorretor({ nome: c.nome, telefone: c.telefone, creci: c.creci, creci_estado: c.creci_estado });
+        return;
+      }
       const { data: corretorId } = await supabase.rpc('get_corretor_id');
       if (corretorId) {
         const { data } = await supabase

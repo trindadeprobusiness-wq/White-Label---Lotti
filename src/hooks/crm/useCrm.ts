@@ -20,6 +20,7 @@ import {
   moverOportunidadeApi,
   registrarHistoricoApi,
 } from '@/lib/api/crm';
+import { listarLeadsPendentesApi } from '@/lib/api/fachadas';
 import { comoResultado, escolher } from '@/lib/api/http';
 import { normalizarLead } from '@/lib/crm/pipeline';
 import { paraRegistro } from '@/lib/crm/historico';
@@ -223,6 +224,8 @@ export function useLeadsPendentes() {
   return useQuery({
     queryKey: crmKeys.leads(),
     queryFn: async () => {
+      // Com a API ligada: F5 das fachadas filtrado por convertido=false, mesma ordem.
+      if (apiDisponivel()) return await listarLeadsPendentesApi();
       const { data, error } = await db()
         .from('fachada_leads')
         .select('id, nome, telefone, email, created_at, convertido, fachada_id')

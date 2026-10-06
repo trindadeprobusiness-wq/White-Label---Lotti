@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 
 /** Teto que o PostgREST aplica hoje (max-rows): o front não perde nem ganha linha. */
@@ -38,6 +38,7 @@ const M = {
   template: { message: 'Template inválido.' },
   conversao: { message: 'Modo de conversão inválido.' },
   ativo: { message: 'Situação inválida.' },
+  convertido: { message: 'Filtro de conversão inválido.' },
   mensagem: { message: 'Mensagem inválida.' },
   mensagemLonga: { message: 'Mensagem muito longa.' },
   url: { message: 'Endereço de imagem inválido.' },
@@ -77,8 +78,13 @@ export class EditarFachadaDto {
   @IsOptional() @IsBoolean(M.ativo) ativo?: boolean;
 }
 
+/** `@Type(() => Boolean)` não serve: Boolean('false') é true e o filtro chegaria invertido. */
+const booleanoDaQuery = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
+
 export class ListarLeadsDto {
   @IsOptional() @Matches(FORMATO_UUID, M.fachada) fachada_id?: string;
+  /** false = só os pendentes (useLeadsPendentes); ausente = todos, como antes. */
+  @IsOptional() @Transform(booleanoDaQuery) @IsBoolean(M.convertido) convertido?: boolean;
 }
 
 export class MetricasDto {

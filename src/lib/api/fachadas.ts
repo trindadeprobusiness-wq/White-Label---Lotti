@@ -72,6 +72,11 @@ export async function listarLeadsApi(fachadaId?: string): Promise<Linha[]> {
   return lerJson(await chamarApi(`/api/fachadas/leads${busca}`), 'Não foi possível carregar os leads.');
 }
 
+/** Leads que ainda não viraram cliente (useLeadsPendentes do CRM): F5 com convertido=false. */
+export async function listarLeadsPendentesApi(): Promise<Linha[]> {
+  return lerJson(await chamarApi('/api/fachadas/leads?convertido=false'), 'Não foi possível carregar os leads.');
+}
+
 export async function excluirLeadApi(leadId: string): Promise<void> {
   await lerJson(await chamarApi(`/api/fachadas/leads/${id(leadId)}`, corpoJson('DELETE')),
     'Não foi possível excluir o lead.');

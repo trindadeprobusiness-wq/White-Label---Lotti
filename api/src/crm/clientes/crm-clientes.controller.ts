@@ -33,6 +33,12 @@ export class CrmClientesController {
     return this.clientes.buscarCandidatos(claims, q);
   }
 
+  /** Histórico de todos os clientes visíveis (a timeline sem cliente escolhido). Antes de :id. */
+  @Get('historico')
+  listarHistoricoGeral(@Claims() claims: SupabaseClaims): Promise<LinhaHistorico[]> {
+    return this.clientes.listarHistoricoGeral(claims);
+  }
+
   @Post()
   @HttpCode(200)
   criar(@Claims() claims: SupabaseClaims, @Body() dto: CriarClienteDto): Promise<unknown> {
