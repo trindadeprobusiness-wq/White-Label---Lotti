@@ -43,10 +43,10 @@ Marcação: **[VOCÊ]** é decisão ou clique seu · **[CODEX]** roda com a CLI 
 
 | # | Quem | O quê | Volta atrás |
 |---|------|-------|-------------|
-| D1 | [VOCÊ] | Definir `AUTH_JWT_SECRET` no serviço **api** (gerado, nunca colado em chat) | apagar |
+| D1 | [VOCÊ] | Na **api**, gerar e definir `AUTH_JWT_SECRET`, `IP_HASH_SALT` e `PUBLIC_RATE_LIMIT_SECRET` (valores aleatórios, nunca colados em chat) e `PARCEIRO_ORIGENS_PERMITIDAS=https://app.plataformalotti.com.br,https://plataformalotti.com.br`. Sem os dois do meio, o clique de parceiro e o diagnóstico respondem 503 | apagar |
 | D2 | [VOCÊ] | Definir `VITE_API_URL=https://api.plataformalotti.com.br` no **app** e redeploy | **apagar a variável e redeploy: o front volta inteiro para o Supabase** |
-| D3 | [VOCÊ] | Webhook do Asaas apontando para a API; reconectar Asaas (chave nova) | apontar de volta |
-| D4 | [VOCÊ] | Google: callback `/google-agenda/callback` no Caddyfile/Console; as 2 contas reconectam | apontar de volta |
+| D3 | [VOCÊ] | Asaas (Menu do usuário → Integrações → Webhooks): de `https://dqlolypbmsjgqrvdesev.supabase.co/functions/v1/asaas-webhook` para `https://api.plataformalotti.com.br/api/financeiro/asaas/webhook?t=<webhook_slug>`. Conferir na tela antes de salvar; reconectar o Asaas (chave nova) | voltar a URL antiga |
+| D4 | [CLAUDE] | Caddyfile, linhas 14–15: callback `app.plataformalotti.com.br/google-agenda/callback` passa a ir para a API em `/api/google-agenda/callback` (no Google Console **nada muda**). Push do Google: `https://api.plataformalotti.com.br/api/google-agenda/webhook`. As 2 contas reconectam o Google | reverter o commit do Caddyfile |
 | D5 | [VOCÊ] | `ROUTINE_CALENDAR_MAINTAIN_ENABLED=true` e `ASAAS_PROCESSAR_FILA=true` na **api** | apagar |
 | D6 | [CLAUDE] | Fumaça: login, listar imóveis/clientes, abrir foto, baixar documento, gerar contrato | — |
 
@@ -55,7 +55,8 @@ O Supabase continua com os dados até a véspera; o que foi gravado na API duran
 
 ## E. Dias seguintes
 
-- Desligar as Edge Functions migradas, uma por vez, olhando os logs.
+- Edge Functions (26): desligar as 11 com substituta, uma por vez e olhando os logs; as 9 que ficam (WhatsApp, ai-process-file, convite de parceiro…) seguem; as 6 duvidosas só depois de conferir os logs (lista no relatório 24 do Codex).
+- `PARCEIRO_EMAIL_PROVEDOR`: só quando o convite de parceiro sair do Supabase.
 - Recuperação de senha: falta o Reply-To e o DNS do Resend (`mail.plataformalotti.com.br`). Sua autorização.
 - Autovacuum: só religar quando o suporte do Supabase responder (irrelevante depois da virada).
 
