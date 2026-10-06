@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Wand2, Copy, Check, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { apiDisponivel } from "@/lib/api";
+import { gerarMensagemWhatsappApi } from "@/lib/api/ia";
 import { toast } from "sonner";
 import { FaturaAluguel } from "@/types/rental";
 
@@ -31,26 +33,33 @@ export function GenerateMessageDialog({ open, onOpenChange, bill, clientName }: 
         setGeneratedMessage(""); // Clear previous
 
         try {
-            // Token da sessão explícito: o invoke sozinho não anexa o JWT do corretor
-            // de forma confiável (mesmo padrão usado na emissão de cobrança).
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
-            const { data, error } = await supabase.functions.invoke('generate-whatsapp-message', {
-                headers: { Authorization: `Bearer ${session.access_token}` },
-                body: {
-                    clientName: clientName || "Cliente",
-                    messageType,
-                    tone,
-                    details: {
-                        amount: bill.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-                        dueDate: new Date(bill.data_vencimento).toLocaleDateString('pt-BR'),
-                        referenceMonth: bill.mes_referencia,
-                        status: bill.status
-                    }
+            const pedido = {
+                clientName: clientName || "Cliente",
+                messageType,
+                tone,
+                details: {
+                    amount: bill.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+                    dueDate: new Date(bill.data_vencimento).toLocaleDateString('pt-BR'),
+                    referenceMonth: bill.mes_referencia,
+                    status: bill.status
                 }
-            });
+            };
+            let data: { message?: string } | null;
+            if (apiDisponivel()) {
+                data = await gerarMensagemWhatsappApi(pedido);
+            } else {
+                // Token da sessão explícito: o invoke sozinho não anexa o JWT do corretor
+                // de forma confiável (mesmo padrão usado na emissão de cobrança).
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+                const resposta = await supabase.functions.invoke('generate-whatsapp-message', {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                    body: pedido
+                });
 
-            if (error) throw error;
+                if (resposta.error) throw resposta.error;
+                data = resposta.data;
+            }
 
             if (data?.message) {
                 setGeneratedMessage(data.message);

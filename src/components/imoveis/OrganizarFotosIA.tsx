@@ -6,6 +6,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { analisarFotosImovelApi, salvarDescricaoImovelApi } from '@/lib/api/ia';
+import { obterImovelApi } from '@/lib/api/imoveis';
 import { urlParaBase64 } from '@/lib/imagem';
 import { ordenarPorCategoria } from '@/lib/ordemFotos';
 import { mensagemDeErro } from '@/lib/errors';
@@ -20,6 +23,8 @@ interface OrganizarFotosIAProps {
 }
 
 const MAX_FOTOS = 25;
+
+type DadosImovel = { titulo?: string | null; tipo?: string | null; bairro?: string | null; cidade?: string | null; descricao?: string | null };
 
 export function OrganizarFotosIA({ imovelId, fotos, disabled, onOrdenar }: OrganizarFotosIAProps) {
   const [analisando, setAnalisando] = useState(false);
@@ -36,38 +41,47 @@ export function OrganizarFotosIA({ imovelId, fotos, disabled, onOrdenar }: Organ
     const toastId = toast.loading('A IA está olhando as fotos...');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
-
-      const { data: imovel } = await supabase
-        .from('imoveis')
-        .select('titulo, tipo, bairro, cidade, descricao')
-        .eq('id', imovelId)
-        .single();
-
       // Só as primeiras MAX_FOTOS: o teto existe na função e mandar mais só
       // gastaria banda para receber um erro.
       const consideradas = fotos.slice(0, MAX_FOTOS);
-      const imagens = await Promise.all(consideradas.map((f) => urlParaBase64(f.arquivo_url)));
-
-      const { data, error } = await supabase.functions.invoke('analisar-fotos-imovel', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: {
-          imagens,
-          descricao_atual: imovel?.descricao ?? '',
-          dados_imovel: {
-            titulo: imovel?.titulo, tipo: imovel?.tipo,
-            bairro: imovel?.bairro, cidade: imovel?.cidade,
-          },
+      const corpoDaAnalise = async (imovel: DadosImovel | null | undefined) => ({
+        imagens: await Promise.all(consideradas.map((f) => urlParaBase64(f.arquivo_url))),
+        descricao_atual: imovel?.descricao ?? '',
+        dados_imovel: {
+          titulo: imovel?.titulo, tipo: imovel?.tipo,
+          bairro: imovel?.bairro, cidade: imovel?.cidade,
         },
       });
 
-      if (error) {
-        let msg = error.message;
-        try { msg = (await (error as { context?: Response }).context?.json())?.error ?? msg; } catch { /* ignore */ }
-        throw new Error(msg);
+      let imovel: DadosImovel | null | undefined;
+      let data: { fotos?: Array<{ indice: number; categoria: string }>; descricao_sugerida?: string | null; error?: string } | null;
+      if (apiDisponivel()) {
+        // Sem sessão do Supabase no modo API: imóvel e análise vêm da API Lotti.
+        imovel = (await obterImovelApi(imovelId).catch(() => null)) as DadosImovel | null;
+        data = await analisarFotosImovelApi(await corpoDaAnalise(imovel));
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+
+        ({ data: imovel } = await supabase
+          .from('imoveis')
+          .select('titulo, tipo, bairro, cidade, descricao')
+          .eq('id', imovelId)
+          .single());
+
+        const resposta = await supabase.functions.invoke('analisar-fotos-imovel', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: await corpoDaAnalise(imovel),
+        });
+
+        if (resposta.error) {
+          let msg = resposta.error.message;
+          try { msg = (await (resposta.error as { context?: Response }).context?.json())?.error ?? msg; } catch { /* ignore */ }
+          throw new Error(msg);
+        }
+        data = resposta.data;
+        if (data?.error) throw new Error(data.error);
       }
-      if (data?.error) throw new Error(data.error);
 
       // A IA classificou; a ordem é decidida aqui, por regra de mercado.
       const comCategoria = consideradas.map((foto, i) => ({
@@ -96,8 +110,12 @@ export function OrganizarFotosIA({ imovelId, fotos, disabled, onOrdenar }: Organ
     if (!sugestao) return;
     setSalvandoDescricao(true);
     try {
-      const { error } = await supabase.from('imoveis').update({ descricao: sugestao }).eq('id', imovelId);
-      if (error) throw error;
+      if (apiDisponivel()) {
+        await salvarDescricaoImovelApi(imovelId, sugestao);
+      } else {
+        const { error } = await supabase.from('imoveis').update({ descricao: sugestao }).eq('id', imovelId);
+        if (error) throw error;
+      }
       toast.success('Descrição atualizada.');
       setSugestao(null);
     } catch (err) {

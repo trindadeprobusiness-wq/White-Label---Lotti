@@ -11,6 +11,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { gerarMensagemWhatsappApi } from '@/lib/api/ia';
 import { normalizarTelefoneBR } from '@/lib/telefone';
 import { mensagemDeErro } from '@/lib/errors';
 import { useRegistrarContatoWhatsApp } from '@/hooks/crm/useCrm';
@@ -61,12 +63,17 @@ export function WhatsAppDialog({ open, onOpenChange, contato }: WhatsAppDialogPr
     if (!contato) return;
     setGerando(true);
     try {
+      const pedido = { clientName: contato.nome, messageType: tipo, details: detalhes, tone: tom };
+      if (apiDisponivel()) {
+        setMensagem((await gerarMensagemWhatsappApi(pedido)).message ?? '');
+        return;
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
 
       const { data, error } = await supabase.functions.invoke('generate-whatsapp-message', {
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { clientName: contato.nome, messageType: tipo, details: detalhes, tone: tom },
+        body: pedido,
       });
       if (error) {
         let msg = error.message;

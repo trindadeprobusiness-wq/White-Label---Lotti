@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { analisarFotoApi } from '@/lib/api/ia';
 
 // ───────────────────────────────────────────────
 // Constants & Types
@@ -206,6 +208,11 @@ function downscaleToBase64(file: File, maxDim = 1024): Promise<string> {
 async function analyzePhotoViaEdge(file: File): Promise<EnhancementParams> {
     try {
         const imageBase64 = await downscaleToBase64(file, 1024);
+        if (apiDisponivel()) {
+            // Modo API (sem sessão do Supabase): mesma análise, mesma resiliência — erro cai no catch.
+            const { params } = await analisarFotoApi({ imageBase64, mimeType: 'image/jpeg' });
+            return (params as EnhancementParams) ?? DEFAULT_PARAMS;
+        }
         const { data, error } = await supabase.functions.invoke('analisar-foto', {
             body: {
                 imageBase64,

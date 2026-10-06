@@ -1,6 +1,16 @@
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import {
+  abrirAssistenteApi,
+  alterarConversaIaApi,
+  apagarConversaIaApi,
+  decidirAcaoIaApi,
+  enviarAnexoIaApi,
+  listarConversasIaApi,
+  listarMensagensIaApi,
+} from '@/lib/api/ia';
 import type { AIConversation, AIMessage, AISuggestedAction, AIStreamChunk } from '@/types/ai';
 
 interface UseAIChatReturn {
@@ -60,6 +70,12 @@ export function useAIChat(): UseAIChatReturn {
   const abortRef = useRef<AbortController | null>(null);
 
   const loadConversations = useCallback(async () => {
+    if (apiDisponivel()) {
+      // Como no Supabase: erro de leitura deixa a lista vazia, sem estourar.
+      const lista = await listarConversasIaApi().catch(() => []);
+      setConversations(sortConversations(lista as unknown as AIConversation[]));
+      return;
+    }
     const { data } = await supabase
       .from('ai_conversations')
       .select('*')
@@ -73,11 +89,17 @@ export function useAIChat(): UseAIChatReturn {
     setConversations((prev) =>
       sortConversations(prev.map((c) => (c.id === id ? { ...c, pinned } : c)))
     );
-    const { error } = await supabase
-      .from('ai_conversations')
-      .update({ pinned })
-      .eq('id', id);
-    if (error) {
+    let falhou: boolean;
+    if (apiDisponivel()) {
+      falhou = await alterarConversaIaApi(id, { pinned }).then(() => false, () => true);
+    } else {
+      const { error } = await supabase
+        .from('ai_conversations')
+        .update({ pinned })
+        .eq('id', id);
+      falhou = !!error;
+    }
+    if (falhou) {
       toast.error('Não foi possível fixar a conversa.');
       await loadConversations(); // reverte para o estado real
     }
@@ -93,8 +115,14 @@ export function useAIChat(): UseAIChatReturn {
       setPendingActions([]);
       setError(null);
     }
-    const { error } = await supabase.from('ai_conversations').delete().eq('id', id);
-    if (error) {
+    let falhou: boolean;
+    if (apiDisponivel()) {
+      falhou = await apagarConversaIaApi(id).then(() => false, () => true);
+    } else {
+      const { error } = await supabase.from('ai_conversations').delete().eq('id', id);
+      falhou = !!error;
+    }
+    if (falhou) {
       toast.error('Não foi possível excluir a conversa.');
       setConversations(snapshot); // restaura
       return;
@@ -107,11 +135,17 @@ export function useAIChat(): UseAIChatReturn {
     setError(null);
     setPendingActions([]);
 
-    const { data } = await supabase
-      .from('ai_messages')
-      .select('*')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true });
+    let data: Array<{ role: string }> | null;
+    if (apiDisponivel()) {
+      data = (await listarMensagensIaApi(id).catch(() => null)) as Array<{ role: string }> | null;
+    } else {
+      const resposta = await supabase
+        .from('ai_messages')
+        .select('*')
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: true });
+      data = resposta.data as unknown as Array<{ role: string }> | null;
+    }
 
     const msgs = (data || []).filter(
       (m: { role: string }) => m.role === 'user' || m.role === 'assistant'
@@ -156,36 +190,43 @@ export function useAIChat(): UseAIChatReturn {
     abortRef.current = new AbortController();
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      const corpo = {
+        message: text,
+        conversation_id: activeConversation,
+        file_context: fileContext,
+        module: aiModuleFromPath(window.location.pathname),
+        intent: 'assistant.chat',
+        locale: 'pt-BR',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+        output_mode: 'text',
+        trace_id: crypto.randomUUID(),
+      };
+      let response: Response;
+      if (apiDisponivel()) {
+        // Mesmo stream e mesmos eventos da Edge Function; erro antes do stream vem como ErroApi.
+        response = await abrirAssistenteApi(corpo, abortRef.current.signal);
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: text,
-            conversation_id: activeConversation,
-            file_context: fileContext,
-            module: aiModuleFromPath(window.location.pathname),
-            intent: 'assistant.chat',
-            locale: 'pt-BR',
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
-            output_mode: 'text',
-            trace_id: crypto.randomUUID(),
-          }),
-          signal: abortRef.current.signal,
+        response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(corpo),
+            signal: abortRef.current.signal,
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const reader = response.body!.getReader();
@@ -257,6 +298,7 @@ export function useAIChat(): UseAIChatReturn {
 
   const uploadFile = useCallback(async (file: File) => {
     try {
+      if (apiDisponivel()) return await enviarAnexoIaApi(file);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
@@ -289,24 +331,29 @@ export function useAIChat(): UseAIChatReturn {
 
   const confirmAction = useCallback(async (action: AISuggestedAction) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+      let body: { existing?: boolean; error?: string } | null;
+      if (apiDisponivel()) {
+        body = await decidirAcaoIaApi(action.id, 'confirm');
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-action`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-action`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ proposal_id: action.id, decision: 'confirm' }),
           },
-          body: JSON.stringify({ proposal_id: action.id, decision: 'confirm' }),
-        },
-      );
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(body?.error || 'Não foi possível executar a ação.');
+        );
+        body = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(body?.error || 'Não foi possível executar a ação.');
+        }
       }
 
       setPendingActions(prev =>
@@ -325,21 +372,25 @@ export function useAIChat(): UseAIChatReturn {
 
   const rejectAction = useCallback(async (actionId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-action`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
+      if (apiDisponivel()) {
+        await decidirAcaoIaApi(actionId, 'reject');
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-action`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ proposal_id: actionId, decision: 'reject' }),
           },
-          body: JSON.stringify({ proposal_id: actionId, decision: 'reject' }),
-        },
-      );
-      if (!response.ok) throw new Error('Não foi possível recusar a ação.');
+        );
+        if (!response.ok) throw new Error('Não foi possível recusar a ação.');
+      }
       setPendingActions(prev =>
         prev.map(a => (a.id === actionId ? { ...a, status: 'rejected' as const } : a))
       );

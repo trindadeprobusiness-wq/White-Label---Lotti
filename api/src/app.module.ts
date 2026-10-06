@@ -9,6 +9,7 @@ import { CrmFunilModule } from './crm/funil/crm-funil.module';
 import { FachadasModule } from './fachadas/fachadas.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { HealthController } from './health/health.controller';
+import { IaModule } from './ia/ia.module';
 import { ImoveisModule } from './imoveis/imoveis.module';
 import { NotificacoesModule } from './notificacoes/notificacoes.module';
 import { ParceirosModule } from './parceiros/parceiros.module';
@@ -37,6 +38,7 @@ import { VisitasModule } from './visitas/visitas.module';
     ParceirosModule,
     NotificacoesModule,
     VisitasModule,
+    IaModule,
   ],
   controllers: [HealthController],
 })

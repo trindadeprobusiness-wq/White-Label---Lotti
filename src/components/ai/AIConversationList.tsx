@@ -20,6 +20,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { apiDisponivel } from '@/lib/api';
+import { alterarConversaIaApi } from '@/lib/api/ia';
 import type { AIConversation } from '@/types/ai';
 
 interface AIConversationListProps {
@@ -172,9 +174,13 @@ export function AIConversationList({
         event.preventDefault(); if (!renaming || !title.trim() || saving) return;
         setSaving(true); setRenameError('');
         try {
-          const { supabase } = await import('@/integrations/supabase/client');
-          const { data, error } = await supabase.from('ai_conversations').update({ title: title.trim() }).eq('id', renaming.id).select('id').single();
-          if (error || !data) throw new Error();
+          if (apiDisponivel()) {
+            await alterarConversaIaApi(renaming.id, { title: title.trim() });
+          } else {
+            const { supabase } = await import('@/integrations/supabase/client');
+            const { data, error } = await supabase.from('ai_conversations').update({ title: title.trim() }).eq('id', renaming.id).select('id').single();
+            if (error || !data) throw new Error();
+          }
           onLoad(); setRenaming(null);
         } catch { setRenameError('Não foi possível salvar o título. Tente novamente.'); }
         finally { setSaving(false); }

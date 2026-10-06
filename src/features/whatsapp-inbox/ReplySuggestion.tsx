@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { apiDisponivel } from '@/lib/api';
+import { listarImoveisSugestaoApi, sugerirRespostaInboxApi } from '@/lib/api/ia';
 
 export function ReplySuggestion({ question, onUse }: { question: string; onUse: (text: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -17,11 +19,18 @@ export function ReplySuggestion({ question, onUse }: { question: string; onUse: 
     setLoading(true);
     void (async () => {
       try {
-        const { supabase } = await import('@/integrations/supabase/client');
-        const { data: owner, error: ownerError } = await supabase.rpc('get_corretor_id');
-        if (ownerError || !owner) throw new Error();
-        const { data, error: queryError } = await supabase.from('imoveis').select('id,titulo').eq('corretor_id', owner).eq('ativo', true).order('titulo').limit(200);
-        if (queryError) throw queryError;
+        let data: { id: string; titulo: string }[] | null;
+        if (apiDisponivel()) {
+          // Modo API: a própria rota resolve a conta (sem rpc('get_corretor_id') nem select direto).
+          data = await listarImoveisSugestaoApi();
+        } else {
+          const { supabase } = await import('@/integrations/supabase/client');
+          const { data: owner, error: ownerError } = await supabase.rpc('get_corretor_id');
+          if (ownerError || !owner) throw new Error();
+          const resposta = await supabase.from('imoveis').select('id,titulo').eq('corretor_id', owner).eq('ativo', true).order('titulo').limit(200);
+          if (resposta.error) throw resposta.error;
+          data = resposta.data;
+        }
         if (!cancelled) { setProperties(data ?? []); setError(''); }
       } catch { if (!cancelled) setError('Não foi possível carregar seus imóveis. Feche e tente novamente.'); }
       finally { if (!cancelled) setLoading(false); }
@@ -31,9 +40,15 @@ export function ReplySuggestion({ question, onUse }: { question: string; onUse: 
   const generate = async () => {
     setBusy(true); setError(''); setSuggestion('');
     try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data, error: requestError } = await supabase.functions.invoke('inbox-suggest', { body: { propertyId, question } });
-      if (requestError) throw new Error('Sugestões indisponíveis. A função de IA precisa estar publicada e a conta ter cota disponível.');
+      let data: { suggestion?: string; propertyId?: string } | null;
+      if (apiDisponivel()) {
+        data = await sugerirRespostaInboxApi({ propertyId, question });
+      } else {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const resposta = await supabase.functions.invoke('inbox-suggest', { body: { propertyId, question } });
+        if (resposta.error) throw new Error('Sugestões indisponíveis. A função de IA precisa estar publicada e a conta ter cota disponível.');
+        data = resposta.data;
+      }
       if (!data?.suggestion || data.propertyId !== propertyId) throw new Error('Não foi possível gerar a sugestão.');
       setSuggestion(data.suggestion);
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Falha ao gerar sugestão.'); }

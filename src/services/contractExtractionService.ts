@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
 import { ErroApi } from "@/lib/api/http";
 import { analisarContratoIaApi } from "@/lib/api/contratos";
+import { abrirAssistenteApi } from "@/lib/api/ia";
 
 // Extração automática de dados de contratos de locação (PDF ou imagem).
 //
@@ -163,24 +164,35 @@ const ASSISTANT_INSTRUCTION = `Extraia os dados do contrato de locação enviado
 Regras: use null quando não tiver certeza e NUNCA invente dados; "inquilino" é o locatário e "proprietario_nome" é o locador; valor_aluguel é o aluguel mensal como número puro; data_inicio no formato YYYY-MM-DD; imovel.tipo deve ser APARTAMENTO, CASA, COMERCIAL ou TERRENO; dia_vencimento é um inteiro de 1 a 31. NÃO use tools nem sugira ações — apenas responda o JSON.`;
 
 async function analyzeViaAssistant(contractText: string): Promise<ExtractedContractData> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Não autenticado");
+    const pedido = {
+        message: ASSISTANT_INSTRUCTION,
+        file_context: `Contrato de locação (texto extraído do PDF):\n\n${contractText}`,
+    };
+    let response: Response;
+    if (apiDisponivel()) {
+        // Mesmo stream SSE do assistente, pela API Lotti (sem sessão do Supabase).
+        try {
+            response = await abrirAssistenteApi(pedido);
+        } catch {
+            throw new Error("O assistente IA não respondeu. Tente novamente.");
+        }
+    } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Não autenticado");
 
-    const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
-        {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${session.access_token}`,
-                "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                "Content-Type": "application/json",
+        response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
+            {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${session.access_token}`,
+                    "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(pedido),
             },
-            body: JSON.stringify({
-                message: ASSISTANT_INSTRUCTION,
-                file_context: `Contrato de locação (texto extraído do PDF):\n\n${contractText}`,
-            }),
-        },
-    );
+        );
+    }
 
     if (!response.ok || !response.body) {
         throw new Error("O assistente IA não respondeu. Tente novamente.");
