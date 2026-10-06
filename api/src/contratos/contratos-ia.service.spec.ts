@@ -95,6 +95,7 @@ describe('ContratosIaService', () => {
     expect(init.headers.Authorization).toBe('Bearer chave-falsa');
     const corpo = JSON.parse(init.body);
     expect(corpo.temperature).toBe(0.2);
+    expect(corpo.reasoning_effort).toBe('none');
     expect(corpo.model).toBe('gemini-2.5-flash');
     expect(corpo.messages[0].content).toContain('MINUTA PARA REVISÃO JURÍDICA');
     expect(corpo.messages[1].content).toContain('<external_data kind="contract_request">');

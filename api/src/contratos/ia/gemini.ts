@@ -32,7 +32,9 @@ export function chatGemini(o: OpcoesChat): Promise<Response> {
   return f(OPENAI_COMPAT_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${o.chave}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: o.mensagens, stream: false, temperature: o.temperature, model: o.modelo }),
+    // reasoning_effort 'none' desliga o "thinking" do 2.5-flash: com ele a minuta passava de 90 s
+    // e a geração caía em TimeoutError (visto nos logs de gerar-contrato em 2026-10-06).
+    body: JSON.stringify({ messages: o.mensagens, stream: false, temperature: o.temperature, model: o.modelo, reasoning_effort: 'none' }),
     signal: AbortSignal.timeout(o.timeoutMs ?? TIMEOUT_IA_MS),
   });
 }
