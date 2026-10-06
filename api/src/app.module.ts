@@ -21,6 +21,7 @@ import { RotinaModule } from './rotina/rotina.module';
 import { StorageModule } from './storage/storage.module';
 import { SuporteModule } from './suporte/suporte.module';
 import { VisitasModule } from './visitas/visitas.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { VisitasModule } from './visitas/visitas.module';
     IaModule,
     AgendamentosModule,
     SuporteModule,
+    WhatsappModule,
   ],
   controllers: [HealthController],
 })

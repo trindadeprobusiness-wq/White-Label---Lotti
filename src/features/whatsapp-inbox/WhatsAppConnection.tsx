@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 import { useWhatsAppConnectionQuery, type WhatsAppConnectionState } from './useWhatsAppConnection';
+import { apiDisponivel } from '@/lib/api';
+import { whatsappBridgeApi } from '@/lib/api/whatsapp';
 import {MENSAGEM_DA_PONTE} from './bridgeError';
 type WhatsAppConnectionProps={autoStart?:boolean;previewPairing?:boolean};
 const previewQr=`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="white"/><path fill="#111827" d="M1 1h7v7H1zm2 2v3h3V3zm10-2h7v7h-7zm2 2v3h3V3zM1 13h7v7H1zm2 2v3h3v-3zm7-14h2v2h-2zm0 4h2v4h-2zm0 6h3v2h-3zm5-1h2v3h-2zm3 1h2v2h-2zm-8 4h2v5h-2zm4 0h2v2h-2zm4 0h2v5h-4v-2h2z"/></svg>')}`;
@@ -25,7 +27,7 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
    if(src&&expiresAt>Date.now())setVisibleQr(current=>current?.src===src&&current.expiresAt===expiresAt?current:{src,expiresAt});
  },[connection.data?.qr,connection.data?.qrExpiresAt]);
  const connected=connection.data?.state==='connected';
- const begin=useCallback(async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{const {data,error}=await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp',{body:{action:'connect'}});if(id!==attempt.current)return;if(error||!data)throw error??new Error('connection_unavailable');cache.setQueryData(['whatsapp-connection',user?.id],data);setPairing(data.state!=='connected');}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}},[cache,starting,user?.id]);
+ const begin=useCallback(async()=>{if(starting)return;const id=++attempt.current;setStarting(true);setExpired(false);setStartError(false);try{let data:WhatsAppConnectionState|undefined;if(apiDisponivel())data=await whatsappBridgeApi<WhatsAppConnectionState>({action:'connect'});else{const result=await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp',{body:{action:'connect'}});if(result.error)throw result.error;data=result.data??undefined;}if(id!==attempt.current)return;if(!data)throw new Error('connection_unavailable');cache.setQueryData(['whatsapp-connection',user?.id],data);setPairing(data.state!=='connected');}catch{if(id===attempt.current)setStartError(true);}finally{if(id===attempt.current)setStarting(false);}},[cache,starting,user?.id]);
  // Only a confirmed disconnected session starts pairing. While WhatsApp is reconnecting
  // a new connect would make the bridge log the paired number out.
  // A QR already waiting to be scanned (page reopened mid-pairing) is shown again once,

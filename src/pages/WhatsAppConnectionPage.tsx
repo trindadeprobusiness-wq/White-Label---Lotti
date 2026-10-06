@@ -9,6 +9,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppConnectionQuery, type WhatsAppConnectionState } from '@/features/whatsapp-inbox/useWhatsAppConnection';
+import { apiDisponivel } from '@/lib/api';
+import { canalApi, empresaCanalApi, whatsappBridgeApi } from '@/lib/api/whatsapp';
 import { WhatsAppConnection } from '@/features/whatsapp-inbox/WhatsAppConnection';
 import { MENSAGEM_DA_PONTE } from '@/features/whatsapp-inbox/bridgeError';
 
@@ -24,6 +26,7 @@ export default function WhatsAppConnectionPage() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const disconnect = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) { const data=await whatsappBridgeApi<WhatsAppConnectionState>({action:'disconnect'}); if(data.state!=='disconnected')throw new Error('disconnect_failed'); return data; }
       const { data, error } = await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp', { body: { action: 'disconnect' } });
       if (error || data?.state !== 'disconnected') throw error ?? new Error('disconnect_failed');
       return data;
@@ -42,6 +45,7 @@ export default function WhatsAppConnectionPage() {
   const company = useQuery({
     queryKey: ['whatsapp-company', user?.id, phone], enabled: !!user && connected && !!phone && !connectedPreview,
     queryFn: async () => {
+      if (apiDisponivel()) return ((await canalApi<{company_name:string|null}>(phone!))?.company_name)||'Lotti Imóveis';
       const db = supabase as unknown as SupabaseClient;
       const { data, error } = await db.from('lotti_agent_channels').select('company_name').eq('account_phone', phone!).is('archived_at', null).maybeSingle();
       if (error) throw error;
@@ -51,6 +55,7 @@ export default function WhatsAppConnectionPage() {
   const companyName = connectedPreview ? 'Lotti Imóveis' : company.data || 'Lotti Imóveis';
   const saveCompany = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) { await empresaCanalApi(phone!,companyDraft.trim()); return; }
       const db = supabase as unknown as SupabaseClient;
       const { data, error } = await db.rpc('lotti_channel_set_company_name', { p_phone: phone, p_name: companyDraft.trim() });
       if (error || data !== true) throw error ?? new Error('company_update_failed');
@@ -68,6 +73,7 @@ export default function WhatsAppConnectionPage() {
   const testingOwnNumber = !!phone && testPhone.replace(/\D/g, '') === phone.replace(/\D/g, '');
   const testSend = useMutation({
     mutationFn: async () => {
+      if (apiDisponivel()) { const data=await whatsappBridgeApi<{sendStatus?:string}>({action:'start',phone:testPhone,text:'Olá, tudo bem?',request_id:crypto.randomUUID()}); if(data.sendStatus!=='sent')throw new Error(data.sendStatus==='sending'||data.sendStatus==='uncertain'?'send_unconfirmed':'send_failed');return data; }
       const { data, error } = await supabase.functions.invoke<{ sendStatus?: string }>('lotti-whatsapp', { body: {
         action: 'start', phone: testPhone, text: 'Olá, tudo bem?', request_id: crypto.randomUUID(),
       } });

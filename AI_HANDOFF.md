@@ -1,5 +1,13 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Codex — bloco B3 da virada: WhatsApp pela API (2026-10-06)
+- Branch/worktree locais, sem push/deploy: `codex/whatsapp-api` em `C:\Users\rafae\lotti-whatsapp-api-b4`; runtime `codex/railway-data-plane` em `C:\Users\rafae\lotti-whatsapp-runtime`.
+- API: `WhatsappModule` cobre ponte, Inbox, canal, configurações, broadcasts e painel com `SupabaseAuthGuard` + `TenantDb`; anexos usam Garage, e o runtime tem rotas internas protegidas por `AgentTokenGuard`. Front usa `chamarApi` quando `apiDisponivel()` e mantém o fallback Supabase.
+- Runtime: `DATABASE_URL` troca REST/RPC do Supabase pelo Postgres do Railway; `AGENT_API_URL` + `AGENT_API_TOKEN` fazem inspect/sign/upload no Garage via API. Evolution/webhook-proxies não acessam Supabase diretamente.
+- Validação sequencial: API tsc ok; Jest 1284/1284; schema/dados 30/30; SQL real 335/335; runtime 166/166; front tocado 97/97. Typecheck global do front ainda tem os erros preexistentes dos outros blocos, nenhum nos arquivos B3.
+- Virada: adicionar `DATABASE_URL`, `AGENT_API_URL`, `AGENT_API_TOKEN` no agent; API precisa `LOTTI_CHANNEL_BRIDGE_URL`, `LOTTI_CHANNEL_BRIDGE_TOKEN`, `AGENT_API_TOKEN` e as variáveis `S3_*`; só remover `SUPABASE_URL`/`SUPABASE_SECRET_KEY` do agent após validar a fila e os anexos.
+- Diário — Codex: B3 implementado e validado localmente; nada publicado.
+
 ## Claude — bloco B6 da virada: atendimento do backoffice (suporte) pela API (2026-10-06)
 - Nada commitado, nada publicado, nenhuma migration. Front atrás de `apiDisponivel()`; ramo Supabase (Edge `admin-suporte`, proxy de fetch, Realtime desligado) intacto.
 - Rotas (`api/src/suporte`, `SuporteModule` no `app.module.ts`): `POST /api/admin/suporte/abrir` `{ corretor_id | usuario_id, motivo? }` → corpo da Edge (`id, corretor_id, nome, expira_em, user`) + `token`; `POST /api/admin/suporte/encerrar` `{ sessao_id }` → `{ ok: true }`. Abrir = `admin_preparar_suporte()` pelo TenantDb do admin + e-mail confirmado + duas etapas (só se `auth.mfa_factors` existir) + as checagens de `suporte_criar_sessao()` refeitas numa transação do dono (sem `auth.sessions`, sem `suporte_privado.credenciais`), sessão de 30 min e auditoria `suporte_aberto` (motivo informado ou o de sempre). Encerrar = a própria `suporte_encerrar_sessao()` (só o ator; idempotente; `suporte_encerrado`).

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { erroDaPonte } from './bridgeError';
+import { apiDisponivel } from '@/lib/api';
+import { whatsappBridgeApi } from '@/lib/api/whatsapp';
 
 export type WhatsAppConnectionState = {
   state: 'connected' | 'connecting' | 'disconnected';
@@ -17,6 +19,7 @@ export function useWhatsAppConnectionQuery(userId?: string) {
     queryKey: ['whatsapp-connection', userId],
     enabled: !!userId,
     queryFn: async () => {
+      if (apiDisponivel()) return whatsappBridgeApi<WhatsAppConnectionState>({ action: 'status' });
       const { data, error } = await supabase.functions.invoke<WhatsAppConnectionState>('lotti-whatsapp', { body: { action: 'status' } });
       // Sem carregar o código, a tela só sabe dizer "indisponível".
       if (error || !data) throw await erroDaPonte(error);

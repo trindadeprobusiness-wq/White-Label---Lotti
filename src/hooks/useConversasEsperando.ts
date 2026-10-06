@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { esperaResposta, latestByConversation, liveUrgency, type LatestMessage } from '@/features/whatsapp-inbox/liveInboxFilters';
+import { apiDisponivel } from '@/lib/api';
+import { conversasEsperandoApi } from '@/lib/api/whatsapp';
 
 /**
  * Quantas conversas estão esperando resposta agora.
@@ -35,6 +37,7 @@ export function useConversasEsperando() {
     // O Inbox sonda a cada 3s; aqui é um resumo, meio minuto basta e não pesa.
     refetchInterval: 30_000,
     queryFn: async () => {
+      if (apiDisponivel()) return conversasEsperandoApi<Espera>();
       const [conversas, mensagens] = await Promise.all([
         db.from('lotti_agent_conversations').select('id,mode,qualification').limit(100),
         db.from('lotti_agent_latest_messages').select('conversation_id,direction,created_at,content'),

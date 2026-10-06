@@ -24,6 +24,7 @@ import { ENVIO_SEM_CONFIRMACAO, ESPERA_DA_IA, MOTIVO_DA_PARADA, estadoDaIa, quan
 import { apiDisponivel } from '@/lib/api';
 import { obterClienteApi } from '@/lib/api/crm';
 import { baixarInboxApi } from '@/lib/api/arquivos';
+import { atualizarContatoApi, contarConversasApi, eventosApi, limparOptOutApi, listarConversasApi, mensagensApi, mesclarConversasApi, modoApi, reconciliarApi, statusConversaApi, ultimasMensagensApi, whatsappBridgeApi } from '@/lib/api/whatsapp';
 
 type ClienteDaConversa = { nome: string; email: string | null; telefone: string; created_at: string | null; status_funil: string; tipo_interesse: string };
 
@@ -34,6 +35,7 @@ type Conversation = { id: string; phone: string | null; contact_name?: string | 
 const CONVERSATION_FIELDS = 'id,phone,cliente_id,mode,status,updated_at,qualification,last_error,clientes(nome)';
 // Archived conversations belong to a WhatsApp number that is no longer connected.
 async function fetchConversations() {
+  if (apiDisponivel()) return listarConversasApi<Conversation>();
   const recent = (fields: string, scoped: boolean) => {
     let query = db.from('lotti_agent_conversations').select(fields);
     if (scoped) query = query.is('archived_at', null);
@@ -243,6 +245,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const totalDeConversas = useQuery({
     queryKey: ['lotti-agent-conversation-count', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 30000,
     queryFn: async (): Promise<number | null> => {
+      if (apiDisponivel()) return (await contarConversasApi()).total;
       const { count, error } = await db.from('lotti_agent_conversations').select('id', { count: 'exact', head: true }).is('archived_at', null);
       if (error) return null;
       return count ?? null;
@@ -252,6 +255,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     queryKey: ['lotti-agent-message-previews', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
     initialData: preview ? [{ conversation_id: demoConversation.id, direction: 'in' as const, content: 'Olá, gostaria de conhecer o imóvel.', created_at: demoTime }] : undefined,
     queryFn: async () => {
+      if (apiDisponivel()) return ultimasMensagensApi<LatestMessage>();
       const { data, error } = await db.from('lotti_agent_latest_messages')
         .select('conversation_id,direction,created_at,content');
       if (error) throw error;
@@ -269,6 +273,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     queryKey: ['lotti-agent-messages', user?.id, selected?.id, preview], enabled: !!user && !!selected && !preview, refetchInterval: preview ? false : 1500,
     initialData: preview ? [{ id: 'demo-message-1', direction: 'in' as const, sender: 'lead' as const, content: 'Olá, gostaria de conhecer o imóvel.', media_path: null, created_at: demoTime }, { id: 'demo-message-2', direction: 'out' as const, sender: 'human' as const, content: 'Olá, Rafael! Posso te ajudar com os detalhes.', media_path: null, created_at: demoTime }] : undefined,
     queryFn: async () => {
+      if (apiDisponivel()) return mensagensApi<Message>(selected!.id);
       const { data, error } = await db.from('lotti_agent_messages').select('id,direction,sender,content,media_path,created_at')
         .eq('conversation_id', selected!.id).order('created_at', { ascending: false }).limit(200);
       if (error) throw error;
@@ -279,6 +284,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     queryKey: ['lotti-inbox-events', user?.id, selected?.id, preview], enabled: !!user && !!selected && !preview, refetchInterval: preview ? false : 3000,
     initialData: preview ? [{ id: 'demo-event', kind: 'mode' as const, from_label: 'Equipe', to_label: 'IA', subject_label: null, actor_label: 'Corretor', created_at: demoTime }] : undefined,
     queryFn: async () => {
+      if (apiDisponivel()) return eventosApi<InboxEvent>(selected!.id);
       const { data, error } = await db.from('lotti_inbox_events').select('id,kind,from_label,to_label,subject_label,actor_label,created_at')
         .eq('conversation_id', selected!.id).order('created_at', { ascending: false }).limit(200);
       if (error) throw error;
@@ -301,6 +307,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   });
   const mode = useMutation({
     mutationFn: async (nextMode: Conversation['mode']) => {
+      if (apiDisponivel()) { await modoApi(selected!.id,nextMode); return; }
       const { data, error } = await db.rpc('lotti_agent_set_mode', { p_id: selected!.id, p_mode: nextMode });
       if (error || data !== true) throw error ?? new Error('mode_update_failed');
     },
@@ -310,6 +317,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // responder sozinho: só quem abre o WhatsApp sabe se a mensagem chegou.
   const reconciliar = useMutation({
     mutationFn: async (chegou: boolean) => {
+      if (apiDisponivel()) { await reconciliarApi(selected!.id,chegou); return; }
       const { error } = await db.rpc('lotti_agent_reconciliar_envio', { p_id: selected!.id, p_chegou: chegou });
       if (error) throw error;
     },
@@ -318,23 +326,23 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id] }),
     ]),
   });
-  const clearOptOut=useMutation({mutationFn:async()=>{const {error}=await db.rpc('lotti_inbox_clear_opt_out',{p_conversation:selected!.id});if(error)throw error},onSuccess:async()=>{await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
+  const clearOptOut=useMutation({mutationFn:async()=>{if(apiDisponivel()){await limparOptOutApi(selected!.id);return;}const {error}=await db.rpc('lotti_inbox_clear_opt_out',{p_conversation:selected!.id});if(error)throw error},onSuccess:async()=>{await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
   const refreshConversation=async(id?:string)=>{if(id)setSelectedId(id);await Promise.all([cache.invalidateQueries({queryKey:['lotti-agent-conversations',user?.id]}),cache.invalidateQueries({queryKey:['lotti-agent-message-previews',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-client',user?.id]})])};
   // The conversation already exists when the send is unconfirmed (bridge timeout): it opens with a
   // notice instead of an error, because trying again with a new id could deliver the message twice.
-  const startConversation=useMutation({mutationFn:async(data:{phone:string;name?:string;text:string;request_id:string})=>{const {data:result,error}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'start',...data}});if(error)throw new Error(await functionErrorCode(error));if(!result?.conversationId)throw new Error('start_failed');if(result.sendStatus==='busy'||result.sendStatus==='failed')throw new Error(result.sendStatus);return {conversationId:result.conversationId as string,sendStatus:String(result.sendStatus)}},
+  const startConversation=useMutation({mutationFn:async(data:{phone:string;name?:string;text:string;request_id:string})=>{let result:Record<string,unknown>|null=null;if(apiDisponivel())result=await whatsappBridgeApi({action:'start',...data});else{const fallback=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'start',...data}});if(fallback.error)throw new Error(await functionErrorCode(fallback.error));result=fallback.data as Record<string,unknown>|null;}if(!result?.conversationId)throw new Error('start_failed');if(result.sendStatus==='busy'||result.sendStatus==='failed')throw new Error(String(result.sendStatus));return {conversationId:result.conversationId as string,sendStatus:String(result.sendStatus)}},
     onSettled:(result,error,data)=>setStartOutcome({requestId:data.request_id,status:result?.sendStatus??(error instanceof Error?error.message:'start_failed')}),
     onSuccess:async({conversationId,sendStatus})=>{setNewOpen(false);if(sendStatus!=='sent')setNotice({id:conversationId,text:'Envio sem confirmação. Confira no WhatsApp antes de mandar de novo.'});await refreshConversation(conversationId)}});
   // A phone that is already another client of the CRM links the conversation to that client (relinked).
-  const renameContact=useMutation({mutationFn:async(contact:{id:string;name:string;phone:string})=>{const {data,error}=await db.rpc('lotti_inbox_update_contact',{p_conversation:contact.id,p_name:contact.name,p_phone:contact.phone});if(error)throw error;return data as {relinked?:boolean}|null},onSuccess:async(result,contact)=>{setRenameOpen(false);if(result?.relinked)setNotice({id:contact.id,text:'Este telefone já era de outro cliente do CRM. A conversa foi vinculada a esse cadastro.'});await Promise.all([refreshConversation(),useCRMStore.getState().fetchClientes(),cache.invalidateQueries({queryKey:crmKeys.todos})])}});
+  const renameContact=useMutation({mutationFn:async(contact:{id:string;name:string;phone:string})=>{if(apiDisponivel())return atualizarContatoApi<{relinked?:boolean}|null>(contact.id,contact.name,contact.phone);const {data,error}=await db.rpc('lotti_inbox_update_contact',{p_conversation:contact.id,p_name:contact.name,p_phone:contact.phone});if(error)throw error;return data as {relinked?:boolean}|null},onSuccess:async(result,contact)=>{setRenameOpen(false);if(result?.relinked)setNotice({id:contact.id,text:'Este telefone já era de outro cliente do CRM. A conversa foi vinculada a esse cadastro.'});await Promise.all([refreshConversation(),useCRMStore.getState().fetchClientes(),cache.invalidateQueries({queryKey:crmKeys.todos})])}});
   // "Unir conversas": the typed phone is the line of another conversation. The server keeps the one
   // WhatsApp identifies (LID or received messages), whatever the order. The name typed in the dialog
   // is then saved on the kept conversation (the typed phone has its key, so the number stays); the merge itself stands even if that save fails.
-  const mergeConversations=useMutation({mutationFn:async(pair:{keep:string;drop:string;name?:string;phone?:string})=>{const {data,error}=await db.rpc('lotti_inbox_merge_conversations',{p_keep:pair.keep,p_drop:pair.drop});if(error)throw error;const merged=data as {conversation_id:string;merged_id:string};if(pair.name){const {error:nameError}=await db.rpc('lotti_inbox_update_contact',{p_conversation:merged.conversation_id,p_name:pair.name,p_phone:pair.phone??''});if(nameError)setNotice({id:merged.conversation_id,text:'As conversas foram unidas, mas o nome não foi salvo. Edite o contato de novo.'})}return merged},onSuccess:async result=>{setRenameOpen(false);renameContact.reset();await Promise.all([refreshConversation(result.conversation_id),cache.invalidateQueries({queryKey:['lotti-agent-messages',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
+  const mergeConversations=useMutation({mutationFn:async(pair:{keep:string;drop:string;name?:string;phone?:string})=>{const merged=apiDisponivel()?await mesclarConversasApi<{conversation_id:string;merged_id:string}>(pair.keep,pair.drop):await (async()=>{const {data,error}=await db.rpc('lotti_inbox_merge_conversations',{p_keep:pair.keep,p_drop:pair.drop});if(error)throw error;return data as {conversation_id:string;merged_id:string};})();if(pair.name){try{if(apiDisponivel())await atualizarContatoApi(merged.conversation_id,pair.name,pair.phone??'');else{const {error}=await db.rpc('lotti_inbox_update_contact',{p_conversation:merged.conversation_id,p_name:pair.name,p_phone:pair.phone??''});if(error)throw error;}}catch{setNotice({id:merged.conversation_id,text:'As conversas foram unidas, mas o nome não foi salvo. Edite o contato de novo.'})}}return merged},onSuccess:async result=>{setRenameOpen(false);renameContact.reset();await Promise.all([refreshConversation(result.conversation_id),cache.invalidateQueries({queryKey:['lotti-agent-messages',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
   const otherConversation=registroDoErro(renameContact.error,'phone_in_other_conversation');
   // History conversations are not CRM clients until the broker adds them. The
   // CRM screens read clients from their own store, refreshed after adding.
-  const changeStatus=useMutation({mutationFn:async(status:'open'|'closed')=>{const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async()=>{setStatusOpen(false);await refreshConversation()}});
+  const changeStatus=useMutation({mutationFn:async(status:'open'|'closed')=>{if(apiDisponivel())return statusConversaApi(selected!.id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async()=>{setStatusOpen(false);await refreshConversation()}});
   const demoListKey=['lotti-agent-conversations',user?.id,true];
   const updateDemoConversation=(id:string,change:Partial<Conversation>)=>cache.setQueryData<Conversation[]>(demoListKey,current=>(current??[]).map(item=>item.id===id?{...item,...change}:item));
   const appendDemoMessage=(id:string,kind:'text'|'file'|'audio',content:string)=>{

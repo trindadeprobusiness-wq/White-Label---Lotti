@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDisponivel } from '@/lib/api';
+import { apagarCampanhaApi, ativarCampanhaApi, automacaoOnlineApi, campanhaApi, controlarCampanhaApi, duplicarCampanhaApi, listarCampanhasApi, previewCampanhaApi, salvarCampanhaApi } from '@/lib/api/whatsapp';
 
 // Tabelas e funções dos Disparos (migration 20260927150000) ainda não estão nos
 // tipos gerados.
@@ -111,6 +113,7 @@ export const ERROR_TEXT: Record<string, string> = {
 export const errorText = (error: unknown) => ERROR_TEXT[error instanceof BroadcastError ? error.code : 'failed'] ?? ERROR_TEXT.failed;
 
 export async function listCampaigns(): Promise<CampaignWithCounts[]> {
+  if (apiDisponivel()) return listarCampanhasApi<CampaignWithCounts>();
   const { data, error } = await db.from('lotti_broadcast_campaigns')
     .select('*, lotti_broadcast_deliveries(status)')
     .order('updated_at', { ascending: false })
@@ -123,6 +126,7 @@ export async function listCampaigns(): Promise<CampaignWithCounts[]> {
 }
 
 export async function getCampaign(id: string): Promise<{ campaign: Campaign; deliveries: Delivery[]; events: CampaignEvent[] }> {
+  if (apiDisponivel()) return campanhaApi(id);
   const [campaign, deliveries, events] = await Promise.all([
     db.from('lotti_broadcast_campaigns').select('*').eq('id', id).maybeSingle(),
     db.from('lotti_broadcast_deliveries')
@@ -151,15 +155,16 @@ const call = async <T,>(name: string, args: Record<string, unknown>): Promise<T>
   return data as T;
 };
 
-export const saveCampaign = (draft: CampaignDraft) => call<string>('lotti_broadcast_save', { p_campaign: draft });
-export const previewCampaign = (draft: CampaignDraft) => call<Preview>('lotti_broadcast_preview', { p_campaign: draft });
-export const activateCampaign = (id: string) => call<{ status: CampaignStatus; total?: number }>('lotti_broadcast_activate', { p_id: id });
-export const controlCampaign = (id: string, action: 'pause' | 'resume' | 'cancel') => call<CampaignStatus>('lotti_broadcast_control', { p_id: id, p_action: action });
-export const duplicateCampaign = (id: string) => call<string>('lotti_broadcast_duplicate', { p_id: id });
-export const deleteDraft = (id: string) => call<boolean>('lotti_broadcast_delete_draft', { p_id: id });
+export const saveCampaign = (draft: CampaignDraft) => apiDisponivel()?salvarCampanhaApi<string>(draft):call<string>('lotti_broadcast_save', { p_campaign: draft });
+export const previewCampaign = (draft: CampaignDraft) => apiDisponivel()?previewCampanhaApi<Preview>(draft):call<Preview>('lotti_broadcast_preview', { p_campaign: draft });
+export const activateCampaign = (id: string) => apiDisponivel()?ativarCampanhaApi<{status:CampaignStatus;total?:number}>(id):call<{ status: CampaignStatus; total?: number }>('lotti_broadcast_activate', { p_id: id });
+export const controlCampaign = (id: string, action: 'pause' | 'resume' | 'cancel') => apiDisponivel()?controlarCampanhaApi<CampaignStatus>(id,action):call<CampaignStatus>('lotti_broadcast_control', { p_id: id, p_action: action });
+export const duplicateCampaign = (id: string) => apiDisponivel()?duplicarCampanhaApi<string>(id):call<string>('lotti_broadcast_duplicate', { p_id: id });
+export const deleteDraft = (id: string) => apiDisponivel()?apagarCampanhaApi<boolean>(id):call<boolean>('lotti_broadcast_delete_draft', { p_id: id });
 
 /** A ponte passou nos últimos 2 minutos: o envio automático está liberado. */
 export async function automationOnline(now = Date.now()): Promise<boolean> {
+  if (apiDisponivel()) return (await automacaoOnlineApi()).online;
   const { data, error } = await db.from('lotti_automation_heartbeat').select('seen_at').maybeSingle();
   if (error || !data) return false;
   return now - Date.parse((data as { seen_at: string }).seen_at) < 120_000;

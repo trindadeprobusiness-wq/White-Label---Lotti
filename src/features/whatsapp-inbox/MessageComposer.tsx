@@ -5,7 +5,8 @@ import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
 import {safeAttachmentName,validateAttachment} from './attachments';
 import {FALHA_CERTA,codigoDoErro} from './bridgeError';
 import {apiDisponivel} from '@/lib/api';
-import {baixarInboxApi} from '@/lib/api/arquivos';
+import {baixarInboxApi,enviarInboxApi,prepararInboxApi} from '@/lib/api/arquivos';
+import {whatsappBridgeApi} from '@/lib/api/whatsapp';
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
 export type EnvioPendente={key:string;kind:'text'|'file'|'audio';content:string};
 type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void;
@@ -65,10 +66,17 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
     if(audio)encoded=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(audio)});
     const requestId=crypto.randomUUID();
     if(attachment){
-     const meta=validateAttachment(attachment);const {data:prepared,error:prepareError}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'prepare_upload',request_id:requestId,name:attachment.name,mime:meta.mime,size:attachment.size}});
-     if(prepareError||!prepared?.path||!prepared?.token)throw Error('upload_prepare_failed');
-     const {error:uploadError}=await supabase.storage.from('lotti-inbox-files').uploadToSignedUrl(prepared.path,prepared.token,attachment,{contentType:meta.mime});if(uploadError)throw Error('upload_failed');
-     pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:'file',name:attachment.name,mime:meta.mime,size:attachment.size,storage_path:prepared.path};
+     const meta=validateAttachment(attachment);
+     if(apiDisponivel()){
+      const prepared=await prepararInboxApi({request_id:requestId,name:attachment.name,mime:meta.mime,size:attachment.size});
+      await enviarInboxApi('lotti-inbox-files',prepared.storage_path,attachment);
+      pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:'file',name:attachment.name,mime:meta.mime,size:attachment.size,storage_path:prepared.storage_path};
+     }else{
+      const {data:prepared,error:prepareError}=await supabase.functions.invoke('lotti-whatsapp',{body:{action:'prepare_upload',request_id:requestId,name:attachment.name,mime:meta.mime,size:attachment.size}});
+      if(prepareError||!prepared?.path||!prepared?.token)throw Error('upload_prepare_failed');
+      const {error:uploadError}=await supabase.storage.from('lotti-inbox-files').uploadToSignedUrl(prepared.path,prepared.token,attachment,{contentType:meta.mime});if(uploadError)throw Error('upload_failed');
+      pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:'file',name:attachment.name,mime:meta.mime,size:attachment.size,storage_path:prepared.path};
+     }
     }else pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:audio?'audio':'text',...(audio?{audio:encoded,mime:audio.type.split(';')[0]}:{text:text.trim()})};
     // A mensagem aparece na conversa agora, não daqui a três segundos. A
     // proteção contra duplicado é do request_id, não da espera.
@@ -78,7 +86,9 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
     // próxima mensagem e não pode ser limpo aqui.
     if(!attachment){textoLimpo.current=text;setText('');}
    }
-   const {data,error}=await supabase.functions.invoke('lotti-whatsapp',{body:pending.current});
+   const apiResult=apiDisponivel()?await whatsappBridgeApi<Record<string,unknown>>(pending.current!):null;
+   const fallback=apiResult?{data:apiResult,error:null}:await supabase.functions.invoke('lotti-whatsapp',{body:pending.current});
+   const {data,error}=fallback;
    if(!alive.current)return;
    if(error||!data)throw error??Error('unknown');
    if(data.sendStatus==='sent'){pending.current=undefined;textoLimpo.current=undefined;if(!attachment)setText('');setAudio(undefined);setAttachment(undefined);setNotice('Enviado. Você assumiu esta conversa.');terminaPendente('enviado');onSent();}

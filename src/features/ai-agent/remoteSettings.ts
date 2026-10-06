@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeAgentSettings, saveAgentSettings, type AgentSettings } from './settings';
+import { apiDisponivel } from '@/lib/api';
+import { configuracoesAgenteApi, salvarConfiguracoesAgenteApi } from '@/lib/api/whatsapp';
 
 // A configuração vive no banco (lotti_agent_settings) e a ponte do WhatsApp a lê
 // a cada resposta. Até a migration 20260927130000 ser aplicada, a tela continua
@@ -12,6 +14,7 @@ const notInstalled = (code?: string) => ['42P01', '42883', 'PGRST202', 'PGRST205
 
 /** Configuração salva no banco, ou null quando ainda não existe (ou o banco não tem a tabela). */
 export async function fetchServerSettings(): Promise<AgentSettings | null> {
+  if (apiDisponivel()) { const data=await configuracoesAgenteApi<unknown>(); return data?normalizeAgentSettings(data):null; }
   const { data, error } = await db.from('lotti_agent_settings').select('settings').maybeSingle();
   if (error) {
     if (notInstalled(error.code)) return null;
@@ -21,6 +24,7 @@ export async function fetchServerSettings(): Promise<AgentSettings | null> {
 }
 
 export async function storeSettings(settings: AgentSettings): Promise<SettingsSource> {
+  if (apiDisponivel()) { await salvarConfiguracoesAgenteApi(settings); saveAgentSettings(settings); return 'server'; }
   const { error } = await db.rpc('lotti_agent_save_settings', { p_settings: settings });
   if (!error) {
     saveAgentSettings(settings); // cópia local para abrir a tela na hora

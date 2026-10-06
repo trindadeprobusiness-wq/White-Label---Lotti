@@ -6,6 +6,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Readable } from 'node:stream';
 import { ConfigStorage, lerConfigStorage } from './storage.config';
 import { ERROS_ARQUIVO } from './storage.erros';
@@ -122,5 +123,10 @@ export class StorageService {
       }
       throw e;
     }
+  }
+
+  /** URL curta para a Evolution ler um anexo privado sem receber a chave S3. */
+  async assinarLeitura(bucket: string, key: string, expiresIn = 300): Promise<string> {
+    return getSignedUrl(this.s3(), new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn });
   }
 }
