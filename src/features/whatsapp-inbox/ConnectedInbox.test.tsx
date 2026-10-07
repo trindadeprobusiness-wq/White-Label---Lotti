@@ -208,12 +208,27 @@ it('mostra a hora, e não a data, na lista das conversas de hoje', async () => {
 it('mostra somente a hora na bolha e diferencia um arquivo enviado de texto', async () => {
   dataByTable.lotti_agent_messages = [{ id: 'm1', direction: 'out', sender: 'human', content: 'Custos.xlsx', media_path: 'owner/request/Custos.xlsx', created_at: '2026-09-24T14:00:00Z' }];
   mount(true);
-  const file = await screen.findByRole('link', { name: /Custos.xlsx/ });
-  expect(file).not.toBeNull();
+  expect(await screen.findByText('Custos.xlsx')).not.toBeNull();
+  // O botão busca o arquivo na hora do clique (antes o link só aparecia se a busca prévia desse certo).
+  expect(screen.getByRole('button', { name: 'Baixar' })).not.toBeNull();
   expect(screen.getByText('Arquivo XLSX')).not.toBeNull();
   const time = screen.getByText('11:00');
   expect(time.closest('time')?.textContent).toBe('11:00');
   expect(screen.queryByText('24/09/2026, 11:00:00')).toBeNull();
+});
+
+it('arquivo sem caminho salvo avisa que está indisponível, em vez de só mostrar o nome', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm2', direction: 'in', sender: 'lead', content: 'Planilha.xlsx', media_path: null, created_at: '2026-09-24T14:00:00Z', preview_kind: 'file' }];
+  mount(true);
+  expect(await screen.findByText('Planilha.xlsx')).not.toBeNull();
+  expect(screen.getByText('Arquivo indisponível')).not.toBeNull();
+});
+
+it('arquivo sem caminho salvo avisa que está indisponível, em vez de só mostrar o nome', async () => {
+  dataByTable.lotti_agent_messages = [{ id: 'm2', direction: 'in', sender: 'lead', content: 'Planilha.xlsx', media_path: null, created_at: '2026-09-24T14:00:00Z', preview_kind: 'file' }];
+  mount(true);
+  expect(await screen.findByText('Planilha.xlsx')).not.toBeNull();
+  expect(screen.getByText('Arquivo indisponível')).not.toBeNull();
 });
 
 it('mantém o layout de referência com as cores da Lotti, fundo pontilhado e seleção lateral', async () => {

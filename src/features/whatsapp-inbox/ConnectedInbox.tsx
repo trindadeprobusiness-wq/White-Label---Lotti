@@ -70,6 +70,39 @@ function ContactAvatar({ name, className }: { name: string; className: string })
   return <span aria-label={initial ? `Inicial de ${name}` : 'Contato sem nome'} className={className}>{initial || <UserRound className="h-4 w-4" />}</span>;
 }
 const contactPhoneLabel = (value: string | null) => (value ? formatContactPhone(value) : 'Número oculto pelo WhatsApp');
+// Antes o link só aparecia se o arquivo já tivesse sido buscado com sucesso; quando a busca
+// falhava, ficava só o nome, sem explicação. Agora o botão busca na hora do clique e diz
+// claramente quando o arquivo não foi salvo.
+function BaixarArquivo({ nome, caminho, urlPronta }: { nome: string; caminho: string | null; urlPronta: string }) {
+  const [estado, setEstado] = useState<'pronto' | 'baixando' | 'indisponivel'>('pronto');
+  if (!caminho || caminho.split('/').length < 3) return <span className="shrink-0 text-[11px] opacity-75">Arquivo indisponível</span>;
+  const baixar = async () => {
+    setEstado('baixando');
+    try {
+      let href = urlPronta;
+      let temporaria = false;
+      if (!href) {
+        if (apiDisponivel()) { href = await baixarInboxApi('lotti-inbox-files', caminho); temporaria = true; }
+        else {
+          const { data } = await supabase.storage.from('lotti-inbox-files').createSignedUrl(caminho, 3600, { download: nome });
+          href = data?.signedUrl ?? '';
+        }
+      }
+      if (!href) throw new Error('sem_url');
+      const a = document.createElement('a');
+      a.href = href; a.download = nome; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+      if (temporaria) window.setTimeout(() => URL.revokeObjectURL(href), 60_000);
+      setEstado('pronto');
+    } catch {
+      setEstado('indisponivel');
+    }
+  };
+  if (estado === 'indisponivel') return <span className="shrink-0 text-[11px] opacity-75">Arquivo indisponível</span>;
+  return <button type="button" onClick={() => void baixar()} disabled={estado === 'baixando'}
+    className="shrink-0 rounded-md border border-current/30 px-2.5 py-1 text-xs font-medium hover:bg-white/15 disabled:opacity-60">
+    {estado === 'baixando' ? 'Baixando…' : 'Baixar'}
+  </button>;
+}
 function MessageBody({ message }: { message: Message }) {
   const [url, setUrl] = useState('');
   const isFile = message.preview_kind === 'file' || (!!message.media_path && message.media_path.split('/').length >= 3);
@@ -107,8 +140,9 @@ function MessageBody({ message }: { message: Message }) {
   return <div className="flex min-w-[180px] max-w-full items-center gap-2.5 rounded-lg border border-current/20 bg-white/10 px-3 py-2.5 text-sm">
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/15"><FileText className="h-5 w-5" /></span>
     <span className="min-w-0 flex-1"><span className="block text-[10px] font-medium opacity-75">Arquivo{extension ? ` ${extension}` : ''}</span>
-      {url ? <a className="block break-all font-medium underline-offset-2 hover:underline" href={url} target="_blank" rel="noopener noreferrer" download>{message.content}</a> : <span className="block break-all font-medium">{message.content}</span>}
+      <span className="block break-all font-medium">{message.content}</span>
     </span>
+    <BaixarArquivo nome={message.content} caminho={message.media_path} urlPronta={url} />
   </div>;
 }
 // Cada bloco do painel inventava o seu espaçamento (mt-2.5, mt-4, mt-5) e o seu
