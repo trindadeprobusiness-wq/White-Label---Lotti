@@ -80,8 +80,10 @@ const Onboarding = lazy(() => import("@/pages/Onboarding"));
 // o cadastro. Fica fora do ProtectedRoute porque acontece antes de existir conta.
 const RedirectParceiro = lazy(() => import("@/pages/RedirectParceiro"));
 const PaginaInicialPublica = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PaginaInicialPublica })));
-const CommercialDiagnostic = lazy(() => import('@/pages/CommercialDiagnostic'));
-const AdminDiagnosticos = lazy(() => import('@/pages/admin/AdminDiagnosticos'));
+const Diagnostic = lazy(() => import('@/pages/Diagnostic'));
+const DiagnosticPrivacy = lazy(() => import('@/pages/DiagnosticPrivacy'));
+const AdminDiagnostics = lazy(() => import('@/pages/admin/AdminDiagnostics'));
+const AdminDiagnosticDetail = lazy(() => import('@/pages/admin/AdminDiagnosticDetail'));
 const PoliticaPrivacidade = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PoliticaPrivacidade })));
 const TermosUso = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.TermosUso })));
 
@@ -150,7 +152,8 @@ const App = () => (
           <Route path="/parceiro" element={<ProtectedRoute><ParceiroPortal /></ProtectedRoute>} />
           <Route path="/suporte/:id" element={<ProtectedRoute><SuporteUsuario /></ProtectedRoute>} />
           <Route path="/sobre" element={<PaginaInicialPublica />} />
-          <Route path="/diagnostico" element={<CommercialDiagnostic />} />
+          <Route path="/diagnostico" element={<Diagnostic />} />
+          <Route path="/diagnostico/privacidade" element={<DiagnosticPrivacy />} />
           <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
           <Route path="/termos-de-uso" element={<TermosUso />} />
 
@@ -235,7 +238,8 @@ const App = () => (
             }
           >
             <Route path="/admin" element={<AdminVisaoGeral />} />
-            <Route path="/admin/diagnosticos" element={<AdminDiagnosticos />} />
+            <Route path="/admin/diagnosticos" element={<AdminDiagnostics />} />
+            <Route path="/admin/diagnosticos/:id" element={<AdminDiagnosticDetail />} />
             <Route path="/admin/usuarios" element={<AdminUsuarios />} />
             <Route path="/admin/usuarios/:id" element={<AdminUsuarioDetalhe />} />
             <Route path="/admin/onboarding" element={<AdminOnboarding />} />

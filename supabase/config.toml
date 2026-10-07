@@ -64,6 +64,14 @@ verify_jwt = false
 [functions.admin-suporte]
 verify_jwt = true
 
+# Public session credentials are validated inside the diagnostic handler.
+[functions.diagnostic]
+verify_jwt = false
+
+# Internal worker requires DIAGNOSTIC_WORKER_SECRET, never a browser key.
+[functions.diagnostic-notifications]
+verify_jwt = false
+
 [auth]
 additional_redirect_urls = [
   "https://app.plataformalotti.com.br/nova-senha",
