@@ -24,6 +24,7 @@ import { ENVIO_SEM_CONFIRMACAO, ESPERA_DA_IA, MOTIVO_DA_PARADA, estadoDaIa, quan
 import { apiDisponivel } from '@/lib/api';
 import { obterClienteApi } from '@/lib/api/crm';
 import { baixarInboxApi } from '@/lib/api/arquivos';
+import { CartaoChamada, ehAudio, ehChamada, PlayerAudio } from './MidiaDaConversa';
 import { atualizarContatoApi, contarConversasApi, eventosApi, limparOptOutApi, listarConversasApi, mensagensApi, mesclarConversasApi, modoApi, reconciliarApi, statusConversaApi, ultimasMensagensApi, whatsappBridgeApi } from '@/lib/api/whatsapp';
 
 type ClienteDaConversa = { nome: string; email: string | null; telefone: string; created_at: string | null; status_funil: string; tipo_interesse: string };
@@ -105,7 +106,10 @@ function BaixarArquivo({ nome, caminho, urlPronta }: { nome: string; caminho: st
 }
 function MessageBody({ message }: { message: Message }) {
   const [url, setUrl] = useState('');
-  const isFile = message.preview_kind === 'file' || (!!message.media_path && message.media_path.split('/').length >= 3);
+  // Áudio e ligação vêm antes do arquivo: o áudio recebido também tem media_path com 3 partes.
+  const isAudio = message.preview_kind === 'audio' || ehAudio(message.content);
+  const isCall = !isAudio && ehChamada(message.content);
+  const isFile = !isAudio && !isCall && (message.preview_kind === 'file' || (!!message.media_path && message.media_path.split('/').length >= 3));
   useEffect(() => {
     if (!isFile || !message.media_path || message.preview_kind) return;
     let live = true;
@@ -127,7 +131,8 @@ function MessageBody({ message }: { message: Message }) {
     const timer = window.setInterval(refresh, 50 * 60 * 1000);
     return () => { live = false; window.clearInterval(timer); };
   }, [isFile, message.media_path, message.preview_kind]);
-  if (message.preview_kind === 'audio') return <p className="text-sm">🎤 {message.content}</p>;
+  if (isAudio) return <PlayerAudio caminho={message.preview_kind ? null : message.media_path} />;
+  if (isCall) return <CartaoChamada texto={message.content} direcao={message.direction} />;
   if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]">{message.content}</p>;
   const extension = message.content.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase();
   // Foto virava cartão de arquivo, como se fosse planilha: para ver, era preciso
