@@ -100,6 +100,8 @@ it('oferece a reconexão na página Conexão sem depender do Inbox', async () =>
   expect(await screen.findByText('Preparando QR Code…')).not.toBeNull();
   expect(screen.getByText(/WhatsApp → Configurações → Aparelhos conectados/)).not.toBeNull();
   expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
+  // Sem número conectado, só status e QR: o teste de envio aparece depois de conectar.
+  expect(screen.queryByRole('heading', { name: 'Teste de envio' })).toBeNull();
 });
 
 it('falha de consulta não oferece pareamento como se estivesse desconectado', async () => {

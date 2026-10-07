@@ -102,14 +102,15 @@ export default function WhatsAppConnectionPage() {
         {disconnect.isError && <p role="alert" className="mt-3 text-sm text-destructive">Não foi possível desconectar. Verifique o estado da conexão e tente novamente.</p>}
       </section>
       {!connectionPending && !connectionError && !connected && <WhatsAppConnection autoStart />}
-      <section className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">Teste de envio</h2>
+      {/* Sem número conectado, o teste não tem o que testar: a tela mostra só o status e o QR. */}
+      {connected && <section className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">Teste de envio</h2>
         <p className="mt-3 text-sm leading-5 text-muted-foreground">Informe outro telefone que possa receber a mensagem “Olá, tudo bem?” para testar a integração.</p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row"><label htmlFor="test-phone" className="sr-only">Telefone para teste</label><Input id="test-phone" aria-label="Telefone para teste" value={testPhone} onChange={event => setTestPhone(event.target.value)} placeholder="5562999999999" disabled={!connected || testSend.isPending} />
           <Button type="button" disabled={!connected || !testPhone.trim() || testingOwnNumber || testSend.isPending} onClick={() => testSend.mutate()}>{testSend.isPending ? 'Enviando…' : 'Enviar “Olá, tudo bem?”'}</Button></div>
         {testingOwnNumber && <p className="mt-2 text-sm text-muted-foreground">Use outro número para o teste, diferente do WhatsApp conectado.</p>}
         {testSend.isSuccess && <p className="mt-3 text-sm text-emerald-700">Mensagem de teste enviada.</p>}
         {testSend.isError && <p role="alert" className="mt-3 text-sm text-destructive">{testSend.error instanceof Error && testSend.error.message === 'send_unconfirmed' ? 'O envio ainda não foi confirmado. Confira no WhatsApp antes de tentar novamente.' : 'Não foi possível enviar a mensagem de teste. Verifique a conexão e tente com outro número.'}</p>}
-      </section>
+      </section>}
     </div>
     <AlertDialog open={confirmDisconnect} onOpenChange={setConfirmDisconnect}><AlertDialogContent>
       <AlertDialogHeader><AlertDialogTitle>Desconectar este WhatsApp?</AlertDialogTitle>
