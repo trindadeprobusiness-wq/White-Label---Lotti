@@ -1,7 +1,6 @@
+// Desde a virada (2026-10-07) quem grava é a API do Railway; esta função só repassa.
+// A versão anterior está no histórico do git.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.89.0';
-import { createCommercialDiagnosticHandler } from './handler.ts';
+import { repassarParaRailway } from '../_shared/repassar-railway.ts';
 
-const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const client = createClient(Deno.env.get('SUPABASE_URL') ?? '', serviceKey);
-serve(createCommercialDiagnosticHandler(client, Deno.env.get('PUBLIC_RATE_LIMIT_SECRET') || serviceKey));
+serve(repassarParaRailway('/api/diagnostico-comercial'));
