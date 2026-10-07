@@ -42,7 +42,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, '').trim());
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid session" }), {
         status: 401,

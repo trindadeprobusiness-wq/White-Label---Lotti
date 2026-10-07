@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
     AsaasError,
     clienteAsaas,
@@ -135,7 +135,7 @@ serve(async (req) => {
         const userClient = createClient(supabaseUrl, anonKey, {
             global: { headers: { Authorization: authorization } },
         });
-        const { data: { user }, error: authError } = await userClient.auth.getUser();
+        const { data: { user }, error: authError } = await userClient.auth.getUser(authorization.replace(/^Bearer\s+/i, '').trim());
         if (authError || !user) return json({ error: "Sua sessão expirou. Entre novamente." }, 401);
 
         const { data: corretorId, error: corretorError } = await userClient.rpc("get_corretor_id");

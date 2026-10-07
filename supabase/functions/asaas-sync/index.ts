@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { clienteAsaas, AsaasError, AsaasNaoConectado, type ClienteAsaas } from "../_shared/asaas.ts";
 import { excluirCobrancaNoAsaas } from "../_shared/excluir-cobranca.ts";
 import { telefoneParaAsaas } from "../_shared/telefone.ts";

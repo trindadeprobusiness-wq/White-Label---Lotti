@@ -86,7 +86,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, '').trim());
     if (authError || !user) return jsonResponse({ error: "Invalid session" }, 401);
 
     // 2. Validação de entrada.

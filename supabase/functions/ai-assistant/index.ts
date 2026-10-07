@@ -39,7 +39,7 @@ async function getAuthenticatedUser(req: Request, supabaseClient: LooseSupabaseC
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) throw { status: 401, message: "Missing authorization" };
 
-  const { data: { user }, error } = await supabaseClient.auth.getUser();
+  const { data: { user }, error } = await supabaseClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, '').trim());
   if (error || !user) throw { status: 401, message: "Invalid session" };
   return user;
 }

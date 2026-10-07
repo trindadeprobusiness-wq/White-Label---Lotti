@@ -13,7 +13,7 @@ serve(async req => {
     const authorization = req.headers.get('Authorization');
     if (!authorization) return json({ error: 'Entre novamente na sua conta.' }, 401);
     const client = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authorization } } });
-    const { data: { user }, error: authError } = await client.auth.getUser();
+    const { data: { user }, error: authError } = await client.auth.getUser(authorization.replace(/^Bearer\s+/i, '').trim());
     if (authError || !user) return json({ error: 'Sessão inválida.' }, 401);
     const { data: owner, error: ownerError } = await client.rpc('get_corretor_id');
     if (ownerError || !owner) return json({ error: 'Conta não autorizada.' }, 403);
