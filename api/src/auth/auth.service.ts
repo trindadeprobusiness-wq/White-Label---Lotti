@@ -1,9 +1,10 @@
 import {
-  ConflictException, HttpException, Inject, Injectable, ServiceUnavailableException, UnauthorizedException,
+  BadRequestException, ConflictException, HttpException, Inject, Injectable, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import { AppEnv, ENV } from '../config/env';
+import { FORMATO_TOKEN_SENHA, hashTokenSenha } from './token-senha';
 import { emitirAccessToken } from './tokens';
 import { UsuarioAuth, UsuariosRepo } from './usuarios.repo';
 
@@ -38,6 +39,12 @@ const LIMITE_CADASTRO_IP = 10;
 const JANELA_CADASTRO_IP_S = 3600;
 const LIMITE_CADASTRO_GLOBAL = 60;
 const JANELA_CADASTRO_GLOBAL_S = 60;
+/** Definir senha pelo link: 20 tentativas por IP por hora e um teto global por minuto. */
+const LIMITE_DEFINIR_SENHA_IP = 20;
+const JANELA_DEFINIR_SENHA_IP_S = 3600;
+const LIMITE_DEFINIR_SENHA_GLOBAL = 120;
+const JANELA_DEFINIR_SENHA_GLOBAL_S = 60;
+const MENSAGEM_LINK_INVALIDO = 'Este link expirou ou já foi usado. Peça um novo.';
 
 /** O que o cadastro recebe (já validado pelo CadastroDto). */
 export interface DadosCadastro {
@@ -111,6 +118,29 @@ export class AuthService {
     if (!usuario) {
       throw new ConflictException({ statusCode: 409, codigo: 'email_em_uso', message: MENSAGEM_EMAIL_EM_USO });
     }
+    return this.emitirSessao(usuario);
+  }
+
+  /**
+   * Cria (ou troca) a senha pelo link de uso único (checkout do site; depois, a recuperação).
+   * Limite por IP e global antes de tocar no bcrypt ou no banco. Token inexistente, usado,
+   * vencido ou de conta inativa: o MESMO 400 genérico. Sucesso grava o bcrypt, incrementa
+   * session_version (derruba as sessões antigas) e já devolve a sessão, como o login.
+   */
+  async definirSenha(token: string, senha: string, ip: string | null): Promise<SessaoEmitida> {
+    const segredo = this.exigirSecret();
+    const chaveIp = createHmac('sha256', segredo).update(`definir-senha:${ip ?? 'sem-ip'}`).digest('hex');
+    const dentroDoLimite = await this.repo.consumirLimite('auth-definir-senha-ip', chaveIp, LIMITE_DEFINIR_SENHA_IP, JANELA_DEFINIR_SENHA_IP_S)
+      && await this.repo.consumirLimite('auth-definir-senha-global', 'global', LIMITE_DEFINIR_SENHA_GLOBAL, JANELA_DEFINIR_SENHA_GLOBAL_S);
+    if (!dentroDoLimite) {
+      throw new HttpException({ statusCode: 429, codigo: 'muitas_tentativas', message: MENSAGEM_LIMITE }, 429);
+    }
+    const linkInvalido = new BadRequestException({ statusCode: 400, codigo: 'link_invalido', message: MENSAGEM_LINK_INVALIDO });
+    if (!FORMATO_TOKEN_SENHA.test(token)) throw linkInvalido;
+
+    const passwordHash = await bcrypt.hash(senha, CUSTO_BCRYPT);
+    const usuario = await this.repo.consumirTokenSenha(hashTokenSenha(token), passwordHash);
+    if (!usuario) throw linkInvalido;
     return this.emitirSessao(usuario);
   }
 

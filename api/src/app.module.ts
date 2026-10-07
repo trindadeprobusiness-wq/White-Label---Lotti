@@ -4,6 +4,7 @@ import { AgendamentosModule } from './agendamentos/agendamentos.module';
 import { ArquivosModule } from './arquivos/arquivos.module';
 import { AuthModule } from './auth/auth.module';
 import { AssinaturaModule } from './assinatura/assinatura.module';
+import { CheckoutModule } from './checkout/checkout.module';
 import { ContratosModule } from './contratos/contratos.module';
 import { CrmClientesModule } from './crm/clientes/crm-clientes.module';
 import { CrmFunilModule } from './crm/funil/crm-funil.module';
@@ -47,6 +48,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     AgendamentosModule,
     SuporteModule,
     WhatsappModule,
+    CheckoutModule,
   ],
   controllers: [HealthController],
 })

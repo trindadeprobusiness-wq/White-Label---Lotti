@@ -30,6 +30,23 @@ export class ResetPasswordDto {
   senha!: string;
 }
 
+/**
+ * Criar a senha pelo link de uso único (POST /api/auth/definir-senha). O formato do token é
+ * conferido no serviço, para token malformado e token vencido darem o mesmo erro. Teto de 72:
+ * o bcrypt ignora o que passa disso.
+ */
+export class DefinirSenhaDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(512)
+  token!: string;
+
+  @IsString({ message: 'A senha precisa ter pelo menos 8 caracteres.' })
+  @MinLength(8, { message: 'A senha precisa ter pelo menos 8 caracteres.' })
+  @MaxLength(72, { message: 'A senha pode ter até 72 caracteres.' })
+  senha!: string;
+}
+
 const aparar = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 /** Dígitos verificadores do CNPJ: mesma regra de validarCNPJ (src/lib/validators.ts) do formulário do front. */

@@ -145,17 +145,38 @@ describe('clienteAuth — login próprio da API', () => {
     expect(r).toEqual({ ok: true, erro: undefined });
   });
 
-  it('definirNovaSenha: 503 (desabilitada) vira erro genérico; 200 vira sucesso', async () => {
+  it('definirNovaSenha: POST /definir-senha com o token do link e, no sucesso, já entra (sessão montada)', async () => {
+    const { clienteAuth } = await carregar();
+    rotear({ accessToken: 'acc-senha', expiresIn: 900 }, CLAIMS);
+
+    await expect(clienteAuth.definirNovaSenha('tok-do-link', 'novaSenha1')).resolves.toEqual({ ok: true });
+
+    const def = chamada(0);
+    expect(def.url).toBe(`${BASE}/api/auth/definir-senha`);
+    expect(def.method).toBe('POST');
+    expect(def.init.credentials).toBe('include');
+    expect(JSON.parse(def.init.body as string)).toEqual({ token: 'tok-do-link', senha: 'novaSenha1' });
+    expect(clienteAuth.obterAccessToken()).toBe('acc-senha');
+    expect(clienteAuth.obterSessao()?.user.id).toBe('user-uuid-1');
+  });
+
+  it('definirNovaSenha: link vencido/limite mostram o texto da API; 5xx, rede e link sem token viram genéricos', async () => {
     const { clienteAuth } = await carregar();
 
-    fetchMock.mockResolvedValue(json({}, 503));
+    expect((await clienteAuth.definirNovaSenha('', 'novaSenha1')).erro).toMatch(/expirou ou já foi usado/);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(json({ codigo: 'link_invalido', message: 'Este link expirou ou já foi usado. Peça um novo.' }, 400));
+    expect((await clienteAuth.definirNovaSenha('tok', 'novaSenha1')).erro).toBe('Este link expirou ou já foi usado. Peça um novo.');
+    fetchMock.mockResolvedValueOnce(json({ message: 'Muitas tentativas em pouco tempo.' }, 429));
+    expect((await clienteAuth.definirNovaSenha('tok', 'novaSenha1')).erro).toBe('Muitas tentativas em pouco tempo.');
+    fetchMock.mockResolvedValueOnce(json({ message: 'detalhe interno' }, 503));
     const off = await clienteAuth.definirNovaSenha('tok', 'novaSenha1');
     expect(off.ok).toBe(false);
-    expect(off.erro).toBeTruthy();
-
-    fetchMock.mockResolvedValue(json({ ok: true }));
-    const ok = await clienteAuth.definirNovaSenha('tok', 'novaSenha1');
-    expect(ok).toEqual({ ok: true });
+    expect(off.erro).not.toContain('detalhe interno');
+    fetchMock.mockRejectedValueOnce(new Error('rede caiu'));
+    expect((await clienteAuth.definirNovaSenha('tok', 'novaSenha1')).ok).toBe(false);
+    expect(clienteAuth.obterSessao()).toBeNull();
   });
 
   it('logout: idempotente mesmo se a rede falhar, limpa estado local', async () => {

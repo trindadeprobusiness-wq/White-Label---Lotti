@@ -75,6 +75,16 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...base, AGENT_API_TOKEN: 'a'.repeat(32) }).agentApiToken).toBe('a'.repeat(32));
   });
 
+  it('checkout do site: segredo só com 32+ caracteres e URL de senha só http(s) válida', () => {
+    expect(loadEnv({ ...base, CHECKOUT_API_TOKEN: 'curto' }).checkoutApiToken).toBeUndefined();
+    expect(loadEnv({ ...base, CHECKOUT_API_TOKEN: ` ${'c'.repeat(40)} ` }).checkoutApiToken).toBe('c'.repeat(40));
+    expect(loadEnv({ ...base }).passwordSetupUrl).toBeUndefined();
+    expect(loadEnv({ ...base, LOTTI_APP_PASSWORD_SETUP_URL: 'https://app.plataformalotti.com.br/nova-senha' }).passwordSetupUrl)
+      .toBe('https://app.plataformalotti.com.br/nova-senha');
+    expect(loadEnv({ ...base, LOTTI_APP_PASSWORD_SETUP_URL: 'javascript:alert(1)' }).passwordSetupUrl).toBeUndefined();
+    expect(loadEnv({ ...base, LOTTI_APP_PASSWORD_SETUP_URL: 'nao é url' }).passwordSetupUrl).toBeUndefined();
+  });
+
   it('em produção o app entra sempre e as origens locais ficam de fora', () => {
     expect(loadEnv({ ...base, NODE_ENV: 'production' }).corsOrigins).toEqual([ORIGEM_APP]);
     const comEnsaio = loadEnv({ ...base, NODE_ENV: 'production', CORS_ORIGINS: 'https://app-teste.up.railway.app/' });

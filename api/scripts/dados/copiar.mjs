@@ -17,7 +17,7 @@ const q = (id) => '"' + String(id).replace(/"/g, '""') + '"';
 const nome = (t) => `${q(t.esquema)}.${q(t.tabela)}`;
 
 // Tabelas que recebem dados: as do sistema e o mínimo de auth.users.
-// usuarios e auth_refresh_tokens são do login da API e não existem na origem:
+// usuarios, auth_refresh_tokens e auth_password_tokens são do login da API e não existem na origem:
 // quem preenche usuarios é preencher-usuarios.mjs, a partir de auth.users.
 export const SQL_TABELAS = `
 select n.nspname as esquema, c.relname as tabela,
@@ -29,7 +29,7 @@ select n.nspname as esquema, c.relname as tabela,
             from pg_constraint k where k.conrelid = c.oid and k.contype = 'p'), '{}') as chave
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where c.relkind = 'r'
-  and not (n.nspname = 'public' and c.relname in ('usuarios', 'auth_refresh_tokens'))
+  and not (n.nspname = 'public' and c.relname in ('usuarios', 'auth_refresh_tokens', 'auth_password_tokens'))
   and ((n.nspname in ('public', 'suporte_privado') and c.relname <> '_prisma_migrations') or (n.nspname = 'auth' and c.relname = 'users'))
 order by n.nspname = 'auth' desc, n.nspname, c.relname`;
 

@@ -49,7 +49,7 @@ test('copia tudo com ids, conteúdo e tipos preservados, sem disparar gatilhos',
   const relatorio = await copiar({ origem: async (sql) => (await origem.query(sql)).rows, destino: comoPg(destino), pagina: 2 });
   assert.ok(relatorio.every((r) => r.copiadas === r.origem), JSON.stringify(relatorio.filter((r) => r.copiadas !== r.origem)));
   // A produção não tem as tabelas do login da API; a cópia não pode procurá-las lá.
-  assert.ok(!relatorio.some((r) => ['public.usuarios', 'public.auth_refresh_tokens'].includes(r.tabela)));
+  assert.ok(!relatorio.some((r) => ['public.usuarios', 'public.auth_refresh_tokens', 'public.auth_password_tokens'].includes(r.tabela)));
   const conf = await conferirContagens({ origem: async (sql) => (await origem.query(sql)).rows, destino: comoPg(destino) });
   assert.deepEqual(conf.diferencas, []);
 

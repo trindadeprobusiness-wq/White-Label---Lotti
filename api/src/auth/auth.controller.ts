@@ -4,7 +4,7 @@ import { AppEnv, ENV } from '../config/env';
 import { SupabaseClaims } from '../prisma/tenant-db';
 import { AuthService, SessaoEmitida } from './auth.service';
 import { Claims } from './claims.decorator';
-import { CadastroDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
+import { CadastroDto, DefinirSenhaDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
 import { RecusaTokenSuporte } from './sessao-suporte';
 import { SupabaseAuthGuard } from './supabase-auth.guard';
 
@@ -81,6 +81,18 @@ export class AuthController {
   @HttpCode(200)
   forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ mensagem: string }> {
     return this.servico.forgotPassword(dto.email);
+  }
+
+  /**
+   * Cria a senha pelo link de uso único (conta do checkout, sem senha). Pública e com limite
+   * por IP. Mesma resposta e mesmo cookie do login: quem cria a senha já entra.
+   */
+  @Post('definir-senha')
+  @HttpCode(200)
+  async definirSenha(@Body() dto: DefinirSenhaDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<{ accessToken: string; expiresIn: number }> {
+    const sessao = await this.servico.definirSenha(dto.token, dto.senha, ipDoCliente(req));
+    this.gravarCookie(res, sessao);
+    return { accessToken: sessao.accessToken, expiresIn: sessao.accessTtl };
   }
 
   @Post('reset-password')

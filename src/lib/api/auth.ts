@@ -36,7 +36,9 @@ interface RespostaToken {
 const MSG_LOGIN = 'E-mail ou senha incorretos.';
 const MSG_SESSAO = 'Sua sessão expirou. Entre de novo.';
 const MSG_GENERICA = 'Se existir uma conta, enviaremos instruções.';
-const MSG_RECUPERACAO_OFF = 'A recuperação de senha ainda não está disponível. Fale com o suporte.';
+const MSG_LINK_INVALIDO = 'Este link expirou ou já foi usado. Peça um novo.';
+const MSG_DEFINIR_SENHA = 'Não foi possível salvar a senha agora. Tente novamente em instantes.';
+const MSG_SENHA_SEM_SESSAO = 'Sua senha foi salva. Entre com seu e-mail e a nova senha.';
 
 const MSG_CADASTRO = 'Não foi possível criar a conta agora. Tente novamente em instantes.';
 const MSG_CADASTRO_SEM_SESSAO = 'Sua conta foi criada. Entre com seu e-mail e senha.';
@@ -55,7 +57,12 @@ export interface DadosCadastro {
  * vêm em português da API; o resto (5xx, 503 sem login próprio) vira o genérico.
  */
 async function mensagemDoCadastro(res: Response): Promise<string> {
-  if (![400, 409, 429].includes(res.status)) return MSG_CADASTRO;
+  return mensagemDaApi(res, MSG_CADASTRO);
+}
+
+/** 400/409/429 trazem texto em português da API; o resto (5xx, 503) vira `padrao`. */
+async function mensagemDaApi(res: Response, padrao: string): Promise<string> {
+  if (![400, 409, 429].includes(res.status)) return padrao;
   try {
     const corpo = (await res.json()) as { message?: unknown };
     const m = corpo?.message;
@@ -65,7 +72,7 @@ async function mensagemDoCadastro(res: Response): Promise<string> {
       if (textos.length) return textos.join(' ');
     }
   } catch { /* sem corpo */ }
-  return MSG_CADASTRO;
+  return padrao;
 }
 
 /** Folga antes do vencimento para renovar; nunca agenda em menos de 10s. */
@@ -330,20 +337,30 @@ class ClienteAuth {
   }
 
   /**
-   * POST /reset-password. Desabilitada nesta fase: a API responde 503 neutro.
-   * Devolvemos erro genérico sem detalhe.
+   * POST /definir-senha com o token do link (`?token=`): conta criada pelo checkout do site
+   * (sem senha) ou, quando o e-mail existir, a recuperação. A API grava a senha, derruba as
+   * sessões antigas e já devolve a sessão, como o login. Link vencido/usado → texto da API.
    */
   async definirNovaSenha(token: string, senha: string): Promise<Resultado> {
+    if (!token) return { ok: false, erro: MSG_LINK_INVALIDO };
+    let res: Response;
     try {
-      const res = await fetch(url('/api/auth/reset-password'), {
+      res = await fetch(url('/api/auth/definir-senha'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ token, senha }),
       });
-      if (res.ok) return { ok: true };
-      return { ok: false, erro: MSG_RECUPERACAO_OFF };
     } catch {
-      return { ok: false, erro: MSG_RECUPERACAO_OFF };
+      return { ok: false, erro: MSG_DEFINIR_SENHA };
+    }
+    if (!res.ok) return { ok: false, erro: await mensagemDaApi(res, MSG_DEFINIR_SENHA) };
+    try {
+      await this.aplicarToken((await res.json()) as RespostaToken);
+      return { ok: true };
+    } catch {
+      // A senha foi gravada; só a entrada automática falhou.
+      return { ok: false, erro: MSG_SENHA_SEM_SESSAO };
     }
   }
 }

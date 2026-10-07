@@ -227,3 +227,72 @@ describe('AuthService.cadastrar', () => {
     expect(repo.criarConta).not.toHaveBeenCalled();
   });
 });
+
+describe('AuthService.definirSenha (link de uso único)', () => {
+  const TOKEN = 'A'.repeat(43);
+
+  /** Repo do link: limite contado por escopo/chave e um token válido que vira a senha. */
+  function montarLink(opcoes: { limite?: number; valido?: boolean } = {}) {
+    const { service, repo } = montar();
+    repo.add(usuario({ passwordHash: null }));
+    const contagem = new Map<string, number>();
+    const extra = repo as unknown as Record<string, unknown>;
+    extra.consumirLimite = jest.fn(async (escopo: string, chave: string, limite: number) => {
+      const k = `${escopo}:${chave}`;
+      const n = (contagem.get(k) ?? 0) + 1;
+      contagem.set(k, n);
+      return n <= Math.min(limite, opcoes.limite ?? limite);
+    });
+    extra.consumirTokenSenha = jest.fn(async (tokenHash: string, passwordHash: string) => {
+      if (opcoes.valido === false) return null;
+      const u = repo.usuarios.get(usuario().id)!;
+      u.passwordHash = passwordHash;
+      u.sessionVersion += 1;
+      return { ...u };
+    });
+    return { service, repo, consumirLimite: extra.consumirLimite as jest.Mock, consumirTokenSenha: extra.consumirTokenSenha as jest.Mock };
+  }
+
+  it('consome o hash do token (nunca o cru), grava bcrypt e já devolve a sessão; o login seguinte funciona', async () => {
+    const { service, repo, consumirTokenSenha } = montarLink();
+    const sessao = await service.definirSenha(TOKEN, 'senha-nova-123', '203.0.113.9');
+    expect(sessao.accessToken.split('.')).toHaveLength(3);
+    const [tokenHash, hash] = consumirTokenSenha.mock.calls[0] as [string, string];
+    expect(tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(tokenHash).not.toBe(TOKEN);
+    expect(await bcrypt.compare('senha-nova-123', hash)).toBe(true);
+    // a sessão nasce na versão nova (a troca derrubou as antigas)
+    expect([...repo.tokens.values()][0].sessionVersion).toBe(1);
+    await expect(service.login('corretor@exemplo.com', 'senha-nova-123')).resolves.toHaveProperty('accessToken');
+  });
+
+  it('token malformado, vencido, usado ou de conta inativa: o MESMO 400 link_invalido, sem sessão', async () => {
+    const { service, repo, consumirTokenSenha } = montarLink({ valido: false });
+    for (const t of [TOKEN, 'curto', 'x'.repeat(40) + '!']) {
+      await expect(service.definirSenha(t, 'senha-nova-123', '203.0.113.9'))
+        .rejects.toMatchObject({ status: 400, response: expect.objectContaining({ codigo: 'link_invalido' }) });
+    }
+    expect(consumirTokenSenha).toHaveBeenCalledTimes(1); // malformado nem vai ao banco
+    expect(repo.tokens.size).toBe(0);
+  });
+
+  it('acima do limite por IP: 429 antes do bcrypt e do banco; a chave do IP não é o IP cru', async () => {
+    const { service, consumirLimite, consumirTokenSenha } = montarLink({ limite: 1 });
+    await service.definirSenha(TOKEN, 'senha-nova-123', '198.51.100.7');
+    await expect(service.definirSenha(TOKEN, 'senha-nova-123', '198.51.100.7')).rejects.toMatchObject({ status: 429 });
+    expect(consumirTokenSenha).toHaveBeenCalledTimes(1);
+    const [escopo, chave] = consumirLimite.mock.calls[0] as [string, string];
+    expect(escopo).toBe('auth-definir-senha-ip');
+    expect(chave).toMatch(/^[0-9a-f]{64}$/);
+    expect(chave).not.toContain('198.51.100.7');
+  });
+
+  it('503 sem AUTH_JWT_SECRET, antes de qualquer gravação', async () => {
+    const repo = new RepoFake() as unknown as Record<string, unknown>;
+    repo.consumirLimite = jest.fn();
+    repo.consumirTokenSenha = jest.fn();
+    const service = new AuthService({ ...baseEnv, authJwtSecret: undefined }, repo as unknown as UsuariosRepo);
+    await expect(service.definirSenha(TOKEN, 'senha-nova-123', null)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(repo.consumirTokenSenha).not.toHaveBeenCalled();
+  });
+});

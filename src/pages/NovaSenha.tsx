@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,13 +8,24 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { useAuth } from '@/hooks/useAuth';
+import { apiDisponivel } from '@/lib/api';
 
 const MINIMO = 10;
 
+/** Token do link do login próprio (?token=... ou #token=...). */
+function tokenDoLink(): string {
+  const bruto = window.location.hash.replace(/^#/, '') || window.location.search.replace(/^\?/, '');
+  return new URLSearchParams(bruto).get('token') ?? '';
+}
+
 /**
- * Destino do link enviado por e-mail. O Supabase troca o token do link por uma
- * sessão de recuperação automaticamente, então aqui basta ter sessão — se não
- * tiver, o link expirou, já foi usado, ou a pessoa abriu a rota na mão.
+ * Destino do link de senha.
+ * - Supabase: o token do link vira uma sessão de recuperação automaticamente, então
+ *   aqui basta ter sessão — se não tiver, o link expirou, já foi usado, ou a pessoa
+ *   abriu a rota na mão.
+ * - API (login próprio): o link traz `?token=` (conta criada pelo checkout do site, sem
+ *   senha). Não há sessão antes de salvar: a API confere o token ao gravar e já devolve
+ *   a sessão; link vencido ou usado aparece como erro do formulário.
  */
 export default function NovaSenha() {
   const { definirNovaSenha, session, loading } = useAuth();
@@ -26,8 +37,11 @@ export default function NovaSenha() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Sem sessão de recuperação não há o que fazer aqui.
-  const linkInvalido = !loading && !session;
+  const modoApi = apiDisponivel();
+  const token = useMemo(() => (modoApi ? tokenDoLink() : ''), [modoApi]);
+  // Sem sessão de recuperação (Supabase) ou sem token no link (API) não há o que fazer aqui.
+  const carregando = !modoApi && loading;
+  const linkInvalido = modoApi ? !token : !loading && !session;
 
   useEffect(() => {
     if (linkInvalido) {
@@ -37,7 +51,8 @@ export default function NovaSenha() {
 
   const curta = senha.length > 0 && senha.length < MINIMO;
   const naoConfere = confirma.length > 0 && senha !== confirma;
-  const podeSalvar = !!session && !loading && senha.length >= MINIMO && senha === confirma && !salvando;
+  const linkPronto = modoApi ? !!token : !!session && !loading;
+  const podeSalvar = linkPronto && senha.length >= MINIMO && senha === confirma && !salvando;
 
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +76,7 @@ export default function NovaSenha() {
 
         <Card>
           <CardContent className="pt-6">
-            {loading ? (
+            {carregando ? (
               <div className="flex min-h-40 items-center justify-center" role="status" aria-label="Validando link">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>

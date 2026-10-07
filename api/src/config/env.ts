@@ -20,6 +20,17 @@ export interface AppEnv {
   /** Segredo compartilhado com o agente do WhatsApp (header x-lotti-agent). */
   agentApiToken?: string;
   /**
+   * Segredo compartilhado com o checkout do site institucional (header x-lotti-checkout).
+   * Faltando (ou com menos de 32 caracteres): /api/checkout/* responde 503.
+   */
+  checkoutApiToken?: string;
+  /**
+   * Página da plataforma que cria a senha (LOTTI_APP_PASSWORD_SETUP_URL, ex.:
+   * https://app.plataformalotti.com.br/nova-senha). O link sai como `${url}?token=...`.
+   * Faltando: o checkout responde 503 `checkout_nao_configurado` antes de cobrar.
+   */
+  passwordSetupUrl?: string;
+  /**
    * Chave simétrica (HS256) do login próprio da API. Faltando: as rotas de
    * /api/auth respondem 503 e o guard age como hoje, só com o Supabase. Exigida
    * com pelo menos 32 caracteres para não nascer uma chave fraca por engano.
@@ -87,6 +98,24 @@ function required(source: NodeJS.ProcessEnv, name: string): string {
   return value.trim();
 }
 
+/** Segredo de servidor a servidor: só vale com pelo menos 32 caracteres (curto = ausente = 503). */
+function segredoForte(source: NodeJS.ProcessEnv, name: string): string | undefined {
+  const v = source[name]?.trim();
+  return v && v.length >= 32 ? v : undefined;
+}
+
+/** URL http(s) absoluta, ou undefined (ausente ou inválida: o recurso fica desligado). */
+function urlHttp(source: NodeJS.ProcessEnv, name: string): string | undefined {
+  const v = source[name]?.trim();
+  if (!v) return undefined;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Inteiro positivo de uma variável, ou o padrão quando ausente/ inválida. */
 function inteiroPositivo(source: NodeJS.ProcessEnv, name: string, padrao: number): number {
   const bruto = source[name]?.trim();
@@ -129,6 +158,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     corsOrigins,
     publicCorsOrigins: origensCorsPublicas(source.PUBLIC_CORS_ORIGINS, corsOrigins),
     agentApiToken: (source.AGENT_API_TOKEN?.trim().length ?? 0) >= 32 ? source.AGENT_API_TOKEN!.trim() : undefined,
+    checkoutApiToken: segredoForte(source, 'CHECKOUT_API_TOKEN'),
+    passwordSetupUrl: urlHttp(source, 'LOTTI_APP_PASSWORD_SETUP_URL'),
     authJwtSecret: authJwtBruto || undefined,
     authAccessTtl: inteiroPositivo(source, 'AUTH_ACCESS_TTL', 900),
     authRefreshTtl: inteiroPositivo(source, 'AUTH_REFRESH_TTL', 2592000),

@@ -15,6 +15,7 @@ import { UsuariosRepo } from './usuarios.repo';
 @Module({
   controllers: [AuthController, PerfilController],
   providers: [AuthService, UsuariosRepo, PerfilService, SupabaseAuthGuard],
-  exports: [SupabaseAuthGuard],
+  // UsuariosRepo: o checkout do site cria a conta e o link de senha pelo mesmo código do cadastro.
+  exports: [SupabaseAuthGuard, UsuariosRepo],
 })
 export class AuthModule {}

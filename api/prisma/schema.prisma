@@ -433,6 +433,24 @@ model AuditoriaFinanceira {
   @@map("auditoria_financeira")
 }
 
+/// Tabela public.auth_password_tokens — RLS ligado.
+/// 1 check constraint(s) só no SQL.
+model AuthPasswordTokem {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  finalidade      String    @default("definir_senha")
+  checkoutOrderId String?   @map("checkout_order_id") @db.Uuid
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt          DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user Usuario @relation("auth_password_tokens_user_id_fkey", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@map("auth_password_tokens")
+}
+
 /// Tabela public.auth_refresh_tokens — RLS ligado.
 model AuthRefreshTokem {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2695,7 +2713,8 @@ model Usuario {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  authRefreshTokens AuthRefreshTokem[] @relation("auth_refresh_tokens_user_id_fkey")
+  authPasswordTokens AuthPasswordTokem[] @relation("auth_password_tokens_user_id_fkey")
+  authRefreshTokens  AuthRefreshTokem[]  @relation("auth_refresh_tokens_user_id_fkey")
 
   @@map("usuarios")
 }

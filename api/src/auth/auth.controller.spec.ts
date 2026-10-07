@@ -108,3 +108,17 @@ describe('ipDoCliente', () => {
     expect(ipDoCliente(req({}))).toBeNull();
   });
 });
+
+describe('AuthController.definirSenha', () => {
+  it('repassa token, senha e IP do proxy e grava o mesmo cookie do login', async () => {
+    const definirSenha = jest.fn(async () => sessao);
+    const { res, cookies } = resFake();
+    const req = { headers: { 'x-forwarded-for': '203.0.113.9' }, socket: { remoteAddress: '10.0.0.1' } } as unknown as Request;
+    const corpo = await new AuthController(envProd, { definirSenha } as unknown as AuthService)
+      .definirSenha({ token: 'tok', senha: 'senha-nova-123' }, req, res);
+    expect(corpo).toEqual({ accessToken: 'a.b.c', expiresIn: 900 });
+    expect(definirSenha).toHaveBeenCalledWith('tok', 'senha-nova-123', '203.0.113.9');
+    expect(cookies[0]).toContain('lotti_refresh=refresh-opaco-xyz');
+    expect(cookies[0]).toContain('HttpOnly');
+  });
+});
