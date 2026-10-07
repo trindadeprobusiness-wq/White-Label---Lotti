@@ -97,3 +97,13 @@ test('coluna que só existe na origem também barra a cópia', async () => {
     await assert.rejects(copiar({ origem: ler, destino: comoPg(d) }), /colunas da origem/);
   } finally { await o.close(); await d.close(); }
 });
+
+test('coluna extra em auth.users na origem não barra a cópia (o destino guarda só o mínimo)', async () => {
+  const o = await bancoNovo();
+  const d = await bancoNovo();
+  try {
+    await o.exec('alter table auth.users add column confirmation_token text');
+    const ler = async (sql) => (await o.query(sql)).rows;
+    assert.deepEqual(await colunasSoNaOrigem({ origem: ler, destino: comoPg(d) }), []);
+  } finally { await o.close(); await d.close(); }
+});

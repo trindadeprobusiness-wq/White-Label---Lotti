@@ -80,6 +80,9 @@ export async function colunasSoNaOrigem({ origem, destino }) {
   const naOrigem = new Map((await origem(SQL_TABELAS)).map((t) => [chave(t), new Set(t.colunas)]));
   const faltam = [];
   for (const t of (await destino.query(SQL_TABELAS)).rows) {
+    // auth.users no Railway é só o mínimo que o login e os gatilhos usam (id, e-mail, senha,
+    // metadados): os tokens internos do Supabase Auth ficam para trás de propósito.
+    if (t.esquema === 'auth') continue;
     const o = naOrigem.get(chave(t));
     if (!o) continue;
     const d = new Set(t.colunas);
