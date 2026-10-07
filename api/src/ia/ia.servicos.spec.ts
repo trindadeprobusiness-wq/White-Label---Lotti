@@ -10,6 +10,9 @@ import { FotosIaService, PARAMETROS_PADRAO } from './fotos.service';
 import { AlterarConversaDto, AnalisarFotoDto, AnalisarFotosImovelDto, DecisaoAcaoDto, MensagemWhatsappDto, SugestaoInboxDto } from './ia.dto';
 import { MensagensIaService } from './mensagens.service';
 
+// Estes testes cobrem o tratamento de erro do provedor; o modelo reserva tem teste próprio (ia/reserva.spec.ts).
+process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+
 const CORRETOR = '55555555-5555-4555-8555-555555555555';
 const USUARIO = '66666666-6666-4666-8666-666666666666';
 const ID = '11111111-1111-4111-8111-111111111111';
@@ -343,7 +346,7 @@ describe('FotosIaService', () => {
     expect(r.params).toEqual({ ...PARAMETROS_PADRAO, brightness: 1.3, contrast: 1.1 });
     expect(m.fetchImpl).toHaveBeenCalledTimes(2);
     const [url, init] = m.fetchImpl.mock.calls[1];
-    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=chave-falsa');
+    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=chave-falsa');
     const corpo = JSON.parse(init.body);
     expect(corpo.contents[0].parts[0].text).toMatch(/real estate photo editor[\s\S]*Prompt version: media\.photo-enhancement@2026-08-20\.1$/);
     expect(corpo.contents[0].parts[1]).toEqual({ inline_data: { mime_type: 'image/png', data: 'QUJD' } });
@@ -407,9 +410,9 @@ describe('MensagensIaService', () => {
     const m = montar();
     m.fetchImpl.mockResolvedValueOnce(chat('Olá Ana! 😊'));
     const dto = Object.assign(new MensagemWhatsappDto(), { clientName: 'Ana', messageType: 'reminder', tone: 'friendly', details: { amount: 'R$ 1.500,00' } });
-    expect(await m.s.gerarWhatsapp(dto)).toEqual({ message: 'Olá Ana! 😊', model: 'gemini-2.5-flash', prompt_version: 'rentals.whatsapp@2026-08-20.1' });
+    expect(await m.s.gerarWhatsapp(dto)).toEqual({ message: 'Olá Ana! 😊', model: 'gemini-3.8-flash', prompt_version: 'rentals.whatsapp@2026-08-20.1' });
     const corpo = JSON.parse(m.fetchImpl.mock.calls[0][1].body);
-    expect(corpo).toMatchObject({ temperature: 0.4, reasoning_effort: 'none', model: 'gemini-2.5-flash' });
+    expect(corpo).toMatchObject({ temperature: 0.4, reasoning_effort: 'none', model: 'gemini-3.8-flash' });
     expect(corpo.messages[0].content).toMatch(/^Você é um assistente profissional de corretor de imóveis\.[\s\S]*Versão: rentals\.whatsapp@2026-08-20\.1$/);
     expect(corpo.messages[1].content).toContain('"messageType":"Lembrete de Vencimento","tone":"Amigável"');
 

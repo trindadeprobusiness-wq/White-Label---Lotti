@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client';
 import { AnalisarContratoIaDto, GerarContratoIaDto } from './contratos-ia.dto';
 import { ContratosIaService } from './contratos-ia.service';
 
+// Estes testes cobrem o tratamento de erro do provedor; o modelo reserva tem teste próprio (ia/reserva.spec.ts).
+process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+
 const CORRETOR = '55555555-5555-4555-8555-555555555555';
 const RESERVA = '77777777-7777-4777-8777-777777777777';
 const claims = { sub: 'u1', role: 'authenticated' };
@@ -87,7 +90,7 @@ describe('ContratosIaService', () => {
     fetchImpl.mockResolvedValueOnce(respostaChat('MINUTA PARA REVISÃO JURÍDICA'));
     const r = await servico.gerar(claims, pedido());
     expect(r).toEqual(expect.objectContaining({
-      contrato: 'MINUTA PARA REVISÃO JURÍDICA', modelo_ia: 'gemini-2.5-flash', prompt_version: 'contracts.generation@2026-08-20.1',
+      contrato: 'MINUTA PARA REVISÃO JURÍDICA', modelo_ia: 'gemini-3.8-flash', prompt_version: 'contracts.generation@2026-08-20.1',
     }));
     expect(typeof r.tempo_geracao_ms).toBe('number');
     const [url, init] = fetchImpl.mock.calls[0];
@@ -96,7 +99,7 @@ describe('ContratosIaService', () => {
     const corpo = JSON.parse(init.body);
     expect(corpo.temperature).toBe(0.2);
     expect(corpo.reasoning_effort).toBe('none');
-    expect(corpo.model).toBe('gemini-2.5-flash');
+    expect(corpo.model).toBe('gemini-3.8-flash');
     expect(corpo.messages[0].content).toContain('MINUTA PARA REVISÃO JURÍDICA');
     expect(corpo.messages[1].content).toContain('<external_data kind="contract_request">');
     expect(corpo.messages[1].content).toContain('Nome: Ana bSilva/b');

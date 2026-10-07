@@ -66,7 +66,7 @@ before(async () => {
   await banco.inserir('plan_entitlements', {
     plan_id: banco.contaA.planoId, feature_key: 'ai_assistant_monthly', feature_name: 'Assistente', enabled: true, limit_value: 100, unlimited: false,
   });
-  conversaA = String((await banco.inserir('ai_conversations', { corretor_id: banco.corretorA, title: 'Conversa A', model: 'gemini-2.5-flash' })).id);
+  conversaA = String((await banco.inserir('ai_conversations', { corretor_id: banco.corretorA, title: 'Conversa A', model: 'gemini-3.8-flash' })).id);
   conversaB = String((await banco.inserir('ai_conversations', { corretor_id: banco.corretorB, title: 'Conversa B' })).id);
   mensagemA = String((await banco.inserir('ai_messages', { conversation_id: conversaA, role: 'user', content: 'Olá' })).id);
   await banco.inserir('ai_messages', { conversation_id: conversaA, role: 'assistant', content: 'Oi!' });
@@ -176,7 +176,7 @@ describe('assistente: preparo, stream e caminhos privilegiados', () => {
     assert.equal((msgs[0].metadata as Record<string, unknown>).module, 'clients');
     const [conv] = await banco.sqlSuperusuario<{ title: string; corretor_id: string; model: string }>(
       'select title, corretor_id::text, model from public.ai_conversations where id = $1', [sessao.conversationId]);
-    assert.deepEqual(conv, { title: 'Você tem 1 cliente.', corretor_id: banco.corretorA, model: 'gemini-2.5-flash' });
+    assert.deepEqual(conv, { title: 'Você tem 1 cliente.', corretor_id: banco.corretorA, model: 'gemini-3.8-flash' });
     const [uso] = await banco.sqlSuperusuario<{ used_quantity: number }>(
       "select used_quantity from public.usage_counters where corretor_id = $1 and feature_key = 'ai_assistant_monthly'", [banco.corretorA]);
     assert.equal(uso.used_quantity, 1);

@@ -3,7 +3,12 @@
 
 export const OPENAI_COMPAT_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 export const NATIVE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-export const MODELO_PADRAO = 'gemini-2.5-flash';
+// O gemini-2.5-flash não é mais liberado para projetos novos do Google (404 "no longer available to
+// new users", visto em 2026-10-07 com a chave nova). O 3.8-flash é o recomendado; quando ele está
+// sobrecarregado (503) ou indisponível, cada chamada tenta uma vez o modelo reserva.
+export const MODELO_PADRAO = 'gemini-3.8-flash';
+export const MODELO_RESERVA = 'gemini-3.1-flash-lite';
+const STATUS_RESERVA = new Set([404, 429, 500, 502, 503, 504]);
 export const TIMEOUT_IA_MS = 90_000;
 
 type FetchImpl = typeof globalThis.fetch;
@@ -15,6 +20,20 @@ export function chaveGemini(): string | null {
 
 export function modeloRapido(): string {
   return process.env.LOTTI_AI_FAST_MODEL?.trim() || MODELO_PADRAO;
+}
+
+export function modeloReserva(): string {
+  const v = process.env.LOTTI_AI_FALLBACK_MODEL?.trim();
+  return v === 'off' ? '' : v || MODELO_RESERVA;
+}
+
+/** Chama com o modelo pedido e, se ele responder indisponível/sobrecarregado, uma vez com o reserva. */
+export async function comModeloReserva(modelo: string, chamar: (modelo: string) => Promise<Response>): Promise<Response> {
+  const resposta = await chamar(modelo);
+  const reserva = modeloReserva();
+  if (!STATUS_RESERVA.has(resposta.status) || !reserva || reserva === modelo) return resposta;
+  await resposta.body?.cancel().catch(() => undefined);
+  return chamar(reserva);
 }
 
 export interface OpcoesChat {
@@ -29,14 +48,14 @@ export interface OpcoesChat {
 /** Endpoint OpenAI-compatible (gerar-contrato). Timeout e erro de rede sobem como exceção. */
 export function chatGemini(o: OpcoesChat): Promise<Response> {
   const f = o.fetchImpl ?? globalThis.fetch;
-  return f(OPENAI_COMPAT_URL, {
+  return comModeloReserva(o.modelo, (modelo) => f(OPENAI_COMPAT_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${o.chave}`, 'Content-Type': 'application/json' },
     // reasoning_effort 'none' desliga o "thinking" do 2.5-flash: com ele a minuta passava de 90 s
     // e a geração caía em TimeoutError (visto nos logs de gerar-contrato em 2026-10-06).
-    body: JSON.stringify({ messages: o.mensagens, stream: false, temperature: o.temperature, model: o.modelo, reasoning_effort: 'none' }),
+    body: JSON.stringify({ messages: o.mensagens, stream: false, temperature: o.temperature, model: modelo, reasoning_effort: 'none' }),
     signal: AbortSignal.timeout(o.timeoutMs ?? TIMEOUT_IA_MS),
-  });
+  }));
 }
 
 export interface OpcoesConteudo {
@@ -51,13 +70,12 @@ export interface OpcoesConteudo {
 /** Endpoint multimodal nativo (analisar-contrato). */
 export function conteudoGemini(o: OpcoesConteudo): Promise<Response> {
   const f = o.fetchImpl ?? globalThis.fetch;
-  const url = `${NATIVE_BASE_URL}/${encodeURIComponent(o.modelo)}:generateContent?key=${encodeURIComponent(o.chave)}`;
-  return f(url, {
+  return comModeloReserva(o.modelo, (modelo) => f(`${NATIVE_BASE_URL}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(o.chave)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: o.partes }], generationConfig: o.generationConfig }),
     signal: AbortSignal.timeout(o.timeoutMs ?? TIMEOUT_IA_MS),
-  });
+  }));
 }
 
 /** generationConfig da função analisar-contrato. */

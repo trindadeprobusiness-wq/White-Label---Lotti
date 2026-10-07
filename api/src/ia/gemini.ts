@@ -1,4 +1,4 @@
-import { chaveGemini, modeloRapido, NATIVE_BASE_URL, OPENAI_COMPAT_URL } from '../contratos/ia/gemini';
+import { chaveGemini, comModeloReserva, modeloRapido, NATIVE_BASE_URL, OPENAI_COMPAT_URL } from '../contratos/ia/gemini';
 
 // Porte de supabase/functions/_shared/ai/provider.ts para as funções de IA gerais (assistente, fotos,
 // WhatsApp, Inbox). Reaproveita chave, modelo e URLs de contratos/ia/gemini.ts (mesma leitura de env).
@@ -52,21 +52,20 @@ export interface OpcoesIa {
  * de contratos, manda reasoning_effort 'none' (sem "thinking": menos latência e nada de timeout).
  */
 export function chatIa(o: OpcoesIa): Promise<Response> {
-  return comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), OPENAI_COMPAT_URL, {
+  return comModeloReserva(o.modelo, (modelo) => comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), OPENAI_COMPAT_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${o.chave}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...o.corpo, model: o.modelo, reasoning_effort: 'none' }),
-  }, o.politica);
+    body: JSON.stringify({ ...o.corpo, model: modelo, reasoning_effort: 'none' }),
+  }, o.politica));
 }
 
 /** Endpoint multimodal nativo (generateContent): corpo da função, sem mexer. */
 export function conteudoIa(o: OpcoesIa): Promise<Response> {
-  const url = `${NATIVE_BASE_URL}/${encodeURIComponent(o.modelo)}:generateContent?key=${encodeURIComponent(o.chave)}`;
-  return comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), url, {
+  return comModeloReserva(o.modelo, (modelo) => comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), `${NATIVE_BASE_URL}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(o.chave)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(o.corpo),
-  }, o.politica);
+  }, o.politica));
 }
 
 function numeroDoAmbiente(nome: string, padrao: number): number {

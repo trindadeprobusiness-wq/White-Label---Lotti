@@ -49,7 +49,7 @@ export function lerConfigRotina(env: NodeJS.ProcessEnv = process.env): ConfigRot
       webhookUrl: texto(env.GOOGLE_CALENDAR_WEBHOOK_URL),
       configurado: !!(clientId && clientSecret && chaveCripto),
     },
-    gemini: { apiKey: texto(env.GEMINI_API_KEY), modelo: texto(env.LOTTI_AI_FAST_MODEL) ?? 'gemini-2.5-flash' },
+    gemini: { apiKey: texto(env.GEMINI_API_KEY), modelo: texto(env.LOTTI_AI_FAST_MODEL) ?? 'gemini-3.8-flash' },
     maintainHabilitado: env.ROUTINE_CALENDAR_MAINTAIN_ENABLED === 'true',
   };
 }

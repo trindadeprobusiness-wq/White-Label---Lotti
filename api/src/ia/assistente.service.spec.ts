@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client';
 import { AssistenteService, EventoAssistente } from './assistente.service';
 import { AssistenteDto } from './ia.dto';
 
+// Estes testes cobrem o tratamento de erro do provedor; o modelo reserva tem teste próprio (ia/reserva.spec.ts).
+process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+
 const CORRETOR = '55555555-5555-4555-8555-555555555555';
 const USUARIO = '66666666-6666-4666-8666-666666666666';
 const CONV = '77777777-7777-4777-8777-777777777777';
@@ -144,7 +147,7 @@ describe('AssistenteService.preparar', () => {
     const s = await servico.preparar(claims, corpo({ file_context: 'texto do PDF', entity_refs: [{ type: 'cliente', id: 'c1' }] }));
     expect(db.run.mock.calls.every(([c]) => c === claims)).toBe(true);
     const [conversa] = textos(tx.$queryRaw, /insert into public\.ai_conversations/);
-    expect(conversa.values).toEqual([CORRETOR, 'gemini-2.5-flash']);
+    expect(conversa.values).toEqual([CORRETOR, 'gemini-3.8-flash']);
     const [msg] = textos(tx.$queryRaw, /insert into public\.ai_messages/);
     expect(msg.text).toMatch(/\$1::uuid, \$2::text, \$3::text,\s+\$4::jsonb, \$5::text,\s+\$6::jsonb/);
     expect(msg.values.slice(0, 3)).toEqual([CONV, 'user', 'Quantos clientes?']);
@@ -154,7 +157,7 @@ describe('AssistenteService.preparar', () => {
     const [hist] = textos(tx.$queryRaw, /from public\.ai_messages m/);
     expect(hist.values).toEqual([CONV, 20]);
 
-    expect(s).toMatchObject({ conversationId: CONV, novaConversa: true, corretorId: CORRETOR, runId: RUN, modelo: 'gemini-2.5-flash' });
+    expect(s).toMatchObject({ conversationId: CONV, novaConversa: true, corretorId: CORRETOR, runId: RUN, modelo: 'gemini-3.8-flash' });
     expect(s.mensagens[0].role).toBe('system');
     expect(s.mensagens[0].content).toContain('- Corretor: Ana (CRECI 123/GO)');
     expect(s.mensagens[0].content).toContain('- Receita do mês: R$ 1.500,50');
@@ -163,7 +166,7 @@ describe('AssistenteService.preparar', () => {
     expect(s.mensagens.slice(1)).toEqual([{ role: 'user', content: 'Quantos clientes?' }]);
 
     const [run] = textos(prisma.$queryRaw, /insert into public\.ai_runs/);
-    expect(run.values).toEqual(['trace_teste_1', CORRETOR, USUARIO, 'clients', 'assistant.chat', 'gemini-2.5-flash',
+    expect(run.values).toEqual(['trace_teste_1', CORRETOR, USUARIO, 'clients', 'assistant.chat', 'gemini-3.8-flash',
       'assistant.general@2026-08-20.1', 'text', 'Quantos clientes?'.length + 'texto do PDF'.length, false, JSON.stringify({ entity_count: 1 })]);
   });
 
@@ -203,7 +206,7 @@ describe('AssistenteService.transmitir', () => {
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
     expect(init.headers.Authorization).toBe('Bearer chave-falsa');
     const enviado = JSON.parse(init.body);
-    expect(enviado).toMatchObject({ stream: true, model: 'gemini-2.5-flash', reasoning_effort: 'none' });
+    expect(enviado).toMatchObject({ stream: true, model: 'gemini-3.8-flash', reasoning_effort: 'none' });
     expect(enviado.tools.map((t: { function: { name: string } }) => t.function.name)).toContain('suggest_action');
     expect(enviado.messages[0].role).toBe('system');
 
