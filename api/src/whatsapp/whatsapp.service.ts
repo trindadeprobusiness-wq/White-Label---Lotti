@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import {HttpException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { SupabaseClaims, TenantDb } from '../prisma/tenant-db';
 import { BridgeDto } from './whatsapp.dto';
@@ -47,6 +47,7 @@ function attachmentPath(body: ParsedBridgeRequest, ownerId: string): string {
 
 @Injectable()
 export class WhatsappService {
+  private readonly logger = new Logger('WhatsappPonte');
   constructor(private readonly db: TenantDb) {}
 
   listarConversas(claims: SupabaseClaims) {
@@ -162,16 +163,17 @@ export class WhatsappService {
     let response:Response;
     try{response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-lotti-connect':token},body:JSON.stringify(payload),signal:AbortSignal.timeout(25000)});}catch{
       if(body.action==='start'&&conversationId)return {sendStatus:'uncertain',conversationId};
+      this.logger.warn({codigo:'bridge_unreachable',acao:body.action});
       throw new HttpException({error:'bridge_unreachable'},503);
     }
-    if(!response.ok)throw new HttpException({error:'bridge_rejected',upstream:response.status},503);
+    if(!response.ok){this.logger.warn({codigo:'bridge_rejected',acao:body.action,upstream:response.status});throw new HttpException({error:'bridge_rejected',upstream:response.status},503);}
     const result=await response.json() as Record<string,unknown>;
     if(body.action==='send'||body.action==='start'){
       const sendStatus=String(result.sendStatus??'');
       if(!['sent','sending','uncertain','failed','busy'].includes(sendStatus))throw new HttpException({error:'send_unavailable'},503);
       return {sendStatus,...(conversationId?{conversationId}:{})};
     }
-    if(!['connected','connecting','disconnected'].includes(String(result.state)))throw new HttpException({error:'bridge_bad_state'},503);
+    if(!['connected','connecting','disconnected'].includes(String(result.state))){this.logger.warn({codigo:'bridge_bad_state',estado:String(result.state).slice(0,40)});throw new HttpException({error:'bridge_bad_state'},503);}
     const phone=String(result.phone??result.ownerJid??'').split('@')[0].replace(/\D/g,'');
     const connectedAt=typeof result.connectedAt==='string'&&!Number.isNaN(Date.parse(result.connectedAt))?result.connectedAt:undefined;
     const qr=typeof result.qr==='string'&&result.qr.startsWith('data:image/png;base64,')?result.qr:undefined;
