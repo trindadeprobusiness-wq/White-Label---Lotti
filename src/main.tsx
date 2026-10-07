@@ -8,10 +8,13 @@ import { ThemeProvider } from "./components/theme-provider";
 // module"). O Vite dispara `vite:preloadError` nesse caso — recarregamos UMA vez
 // (janela de 10s) para pegar a versão nova de forma transparente, sem tela de erro.
 // O guard por tempo evita loop caso o chunk esteja de fato indisponível.
-window.addEventListener("vite:preloadError", () => {
+window.addEventListener("vite:preloadError", (event) => {
   const last = Number(sessionStorage.getItem("vite-preload-reload-at") || 0);
   if (Date.now() - last > 10000) {
     sessionStorage.setItem("vite-preload-reload-at", String(Date.now()));
+    // Sem isto o erro seguia até o ErrorBoundary, que mostrava "Algo deu errado"
+    // por ~2s antes do reload terminar.
+    event.preventDefault();
     window.location.reload();
   }
 });

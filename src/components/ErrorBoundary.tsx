@@ -18,6 +18,12 @@ interface State {
  * Sem isto, qualquer exceção durante o render desmonta toda a árvore React e o
  * usuário vê apenas uma tela preta, sem pista do que houve.
  */
+/** Tela carregada sob demanda que sumiu num deploy novo (aba aberta com a versão antiga). */
+export function ehErroDeVersaoNova(error: Error | null): boolean {
+  const texto = `${error?.name ?? ''} ${error?.message ?? ''}`;
+  return /ChunkLoadError|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk \d+ failed/i.test(texto);
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null };
 
@@ -26,6 +32,15 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    if (ehErroDeVersaoNova(error)) {
+      // Mesmo guard do main.tsx: recarrega uma vez para pegar a versão nova, sem tela de erro.
+      const last = Number(sessionStorage.getItem('vite-preload-reload-at') || 0);
+      if (Date.now() - last > 10000) {
+        sessionStorage.setItem('vite-preload-reload-at', String(Date.now()));
+        window.location.reload();
+        return;
+      }
+    }
     // Fica no console para diagnóstico (e futuramente pode ir para um monitor).
     console.error('ErrorBoundary capturou um erro de render:', error, info);
   }
@@ -35,6 +50,14 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    if (this.state.hasError && ehErroDeVersaoNova(this.state.error)
+      && Date.now() - Number(sessionStorage.getItem('vite-preload-reload-at') || 0) < 10000) {
+      return (
+        <div className="flex min-h-screen w-full items-center justify-center bg-background text-sm text-muted-foreground">
+          Atualizando…
+        </div>
+      );
+    }
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-background p-6 text-center">
