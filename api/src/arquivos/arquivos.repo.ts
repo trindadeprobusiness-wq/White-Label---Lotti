@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseClaims, TenantDb } from '../prisma/tenant-db';
 
 export type GrupoPrivado = 'documento' | 'anexo-ia';
@@ -15,7 +16,7 @@ type Um = Array<{ ok: number }>;
  */
 @Injectable()
 export class ArquivosRepo {
-  constructor(private readonly db: TenantDb) {}
+  constructor(private readonly db: TenantDb, private readonly prisma: PrismaService) {}
 
   /** get_corretor_id() de quem pede, para montar o prefixo de upload dos buckets privados. */
   async corretorId(claims: SupabaseClaims): Promise<string | null> {
@@ -46,15 +47,25 @@ export class ArquivosRepo {
     return linhas.length > 0;
   }
 
-  /** inbox: linha visível em lotti_agent_messages OU lotti_manual_sends (media_path). */
+  /**
+   * inbox: linha visível em lotti_agent_messages (RLS) OU um envio manual da própria conta.
+   * lotti_manual_sends não tem GRANT para authenticated (só service_role), e a consulta pelo
+   * TenantDb dava 42501 e derrubava o download; ela vai pela conexão dona, filtrada pelo
+   * corretor da conta de quem pede (get_corretor_id dentro do TenantDb).
+   */
   async donoInbox(claims: SupabaseClaims, key: string): Promise<boolean> {
-    const linhas = await this.db.run(claims, (tx) =>
-      tx.$queryRaw<Um>(Prisma.sql`
-        select 1 as ok from public.lotti_agent_messages where media_path = ${key}::text
-        union all
-        select 1 as ok from public.lotti_manual_sends where media_path = ${key}::text
-        limit 1`),
-    );
-    return linhas.length > 0;
+    const visivel = await this.db.run(claims, async (tx) => {
+      const m = await tx.$queryRaw<Um>(Prisma.sql`
+        select 1 as ok from public.lotti_agent_messages where media_path = ${key}::text limit 1`);
+      if (m.length) return { ok: true, conta: null as string | null };
+      const c = await tx.$queryRaw<Array<{ id: string | null }>>(Prisma.sql`select public.get_corretor_id()::text as id`);
+      return { ok: false, conta: c[0]?.id ?? null };
+    });
+    if (visivel.ok) return true;
+    if (!visivel.conta) return false;
+    const envio = await this.prisma.$queryRaw<Um>(Prisma.sql`
+      select 1 as ok from public.lotti_manual_sends
+       where media_path = ${key}::text and corretor_id = ${visivel.conta}::uuid limit 1`);
+    return envio.length > 0;
   }
 }
