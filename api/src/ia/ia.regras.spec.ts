@@ -174,7 +174,8 @@ describe('prompts e auxiliares de resposta', () => {
     expect(promptUsuarioWhatsapp({ clientName: 'A', messageType: 'x', tone: 'x', details: '' })).toContain('"messageType":"Outro","tone":"Incisivo"');
   });
 
-  it('histórico para o provedor: mais antigo primeiro, tool e tool_calls preservados', () => {
+  // Gemini 3 recusa tool_calls de turnos antigos sem thought_signature: o histórico leva só o texto.
+  it('histórico para o provedor: mais antigo primeiro, sem as consultas de turnos anteriores', () => {
     expect(mensagensDoHistorico('S', [
       { role: 'assistant', content: 'fim', tool_calls: null, tool_name: null },
       { role: 'tool', content: '{}', tool_calls: null, tool_name: 'call_1' },
@@ -183,8 +184,6 @@ describe('prompts e auxiliares de resposta', () => {
     ])).toEqual([
       { role: 'system', content: 'S' },
       { role: 'user', content: 'oi' },
-      { role: 'assistant', content: '', tool_calls: [{ id: 'call_1' }] },
-      { role: 'tool', content: '{}', tool_call_id: 'call_1' },
       { role: 'assistant', content: 'fim' },
     ]);
   });

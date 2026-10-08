@@ -39,6 +39,8 @@ interface ChamadaFerramenta {
   id: string;
   type: string;
   function: { name: string; arguments: string };
+  /** Gemini 3: a thought_signature vem aqui e tem de voltar na rodada seguinte (sem ela, 400). */
+  extra_content?: unknown;
 }
 
 export interface SessaoAssistente {
@@ -60,10 +62,12 @@ const CONVERSA_NAO_ENCONTRADA = () => erroApi(404, 'conversa_nao_encontrada', 'C
 export function mensagensDoHistorico(sistema: string, historico: LinhaHistorico[]): MensagemChat[] {
   const mensagens: MensagemChat[] = [{ role: 'system', content: sistema }];
   for (const linha of [...historico].reverse()) {
-    if (linha.role === 'tool' && linha.tool_name) {
-      mensagens.push({ role: 'tool', content: linha.content, tool_call_id: linha.tool_name });
-    } else if (linha.role === 'assistant' && linha.tool_calls) {
-      mensagens.push({ role: 'assistant', content: linha.content || '', tool_calls: linha.tool_calls });
+    // Consultas de turnos anteriores ficam de fora: as gravadas antes do Gemini 3 não têm
+    // thought_signature e o provedor recusaria a conversa inteira (400). A resposta final de
+    // cada turno, que resume o que foi consultado, continua no contexto.
+    if (linha.role === 'tool') continue;
+    if (linha.role === 'assistant' && linha.tool_calls) {
+      if (linha.content) mensagens.push({ role: 'assistant', content: linha.content });
     } else {
       mensagens.push({ role: linha.role, content: linha.content });
     }
@@ -281,6 +285,7 @@ export class AssistenteService {
                   if (tc.id) chamadas[idx].id = tc.id;
                   if (tc.function?.name) chamadas[idx].function.name += tc.function.name;
                   if (tc.function?.arguments) chamadas[idx].function.arguments += tc.function.arguments;
+                  if (tc.extra_content) chamadas[idx].extra_content = tc.extra_content;
                 }
               }
             } catch {
