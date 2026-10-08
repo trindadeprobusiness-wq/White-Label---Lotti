@@ -55,7 +55,7 @@ async function coletar(stream: Readable): Promise<string> {
 
 describe('ArquivosController', () => {
   let storage: jest.Mocked<Pick<StorageService, 'obter' | 'enviar' | 'apagar'>>;
-  let repo: jest.Mocked<Pick<ArquivosRepo, 'corretorId' | 'donoDocumento' | 'donoAnexoIa' | 'donoInbox'>>;
+  let repo: jest.Mocked<Pick<ArquivosRepo, 'corretorId' | 'donoDocumento' | 'donoAnexoIa' | 'donoInbox' | 'donoFoto'>>;
   let ctrl: ArquivosController;
 
   beforeEach(() => {
@@ -65,6 +65,7 @@ describe('ArquivosController', () => {
       donoDocumento: jest.fn(),
       donoAnexoIa: jest.fn(),
       donoInbox: jest.fn(),
+      donoFoto: jest.fn(),
     };
     ctrl = new ArquivosController(storage as unknown as StorageService, repo as unknown as ArquivosRepo);
   });
@@ -124,16 +125,47 @@ describe('ArquivosController', () => {
   });
 
   it('upload de foto grava no bucket público e devolve a key', async () => {
+    repo.donoFoto.mockResolvedValueOnce(true);
     storage.enviar.mockResolvedValueOnce(undefined);
     const req = fakeReq('bytes', { 'content-type': 'image/jpeg', 'content-length': '5' });
-    const r = await ctrl.subirFoto({ '0': 'imovel/1/foto.jpg' }, req);
+    const r = await ctrl.subirFoto(claims, { '0': 'imovel/1/foto.jpg' }, req);
     expect(r).toEqual({ ok: true, key: 'imovel/1/foto.jpg' });
+    expect(repo.donoFoto).toHaveBeenCalledWith(claims, 'imovel/1/foto.jpg');
     expect(storage.enviar).toHaveBeenCalledWith('imoveis-fotos', 'imovel/1/foto.jpg', expect.anything(), 'image/jpeg');
+  });
+
+  it('foto de imóvel de outra conta → 403 no upload e no delete, sem tocar no S3', async () => {
+    repo.donoFoto.mockResolvedValue(false);
+    const req = fakeReq('bytes', { 'content-type': 'image/jpeg' });
+    await expect(ctrl.subirFoto(claims, { '0': 'alheio/foto.jpg' }, req)).rejects.toMatchObject({
+      status: 403,
+      response: { codigo: 'arquivo_de_outra_conta' },
+    });
+    await expect(ctrl.apagarFoto(claims, { '0': 'alheio/foto.jpg' })).rejects.toMatchObject({ status: 403 });
+    expect(storage.enviar).not.toHaveBeenCalled();
+    expect(storage.apagar).not.toHaveBeenCalled();
+  });
+
+  it('foto só aceita imagem raster: HTML/SVG → 415', async () => {
+    repo.donoFoto.mockResolvedValue(true);
+    for (const tipo of ['text/html', 'image/svg+xml', 'application/octet-stream']) {
+      const req = fakeReq('<x>', { 'content-type': tipo });
+      await expect(ctrl.subirFoto(claims, { '0': 'meu/f.jpg' }, req)).rejects.toMatchObject({ status: 415 });
+    }
+    expect(storage.enviar).not.toHaveBeenCalled();
+  });
+
+  it('download sai com nosniff', async () => {
+    storage.obter.mockResolvedValueOnce(objeto());
+    const res = fakeRes();
+    await ctrl.fotoPublica({ '0': 'f.jpg' }, undefined, res as unknown as Response);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
   it('upload com Content-Length acima do teto → 413 sem tocar no S3', async () => {
     const req = fakeReq('x', { 'content-type': 'image/jpeg', 'content-length': String(6 * 1024 * 1024) });
-    await expect(ctrl.subirFoto({ '0': 'f.jpg' }, req)).rejects.toMatchObject({
+    repo.donoFoto.mockResolvedValueOnce(true);
+    await expect(ctrl.subirFoto(claims, { '0': 'f.jpg' }, req)).rejects.toMatchObject({
       status: 413,
       response: { codigo: 'arquivo_grande_demais' },
     });

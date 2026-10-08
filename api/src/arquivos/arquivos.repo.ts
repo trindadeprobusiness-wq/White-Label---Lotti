@@ -26,6 +26,24 @@ export class ArquivosRepo {
     return linhas[0]?.id ?? null;
   }
 
+  /**
+   * foto (bucket público imoveis-fotos): a key é `<imovel_id>/...` (galeria do imóvel) ou
+   * `fachadas/<corretor_id>/...` (template de fachada). Dono = imóvel visível pela RLS ou o próprio
+   * prefixo de fachada. Sem isso, qualquer conta trocava ou apagava a foto pública de outra.
+   */
+  async donoFoto(claims: SupabaseClaims, key: string): Promise<boolean> {
+    const [primeiro, segundo] = key.split('/');
+    if (primeiro === 'fachadas') {
+      const corretor = await this.corretorId(claims);
+      return !!corretor && segundo === corretor;
+    }
+    const linhas = await this.db.run(claims, (tx) =>
+      tx.$queryRaw<Um>(Prisma.sql`
+        select 1 as ok from public.imoveis where id::text = ${primeiro}::text limit 1`),
+    );
+    return linhas.length > 0;
+  }
+
   /** documento: linha visível em documentos (arquivo_path) OU em contratos (arquivo_url). */
   async donoDocumento(claims: SupabaseClaims, key: string): Promise<boolean> {
     const linhas = await this.db.run(claims, (tx) =>
