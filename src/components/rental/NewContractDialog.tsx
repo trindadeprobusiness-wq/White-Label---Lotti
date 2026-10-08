@@ -84,10 +84,13 @@ export function NewContractDialog({ open, onOpenChange, contractToEdit }: NewCon
             setStartDate(contractToEdit.data_inicio ? contractToEdit.data_inicio.split('T')[0] : "");
             setDueDay(contractToEdit.dia_vencimento?.toString() || "10");
 
+            // Contrato salvo pelo formulário guarda estes três no JSON do conteudo; o que veio de outro
+            // caminho (ex.: os reconstruídos depois da exclusão de 02/10) só tem as colunas. Sem cair nelas,
+            // a tela mostrava o padrão (10%, dia 15, 30 meses) no lugar do valor real.
             const content = parseContratoContent(contractToEdit.conteudo);
-            setAdminFee(content.taxa_administracao?.toString() || "10");
-            setPayoutDay(content.dia_repasse?.toString() || "15");
-            setDuration(content.meses_duracao?.toString() || "30");
+            setAdminFee((content.taxa_administracao ?? contractToEdit.taxa_administracao_percentual)?.toString() || "10");
+            setPayoutDay((content.dia_repasse ?? contractToEdit.dia_repasse_proprietario)?.toString() || "15");
+            setDuration((content.meses_duracao ?? contractToEdit.prazo_meses)?.toString() || "30");
 
             // Multa/juros: a coluna guarda o juros AO DIA → exibe o mensal (×30).
             const multaVal = Number(contractToEdit.multa_atraso_percentual ?? 10);
