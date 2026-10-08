@@ -45,25 +45,48 @@ function attachmentPath(body: ParsedBridgeRequest, ownerId: string): string {
   return `${ownerId}/${body.request_id}/${safe}`;
 }
 
+export type FiltroStatusConversa = 'open' | 'closed' | 'all';
+
+/** Valor de ?status= da lista; qualquer outra coisa (ou nada) é 'all', o comportamento de antes. */
+export function filtroStatusConversa(valor: unknown): FiltroStatusConversa {
+  return valor === 'open' || valor === 'closed' ? valor : 'all';
+}
+
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger('WhatsappPonte');
   constructor(private readonly db: TenantDb) {}
 
-  listarConversas(claims: SupabaseClaims) {
+  /**
+   * As 100 conversas com mensagem mais recente (como no WhatsApp e no Clix): fechar, pausar ou o runtime
+   * mexer na linha não reordena a lista. `status`: 'open' (Abertas, padrão do Inbox), 'closed' (Fechadas)
+   * ou 'all' (sem filtro, o comportamento antigo).
+   */
+  listarConversas(claims: SupabaseClaims, status: FiltroStatusConversa = 'all') {
     return this.db.run(claims, async (tx) => jsonRows(await tx.$queryRaw<JsonRow[]>`
-      select to_jsonb(x) as row from (
+      select to_jsonb(x) - 'ordem' as row from (
         select c.id,c.phone,c.cliente_id,c.mode,c.status,c.updated_at,c.qualification,c.last_error,
-          c.contact_name,c.opted_out_at,c.pausa_ia_ate,
-          case when cl.id is null then null else jsonb_build_object('nome',cl.nome) end as clientes
+          c.contact_name,c.opted_out_at,c.pausa_ia_ate,c.closed_by,c.closed_at,lm.created_at as last_message_at,
+          case when cl.id is null then null else jsonb_build_object('nome',cl.nome) end as clientes,
+          coalesce(lm.created_at,c.updated_at) as ordem
         from public.lotti_agent_conversations c left join public.clientes cl on cl.id=c.cliente_id
-        where c.archived_at is null order by c.updated_at desc limit 100
+        left join lateral (select m.created_at from public.lotti_agent_messages m
+          where m.conversation_id=c.id order by m.created_at desc limit 1) lm on true
+        where c.archived_at is null and (${status}::text='all' or c.status=${status}::text)
+        order by ordem desc, c.id limit 100
       ) x`));
   }
 
+  /** Total e por situação, para o rodapé e os botões Abertas/Fechadas do Inbox. */
   contarConversas(claims: SupabaseClaims) {
-    return this.db.run(claims, async (tx) => Number((await tx.$queryRaw<Array<{ total: bigint }>>`
-      select count(*)::bigint total from public.lotti_agent_conversations where archived_at is null`)[0]?.total ?? 0n));
+    return this.db.run(claims, async (tx) => {
+      const [r] = await tx.$queryRaw<Array<{ total: bigint; abertas: bigint; fechadas: bigint }>>`
+        select count(*)::bigint total,
+          count(*) filter (where status<>'closed')::bigint abertas,
+          count(*) filter (where status='closed')::bigint fechadas
+        from public.lotti_agent_conversations where archived_at is null`;
+      return { total: Number(r?.total ?? 0n), abertas: Number(r?.abertas ?? 0n), fechadas: Number(r?.fechadas ?? 0n) };
+    });
   }
 
   ultimasMensagens(claims: SupabaseClaims) {

@@ -22,6 +22,7 @@ import { mesmoTelefone } from './deepLink';
 import { temperaturaLegivel, valorLegivel, type Temperatura } from './qualificacaoLegivel';
 import { ENVIO_SEM_CONFIRMACAO, ESPERA_DA_IA, MOTIVO_DA_PARADA, estadoDaIa, quandoAIaVolta, rotuloDaIa } from './estadoDaIa';
 import { apiDisponivel } from '@/lib/api';
+import { toast } from 'sonner';
 import { obterClienteApi } from '@/lib/api/crm';
 import { baixarInboxApi } from '@/lib/api/arquivos';
 import { CartaoChamada, ehAudio, ehChamada, PlayerAudio } from './MidiaDaConversa';
@@ -32,13 +33,19 @@ type ClienteDaConversa = { nome: string; email: string | null; telefone: string;
 // Additive runtime tables have separate typed projections until schema regeneration.
 const db = supabase as unknown as SupabaseClient;
 type Qualification = { stage?: string; temperature?: string; priority?: string; reason?: string; profile?: Record<string, string | null> };
-type Conversation = { id: string; phone: string | null; contact_name?: string | null; clientes?: { nome: string } | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null; opted_out_at?: string | null; pausa_ia_ate?: string | null };
+type Conversation = { id: string; phone: string | null; contact_name?: string | null; clientes?: { nome: string } | null; cliente_id: string | null; mode: 'ai' | 'human' | 'paused'; status: 'open' | 'closed'; updated_at: string; qualification: Qualification; last_error: string | null; opted_out_at?: string | null; pausa_ia_ate?: string | null; closed_by?: string | null; closed_at?: string | null; last_message_at?: string | null };
 const CONVERSATION_FIELDS = 'id,phone,cliente_id,mode,status,updated_at,qualification,last_error,clientes(nome)';
+// Como no Clix: o Inbox abre nas Abertas; Fechadas é o outro lado do botão. Fechar não pausa a IA e a
+// conversa volta sozinha para as Abertas quando o cliente escreve (gatilho no banco).
+type StatusLista = 'open' | 'closed';
+/** Quem fechou (closed_by). Hoje o Lotti carimba vendedor e silêncio; IA e cliente ficam para quando a IA encerrar sozinha. */
+const FECHADA_POR: Record<string, string> = { humano: 'Vendedor', silencio: 'Sem resposta', ia: 'IA', cliente: 'Cliente pediu' };
+const porQuem = (valor?: string | null) => (valor && FECHADA_POR[valor] ? ` · ${FECHADA_POR[valor]}` : '');
 // Archived conversations belong to a WhatsApp number that is no longer connected.
-async function fetchConversations() {
-  if (apiDisponivel()) return listarConversasApi<Conversation>();
+async function fetchConversations(status: StatusLista) {
+  if (apiDisponivel()) return listarConversasApi<Conversation>(status);
   const recent = (fields: string, scoped: boolean) => {
-    let query = db.from('lotti_agent_conversations').select(fields);
+    let query = db.from('lotti_agent_conversations').select(fields).eq('status', status);
     if (scoped) query = query.is('archived_at', null);
     return query.order('updated_at', { ascending: false }).limit(100);
   };
@@ -257,7 +264,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // lista desliza por cima. Empilhada, era preciso rolar dezenas de conversas
   // para alcançar a mensagem.
   const [listaAberta, setListaAberta] = useState(false);
-  const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); };
+  const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); setStatusLista('open'); setFechadaPor(''); };
   // /whatsapp?telefone=... abre direto no chat de quem veio da tela inicial.
   // Só vale enquanto ninguém escolheu outra conversa na lista.
   const telefoneAlvo = new URLSearchParams(useLocation().search).get('telefone');
@@ -267,6 +274,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const [modeFilter, setModeFilter] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('');
+  const [statusLista, setStatusLista] = useState<StatusLista>('open');
+  const [fechadaPor, setFechadaPor] = useState('');
+  // Link do funil para uma conversa que está fechada: troca para Fechadas uma vez e acha lá.
+  const tentouFechadas = useRef(false);
   const [infoVisible, setInfoVisible] = useState(() => typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 1536px)').matches);
   const [newOpen,setNewOpen]=useState(false),[renameOpen,setRenameOpen]=useState(false),[statusOpen,setStatusOpen]=useState(false);
   // Last "Nova conversa" outcome per request_id (the dialog keeps the id while it is unknown)
@@ -274,8 +285,12 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const [startOutcome,setStartOutcome]=useState<{requestId:string;status:string}>();
   const [notice,setNotice]=useState<{id:string;text:string}>();
   const list = useQuery({
-    queryKey: ['lotti-agent-conversations', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
-    queryFn: fetchConversations,
+    // Na prévia a lista é uma só (filtrada aqui); de verdade, cada lado do botão é uma consulta.
+    queryKey: preview ? ['lotti-agent-conversations', user?.id, true] : ['lotti-agent-conversations', user?.id, false, statusLista],
+    enabled: !!user && !preview, refetchInterval: preview ? false : 3000,
+    queryFn: () => fetchConversations(statusLista),
+    // Trocar Abertas/Fechadas não pode apagar a tela enquanto a outra lista chega.
+    placeholderData: (anterior) => anterior,
     initialData: preview ? [demoConversation] : undefined,
   });
   // A lista traz no máximo 100 conversas, e o rodapé dizia "100 de 100" mesmo
@@ -283,11 +298,15 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // Contagem à parte, sem trazer linha nenhuma.
   const totalDeConversas = useQuery({
     queryKey: ['lotti-agent-conversation-count', user?.id, preview], enabled: !!user && !preview, refetchInterval: preview ? false : 30000,
-    queryFn: async (): Promise<number | null> => {
-      if (apiDisponivel()) return (await contarConversasApi()).total;
-      const { count, error } = await db.from('lotti_agent_conversations').select('id', { count: 'exact', head: true }).is('archived_at', null);
-      if (error) return null;
-      return count ?? null;
+    queryFn: async (): Promise<{ total: number; abertas?: number; fechadas?: number } | null> => {
+      if (apiDisponivel()) return await contarConversasApi();
+      const contar = (status?: StatusLista) => {
+        const consulta = db.from('lotti_agent_conversations').select('id', { count: 'exact', head: true }).is('archived_at', null);
+        return status ? consulta.eq('status', status) : consulta;
+      };
+      const [todas, abertas, fechadas] = await Promise.all([contar(), contar('open'), contar('closed')]);
+      if (todas.error || todas.count === null) return null;
+      return { total: todas.count, abertas: abertas.error ? undefined : abertas.count ?? undefined, fechadas: fechadas.error ? undefined : fechadas.count ?? undefined };
     },
   });
   const previews = useQuery({
@@ -303,7 +322,12 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   });
   const latest = latestByConversation(previews.data ?? []);
   const now = Date.now();
-  const filtered = filterLiveConversations(list.data ?? [], latest, { query, quick, mode: modeFilter, stage: stageFilter, period: periodFilter, now });
+  const filtered = filterLiveConversations(list.data ?? [], latest, { query, quick, mode: modeFilter, stage: stageFilter, period: periodFilter, now })
+    .filter(c => (c.status === 'closed') === (statusLista === 'closed') && (!fechadaPor || c.closed_by === fechadaPor));
+  const contagem = totalDeConversas.data;
+  const totalDoLado = statusLista === 'open' ? contagem?.abertas : contagem?.fechadas;
+  // A tela de "primeira conversa" só quando não existe conversa nenhuma, aberta ou fechada.
+  const semConversas = list.isSuccess && !list.data?.length && statusLista === 'open' && !fechadaPor && (contagem?.total ?? 0) === 0;
   const selected = filtered.find(c => c.id === selectedId)
     ?? (telefoneAlvo ? filtered.find(c => mesmoTelefone(c.phone, telefoneAlvo)) : undefined)
     ?? filtered[0];
@@ -381,7 +405,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const otherConversation=registroDoErro(renameContact.error,'phone_in_other_conversation');
   // History conversations are not CRM clients until the broker adds them. The
   // CRM screens read clients from their own store, refreshed after adding.
-  const changeStatus=useMutation({mutationFn:async(status:'open'|'closed')=>{if(apiDisponivel())return statusConversaApi(selected!.id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async()=>{setStatusOpen(false);await refreshConversation()}});
+  const changeStatus=useMutation({mutationFn:async(status:'open'|'closed')=>{if(apiDisponivel())return statusConversaApi(selected!.id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async(_d,status)=>{setStatusOpen(false);if(status!==statusLista)toast.success(status==='closed'?'Conversa fechada. Ela fica em "Fechadas" e volta sozinha se o cliente escrever.':'Conversa reaberta. Ela voltou para "Abertas".');await Promise.all([refreshConversation(),cache.invalidateQueries({queryKey:['lotti-agent-conversation-count',user?.id]})])}});
   const demoListKey=['lotti-agent-conversations',user?.id,true];
   const updateDemoConversation=(id:string,change:Partial<Conversation>)=>cache.setQueryData<Conversation[]>(demoListKey,current=>(current??[]).map(item=>item.id===id?{...item,...change}:item));
   const appendDemoMessage=(id:string,kind:'text'|'file'|'audio',content:string)=>{
@@ -426,8 +450,11 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     if (achada) {
       alvoAplicado.current = true;
       setSelectedId(achada.id);
+    } else if (statusLista === 'open' && !tentouFechadas.current && !list.isPlaceholderData) {
+      tentouFechadas.current = true;
+      setStatusLista('closed');
     }
-  }, [list.data, clienteNaUrl, telefoneNaUrl, setSelectedId]);
+  }, [list.data, list.isPlaceholderData, clienteNaUrl, telefoneNaUrl, setSelectedId, statusLista]);
 
   const timelineRef = useRef<HTMLDivElement>(null);
  const followLatest = useRef(true);
@@ -473,11 +500,11 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     {preview && <p className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">Prévia interativa com dados fictícios. Nada é enviado ou salvo; recarregar desfaz as mudanças.</p>}
     {list.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível carregar as conversas. <button className="underline" onClick={() => list.refetch()}>Tentar novamente</button></p>}
     {list.isPending && <p role="status">Carregando conversas…</p>}
-    {list.isSuccess && !list.data.length && <div className="rounded-xl border bg-card p-8 text-center">
+    {semConversas && <div className="rounded-xl border bg-card p-8 text-center">
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>
       <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste depois de conectar. Conversas antigas do celular não são importadas automaticamente.</p>
     </div>}
-    {!!list.data?.length && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[230px_minmax(0,1fr)] max-lg:grid-cols-1 ${infoVisible ? '2xl:grid-cols-[306px_minmax(0,1fr)_330px]' : '2xl:grid-cols-[306px_minmax(0,1fr)]'}`}>
+    {list.isSuccess && !semConversas && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[230px_minmax(0,1fr)] max-lg:grid-cols-1 ${infoVisible ? '2xl:grid-cols-[306px_minmax(0,1fr)_330px]' : '2xl:grid-cols-[306px_minmax(0,1fr)]'}`}>
       {/* Sobreposição só existe com a gaveta aberta; fechar tocando fora é o
           gesto esperado de quem abriu. */}
       {listaAberta && (
@@ -494,8 +521,15 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       >
         <div className="space-y-2 border-b border-[#e9ebf3] bg-gradient-to-b from-white to-[#fbfcfe] px-[14px] pb-[13px] pt-[15px]">
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 bg-primary px-2.5 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
+          <div role="group" aria-label="Situação das conversas" className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f3f9] p-0.5">
+            {(['open', 'closed'] as const).map(s => {
+              const n = s === 'open' ? contagem?.abertas : contagem?.fechadas;
+              return <button key={s} type="button" aria-pressed={statusLista === s} onClick={() => { setStatusLista(s); setFechadaPor(''); }} className={`h-7 rounded-md text-[11px] font-medium transition-colors ${statusLista === s ? 'bg-white text-primary shadow-sm' : 'text-[#565e76] hover:text-foreground'}`}>{s === 'open' ? 'Abertas' : 'Fechadas'}{typeof n === 'number' && <span className="ml-1 text-[10px] text-muted-foreground">{n}</span>}</button>;
+            })}
+          </div>
+          {statusLista === 'closed' && <label className="flex items-center gap-2 text-[11px] text-muted-foreground">Fechada por<select aria-label="Fechada por" value={fechadaPor} onChange={e => setFechadaPor(e.target.value)} className="h-7 flex-1 rounded-md border bg-background px-1.5 text-[11px] text-foreground"><option value="">Todas</option><option value="humano">Vendedor</option><option value="silencio">Sem resposta</option></select></label>}
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
-          <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground" title={(totalDeConversas.data ?? 0) > list.data.length ? `Mostrando as ${list.data.length} mais recentes` : undefined}>{filtered.length} de {totalDeConversas.data ?? list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
+          <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground" title={(totalDoLado ?? 0) > list.data.length ? `Mostrando as ${list.data.length} mais recentes` : undefined}>{filtered.length} de {totalDoLado ?? list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
           {/* Sem contagem os atalhos continuam clicáveis: desabilitar em zero
               faz o corretor ler defeito onde só há fila vazia. Clicar mostra o
               estado vazio, que já traz o caminho de volta para "Todas". */}
@@ -503,16 +537,16 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-[5px]">
         {filtered.map(c => <button key={c.id} onClick={() => { setSelectedId(c.id); mode.reset(); clearOptOut.reset(); setListaAberta(false); if (notice?.id !== c.id) setNotice(undefined); }} className={`mx-[6px] my-[2px] flex min-h-[64px] w-[calc(100%-12px)] items-center gap-[10px] rounded-[10px] border px-[10px] py-3 text-left text-xs transition-colors ${selected?.id === c.id ? 'border-primary/30 border-l-[3px] border-l-primary bg-primary/10 shadow-sm' : 'border-transparent hover:bg-primary/5'}`}>
-          <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.opted_out_at ? 'Não quer receber' : c.mode === 'human' ? 'Equipe' : rotuloDaIa(estadoDaIa(c))}</span></span>
+          <ContactAvatar name={conversationTitle(c, c.clientes?.nome)} className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[#e9ebf3] bg-[#f1f3f9] text-xs font-semibold text-[#565e76]" /><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block truncate text-[13px] font-semibold text-[#10131f]">{conversationTitle(c, c.clientes?.nome)}</span><time dateTime={c.last_message_at ?? latest.get(c.id)?.created_at ?? c.updated_at} className="ml-auto text-[10px] text-[#929aae]">{listTimestamp(c.last_message_at ?? latest.get(c.id)?.created_at ?? c.updated_at)}</time></span><span className="mt-1 block truncate text-xs text-[#565e76]">{latest.get(c.id)?.content || stages[c.qualification.stage ?? ''] || 'Novo contato'}</span><span className="mt-1 block text-[10px] text-[#929aae]">{c.status === 'closed' ? `Fechada${porQuem(c.closed_by)}` : c.opted_out_at ? 'Não quer receber' : c.mode === 'human' ? 'Equipe' : rotuloDaIa(estadoDaIa(c))}</span></span>
         </button>)}
         {!filtered.length && (
           <div className="p-4 text-center text-xs text-muted-foreground">
-            {list.data.length
+            {list.data.some(c => (c.status === 'closed') === (statusLista === 'closed'))
               ? <>
                   <p>Nenhuma conversa neste filtro.</p>
                   <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={limparFiltros}>Ver todas as conversas</Button>
                 </>
-              : <p>Nenhuma conversa ainda.</p>}
+              : <p>{statusLista === 'closed' ? 'Nenhuma conversa fechada.' : 'Nenhuma conversa aberta.'}</p>}
           </div>
         )}
         {list.data.length === 100 && <p className="p-2 text-xs text-muted-foreground">Exibindo as 100 conversas mais recentes.</p>}
@@ -538,7 +572,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </div>
           <div data-testid="conversation-header-actions" className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
             <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{preview ? 'Qualificação' : selected.cliente_id ? (client.data?.status_funil ? STATUS_FUNIL_LABELS[client.data.status_funil as StatusFunil] : 'Sem etapa definida') : 'Sem cliente vinculado'}</span></span>
-            <button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?'Fechada':'Aberta'}</button>
+            <button type="button" onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?`Fechada${porQuem(selected.closed_by)}`:'Aberta'}</button>
             <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{optOut!=='none'?'IA bloqueada':rotuloDaIa(estadoIa)}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
             <Button size="sm" className="h-8 shrink-0 border-primary px-2 text-[11px] text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
           </div>
@@ -637,7 +671,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       </aside>}
     </div>}
     <NewConversationDialog open={newOpen} onOpenChange={setNewOpen} onSubmit={data=>preview?demoStart(data):startConversation.mutate(data)} pending={!preview&&startConversation.isPending} outcome={startOutcome} error={!preview&&startConversation.isError?startErrorText(startConversation.error instanceof Error?startConversation.error.message:''):undefined} />
-      {selected&&<><RenameContactDialog open={renameOpen} initialName={client.data?.nome??selected.contact_name??''} initialPhone={selected.phone ?? ''} phoneHidden={!selected.phone} onOpenChange={setRenameOpen} onSubmit={contact=>{if(preview){updateDemoConversation(selected.id,{contact_name:contact.name,phone:contact.phone});setRenameOpen(false)}else{mergeConversations.reset();renameContact.mutate({id:selected.id,...contact})}}} pending={!preview&&renameContact.isPending} error={preview?undefined:mergeConversations.isError?mergeErrorText(codigoDoErro(mergeConversations.error)):renameContact.isError?renameErrorText(codigoDoErro(renameContact.error)):undefined} action={!preview&&otherConversation&&!mergeConversations.isError?{label:'Unir conversas',pending:mergeConversations.isPending,onClick:()=>mergeConversations.mutate({keep:selected.id,drop:otherConversation,name:renameContact.variables?.name,phone:renameContact.variables?.phone})}:undefined} /><ConversationStatusDialog open={statusOpen} status={selected.status??'open'} onOpenChange={setStatusOpen} onConfirm={status=>{if(preview){updateDemoConversation(selected.id,{status});appendDemoStatusEvent(selected.id,status);setStatusOpen(false)}else changeStatus.mutate(status)}} pending={!preview&&changeStatus.isPending} error={!preview&&changeStatus.isError?'Não foi possível alterar o estado da conversa.':undefined} /></>}
+      {selected&&<><RenameContactDialog open={renameOpen} initialName={client.data?.nome??selected.contact_name??''} initialPhone={selected.phone ?? ''} phoneHidden={!selected.phone} onOpenChange={setRenameOpen} onSubmit={contact=>{if(preview){updateDemoConversation(selected.id,{contact_name:contact.name,phone:contact.phone});setRenameOpen(false)}else{mergeConversations.reset();renameContact.mutate({id:selected.id,...contact})}}} pending={!preview&&renameContact.isPending} error={preview?undefined:mergeConversations.isError?mergeErrorText(codigoDoErro(mergeConversations.error)):renameContact.isError?renameErrorText(codigoDoErro(renameContact.error)):undefined} action={!preview&&otherConversation&&!mergeConversations.isError?{label:'Unir conversas',pending:mergeConversations.isPending,onClick:()=>mergeConversations.mutate({keep:selected.id,drop:otherConversation,name:renameContact.variables?.name,phone:renameContact.variables?.phone})}:undefined} /><ConversationStatusDialog open={statusOpen} status={selected.status??'open'} onOpenChange={setStatusOpen} onConfirm={status=>{if(preview){updateDemoConversation(selected.id,{status,closed_by:status==='closed'?'humano':null});appendDemoStatusEvent(selected.id,status);setStatusOpen(false)}else changeStatus.mutate(status)}} pending={!preview&&changeStatus.isPending} error={!preview&&changeStatus.isError?'Não foi possível alterar o estado da conversa.':undefined} /></>}
     <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}><SheetContent side="left" className="space-y-5"><SheetTitle>Filtros</SheetTitle><SheetDescription>Filtre as conversas já recebidas.</SheetDescription>
       <label className="block text-sm">Atendimento<select className="mt-1 w-full rounded-md border bg-background p-2" value={modeFilter} onChange={e => setModeFilter(e.target.value)}><option value="">Todos</option><option value="human">Humano</option><option value="ai">IA</option><option value="paused">Pausado</option></select></label>
       <label className="block text-sm">Etapa<select className="mt-1 w-full rounded-md border bg-background p-2" value={stageFilter} onChange={e => setStageFilter(e.target.value)}><option value="">Todas</option>{Object.entries(stages).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>

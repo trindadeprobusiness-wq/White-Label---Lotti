@@ -43,7 +43,7 @@ export default function InboxPreview() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
   // As chaves carregam `user?.id`, que sem login é `undefined` — é esse valor
   // que precisa ser semeado para o componente achar os dados no cache.
-  client.setQueryData(['lotti-agent-conversations', undefined, false], CONVERSAS);
+  client.setQueryData(['lotti-agent-conversations', undefined, false, 'open'], CONVERSAS);
   client.setQueryData(['lotti-agent-message-previews', undefined, false], CONVERSAS.map((c) => ({
     conversation_id: c.id, direction: 'in' as const, content: 'Última mensagem recebida.', created_at: c.updated_at,
   })));

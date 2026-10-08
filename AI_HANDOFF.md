@@ -42,6 +42,15 @@
 - Pendências: o token de atendimento fica em `sessionStorage` da aba (necessário para o reload; curto e revogado no servidor); o admin suspenso em `usuarios` sem perder o papel continua atendendo até a sessão vencer (paridade com a Edge, que só olhava o papel); desligar a Edge `admin-suporte` só depois da virada.
 - Diário — Claude: B6 implementado (API + front) atrás de `VITE_API_URL`.
 
+## Claude — Inbox do WhatsApp fecha conversa como o Clix; correções do dia (2026-10-08)
+- Migration `20261008150000_inbox_fechar_como_clix`: `closed_by` (humano|ia|cliente|silencio) e `closed_at` em `lotti_agent_conversations`; gatilho único de carimbo (reabrir limpa); `lotti_inbox_set_status` fecha como `humano` e NÃO pausa mais a IA; `lotti_agent_followup_close` fecha como `silencio`; `lotti_inbox_reopen_on_inbound` (mensagem da última hora) reabre e o evento sai como "Cliente" (`lotti.ator_evento`).
+- API: `GET /api/whatsapp/conversas?status=open|closed|all` (sem parâmetro = all) ordenada pela última mensagem; `/conversas/contagem` devolve `{ total, abertas, fechadas }`.
+- Front: Inbox abre em Abertas, botão Abertas/Fechadas com contagem, filtro "Fechada por" (Vendedor, Sem resposta), rótulo de quem fechou na lista e no cabeçalho, horário da última mensagem; link do funil para conversa fechada troca para Fechadas.
+- Também hoje: IA com modelo reserva quando o Gemini trava (e6d1b92), mídias sem a tabela videos, reload sem tela de erro e index sem cache, CRM em lotes de 30, editar contrato cai nas colunas, diagnóstico #53/#54 na API (b254758).
+- Validação: SQL real `whatsapp.test.ts` 2/2; jest `src/whatsapp` 5/5; api tsc ok; vitest ConnectedInbox 55/55, whatsapp api 2/2, InboxActionDialogs 9/9, LiveAgentInbox 6/6; schema 21/21; front tsc só os 53 preexistentes.
+- Pendências: IA encerrar sozinha (closed_by `ia`) fica para o runtime; cron `diagnostic-notifications-every-minute` ainda ativo no Supabase; trocar a senha do Postgres do Railway que apareceu no terminal do Codex.
+- Diário — Claude: conversas fechadas saem das Abertas e voltam sozinhas quando o cliente escreve, como no Clix.
+
 ## Claude — blocos B4 e B5 da virada: rotas públicas, n8n e pg_cron na API (2026-10-06)
 - Nada commitado, nada publicado, nenhuma migration. Tudo atrás de variáveis; sem elas nada muda.
 - B4 (respostas e erros no formato das Edge, `{ error }` / `{ success:false, error }`): `GET /api/publico/imoveis` (public-imoveis), `GET /api/publico/imoveis/detalhe?id=` (imovel-detalhe) em `imoveis/publico`; `POST /api/publico/leads[?imovel_id=]` (lead-capture: 16 KiB, aceita text/plain, limite `consume_public_lead_limit` com HMAC do telefone por `PUBLIC_RATE_LIMIT_SECRET`, 429 com `Retry-After: 600`) e `POST /api/integracoes/n8n/crm-upsert-lead`, `GET|POST .../crm-buscar-imoveis`, `POST .../crm-anexar-historico` (`x-n8n-secret` = `N8N_SHARED_SECRET`, tempo constante; sem a variável → 503) no novo `CrmIntegracoesModule` (`crm/integracoes`). Caminho do dono pelo PrismaService, allowlist de colunas.

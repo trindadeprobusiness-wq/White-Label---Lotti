@@ -85,7 +85,10 @@ it('prévia permite editar contato e fechar só na tela', async () => {
   expect(await screen.findByRole('button', { name: /Rafael Teste/ })).not.toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Aberta' }));
   fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
-  expect(await screen.findByRole('button', { name: 'Fechada' })).not.toBeNull();
+  // Como no Clix: fechada sai das Abertas e aparece em Fechadas, com quem fechou.
+  expect(await screen.findByText('Nenhuma conversa aberta.')).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Fechadas' }));
+  expect(await screen.findByRole('button', { name: 'Fechada · Vendedor' })).not.toBeNull();
   expect(await screen.findByText(/Conversa fechada por Corretor/)).not.toBeNull();
   expect(mockDb.reads).toEqual({});
   expect(previewRpc).not.toHaveBeenCalled();
@@ -694,4 +697,24 @@ it('IA esperando a vez dela não aparece como problema', async () => {
   expect((await screen.findByTestId('espera-da-ia')).textContent).toContain('Juntando as mensagens');
   expect(screen.queryByTestId('motivo-da-parada')).toBeNull();
   expect(document.body.textContent).not.toContain('revisão operacional');
+});
+
+it('como no Clix: abre nas Abertas e as fechadas ficam em Fechadas, com quem fechou', async () => {
+  dataByTable.lotti_agent_conversations = [
+    conversationFixture({ id: 'c-aberta', contact_name: 'Ana Aberta', status: 'open' }),
+    conversationFixture({ id: 'c-fechada', phone: '5511999990009', contact_name: 'Bruno Fechado', status: 'closed', closed_by: 'silencio' }),
+    conversationFixture({ id: 'c-vendedor', phone: '5511999990008', contact_name: 'Carla Vendedor', status: 'closed', closed_by: 'humano' }),
+  ];
+  mount(true);
+  expect(await screen.findByRole('button', { name: /Ana Aberta/ })).not.toBeNull();
+  expect(screen.queryByRole('button', { name: /Bruno Fechado/ })).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: /^Fechadas/ }));
+  expect(await screen.findByRole('button', { name: /Bruno Fechado.*Fechada · Sem resposta/ })).not.toBeNull();
+  expect(screen.getByRole('button', { name: /Carla Vendedor.*Fechada · Vendedor/ })).not.toBeNull();
+  expect(screen.queryByRole('button', { name: /Ana Aberta/ })).toBeNull();
+
+  fireEvent.change(screen.getByRole('combobox', { name: 'Fechada por' }), { target: { value: 'humano' } });
+  expect(screen.queryByRole('button', { name: /Bruno Fechado/ })).toBeNull();
+  expect(screen.getByRole('button', { name: /Carla Vendedor/ })).not.toBeNull();
 });

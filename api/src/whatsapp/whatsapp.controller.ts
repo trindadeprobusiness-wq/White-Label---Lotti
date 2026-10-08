@@ -3,7 +3,7 @@ import { Claims } from '../auth/claims.decorator';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { SupabaseClaims } from '../prisma/tenant-db';
 import { BridgeDto, CampanhaDto, ConfiguracoesDto, ContatoDto, ControleCampanhaDto, EmpresaDto, MesclarDto, ModoDto, ReconciliarDto, StatusDto } from './whatsapp.dto';
-import { WhatsappService } from './whatsapp.service';
+import { filtroStatusConversa, WhatsappService } from './whatsapp.service';
 
 const UUID=new ParseUUIDPipe();
 @Controller('whatsapp')
@@ -11,8 +11,8 @@ const UUID=new ParseUUIDPipe();
 export class WhatsappController {
  constructor(private readonly w:WhatsappService){}
  @Post('bridge') bridge(@Claims()c:SupabaseClaims,@Body()b:BridgeDto){return this.w.ponte(c,b);}
- @Get('conversas') conversas(@Claims()c:SupabaseClaims){return this.w.listarConversas(c);}
- @Get('conversas/contagem') contagem(@Claims()c:SupabaseClaims){return this.w.contarConversas(c).then(total=>({total}));}
+ @Get('conversas') conversas(@Claims()c:SupabaseClaims,@Query('status')s?:string){return this.w.listarConversas(c,filtroStatusConversa(s));}
+ @Get('conversas/contagem') contagem(@Claims()c:SupabaseClaims){return this.w.contarConversas(c);}
  @Get('mensagens/ultimas') ultimas(@Claims()c:SupabaseClaims){return this.w.ultimasMensagens(c);}
  @Get('conversas/:id/mensagens') mensagens(@Claims()c:SupabaseClaims,@Param('id',UUID)id:string){return this.w.mensagens(c,id);}
  @Get('conversas/:id/eventos') eventos(@Claims()c:SupabaseClaims,@Param('id',UUID)id:string){return this.w.eventos(c,id);}

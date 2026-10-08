@@ -7,8 +7,8 @@ async function json<T>(path:string,init:RequestInit={},fallback='Não foi possí
 const body=(value:unknown):RequestInit=>({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
 const patch=(value:unknown):RequestInit=>({method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
 export const whatsappBridgeApi=<T>(value:Record<string,unknown>)=>json<T>('/api/whatsapp/bridge',body(value),'Não foi possível acessar a ponte do WhatsApp.');
-export const listarConversasApi=<T>()=>json<T[]>('/api/whatsapp/conversas');
-export const contarConversasApi=()=>json<{total:number}>('/api/whatsapp/conversas/contagem');
+export const listarConversasApi=<T>(status?:'open'|'closed'|'all')=>json<T[]>(status?`/api/whatsapp/conversas?status=${status}`:'/api/whatsapp/conversas');
+export const contarConversasApi=()=>json<{total:number;abertas:number;fechadas:number}>('/api/whatsapp/conversas/contagem');
 export const ultimasMensagensApi=<T>()=>json<T[]>('/api/whatsapp/mensagens/ultimas');
 export const mensagensApi=<T>(id:string)=>json<T[]>(`/api/whatsapp/conversas/${encodeURIComponent(id)}/mensagens`);
 export const eventosApi=<T>(id:string)=>json<T[]>(`/api/whatsapp/conversas/${encodeURIComponent(id)}/eventos`);
