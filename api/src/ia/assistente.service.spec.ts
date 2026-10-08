@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { AssistenteService, EventoAssistente } from './assistente.service';
+import { AssistenteService, ERRO_DEMOROU, EventoAssistente } from './assistente.service';
 import { AssistenteDto } from './ia.dto';
 
 // Estes testes cobrem o tratamento de erro do provedor; o modelo reserva tem teste próprio (ia/reserva.spec.ts).
@@ -292,6 +292,50 @@ describe('AssistenteService.transmitir', () => {
     expect(eventos).toEqual([{ type: 'error', error: 'A solicitação exigiu ações demais. Reformule o pedido em uma etapa por vez.' }]);
     const [fim] = textos(m.prisma.$executeRaw, /update public\.ai_runs/);
     expect(fim.values[0]).toBe('blocked');
+  });
+
+  it('Gemini parado sem mandar nada: refaz a rodada uma vez com o modelo reserva', async () => {
+    process.env.LOTTI_AI_FALLBACK_MODEL = 'gemini-reserva';
+    try {
+      const m = montar();
+      m.fetchImpl
+        .mockRejectedValueOnce(new DOMException('tempo', 'TimeoutError'))
+        .mockResolvedValueOnce(sse(texto('Você tem 3 clientes.')));
+      const eventos = await rodar(m);
+      expect(eventos.map((e) => e.type)).toEqual(['text', 'done']);
+      expect(m.fetchImpl.mock.calls.map((c) => JSON.parse(c[1].body).model)).toEqual(['gemini-3.8-flash', 'gemini-reserva']);
+    } finally {
+      process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+    }
+  });
+
+  it('Gemini parado depois de já ter mandado texto: não refaz (duplicaria) e avisa em português', async () => {
+    process.env.LOTTI_AI_FALLBACK_MODEL = 'gemini-reserva';
+    try {
+      const m = montar();
+      // Primeiro pedaço chega; o seguinte estoura o tempo (o Response real troca o erro, então vai cru).
+      let pedidos = 0;
+      const corpoQuebrado = new ReadableStream<Uint8Array>({
+        pull(c) {
+          pedidos += 1;
+          if (pedidos === 1) c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(texto('Você tem '))}
+
+`));
+          else c.error(new DOMException('tempo', 'TimeoutError'));
+        },
+      });
+      m.fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, body: corpoQuebrado });
+      expect(await rodar(m)).toEqual([{ type: 'text', content: 'Você tem ' }, { type: 'error', error: ERRO_DEMOROU }]);
+      expect(m.fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+    }
+  });
+
+  it('sem modelo reserva, o tempo esgotado chega em português', async () => {
+    const m = montar();
+    m.fetchImpl.mockRejectedValueOnce(new DOMException('tempo', 'TimeoutError'));
+    expect(await rodar(m)).toEqual([{ type: 'error', error: ERRO_DEMOROU }]);
   });
 
   it('erro inesperado vira "Internal error"; navegador que fechou não recebe nada', async () => {
