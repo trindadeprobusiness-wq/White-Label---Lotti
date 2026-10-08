@@ -56,6 +56,13 @@ const atrasada = (o: CrmOportunidade) =>
   !!o.data_prevista_fechamento && !o.fechada_em &&
   new Date(o.data_prevista_fechamento) < new Date();
 
+/**
+ * Cards montados por coluna de cada vez. Com o histórico do WhatsApp virando lead, uma coluna passa
+ * de centenas de cards, e montar todos (cada um arrastável) travava a abertura do CRM. Busca, filtros,
+ * contagem e "selecionar coluna" continuam valendo para todos.
+ */
+export const CARDS_POR_LOTE = 30;
+
 type CardOportunidade = CrmOportunidade & { clientes?: { nome?: string; telefone?: string }; imoveis?: { titulo?: string } };
 
 function Card({ oportunidade, onWhatsApp, modoSelecao, selecionado, onSelecionar }: {
@@ -157,6 +164,9 @@ function Coluna({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.etapa.id });
   const cor = corParaHex(coluna.etapa.cor ?? 'slate');
+  const [limite, setLimite] = useState(CARDS_POR_LOTE);
+  const visiveis = coluna.oportunidades.slice(0, limite);
+  const restantes = coluna.oportunidades.length - visiveis.length;
 
   return (
     <div
@@ -194,9 +204,19 @@ function Coluna({
 
       <div className={cn('flex-1 space-y-2 overflow-y-auto p-2.5',
             '[scrollbar-width:thin] [scrollbar-color:theme(colors.border)_transparent]', modoSelecao && 'pb-24', isOver && 'bg-primary/20')}>
-        {coluna.oportunidades.map((o) => (
+        {visiveis.map((o) => (
           <Card key={o.id} oportunidade={o} onWhatsApp={onWhatsApp} modoSelecao={modoSelecao} selecionado={selecionados.has(o.id)} onSelecionar={onSelecionar} />
         ))}
+
+        {restantes > 0 && (
+          <button
+            type="button"
+            onClick={() => setLimite((atual) => atual + CARDS_POR_LOTE)}
+            className="w-full rounded-lg border border-dashed border-border py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground focus-ring"
+          >
+            Mostrar mais {Math.min(restantes, CARDS_POR_LOTE)} de {restantes}
+          </button>
+        )}
 
         {coluna.oportunidades.length === 0 && (
           <div className={cn(
