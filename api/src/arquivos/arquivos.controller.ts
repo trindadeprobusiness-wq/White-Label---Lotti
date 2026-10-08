@@ -52,6 +52,9 @@ function tipoDoUpload(req: Request): string {
   return valor || 'application/octet-stream';
 }
 
+/** Fotos são servidas em público pela origem da API: só imagem raster, nunca HTML/SVG. */
+const TIPOS_FOTO = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif']);
+
 /**
  * Limita o corpo recebido ao teto do grupo. O teto é conferido primeiro pelo Content-Length (413
  * antes de ler um byte) e depois pelo próprio stream, para um Content-Length mentiroso não furar o
@@ -118,9 +121,16 @@ export class ArquivosController {
 
   @Put('foto/*')
   @UseGuards(SupabaseAuthGuard)
-  async subirFoto(@Param() params: Record<string, string>, @Req() req: Request): Promise<{ ok: true; key: string }> {
+  async subirFoto(
+    @Claims() claims: SupabaseClaims,
+    @Param() params: Record<string, string>,
+    @Req() req: Request,
+  ): Promise<{ ok: true; key: string }> {
     const key = splat(params);
-    await this.storage.enviar(BUCKET_FOTOS, key, corpoLimitado(req, MAX_FOTO), tipoDoUpload(req));
+    const tipo = tipoDoUpload(req).toLowerCase();
+    if (!TIPOS_FOTO.has(tipo)) throw ERROS_ARQUIVO.tipoNaoPermitido();
+    if (!(await this.repo.donoFoto(claims, key))) throw ERROS_ARQUIVO.deOutraConta();
+    await this.storage.enviar(BUCKET_FOTOS, key, corpoLimitado(req, MAX_FOTO), tipo);
     return { ok: true, key };
   }
 
@@ -231,8 +241,10 @@ export class ArquivosController {
   @Delete('foto/*')
   @UseGuards(SupabaseAuthGuard)
   @HttpCode(204)
-  async apagarFoto(@Param() params: Record<string, string>): Promise<void> {
-    await this.storage.apagar(BUCKET_FOTOS, splat(params));
+  async apagarFoto(@Claims() claims: SupabaseClaims, @Param() params: Record<string, string>): Promise<void> {
+    const key = splat(params);
+    if (!(await this.repo.donoFoto(claims, key))) throw ERROS_ARQUIVO.deOutraConta();
+    await this.storage.apagar(BUCKET_FOTOS, key);
   }
 
   @Delete('video/*')
@@ -266,6 +278,8 @@ export class ArquivosController {
     if (obj.etag) res.setHeader('ETag', obj.etag);
     res.setHeader('Content-Type', obj.contentType ?? 'application/octet-stream');
     res.setHeader('Accept-Ranges', 'bytes');
+    // O navegador não adivinha o tipo: um objeto antigo com tipo errado não vira página na origem da API.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     if (ifNoneMatch && obj.etag && ifNoneMatch === obj.etag) {
       obj.corpo.destroy();
       res.status(304).end();

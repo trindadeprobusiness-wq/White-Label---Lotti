@@ -11,6 +11,7 @@ export const ERROS_ARQUIVO = {
   sessaoAusente: () => erroArquivo(401, 'sessao_ausente', 'Sessão ausente.'),
   deOutraConta: () => erroArquivo(403, 'arquivo_de_outra_conta', 'Este arquivo não pertence a esta conta.'),
   naoEncontrado: () => erroArquivo(404, 'arquivo_nao_encontrado', 'Arquivo não encontrado.'),
+  tipoNaoPermitido: () => erroArquivo(415, 'tipo_nao_permitido', 'Este tipo de arquivo não é aceito aqui.'),
   grandeDemais: () => erroArquivo(413, 'arquivo_grande_demais', 'O arquivo é maior que o limite permitido.'),
   indisponivel: () => erroArquivo(503, 'storage_indisponivel', 'O armazenamento de arquivos não está configurado no servidor.'),
 };
