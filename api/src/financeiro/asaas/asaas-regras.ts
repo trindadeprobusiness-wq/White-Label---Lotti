@@ -12,7 +12,9 @@ export class ErroValidacaoAsaas extends Error {}
 export const EVENTOS_WEBHOOK_ASAAS = [
   'PAYMENT_RECEIVED',
   'PAYMENT_CONFIRMED',
-  'PAYMENT_RECEIVED_IN_CASH',
+  // PAYMENT_RECEIVED_IN_CASH não existe na lista do Asaas (400 "evento inválido" ao criar o
+  // webhook): o recebimento em dinheiro chega como PAYMENT_RECEIVED. O tratamento no webhook
+  // continua aceitando o nome, sem efeito.
   'PAYMENT_OVERDUE',
   'PAYMENT_DELETED',
   'PAYMENT_REFUNDED',

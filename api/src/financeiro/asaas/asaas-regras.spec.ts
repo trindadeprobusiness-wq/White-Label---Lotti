@@ -41,10 +41,11 @@ describe('conexão Asaas self-service', () => {
     expect(() => extrairDadosConta({}, null)).toThrow(ErroValidacaoAsaas);
   });
 
-  it('provisiona o webhook com token próprio, os 13 eventos e NON_SEQUENTIALLY', () => {
+  it('provisiona o webhook com token próprio, os 12 eventos válidos do Asaas e NON_SEQUENTIALLY', () => {
     const payload = montarWebhookAsaas('https://api.exemplo.com/api/financeiro/asaas/webhook?t=slug', 'dono@exemplo.com', 'token-opaco');
     expect(payload.events).toEqual([...EVENTOS_WEBHOOK_ASAAS]);
-    expect(payload.events).toHaveLength(13);
+    expect(payload.events).toHaveLength(12);
+    expect(payload.events).not.toContain('PAYMENT_RECEIVED_IN_CASH');
     expect(payload.events).toContain('PAYMENT_RECEIVED');
     expect(payload.events).toContain('TRANSFER_DONE');
     expect(payload.sendType).toBe('NON_SEQUENTIALLY');
