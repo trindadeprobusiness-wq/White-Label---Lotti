@@ -14,6 +14,7 @@ export type Papel = 'admin' | 'super_admin';
 
 /** Áreas do back office — uma por entrada de menu. */
 export type Recurso =
+  | 'diagnosticos'
   | 'visao_geral'
   | 'usuarios'
   | 'assinaturas'
@@ -53,6 +54,7 @@ export type Acao =
   | 'alterar_config_programa';
 
 const RECURSOS_ADMIN: readonly Recurso[] = [
+  'diagnosticos',
   'visao_geral',
   'usuarios',
   'assinaturas',

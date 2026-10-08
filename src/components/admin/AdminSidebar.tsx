@@ -52,7 +52,7 @@ const GRUPOS: GrupoMenu[] = [
   {
     itens: [
       { recurso: 'visao_geral', label: 'Visão geral', href: '/admin', icone: <LayoutDashboard className="h-4 w-4 flex-shrink-0" /> },
-      { recurso: 'visao_geral', label: 'Diagnósticos comerciais', href: '/admin/diagnosticos', icone: <ClipboardList className="h-4 w-4 flex-shrink-0" /> },
+      { recurso: 'diagnosticos', label: 'Diagnósticos comerciais', href: '/admin/diagnosticos', icone: <ClipboardList className="h-4 w-4 flex-shrink-0" /> },
     ],
   },
   {
