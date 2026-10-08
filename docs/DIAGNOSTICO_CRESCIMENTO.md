@@ -36,10 +36,10 @@ O aceite aparece antes da primeira resposta pessoal. A confirmação de envio ac
 
 Desde a virada, a produção usa a API. O front escolhe sozinho: com `VITE_API_URL`, chama a API; sem ela, as Edge Functions abaixo.
 
-- Banco: migration `api/prisma/migrations/20261008120000_diagnostico_conversacional` (o mesmo SQL das duas migrations do Supabase).
+- Banco: migrations `api/prisma/migrations/20261008120000_diagnostico_conversacional` e `20261008130000_diagnostico_abandono_followup`, com o mesmo SQL das quatro migrations do Supabase.
 - Conversa: `POST /api/publico/diagnostico`, CORS público sem credenciais. Mesmo corpo, mesmos status e respostas `{ error }`.
-- Worker: `POST /api/diagnostico/manutencao` com `Authorization: Bearer $DIAGNOSTIC_WORKER_SECRET` e `{ "action": "maintenance" }`.
-- Painel: `GET /api/admin/diagnosticos-crescimento` (RPC `diagnostic_admin_list`) e `GET /api/admin/diagnosticos-crescimento/:id`, como `authenticated` com `is_admin()`.
+- Manutenção: o job `manutencao-diagnostico` roda a cada minuto (com `AGENDAMENTOS_ENABLED=true`) e substitui o cron do Supabase. Ele roda `diagnostic_maintenance()` (abandono em 10 min e aviso parcial na fila) e depois drena a fila de e-mail. A rota `POST /api/diagnostico/manutencao` faz o mesmo para um agendador externo. Ela pede `Authorization: Bearer $DIAGNOSTIC_WORKER_SECRET` e `{ "action": "maintenance" }`.
+- Painel: `POST /api/admin/diagnosticos-crescimento` com `{ action: 'list' | 'detail' | 'follow_up', ... }`. Tem o mesmo contrato da Edge `diagnostic-admin` e roda como `authenticated` com `is_admin()`; quem não é admin recebe 403. Nessa rota `DIAGNOSTIC_AUTH_API_URL` não é usada.
 - Variáveis: limite por IP com `DIAGNOSTIC_RATE_LIMIT_SECRET` ou `PUBLIC_RATE_LIMIT_SECRET`; IA com `DIAGNOSTIC_AI_ENABLED`, `DIAGNOSTIC_AI_DAILY_LIMIT` e `GEMINI_API_KEY`. O e-mail só sai com `DIAGNOSTIC_NOTIFICATIONS_ENABLED=true`, além de `EMAIL_API_KEY`/`RESEND_API_KEY`, `EMAIL_FROM`, `LEAD_NOTIFICATION_EMAIL` e, opcional, `DIAGNOSTIC_PUBLIC_URL`. O interruptor nasce desligado e a fila fica `pending`.
 - Linhas gravadas no Supabase antes da troca: `COPIAR_TABELAS=diagnostico node api/scripts/dados/copiar.mjs` (com `DESTINO_URL`). Copia só as nove tabelas `diagnostic_*`, com `ON CONFLICT DO NOTHING`, e pode rodar mais de uma vez.
 

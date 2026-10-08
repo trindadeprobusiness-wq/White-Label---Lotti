@@ -178,6 +178,11 @@ export class DiagnosticoCrescimentoService {
     return { abandoned, notifications };
   }
 
+  /** A fila inteira (até 10 por vez), para o agendamento 'manutencao-diagnostico'. Sem rede com o interruptor desligado. */
+  drenarFila(): Promise<{ sent: number; failed: number }> {
+    return this.drenar();
+  }
+
   private drenar(sessao?: string): Promise<{ sent: number; failed: number }> {
     const config = lerConfigDiagnostico();
     return drenarNotificacoes(this.repo, { ...config.email, ligado: config.notificacoesLigadas, fetch: this.dependencias.fetchEmail }, sessao);

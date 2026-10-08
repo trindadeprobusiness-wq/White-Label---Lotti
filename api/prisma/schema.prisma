@@ -1086,18 +1086,21 @@ model DiagnosticEvent {
 }
 
 /// Tabela public.diagnostic_leads — RLS ligado.
-/// 2 check constraint(s) só no SQL.
+/// 4 check constraint(s) só no SQL.
 model DiagnosticLead {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String
-  phone     String?
-  email     String?
-  company   String?
-  segment   String?
-  city      String?
-  status    String   @default("lead_iniciado")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  phone          String?
+  email          String?
+  company        String?
+  segment        String?
+  city           String?
+  status         String    @default("lead_iniciado")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  followUpStatus String    @default("new") @map("follow_up_status")
+  followUpNotes  String    @default("") @map("follow_up_notes")
+  lastContactAt  DateTime? @map("last_contact_at") @db.Timestamptz(6)
 
   diagnosticSessions DiagnosticSession[] @relation("diagnostic_sessions_lead_id_fkey")
 

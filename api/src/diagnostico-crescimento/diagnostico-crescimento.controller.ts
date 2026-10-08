@@ -11,7 +11,7 @@ export const LIMITE_CORPO_WORKER = 1024;
 
 const CABECALHOS = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } as const;
 
-function enviar(res: Response, status: number, corpo: unknown): void {
+export function enviar(res: Response, status: number, corpo: unknown): void {
   res.set(CABECALHOS);
   // A Edge mandava Retry-After: 3600 no 429 (a janela dos contadores é de 1 hora).
   if (status === 429) res.set('Retry-After', '3600');
@@ -19,7 +19,7 @@ function enviar(res: Response, status: number, corpo: unknown): void {
 }
 
 /** Tamanho do corpo: o Content-Length e, sem ele (chunked), o JSON já lido. */
-function grandeDemais(req: Request, tamanho: string | undefined, limite: number): boolean {
+export function grandeDemais(req: Request, tamanho: string | undefined, limite: number): boolean {
   if (Number(tamanho) > limite) return true;
   try {
     return Buffer.byteLength(JSON.stringify(req.body ?? null), 'utf8') > limite;

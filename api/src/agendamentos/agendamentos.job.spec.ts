@@ -40,7 +40,8 @@ afterEach(() => {
 function montar(comRedis = true) {
   const repo = { executar: jest.fn(async () => ({ executou: true as const, resultado: 2 })) };
   const redis = comRedis ? { connection: { url: 'redis://teste' } } : undefined;
-  return { repo, job: new AgendamentosJob(repo as unknown as AgendamentosRepo, redis as never) };
+  const diagnostico = { drenarFila: jest.fn(async () => ({ sent: 0, failed: 0 })) };
+  return { repo, diagnostico, job: new AgendamentosJob(repo as unknown as AgendamentosRepo, redis as never, diagnostico as never) };
 }
 
 describe('AgendamentosJob: registro', () => {
@@ -141,6 +142,21 @@ describe('AgendamentosJob: processar', () => {
     expect(await job.processar({ name: 'outro', timestamp: Date.now() })).toEqual({ executou: false, motivo: 'desconhecido' });
     repo.executar.mockRejectedValueOnce(new Error('boom'));
     await expect(job.processar({ name: 'marcar-faturas-atrasadas', timestamp: Date.now() })).rejects.toThrow('boom');
+  });
+
+  it('manutenção do diagnóstico: SQL e depois a fila de e-mail; falha da fila não derruba o job', async () => {
+    const { job, repo, diagnostico } = montar();
+    const agora = Date.now();
+    expect(await job.processar({ name: 'manutencao-diagnostico', timestamp: agora, opts: { prevMillis: agora } }, agora)).toEqual({ executou: true, resultado: 2 });
+    expect(repo.executar).toHaveBeenCalledWith(agendamentoPorNome('manutencao-diagnostico'));
+    expect(diagnostico.drenarFila).toHaveBeenCalledTimes(1);
+    diagnostico.drenarFila.mockRejectedValueOnce(new Error('fora'));
+    await expect(job.processar({ name: 'manutencao-diagnostico', timestamp: agora, opts: { prevMillis: agora } }, agora)).resolves.toEqual({ executou: true, resultado: 2 });
+    // Os outros jobs não tocam na fila; e se a trava não foi pega, a fila também não roda.
+    await job.processar({ name: 'marcar-faturas-atrasadas', timestamp: agora, opts: { prevMillis: agora } }, agora);
+    repo.executar.mockResolvedValueOnce({ executou: false, motivo: 'em_andamento' } as never);
+    await job.processar({ name: 'manutencao-diagnostico', timestamp: agora, opts: { prevMillis: agora } }, agora);
+    expect(diagnostico.drenarFila).toHaveBeenCalledTimes(2);
   });
 
   it('o worker chama processar com o job do BullMQ', async () => {

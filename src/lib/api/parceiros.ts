@@ -503,26 +503,3 @@ export async function atualizarStatusDiagnosticoApi(diagnosticoId: string, statu
     'Não foi possível atualizar o status.',
   );
 }
-
-// ── Diagnóstico de Crescimento (/admin/diagnosticos, useDiagnostics) ─────
-
-export interface FiltrosDiagnosticoCrescimento {
-  busca?: string | null; status?: string | null; temperatura?: string | null; segmento?: string | null;
-  origem?: string | null; offset?: number; limite?: number;
-}
-
-/** A RPC `diagnostic_admin_list`: devolve o mesmo jsonb (items, total, metrics, sources, dropoff...). */
-export async function listarDiagnosticosCrescimentoApi(filtros: FiltrosDiagnosticoCrescimento = {}): Promise<unknown> {
-  return ler(
-    await chamarApi(`/api/admin/diagnosticos-crescimento${consulta(filtros)}`),
-    'Não foi possível carregar os diagnósticos.',
-  );
-}
-
-/** As cinco leituras do detalhe (sessão com lead, respostas, eventos, resumo e notificações). */
-export async function diagnosticoCrescimentoApi(sessaoId: string): Promise<unknown> {
-  return ler(
-    await chamarApi(`/api/admin/diagnosticos-crescimento/${id(sessaoId)}`),
-    'Não foi possível carregar este diagnóstico.',
-  );
-}

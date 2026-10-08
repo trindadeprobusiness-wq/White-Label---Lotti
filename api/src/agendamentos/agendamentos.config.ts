@@ -40,6 +40,12 @@ export interface Agendamento {
    * vez de rodar fora de hora — o pg_cron também não recupera execução perdida.
    */
   toleranciaMs: number;
+  /**
+   * Trabalho depois do SQL, já fora da transação e da trava. Só 'notificacoes-diagnostico' hoje: a fila
+   * de e-mail do diagnóstico (DiagnosticoCrescimentoService.drenarFila), que só envia com
+   * DIAGNOSTIC_NOTIFICATIONS_ENABLED='true'. Desligado, nada é reivindicado.
+   */
+  depois?: 'notificacoes-diagnostico';
 }
 
 const HORA = 3_600_000;
@@ -86,15 +92,17 @@ export const AGENDAMENTOS: readonly Agendamento[] = [
     toleranciaMs: 12 * HORA,
   },
   {
-    // A cada 15 min: diagnóstico parado há 24 h vira abandonado e o limite de taxa vencido é apagado.
-    // Não veio de pg_cron (no Supabase dependia de chamar a Edge diagnostic-notifications de fora);
-    // o e-mail continua só na rota /api/diagnostico/manutencao.
+    // A cada minuto, como o cron do #54 (supabase/operations/diagnostic-notifications-cron.sql, que
+    // chamava a Edge diagnostic-notifications): diagnóstico parado há 10 min vira abandonado e, com
+    // contato, ganha o aviso parcial na fila; o limite de taxa vencido é apagado. Depois, a mesma
+    // drenagem da rota /api/diagnostico/manutencao manda a fila (o e-mail só com o interruptor ligado).
     nome: 'manutencao-diagnostico',
     schedulerId: 'agendamento-manutencao-diagnostico',
-    padrao: '*/15 * * * *',
+    padrao: '* * * * *',
     modo: 'valor',
     sql: Prisma.sql`SELECT public.diagnostic_maintenance() AS n`,
-    toleranciaMs: 30 * 60_000,
+    toleranciaMs: 5 * 60_000,
+    depois: 'notificacoes-diagnostico',
   },
 ];
 

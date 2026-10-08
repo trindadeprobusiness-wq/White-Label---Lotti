@@ -9,7 +9,7 @@ export type AcaoBanco = 'start' | 'read' | 'resume' | 'answer' | 'complete' | 'c
 export interface Notificacao {
   id: string;
   session_id: string;
-  kind: 'started' | 'completed';
+  kind: 'started' | 'completed' | 'abandoned';
   lease_id: string;
   payload: Snapshot;
 }

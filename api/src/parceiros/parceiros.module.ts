@@ -3,6 +3,8 @@ import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AdminController } from './admin/admin.controller';
 import { AdminService } from './admin/admin.service';
+import { DiagnosticosCrescimentoAdminController } from './admin/diagnosticos-crescimento.controller';
+import { DiagnosticosCrescimentoAdminService } from './admin/diagnosticos-crescimento.service';
 import { ConviteService } from './convite/convite.service';
 import { ConviteSemProvedor, PORTA_CONVITE } from './convite/porta-convite';
 import { DiagnosticoPublicoController } from './diagnostico/diagnostico-publico.controller';
@@ -16,7 +18,10 @@ import { ParceirosPublicoService } from './publico/parceiros-publico.service';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [ParceirosPublicoController, DiagnosticoPublicoController, ParceirosController, AdminController],
+  controllers: [
+    ParceirosPublicoController, DiagnosticoPublicoController, ParceirosController, AdminController,
+    DiagnosticosCrescimentoAdminController,
+  ],
   providers: [
     SupabaseAuthGuard,
     ParceirosPublicoRepo,
@@ -26,6 +31,7 @@ import { ParceirosPublicoService } from './publico/parceiros-publico.service';
     PortalService,
     ConviteService,
     AdminService,
+    DiagnosticosCrescimentoAdminService,
     { provide: PORTA_CONVITE, useClass: ConviteSemProvedor },
   ],
 })

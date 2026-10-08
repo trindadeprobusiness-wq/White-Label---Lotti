@@ -60,8 +60,6 @@ describe('AdminController', () => {
     salvarConfig: jest.fn(async () => ({})),
     listarDiagnosticos: jest.fn(async () => []),
     atualizarStatusDiagnostico: jest.fn(async () => ({})),
-    listarDiagnosticosCrescimento: jest.fn(async () => ({ items: [], total: 0 })),
-    diagnosticoCrescimento: jest.fn(async () => ({})),
   };
   const guard: CanActivate = {
     canActivate: (ctx) => { autenticou += 1; ctx.switchToHttp().getRequest().claims = claims; return true; },
@@ -146,20 +144,6 @@ describe('AdminController', () => {
     await http().get('/admin/atendimento?origem_direta=true').expect(200);
     expect(admin.listarAtendimento).toHaveBeenLastCalledWith(claims, { origem_direta: true });
     await http().get('/admin/atendimento?origem_direta=talvez').expect(400);
-  });
-
-  it('Diagnóstico de Crescimento: filtros e offset/limite convertidos; :id validado', async () => {
-    await http().get('/admin/diagnosticos-crescimento?busca=ana&status=completed&temperatura=HOT&segmento=real_estate&origem=ig&offset=25&limite=25').expect(200);
-    expect(admin.listarDiagnosticosCrescimento).toHaveBeenCalledWith(claims, {
-      busca: 'ana', status: 'completed', temperatura: 'HOT', segmento: 'real_estate', origem: 'ig', offset: 25, limite: 25,
-    });
-    await http().get('/admin/diagnosticos-crescimento?limite=1000').expect(400);
-    await http().get('/admin/diagnosticos-crescimento?offset=-1').expect(400);
-    await http().get('/admin/diagnosticos-crescimento?outro=1').expect(400);
-    await http().get(`/admin/diagnosticos-crescimento/${A}`).expect(200);
-    expect(admin.diagnosticoCrescimento).toHaveBeenCalledWith(claims, A);
-    expect(admin.atualizarStatusDiagnostico).not.toHaveBeenCalled();
-    await http().get('/admin/diagnosticos-crescimento/nao-e-uuid').expect(400);
   });
 
   it('a paginação chega convertida em número', async () => {

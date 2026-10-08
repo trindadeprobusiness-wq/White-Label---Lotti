@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Queue, Worker } from 'bullmq';
+import { DiagnosticoCrescimentoService } from '../diagnostico-crescimento/diagnostico-crescimento.service';
 import { RedisService } from '../redis/redis.service';
 import {
   AGENDAMENTOS, agendamentoPorNome, agendamentosLigados, FILA_AGENDAMENTOS, FUSO_AGENDAMENTOS,
@@ -48,7 +49,11 @@ export class AgendamentosJob implements OnModuleInit, OnModuleDestroy {
   /** Registro em andamento (os testes esperam por ele). */
   registro?: Promise<void>;
 
-  constructor(private readonly repo: AgendamentosRepo, @Optional() private readonly redis?: RedisService) {}
+  constructor(
+    private readonly repo: AgendamentosRepo,
+    @Optional() private readonly redis?: RedisService,
+    @Optional() private readonly diagnostico?: DiagnosticoCrescimentoService,
+  ) {}
 
   deveRegistrar(env: NodeJS.ProcessEnv = process.env): boolean {
     return agendamentosLigados(env) && !!this.redis;
@@ -99,7 +104,22 @@ export class AgendamentosJob implements OnModuleInit, OnModuleDestroy {
     const r = await this.repo.executar(a);
     if (r.executou) this.logger.log(`${a.nome}: ${r.resultado}`);
     else this.logger.warn(`${a.nome}: outra execução em andamento; esta não roda`);
+    if (r.executou && a.depois === 'notificacoes-diagnostico') await this.drenarDiagnostico(a.nome);
     return r;
+  }
+
+  /**
+   * Fila de e-mail do diagnóstico, depois do commit da manutenção. Falha aqui não derruba o job: o SQL já
+   * rodou e o lease devolve a linha para a próxima execução.
+   */
+  private async drenarDiagnostico(nome: string): Promise<void> {
+    if (!this.diagnostico) return;
+    try {
+      const { sent, failed } = await this.diagnostico.drenarFila();
+      if (sent || failed) this.logger.log(`${nome}: e-mails ${sent} aceitos, ${failed} com falha`);
+    } catch (e) {
+      this.logger.warn(`${nome}: fila de e-mail não drenada (${codigoErro(e)})`);
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

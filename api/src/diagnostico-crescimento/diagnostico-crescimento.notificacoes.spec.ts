@@ -1,5 +1,6 @@
 import { lerConfigDiagnostico } from './diagnostico-crescimento.config';
-import { drenarNotificacoes, envioConfigurado, textoDaNotificacao, type EnvioDiagnostico } from './diagnostico-crescimento.notificacoes';
+import { buildSummary } from './motor/engine';
+import { drenarNotificacoes, envioConfigurado, htmlDaNotificacao, textoDaNotificacao, type EnvioDiagnostico } from './diagnostico-crescimento.notificacoes';
 import type { Notificacao } from './diagnostico-crescimento.repo';
 
 const SESSAO = '22222222-2222-4222-8222-222222222222';
@@ -59,8 +60,11 @@ describe('notificações do diagnóstico (e-mail ao operador)', () => {
     const corpo = JSON.parse(String(init.body));
     expect(corpo).toMatchObject({ from: 'lotti@exemplo.test', to: ['operador@exemplo.test'], subject: 'Novo lead iniciou diagnóstico — Ana QA' });
     expect(corpo.text).toContain(`Link para visualizar: https://app.exemplo.test/admin/diagnosticos/${SESSAO}`);
+    expect(corpo.html).toContain('<html');
+    expect(corpo.text).not.toContain('RESPOSTAS SALVAS:');
     const segundo = JSON.parse(String((fetch.mock.calls[1] as [string, RequestInit])[1].body));
     expect(segundo.subject).toBe('Diagnóstico concluído — Ana QA / Imob QA');
+    expect(segundo.text).toContain('RESPOSTAS SALVAS:');
     expect(repo.concluirNotificacao).toHaveBeenNthCalledWith(1, 'n1', 'lease-1', true, null);
     expect(repo.concluirNotificacao).toHaveBeenNthCalledWith(2, 'n2', 'lease-1', false, 'provider_http_422');
   });
@@ -75,12 +79,87 @@ describe('notificações do diagnóstico (e-mail ao operador)', () => {
 
   it('texto da conclusão traz classificação, score, resumo e respostas com rótulo; link só em https', () => {
     const texto = textoDaNotificacao(linha('completed'), 'http://inseguro.exemplo.test');
-    expect(texto).toContain('Diagnóstico concluído.');
+    expect(texto.startsWith('Diagnóstico concluído\n')).toBe(true);
     expect(texto).toContain('Segmento: Mercado imobiliário');
     expect(texto).toContain('Classificação: HOT');
     expect(texto).toContain('Score: 14');
     expect(texto).toContain('Resumo (regras): Resumo.');
+    expect(texto).toContain('Principal gargalo: acompanhamento dos leads');
+    expect(texto).toContain('Recomendação: Conversa estratégica');
     expect(texto).toContain('Hoje vocês geram clientes principalmente de onde?: Instagram, Meta Ads');
     expect(texto).not.toContain('Link para visualizar');
+  });
+});
+
+// Porte de supabase/functions/diagnostic/notifications.test.ts (#54).
+const linhaDoGabriel: Notificacao = {
+  id: 'notification', session_id: 'session', kind: 'completed', lease_id: 'lease',
+  payload: {
+    session: {
+      id: 'session', status: 'completed', started_at: '2026-10-07T15:00:00Z', last_activity_at: '2026-10-07T15:05:00Z',
+      completed_at: '2026-10-07T15:05:00Z', version: 15, score: 12, temperature: 'HOT', utm_source: 'instagram', utm_term: 'growth',
+    },
+    lead: { name: 'Pessoa <script>alert(1)</script>', phone: '+5562999999999', email: null, company: 'Empresa QA', segment: 'services' },
+    answers: { name: 'Pessoa QA', bottleneck: 'follow_up', goal: 'Organizar atendimento', revenue: '100k_300k', decision: 'yes' },
+    summary: buildSummary({ bottleneck: 'follow_up', goal: 'Organizar atendimento', conversation: 'yes' }),
+  },
+};
+
+describe('organized diagnostic notifications (#54)', () => {
+  it('includes answers, attribution, localized commercial labels and escaped HTML', () => {
+    const texto = textoDaNotificacao(linhaDoGabriel, 'https://example.test');
+    expect(texto).toContain('UTM term: growth');
+    expect(texto).toContain('Decisor: Sim');
+    expect(texto).toContain('RESPOSTAS SALVAS:');
+    expect(texto).toContain('/admin/diagnosticos/session');
+    expect(texto).toContain('Início (Brasília): 07/10/2026, 12:00:00');
+    expect(htmlDaNotificacao(linhaDoGabriel)).toContain('&lt;script&gt;');
+    expect(htmlDaNotificacao(linhaDoGabriel)).not.toContain('<script>');
+  });
+
+  it('labels an incomplete contact-only diagnostic without inventing a bottleneck', () => {
+    const parcial: Notificacao = {
+      ...linhaDoGabriel, kind: 'abandoned',
+      payload: { ...linhaDoGabriel.payload, answers: { name: 'Pessoa QA', contact: '+5562999999999' }, summary: null },
+    };
+    const texto = textoDaNotificacao(parcial);
+    expect(texto.startsWith('Diagnóstico parcial — contato não concluiu\n')).toBe(true);
+    expect(texto).toContain('10 minutos');
+    expect(texto).toContain('Ainda não há respostas suficientes');
+    expect(texto).toContain('Principal gargalo: Não identificado');
+    expect(texto).toContain('Classificação parcial: HOT');
+    expect(texto).toContain('Recomendação: Retomar o diagnóstico');
+  });
+
+  it('parcial com gargalo respondido usa o resumo das regras', () => {
+    const parcial: Notificacao = {
+      ...linhaDoGabriel, kind: 'abandoned',
+      payload: { ...linhaDoGabriel.payload, answers: { name: 'Pessoa QA', bottleneck: 'cost' }, summary: null },
+    };
+    expect(textoDaNotificacao(parcial)).toContain('Principal gargalo: eficiência da mídia paga');
+  });
+
+  it('sends text + HTML with stable deduplication and records provider failure', async () => {
+    const conclusoes: unknown[][] = [];
+    const repo = {
+      reivindicarNotificacoes: jest.fn(async () => [linhaDoGabriel]),
+      concluirNotificacao: jest.fn(async (...a: unknown[]) => { conclusoes.push(a); return true; }),
+    };
+    const pedidos: RequestInit[] = [];
+    const fetch = jest.fn(async (_url: string, init: RequestInit) => {
+      pedidos.push(init);
+      return new Response('{}', { status: pedidos.length === 1 ? 200 : 429 });
+    });
+    const config = { ...configurado, fetch: fetch as unknown as typeof globalThis.fetch };
+    await expect(drenarNotificacoes(repo, config)).resolves.toEqual({ sent: 1, failed: 0 });
+    await expect(drenarNotificacoes(repo, config)).resolves.toEqual({ sent: 0, failed: 1 });
+    const corpo = JSON.parse(String(pedidos[0].body));
+    expect(corpo.to).toEqual(['operador@exemplo.test']);
+    expect(corpo.subject).toBe('Diagnóstico concluído — Pessoa <script>alert(1)</script> / Empresa QA');
+    expect(corpo.html).toContain('<html');
+    expect(corpo.text).toContain('RESPOSTAS SALVAS:');
+    const chave = (i: number) => (pedidos[i].headers as Record<string, string>)['Idempotency-Key'];
+    expect(chave(0)).toBe(chave(1));
+    expect(conclusoes[1]).toEqual(['notification', 'lease', false, 'provider_http_429']);
   });
 });

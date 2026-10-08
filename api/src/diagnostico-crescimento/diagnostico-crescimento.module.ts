@@ -5,11 +5,13 @@ import { DiagnosticoCrescimentoService } from './diagnostico-crescimento.service
 
 /**
  * Diagnóstico de Crescimento (conversa pública em /diagnostico), no lugar das Edge Functions
- * `diagnostic` e `diagnostic-notifications`. A leitura do painel fica em parceiros/admin
- * (/api/admin/diagnosticos-crescimento), com o is_admin() das policies. PrismaService vem do módulo global.
+ * `diagnostic` e `diagnostic-notifications`. O painel (Edge `diagnostic-admin` do #54) fica em parceiros/admin
+ * (POST /api/admin/diagnosticos-crescimento), com o is_admin() das RPCs. PrismaService vem do módulo global.
  */
 @Module({
   controllers: [DiagnosticoCrescimentoController, DiagnosticoCrescimentoWorkerController],
   providers: [DiagnosticoCrescimentoRepo, DiagnosticoCrescimentoService],
+  // O agendamento 'manutencao-diagnostico' drena a fila pelo mesmo service.
+  exports: [DiagnosticoCrescimentoService],
 })
 export class DiagnosticoCrescimentoModule {}

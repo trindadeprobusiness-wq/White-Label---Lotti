@@ -47,12 +47,14 @@ describe('agendamentos (pg_cron → BullMQ)', () => {
     expect(a.sql.values).toEqual([]);
   });
 
-  it('manutenção do diagnóstico: só a função do banco, a cada 15 min', () => {
+  it('manutenção do diagnóstico: a função do banco a cada minuto (como o cron do #54) e depois a fila de e-mail', () => {
     const a = agendamentoPorNome('manutencao-diagnostico')!;
-    expect(a.padrao).toBe('*/15 * * * *');
+    expect(a.padrao).toBe('* * * * *');
     expect(normal(a.sql.text)).toBe('SELECT public.diagnostic_maintenance() AS n');
     expect(a.sql.values).toEqual([]);
-    expect(a.toleranciaMs).toBe(30 * 60_000);
+    expect(a.toleranciaMs).toBe(5 * 60_000);
+    expect(a.depois).toBe('notificacoes-diagnostico');
+    expect(AGENDAMENTOS.filter((x) => x.depois).map((x) => x.nome)).toEqual(['manutencao-diagnostico']);
   });
 
   it('instantes em UTC, os mesmos do pg_cron do Supabase (BRT = UTC-3)', () => {
