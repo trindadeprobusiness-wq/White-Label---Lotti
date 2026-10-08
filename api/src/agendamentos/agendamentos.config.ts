@@ -85,6 +85,17 @@ export const AGENDAMENTOS: readonly Agendamento[] = [
     sql: Prisma.sql`SELECT public.gerar_alertas_vencimento_contratos() AS n`,
     toleranciaMs: 12 * HORA,
   },
+  {
+    // A cada 15 min: diagnóstico parado há 24 h vira abandonado e o limite de taxa vencido é apagado.
+    // Não veio de pg_cron (no Supabase dependia de chamar a Edge diagnostic-notifications de fora);
+    // o e-mail continua só na rota /api/diagnostico/manutencao.
+    nome: 'manutencao-diagnostico',
+    schedulerId: 'agendamento-manutencao-diagnostico',
+    padrao: '*/15 * * * *',
+    modo: 'valor',
+    sql: Prisma.sql`SELECT public.diagnostic_maintenance() AS n`,
+    toleranciaMs: 30 * 60_000,
+  },
 ];
 
 export function agendamentoPorNome(nome: string): Agendamento | undefined {

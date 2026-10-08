@@ -193,6 +193,12 @@ const ROTAS_DA_API: Record<string, (a: ArgsRpc) => Promise<unknown>> = {
   admin_status_integracoes: () => parceirosApi.statusIntegracoesApi(),
   admin_listar_config: () => parceirosApi.listarConfigApi(),
   admin_salvar_config: (a) => parceirosApi.salvarConfigApi(String(a.p_chave), a.p_valor),
+
+  // Diagnóstico de Crescimento (useDiagnostics): os argumentos são _search/_offset/_limit.
+  diagnostic_admin_list: (a) => parceirosApi.listarDiagnosticosCrescimentoApi({
+    busca: txt(a._search), status: txt(a._status), temperatura: txt(a._temperature), segmento: txt(a._segment),
+    origem: txt(a._source), offset: nmr(a._offset) ?? undefined, limite: nmr(a._limit) ?? undefined,
+  }),
 };
 
 /** Só para teste: as RPCs que a API já atende. */

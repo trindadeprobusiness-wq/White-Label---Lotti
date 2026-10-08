@@ -9,6 +9,7 @@ import { ContratosModule } from './contratos/contratos.module';
 import { CrmClientesModule } from './crm/clientes/crm-clientes.module';
 import { CrmFunilModule } from './crm/funil/crm-funil.module';
 import { CrmIntegracoesModule } from './crm/integracoes/crm-integracoes.module';
+import { DiagnosticoCrescimentoModule } from './diagnostico-crescimento/diagnostico-crescimento.module';
 import { FachadasModule } from './fachadas/fachadas.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { HealthController } from './health/health.controller';
@@ -49,6 +50,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     SuporteModule,
     WhatsappModule,
     CheckoutModule,
+    DiagnosticoCrescimentoModule,
   ],
   controllers: [HealthController],
 })

@@ -10,6 +10,12 @@
 //
 // Uso (DESTINO_URL no ambiente, nunca impressa):
 //   node api/scripts/dados/copiar.mjs
+//
+// Cópia parcial num destino que JÁ está em uso (depois da virada), só das tabelas pedidas:
+//   COPIAR_TABELAS=diagnostico node api/scripts/dados/copiar.mjs
+//   COPIAR_TABELAS=public.tabela_a,public.tabela_b node api/scripts/dados/copiar.mjs
+// Cada linha entra com ON CONFLICT DO NOTHING (o que o destino já tem fica como está; rodar de novo
+// não duplica) e nada fora da lista é tocado: nem os contadores de identidade das outras tabelas.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -33,8 +39,32 @@ where c.relkind = 'r'
   and ((n.nspname in ('public', 'suporte_privado') and c.relname <> '_prisma_migrations') or (n.nspname = 'auth' and c.relname = 'users'))
 order by n.nspname = 'auth' desc, n.nspname, c.relname`;
 
+/**
+ * Tabelas do Diagnóstico de Crescimento (migration 20261008120000_diagnostico_conversacional): o
+ * front público gravou nelas no Supabase depois da virada, até a rota /api/publico/diagnostico
+ * existir. COPIAR_TABELAS=diagnostico copia só estas para o Railway já em uso.
+ */
+export const TABELAS_DIAGNOSTICO = [
+  'public.diagnostic_leads', 'public.diagnostic_sessions', 'public.diagnostic_answers', 'public.diagnostic_events',
+  'public.diagnostic_summaries', 'public.diagnostic_notifications', 'public.diagnostic_rate_limits',
+  'public.diagnostic_ai_usage', 'public.diagnostic_ai_budgets',
+];
+
+/** 'diagnostico' (o conjunto acima) ou lista 'esquema.tabela' separada por vírgula; vazio = tudo. */
+export function tabelasPedidas(valor) {
+  const itens = String(valor ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+  if (!itens.length) return null;
+  const lista = itens.flatMap((t) => (t === 'diagnostico' ? TABELAS_DIAGNOSTICO : [t]));
+  for (const t of lista) if (!/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(t)) throw new Error(`tabela inválida em COPIAR_TABELAS: ${t}`);
+  return [...new Set(lista)];
+}
+
+const chaveDe = (t) => `${t.esquema}.${t.tabela}`;
+const filtroDe = (somente) => (somente ? new Set(somente) : null);
+
 export const SQL_IDENTIDADES = `
-select format('select setval(%L, coalesce((select max(%I) from %I.%I), 0) + 1, false)',
+select n.nspname as esquema, c.relname as tabela,
+  format('select setval(%L, coalesce((select max(%I) from %I.%I), 0) + 1, false)',
   pg_get_serial_sequence(format('%I.%I', n.nspname, c.relname), a.attname), a.attname, n.nspname, c.relname) as sql
 from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace
 where a.attidentity in ('a', 'd') and n.nspname in ('public', 'suporte_privado')`;
@@ -48,9 +78,10 @@ export function sqlPagina(t, limite, deslocamento) {
   return `select coalesce(json_agg(p), '[]')::text as dados from (select ${t.colunas.map(q).join(', ')} from ${nome(t)} order by ${ordem} limit ${Number(limite)} offset ${Number(deslocamento)}) p`;
 }
 
-export function sqlInsercao(t) {
+export function sqlInsercao(t, { semConflito = false } = {}) {
   const colunas = t.colunas.map(q).join(', ');
-  return `insert into ${nome(t)} (${colunas}) overriding system value select ${colunas} from json_populate_recordset(null::${nome(t)}, $1::json)`;
+  const sql = `insert into ${nome(t)} (${colunas}) overriding system value select ${colunas} from json_populate_recordset(null::${nome(t)}, $1::json)`;
+  return semConflito ? `${sql} on conflict do nothing` : sql;
 }
 
 /**
@@ -62,12 +93,13 @@ export function sqlInsercao(t) {
  * destino; sem esta checagem, uma tabela que faltasse nas migrations (foi o caso de
  * public.videos) ficaria para trás em silêncio, e a conferência diria "tudo igual".
  */
-export async function tabelasSoNaOrigem({ origem, destino }) {
-  const chave = (t) => `${t.esquema}.${t.tabela}`;
+export async function tabelasSoNaOrigem({ origem, destino, somente = null }) {
+  const chave = chaveDe;
+  const filtro = filtroDe(somente);
   const noDestino = new Set((await destino.query(SQL_TABELAS)).rows.map(chave));
   const faltam = [];
   for (const t of await origem(SQL_TABELAS)) {
-    if (noDestino.has(chave(t))) continue;
+    if (noDestino.has(chave(t)) || (filtro && !filtro.has(chave(t)))) continue;
     const [{ n }] = await origem(sqlContagem(t));
     faltam.push({ tabela: chave(t), linhas: n });
   }
@@ -75,11 +107,13 @@ export async function tabelasSoNaOrigem({ origem, destino }) {
 }
 
 /** Colunas que a origem tem e o destino não: a cópia as descartaria sem avisar. */
-export async function colunasSoNaOrigem({ origem, destino }) {
-  const chave = (t) => `${t.esquema}.${t.tabela}`;
+export async function colunasSoNaOrigem({ origem, destino, somente = null }) {
+  const chave = chaveDe;
+  const filtro = filtroDe(somente);
   const naOrigem = new Map((await origem(SQL_TABELAS)).map((t) => [chave(t), new Set(t.colunas)]));
   const faltam = [];
   for (const t of (await destino.query(SQL_TABELAS)).rows) {
+    if (filtro && !filtro.has(chave(t))) continue;
     // auth.users no Railway é só o mínimo que o login e os gatilhos usam (id, e-mail, senha,
     // metadados): os tokens internos do Supabase Auth ficam para trás de propósito.
     if (t.esquema === 'auth') continue;
@@ -91,12 +125,22 @@ export async function colunasSoNaOrigem({ origem, destino }) {
   return faltam;
 }
 
-export async function copiar({ origem, destino, pagina = 5000, log = () => {} }) {
-  const faltam = await tabelasSoNaOrigem({ origem, destino });
+/**
+ * `somente` (lista 'esquema.tabela'): cópia parcial para um destino já em uso. Só as tabelas da lista,
+ * cada linha com ON CONFLICT DO NOTHING, e só os contadores de identidade delas.
+ */
+export async function copiar({ origem, destino, pagina = 5000, log = () => {}, somente = null }) {
+  const filtro = filtroDe(somente);
+  const faltam = await tabelasSoNaOrigem({ origem, destino, somente });
   if (faltam.length) throw new Error(`tabelas da origem que não existem no destino (crie a migration antes): ${JSON.stringify(faltam)}`);
-  const colunas = await colunasSoNaOrigem({ origem, destino });
+  const colunas = await colunasSoNaOrigem({ origem, destino, somente });
   if (colunas.length) throw new Error(`colunas da origem que não existem no destino (crie a migration antes): ${JSON.stringify(colunas)}`);
-  const tabelas = (await destino.query(SQL_TABELAS)).rows;
+  const tabelas = (await destino.query(SQL_TABELAS)).rows.filter((t) => !filtro || filtro.has(chaveDe(t)));
+  if (filtro) {
+    const achadas = new Set(tabelas.map(chaveDe));
+    const ausentes = somente.filter((t) => !achadas.has(t));
+    if (ausentes.length) throw new Error(`tabelas pedidas que não existem no destino (aplique a migration antes): ${JSON.stringify(ausentes)}`);
+  }
   const relatorio = [];
   await destino.query('begin');
   try {
@@ -106,32 +150,36 @@ export async function copiar({ origem, destino, pagina = 5000, log = () => {} })
       let copiadas = 0;
       for (let d = 0; d < n; d += pagina) {
         const [{ dados }] = await origem(sqlPagina(t, pagina, d));
-        copiadas += (await destino.query(sqlInsercao(t), [dados])).rowCount;
+        copiadas += (await destino.query(sqlInsercao(t, { semConflito: !!filtro }), [dados])).rowCount;
       }
       relatorio.push({ tabela: `${t.esquema}.${t.tabela}`, origem: n, copiadas });
       if (n) log(`${t.esquema}.${t.tabela}: ${copiadas}/${n}`);
     }
-    for (const { sql } of (await destino.query(SQL_IDENTIDADES)).rows) await destino.query(sql);
+    for (const i of (await destino.query(SQL_IDENTIDADES)).rows) {
+      if (!filtro || filtro.has(chaveDe(i))) await destino.query(i.sql);
+    }
     await destino.query('commit');
   } catch (e) {
     await destino.query('rollback').catch(() => {});
     throw e;
   }
-  await destino.query('analyze');
+  if (filtro) for (const t of tabelas) await destino.query(`analyze ${nome(t)}`);
+  else await destino.query('analyze');
   return relatorio;
 }
 
 /** Contagem por tabela dos dois lados; devolve só as diferenças. */
-export async function conferirContagens({ origem, destino }) {
-  const tabelas = (await destino.query(SQL_TABELAS)).rows;
+export async function conferirContagens({ origem, destino, somente = null }) {
+  const filtro = filtroDe(somente);
+  const tabelas = (await destino.query(SQL_TABELAS)).rows.filter((t) => !filtro || filtro.has(chaveDe(t)));
   const diferencas = [];
   for (const t of tabelas) {
     const [{ n: o }] = await origem(sqlContagem(t));
     const { rows: [{ n: d }] } = await destino.query(sqlContagem(t));
     if (o !== d) diferencas.push({ tabela: `${t.esquema}.${t.tabela}`, origem: o, destino: d });
   }
-  const soNaOrigem = await tabelasSoNaOrigem({ origem, destino });
-  const colunasSoOrigem = await colunasSoNaOrigem({ origem, destino });
+  const soNaOrigem = await tabelasSoNaOrigem({ origem, destino, somente });
+  const colunasSoOrigem = await colunasSoNaOrigem({ origem, destino, somente });
   return { tabelas: tabelas.length, diferencas, soNaOrigem, colunasSoOrigem };
 }
 
@@ -167,12 +215,19 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const destino = new pg.Client({ connectionString: process.env.DESTINO_URL, ssl: { rejectUnauthorized: false } });
   await destino.connect();
   try {
-    const ja = (await destino.query('select count(*)::int as n from public.corretores')).rows[0].n;
-    if (ja > 0) { console.error(`destino já tem dados (${ja} corretores): recrie o banco antes de copiar.`); process.exit(1); }
-    const relatorio = await copiar({ origem, destino, log: (l) => console.log(l) });
+    const somente = tabelasPedidas(process.env.COPIAR_TABELAS);
+    if (somente) {
+      // Destino em uso: só as tabelas pedidas, sem sobrescrever nada do que já está lá.
+      console.log(`cópia parcial (ON CONFLICT DO NOTHING): ${somente.join(', ')}`);
+    } else {
+      const ja = (await destino.query('select count(*)::int as n from public.corretores')).rows[0].n;
+      if (ja > 0) { console.error(`destino já tem dados (${ja} corretores): recrie o banco antes de copiar (ou use COPIAR_TABELAS).`); process.exit(1); }
+    }
+    const relatorio = await copiar({ origem, destino, log: (l) => console.log(l), somente });
     const total = relatorio.reduce((s, r) => s + r.copiadas, 0);
     console.log(`\ncopiadas ${total} linhas em ${relatorio.filter((r) => r.copiadas).length} tabelas com dados (${relatorio.length} tabelas).`);
-    const conf = await conferirContagens({ origem, destino });
+    if (somente) console.log(relatorio.map((r) => `${r.tabela}: ${r.copiadas} novas de ${r.origem} na origem`).join('\n'));
+    const conf = await conferirContagens({ origem, destino, somente });
     console.log(conf.diferencas.length ? `DIFERENÇAS: ${JSON.stringify(conf.diferencas)}` : `contagens iguais nas ${conf.tabelas} tabelas.`);
     if (conf.soNaOrigem.length) console.log(`SÓ NA ORIGEM: ${JSON.stringify(conf.soNaOrigem)}`);
     if (conf.colunasSoOrigem.length) console.log(`COLUNAS SÓ NA ORIGEM: ${JSON.stringify(conf.colunasSoOrigem)}`);

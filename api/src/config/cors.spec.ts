@@ -170,6 +170,8 @@ describe('CORS das rotas públicas de outros sites', () => {
     expect(rotaPublicaComCors('/api/publico/imoveis')).toBe(true);
     expect(rotaPublicaComCors('/api/publico/imoveis/detalhe?id=x')).toBe(true);
     expect(rotaPublicaComCors('/API/Publico/Leads/?imovel_id=x')).toBe(true);
+    expect(rotaPublicaComCors('/api/publico/diagnostico')).toBe(true);
+    expect(rotaPublicaComCors('/api/diagnostico/manutencao')).toBe(false);
     expect(rotaPublicaComCors('/api/publico/imoveisx')).toBe(false);
     expect(rotaPublicaComCors('/api/publico/fachadas/1')).toBe(false);
     expect(rotaPublicaComCors('/api/integracoes/n8n/crm-upsert-lead')).toBe(false);

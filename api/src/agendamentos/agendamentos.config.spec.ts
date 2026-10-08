@@ -30,9 +30,9 @@ describe('agendamentos (pg_cron → BullMQ)', () => {
     expect(agendamentosLigados({ AGENDAMENTOS_ENABLED: 'true' })).toBe(true);
   });
 
-  it('os quatro jobs, com id de scheduler fixo e único', () => {
-    expect(AGENDAMENTOS.map((a) => a.nome)).toEqual(Object.keys(ORIGEM));
-    expect(new Set(AGENDAMENTOS.map((a) => a.schedulerId)).size).toBe(4);
+  it('os cinco jobs, com id de scheduler fixo e único', () => {
+    expect(AGENDAMENTOS.map((a) => a.nome)).toEqual([...Object.keys(ORIGEM), 'manutencao-diagnostico']);
+    expect(new Set(AGENDAMENTOS.map((a) => a.schedulerId)).size).toBe(5);
     for (const a of AGENDAMENTOS) expect(a.schedulerId).toBe(`agendamento-${a.nome}`);
     expect(agendamentoPorNome('sweeper-webhook-events')?.padrao).toBe('*/5 * * * *');
     expect(agendamentoPorNome('outro')).toBeUndefined();
@@ -45,6 +45,14 @@ describe('agendamentos (pg_cron → BullMQ)', () => {
     // O SELECT ganha só o alias "AS n" para o resultado ser lido.
     expect(normal(a.sql.text).replace(/ AS n$/, '')).toBe(cron.sql);
     expect(a.sql.values).toEqual([]);
+  });
+
+  it('manutenção do diagnóstico: só a função do banco, a cada 15 min', () => {
+    const a = agendamentoPorNome('manutencao-diagnostico')!;
+    expect(a.padrao).toBe('*/15 * * * *');
+    expect(normal(a.sql.text)).toBe('SELECT public.diagnostic_maintenance() AS n');
+    expect(a.sql.values).toEqual([]);
+    expect(a.toleranciaMs).toBe(30 * 60_000);
   });
 
   it('instantes em UTC, os mesmos do pg_cron do Supabase (BRT = UTC-3)', () => {

@@ -32,6 +32,17 @@ O UUID da sessão não é sua credencial. Um token aleatório separado é salvo 
 
 O aceite aparece antes da primeira resposta pessoal. A confirmação de envio acontece somente depois do commit no banco. Erros mantêm a resposta no campo e oferecem nova tentativa. Editar uma resposta anterior invalida as etapas posteriores para impedir dados de ramos incompatíveis.
 
+## Railway (API Lotti)
+
+Desde a virada, a produção usa a API. O front escolhe sozinho: com `VITE_API_URL`, chama a API; sem ela, as Edge Functions abaixo.
+
+- Banco: migration `api/prisma/migrations/20261008120000_diagnostico_conversacional` (o mesmo SQL das duas migrations do Supabase).
+- Conversa: `POST /api/publico/diagnostico`, CORS público sem credenciais. Mesmo corpo, mesmos status e respostas `{ error }`.
+- Worker: `POST /api/diagnostico/manutencao` com `Authorization: Bearer $DIAGNOSTIC_WORKER_SECRET` e `{ "action": "maintenance" }`.
+- Painel: `GET /api/admin/diagnosticos-crescimento` (RPC `diagnostic_admin_list`) e `GET /api/admin/diagnosticos-crescimento/:id`, como `authenticated` com `is_admin()`.
+- Variáveis: limite por IP com `DIAGNOSTIC_RATE_LIMIT_SECRET` ou `PUBLIC_RATE_LIMIT_SECRET`; IA com `DIAGNOSTIC_AI_ENABLED`, `DIAGNOSTIC_AI_DAILY_LIMIT` e `GEMINI_API_KEY`. O e-mail só sai com `DIAGNOSTIC_NOTIFICATIONS_ENABLED=true`, além de `EMAIL_API_KEY`/`RESEND_API_KEY`, `EMAIL_FROM`, `LEAD_NOTIFICATION_EMAIL` e, opcional, `DIAGNOSTIC_PUBLIC_URL`. O interruptor nasce desligado e a fila fica `pending`.
+- Linhas gravadas no Supabase antes da troca: `COPIAR_TABELAS=diagnostico node api/scripts/dados/copiar.mjs` (com `DESTINO_URL`). Copia só as nove tabelas `diagnostic_*`, com `ON CONFLICT DO NOTHING`, e pode rodar mais de uma vez.
+
 ## Banco
 
 Aplicar na ordem:

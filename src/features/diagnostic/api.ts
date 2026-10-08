@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { apiDisponivel } from '@/lib/api';
 import type { Question, DiagnosticSummary } from '../../../supabase/functions/_shared/diagnostic/types';
 
 const STORAGE_KEY = 'gt:diagnostic:session:v1';
@@ -98,14 +99,29 @@ export function diagnosticTracking() {
   return tracking;
 }
 
+/**
+ * Para onde vai a conversa. Com VITE_API_URL (produção no Railway), a rota pública da API Lotti, sem
+ * Authorization nem apikey: a credencial é o par session_id/token do corpo, como na Edge. Sem a
+ * variável, a Edge Function `diagnostic` do Supabase, como antes. Mesmo corpo e mesmas respostas.
+ */
+function diagnosticTarget(): { url: string; headers: Record<string, string> } | null {
+  if (apiDisponivel()) {
+    const apiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '');
+    return { url: `${apiUrl}/api/publico/diagnostico`, headers: { 'Content-Type': 'application/json' } };
+  }
+  const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/+$/, '');
+  const publicKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!baseUrl || !publicKey) return null;
+  return { url: `${baseUrl}/functions/v1/diagnostic`, headers: { 'Content-Type': 'application/json', apikey: publicKey } };
+}
+
 export async function diagnosticRequest(
   identity: DiagnosticIdentity,
   payload: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<DiagnosticResponse> {
-  const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/+$/, '');
-  const publicKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  if (!baseUrl || !publicKey) {
+  const target = diagnosticTarget();
+  if (!target) {
     throw new DiagnosticApiError('O diagnóstico está temporariamente indisponível. Tente novamente em alguns minutos.');
   }
   const controller = new AbortController();
@@ -114,9 +130,9 @@ export async function diagnosticRequest(
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) controller.abort();
   try {
-    const response = await fetch(`${baseUrl}/functions/v1/diagnostic`, {
+    const response = await fetch(target.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: publicKey },
+      headers: target.headers,
       body: JSON.stringify({ ...payload, ...identity }),
       signal: controller.signal,
     });

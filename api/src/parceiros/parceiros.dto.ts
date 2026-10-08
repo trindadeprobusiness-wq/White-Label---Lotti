@@ -339,6 +339,22 @@ export class ListarAcessosDto extends PaginaDto {
 
 export class ListarDiagnosticosDto extends PaginaDto {}
 
+/**
+ * Filtros de diagnostic_admin_list (Diagnóstico de Crescimento). Os limites de verdade são os da
+ * função (offset ≥ 0, limite 1–100, busca até 200 → 22023 'filtro inválido' → 400); aqui só o tipo.
+ */
+export class ListarDiagnosticosCrescimentoDto {
+  @ValidateIf(definido) @IsString({ message: 'Busca inválida.' }) @MaxLength(200, { message: 'Busca inválida.' }) busca?: string;
+  @ValidateIf(definido) @IsString({ message: 'Status inválido.' }) @MaxLength(40, { message: 'Status inválido.' }) status?: string;
+  @ValidateIf(definido) @IsString({ message: 'Temperatura inválida.' }) @MaxLength(10, { message: 'Temperatura inválida.' }) temperatura?: string;
+  @ValidateIf(definido) @IsString({ message: 'Segmento inválido.' }) @MaxLength(80, { message: 'Segmento inválido.' }) segmento?: string;
+  @ValidateIf(definido) @IsString({ message: 'Origem inválida.' }) @MaxLength(300, { message: 'Origem inválida.' }) origem?: string;
+  @ValidateIf(definido) @Type(() => Number) @IsInt({ message: 'Página inválida.' }) @Min(0, { message: 'Página inválida.' })
+  @Max(1_000_000, { message: 'Página inválida.' }) offset?: number;
+  @ValidateIf(definido) @Type(() => Number) @IsInt({ message: 'Tamanho de página inválido.' })
+  @Min(1, { message: 'Tamanho de página inválido.' }) @Max(100, { message: 'Tamanho de página inválido.' }) limite?: number;
+}
+
 export class PeriodoDto {
   @IsISO8601({}, { message: 'Informe o período.' }) inicio!: string;
   @IsISO8601({}, { message: 'Informe o período.' }) fim!: string;

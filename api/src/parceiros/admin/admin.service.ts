@@ -4,7 +4,7 @@ import { SupabaseClaims, TenantDb } from '../../prisma/tenant-db';
 import {
   CancelarLoteDto, CriarLinkDto, CriarParceiroDto, DefinirPercentualDto, DefinirStatusCorretorDto, EditarParceiroDto,
   EstornarReceitaDto, GerarLoteDto, LIMITE_LISTA, ListarAcessosDto, ListarAssinaturasDto, ListarAtendimentoDto,
-  ListarAuditoriaDto, ListarCancelamentosDto, ListarComissoesDto, ListarDiagnosticosDto, ListarLotesDto,
+  ListarAuditoriaDto, ListarCancelamentosDto, ListarComissoesDto, ListarDiagnosticosCrescimentoDto, ListarDiagnosticosDto, ListarLotesDto,
   ListarOrganizacoesDto, ListarPagamentosDto, ListarParceirosDto, ListarReceitaDto, ListarUsuariosDto, MarcarLotePagoDto,
   PaginaDto, PeriodoDto, POR_PAGINA, POR_PAGINA_AUDITORIA, POR_PAGINA_DIAGNOSTICOS, RegistrarAuditoriaDto,
   RegistrarCancelamentoDto, RegistrarPagamentoDto, RegistrarReceitaDto, SalvarConfigDto, StatusDiagnosticoDto,
@@ -426,6 +426,69 @@ export class AdminService {
          where id = ${id}::uuid returning to_jsonb(commercial_diagnostics.*) as linha`);
       if (r.length === 0) throw ERROS.diagnosticoNaoEncontrado();
       return r[0].linha;
+    });
+  }
+
+  // ------------------------------------------------------------ Diagnóstico de Crescimento
+
+  /**
+   * /admin/diagnosticos (useDiagnostics): a RPC diagnostic_admin_list, que exige is_admin() (42501 →
+   * 403 sem_permissao) e valida os filtros (22023 → 400). Os padrões 0/25 são os da função.
+   */
+  listarDiagnosticosCrescimento(claims: SupabaseClaims, q: ListarDiagnosticosCrescimentoDto): Promise<unknown> {
+    return this.rpc(claims, (tx) => tx.$queryRaw<Array<{ resultado: unknown }>>(Prisma.sql`
+      select public.diagnostic_admin_list(_search => ${texto(q.busca)}::text, _status => ${texto(q.status)}::text,
+        _temperature => ${texto(q.temperatura)}::text, _segment => ${texto(q.segmento)}::text,
+        _source => ${texto(q.origem)}::text, _offset => ${q.offset ?? 0}::int, _limit => ${q.limite ?? 25}::int) as resultado`));
+  }
+
+  /**
+   * /admin/diagnosticos/:id (useDiagnosticDetail): as mesmas cinco leituras que o front fazia pelo
+   * PostgREST, com as mesmas colunas (o token_hash nunca sai) e a mesma ordem. Rodam como
+   * `authenticated`, então a policy diagnostic_admin_read (is_admin()) decide o que aparece; o
+   * is_admin() de antes só troca o "não encontrado" de quem não é admin por um 403 claro.
+   */
+  diagnosticoCrescimento(claims: SupabaseClaims, id: string): Promise<{
+    session: Linha; answers: Linha[]; events: Linha[]; summary: Linha | null; notifications: Linha[];
+  }> {
+    return this.rodar(claims, async (tx) => {
+      const admin = await tx.$queryRaw<Array<{ ok: boolean }>>(Prisma.sql`select public.is_admin() as ok`);
+      if (admin[0]?.ok !== true) throw ERROS.semPermissao();
+      const sessao = await tx.$queryRaw<Array<{ linha: Linha }>>(Prisma.sql`
+        select jsonb_build_object('id', s.id, 'lead_id', s.lead_id, 'status', s.status, 'source', s.source,
+                 'utm_source', s.utm_source, 'utm_medium', s.utm_medium, 'utm_campaign', s.utm_campaign,
+                 'utm_content', s.utm_content, 'utm_term', s.utm_term, 'referrer', s.referrer,
+                 'started_at', s.started_at, 'last_activity_at', s.last_activity_at, 'completed_at', s.completed_at,
+                 'score', s.score, 'temperature', s.temperature,
+                 'lead', case when l.id is null then null else jsonb_build_object('id', l.id, 'name', l.name,
+                   'phone', l.phone, 'email', l.email, 'company', l.company, 'segment', l.segment, 'city', l.city) end) as linha
+          from public.diagnostic_sessions s
+          left join public.diagnostic_leads l on l.id = s.lead_id
+         where s.id = ${id}::uuid`);
+      if (sessao.length === 0) throw ERROS.diagnosticoNaoEncontrado();
+      const answers = await tx.$queryRaw<Array<{ linha: Linha }>>(Prisma.sql`
+        select jsonb_build_object('id', a.id, 'question_id', a.question_id, 'question', a.question, 'answer', a.answer,
+                 'position', a.position, 'created_at', a.created_at) as linha
+          from public.diagnostic_answers a where a.session_id = ${id}::uuid order by a.position, a.id`);
+      const events = await tx.$queryRaw<Array<{ linha: Linha }>>(Prisma.sql`
+        select jsonb_build_object('id', e.id, 'event_type', e.event_type, 'metadata', e.metadata, 'created_at', e.created_at) as linha
+          from public.diagnostic_events e where e.session_id = ${id}::uuid order by e.created_at, e.id limit ${200}::int`);
+      const summary = await tx.$queryRaw<Array<{ linha: Linha }>>(Prisma.sql`
+        select jsonb_build_object('summary', d.summary, 'primary_bottleneck', d.primary_bottleneck,
+                 'secondary_bottleneck', d.secondary_bottleneck, 'recommended_next_step', d.recommended_next_step,
+                 'source', d.source) as linha
+          from public.diagnostic_summaries d where d.session_id = ${id}::uuid`);
+      const notifications = await tx.$queryRaw<Array<{ linha: Linha }>>(Prisma.sql`
+        select jsonb_build_object('id', n.id, 'kind', n.kind, 'status', n.status, 'attempts', n.attempts,
+                 'sent_at', n.sent_at, 'last_error', n.last_error) as linha
+          from public.diagnostic_notifications n where n.session_id = ${id}::uuid order by n.kind`);
+      return {
+        session: sessao[0].linha,
+        answers: answers.map((l) => l.linha),
+        events: events.map((l) => l.linha),
+        summary: summary[0]?.linha ?? null,
+        notifications: notifications.map((l) => l.linha),
+      };
     });
   }
 

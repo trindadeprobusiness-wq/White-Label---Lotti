@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { chamarRpc, tabelaAdmin } from '@/lib/admin/api';
+import { AcessoNegadoError, BackOfficeNaoInstaladoError, chamarRpc, tabelaAdmin } from '@/lib/admin/api';
+import { apiDisponivel } from '@/lib/api';
+import { diagnosticoCrescimentoApi } from '@/lib/api/parceiros';
 import { useAuth } from '@/hooks/useAuth';
 
 export type DiagnosticStatus = 'started' | 'contact_captured' | 'in_progress' | 'completed' | 'abandoned';
@@ -53,6 +55,15 @@ export function useDiagnosticDetail(id?: string) {
   return useQuery({
     queryKey: ['admin', 'diagnostics', user?.id, 'detail', id], enabled: !!user && !!id,
     queryFn: async (): Promise<DiagnosticDetail> => {
+      // API Lotti: as mesmas cinco leituras numa rota só, com o is_admin() das policies.
+      if (apiDisponivel()) {
+        try {
+          return await diagnosticoCrescimentoApi(id!) as DiagnosticDetail;
+        } catch (erro) {
+          if (erro instanceof AcessoNegadoError || erro instanceof BackOfficeNaoInstaladoError) throw erro;
+          throw new Error('Não foi possível carregar este diagnóstico. Confira seu acesso e a instalação do módulo.');
+        }
+      }
       // Select explicit columns: session credentials never leave the server.
       const results = await Promise.all([
         tabelaAdmin('diagnostic_sessions').select('id,lead_id,status,source,utm_source,utm_medium,utm_campaign,utm_content,utm_term,referrer,started_at,last_activity_at,completed_at,score,temperature,lead:diagnostic_leads(id,name,phone,email,company,segment,city)').eq('id', id).single(),

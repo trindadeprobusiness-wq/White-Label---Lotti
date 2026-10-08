@@ -19,8 +19,12 @@ import type { AppEnv } from './env';
  * de refresh tem Path=/api/auth e nem viaja para elas.
  */
 
-/** Prefixos (com o /api do setGlobalPrefix) das rotas públicas que outros sites chamam. */
-export const ROTAS_CORS_PUBLICO = ['/api/publico/imoveis', '/api/publico/leads'] as const;
+/**
+ * Prefixos (com o /api do setGlobalPrefix) das rotas públicas que outros sites chamam. O diagnóstico
+ * de crescimento (antes a Edge `diagnostic`, também com '*') é chamado pela página /diagnostico do app
+ * e pode ser embutido no site institucional: nunca leva cookie nem Authorization.
+ */
+export const ROTAS_CORS_PUBLICO = ['/api/publico/imoveis', '/api/publico/leads', '/api/publico/diagnostico'] as const;
 
 /** Cabeçalhos que os clientes das Edge Functions mandavam (supabase-js manda authorization/apikey/x-client-info). */
 const CABECALHOS_PUBLICOS = ['authorization', 'x-client-info', 'apikey', 'content-type'];

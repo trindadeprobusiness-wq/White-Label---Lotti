@@ -5,7 +5,8 @@ import { SupabaseClaims } from '../../prisma/tenant-db';
 import {
   CancelarLoteDto, CriarLinkDto, CriarParceiroDto, DefinirPercentualDto, DefinirStatusCorretorDto, EditarParceiroDto,
   ElegiveisRepasseDto, EstornarReceitaDto, FORMATO_CHAVE_CONFIG, GerarLoteDto, ListarAcessosDto, ListarAssinaturasDto,
-  ListarAtendimentoDto, ListarAuditoriaDto, ListarCancelamentosDto, ListarComissoesDto, ListarDiagnosticosDto,
+  ListarAtendimentoDto, ListarAuditoriaDto, ListarCancelamentosDto, ListarComissoesDto, ListarDiagnosticosCrescimentoDto,
+  ListarDiagnosticosDto,
   ListarLotesDto, ListarOrganizacoesDto, ListarPagamentosDto, ListarParceirosDto, ListarReceitaDto, ListarUsuariosDto,
   MarcarLotePagoDto, PeriodoDto, RegistrarAuditoriaDto, RegistrarCancelamentoDto, RegistrarPagamentoDto,
   RegistrarReceitaDto, SalvarConfigDto, StatusDiagnosticoDto, TransicionarComissaoDto,
@@ -280,6 +281,17 @@ export class AdminController {
     @Claims() claims: SupabaseClaims, @Param('chave') chave: string, @Body() dto: SalvarConfigDto,
   ): Promise<unknown> {
     return this.admin.salvarConfig(claims, chaveValida(chave), dto);
+  }
+
+  // Diagnóstico de Crescimento (/admin/diagnosticos do painel): is_admin() na RPC e nas policies.
+  @Get('diagnosticos-crescimento')
+  listarDiagnosticosCrescimento(@Claims() claims: SupabaseClaims, @Query() q: ListarDiagnosticosCrescimentoDto): Promise<unknown> {
+    return this.admin.listarDiagnosticosCrescimento(claims, q);
+  }
+
+  @Get('diagnosticos-crescimento/:id')
+  diagnosticoCrescimento(@Claims() claims: SupabaseClaims, @Param('id', ID_DA_ROTA) id: string): Promise<unknown> {
+    return this.admin.diagnosticoCrescimento(claims, id);
   }
 
   @Get('diagnosticos')

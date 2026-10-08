@@ -1034,6 +1034,167 @@ model CrmTarefa {
   @@map("crm_tarefas")
 }
 
+/// Tabela public.diagnostic_ai_budgets — RLS ligado.
+model DiagnosticAiBudget {
+  budgetDay DateTime @id @map("budget_day") @db.Date
+  calls     Int      @default(0)
+
+  @@map("diagnostic_ai_budgets")
+}
+
+/// Tabela public.diagnostic_ai_usage — RLS ligado.
+model DiagnosticAiUsage {
+  sessionId  String   @id @map("session_id") @db.Uuid
+  reservedAt DateTime @default(now()) @map("reserved_at") @db.Timestamptz(6)
+  budgetDay  DateTime @map("budget_day") @db.Date
+
+  session DiagnosticSession @relation("diagnostic_ai_usage_session_id_fkey", fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("diagnostic_ai_usage")
+}
+
+/// Tabela public.diagnostic_answers — RLS ligado.
+/// 1 check constraint(s) só no SQL.
+model DiagnosticAnswer {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String   @map("session_id") @db.Uuid
+  questionId String   @map("question_id")
+  question   String
+  answer     Json
+  position   Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  session DiagnosticSession @relation("diagnostic_answers_session_id_fkey", fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([sessionId, questionId])
+  @@map("diagnostic_answers")
+}
+
+/// Tabela public.diagnostic_events — RLS ligado.
+model DiagnosticEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  eventType String   @map("event_type")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session DiagnosticSession @relation("diagnostic_events_session_id_fkey", fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sessionId, createdAt], map: "diagnostic_events_session")
+  @@map("diagnostic_events")
+}
+
+/// Tabela public.diagnostic_leads — RLS ligado.
+/// 2 check constraint(s) só no SQL.
+model DiagnosticLead {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  phone     String?
+  email     String?
+  company   String?
+  segment   String?
+  city      String?
+  status    String   @default("lead_iniciado")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  diagnosticSessions DiagnosticSession[] @relation("diagnostic_sessions_lead_id_fkey")
+
+  @@index([segment], map: "diagnostic_leads_segment")
+  @@map("diagnostic_leads")
+}
+
+/// Tabela public.diagnostic_notifications — RLS ligado.
+/// 2 check constraint(s) só no SQL.
+model DiagnosticNotification {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId      String    @map("session_id") @db.Uuid
+  kind           String
+  payload        Json
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  availableAt    DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  leaseId        String?   @map("lease_id") @db.Uuid
+  leaseUntil     DateTime? @map("lease_until") @db.Timestamptz(6)
+  firstAttemptAt DateTime? @map("first_attempt_at") @db.Timestamptz(6)
+  lastError      String?   @map("last_error")
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session DiagnosticSession @relation("diagnostic_notifications_session_id_fkey", fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([sessionId, kind])
+  @@index([status, availableAt], map: "diagnostic_notifications_due")
+  @@map("diagnostic_notifications")
+}
+
+/// Tabela public.diagnostic_rate_limits — RLS ligado.
+model DiagnosticRateLimit {
+  scope       String
+  subjectHash String   @map("subject_hash")
+  hits        Int
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@id([scope, subjectHash])
+  @@map("diagnostic_rate_limits")
+}
+
+/// Tabela public.diagnostic_sessions — RLS ligado.
+/// 4 check constraint(s) só no SQL.
+model DiagnosticSession {
+  id             String    @id @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  tokenHash      String    @map("token_hash")
+  status         String    @default("started")
+  source         String?
+  utmSource      String?   @map("utm_source")
+  utmMedium      String?   @map("utm_medium")
+  utmCampaign    String?   @map("utm_campaign")
+  utmContent     String?   @map("utm_content")
+  utmTerm        String?   @map("utm_term")
+  referrer       String?
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  consentAt      DateTime  @default(now()) @map("consent_at") @db.Timestamptz(6)
+  consentVersion String    @default("diagnostic-v1") @map("consent_version")
+  score          Int?
+  temperature    String?
+  version        Int       @default(0)
+
+  lead                    DiagnosticLead?          @relation("diagnostic_sessions_lead_id_fkey", fields: [leadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  diagnosticAiUsage       DiagnosticAiUsage?       @relation("diagnostic_ai_usage_session_id_fkey")
+  diagnosticAnswers       DiagnosticAnswer[]       @relation("diagnostic_answers_session_id_fkey")
+  diagnosticEvents        DiagnosticEvent[]        @relation("diagnostic_events_session_id_fkey")
+  diagnosticNotifications DiagnosticNotification[] @relation("diagnostic_notifications_session_id_fkey")
+  diagnosticSummary       DiagnosticSummary?       @relation("diagnostic_summaries_session_id_fkey")
+
+  @@index([status, lastActivityAt], map: "diagnostic_sessions_activity")
+  @@index([leadId], map: "diagnostic_sessions_lead")
+  @@index([startedAt(sort: Desc), id(sort: Desc)], map: "diagnostic_sessions_started")
+  @@index([temperature], map: "diagnostic_sessions_temperature")
+  @@map("diagnostic_sessions")
+}
+
+/// Tabela public.diagnostic_summaries — RLS ligado.
+/// 1 check constraint(s) só no SQL.
+model DiagnosticSummary {
+  sessionId           String   @id @map("session_id") @db.Uuid
+  summary             String
+  primaryBottleneck   String   @map("primary_bottleneck")
+  secondaryBottleneck String?  @map("secondary_bottleneck")
+  recommendedNextStep String   @map("recommended_next_step")
+  userMessage         String   @map("user_message")
+  source              String
+  aiPayload           Json?    @map("ai_payload")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session DiagnosticSession @relation("diagnostic_summaries_session_id_fkey", fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("diagnostic_summaries")
+}
+
 /// Tabela public.documentos — RLS ligado.
 /// Gatilhos: auditar_suporte, tr_documentos_updated_at.
 model Documento {
