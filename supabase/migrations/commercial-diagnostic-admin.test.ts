@@ -13,10 +13,12 @@ beforeAll(async () => {
     CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT coalesce(current_setting('test.admin',true),'false')='true' $$;`);
   await db.exec(sql('20261007191137_diagnostic_conversational_mvp.sql'));
   await db.exec(sql('20261007191140_diagnostic_admin.sql'));
+  await db.exec(sql('20261008000000_diagnostic_abandonment_notifications.sql'));
+  await db.exec(sql('20261008010000_diagnostic_follow_up.sql'));
   await db.query(`INSERT INTO diagnostic_leads(id,name,email,company,segment) VALUES($1,'Pessoa QA','pessoa@example.test','Empresa QA','real_estate')`, [lead]);
   await db.query(`INSERT INTO diagnostic_sessions(id,lead_id,token_hash,status,utm_source,score,temperature,completed_at) VALUES($1,$2,$3,'completed','instagram',12,'HOT',now())`, [session, lead, token]);
   await db.query(`INSERT INTO diagnostic_events(session_id,event_type) VALUES($1,'cta_clicked')`, [session]);
-  await db.query(`INSERT INTO diagnostic_sessions(id,token_hash,status,last_activity_at,source) VALUES(gen_random_uuid(),$1,'started',now()-interval '25 hours','direct')`, [token]);
+  await db.query(`INSERT INTO diagnostic_sessions(id,token_hash,status,last_activity_at,source) VALUES(gen_random_uuid(),$1,'started',now()-interval '11 minutes','direct')`, [token]);
 }, 30_000);
 afterAll(async () => { await db?.close(); });
 
@@ -50,5 +52,34 @@ describe('diagnostic admin with real Postgres policies', () => {
     expect((await list('_offset => 1, _limit => 1')).items).toHaveLength(1);
     expect((await list("_search => 'nothing'")).items).toHaveLength(0);
     await expect(list('_limit => 1000')).rejects.toThrow(/filtro inválido/);
+  });
+  it('restricts follow-up writes to admins and validates stage and private note length', async () => {
+    await db.exec("SET test.admin='false'; SET ROLE anon");
+    await expect(db.query('SELECT diagnostic_admin_follow_up($1,$2,$3)', [session, 'contacted', 'Nota'])).rejects.toThrow(/permission denied/);
+    await db.exec('RESET ROLE; SET ROLE authenticated');
+    await expect(db.query('SELECT diagnostic_admin_follow_up($1,$2,$3)', [session, 'contacted', 'Nota'])).rejects.toThrow(/acesso negado/);
+    await db.exec("RESET ROLE; SET test.admin='true'; SET ROLE authenticated");
+    await expect(db.query('SELECT diagnostic_admin_follow_up($1,$2,$3)', [session, 'invalid', ''])).rejects.toThrow(/acompanhamento inválido/);
+    await expect(db.query('SELECT diagnostic_admin_follow_up($1,$2,$3)', [session, 'contacted', 'x'.repeat(3001)])).rejects.toThrow(/acompanhamento inválido/);
+    const result = await db.query<{ value: Record<string, unknown> }>('SELECT diagnostic_admin_follow_up($1,$2,$3) AS value', [session, 'contacted', '  Retomar na próxima semana  ']);
+    expect(result.rows[0].value).toMatchObject({ follow_up_status: 'contacted', follow_up_notes: 'Retomar na próxima semana' });
+    expect(result.rows[0].value.last_contact_at).toBeTruthy();
+    await db.query('SELECT diagnostic_admin_follow_up($1,$2,$3)', [session, 'contacted', 'Retomar na próxima semana']);
+    const events = await db.query<{ metadata: Record<string, unknown> }>("SELECT metadata FROM diagnostic_events WHERE session_id=$1 AND event_type='commercial_follow_up_updated'", [session]);
+    expect(events.rows).toEqual([{ metadata: { status: 'contacted', notes_updated: true } }]);
+    const listing = await list();
+    expect(JSON.stringify(listing)).toContain('contacted');
+    expect(JSON.stringify(listing)).not.toContain('Retomar na próxima semana');
+    await db.exec('RESET ROLE');
+  });
+  it('returns the full private conversation without tokens or email payloads to the authorized backend', async () => {
+    await db.exec("SET test.admin='false'; SET ROLE authenticated");
+    await expect(db.query('SELECT diagnostic_admin_detail($1)', [session])).rejects.toThrow(/acesso negado/);
+    await db.exec(`RESET ROLE; SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}'`);
+    const result = await db.query<{ value: Record<string, unknown> }>('SELECT diagnostic_admin_detail($1) AS value', [session]);
+    expect(result.rows[0].value).toHaveProperty('session.lead.follow_up_notes');
+    expect(JSON.stringify(result.rows[0].value)).not.toContain('token_hash');
+    expect(JSON.stringify(result.rows[0].value)).not.toContain(token);
+    await db.exec('RESET ROLE; RESET request.jwt.claims');
   });
 });

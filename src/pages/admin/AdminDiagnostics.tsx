@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDiagnostics, diagnosticStatusLabels, DIAGNOSTICS_PAGE_SIZE, type DiagnosticFilters } from '@/hooks/admin/useDiagnostics';
 import { segmentLabel, getQuestion } from '../../../supabase/functions/_shared/diagnostic/engine';
+import { DiagnosticContactActions } from '@/features/diagnostic/DiagnosticContactActions';
+import { followUpLabels } from '@/features/diagnostic/contact-links';
 
 const segments = ['real_estate', 'construction', 'saas', 'health', 'automotive', 'food', 'services', 'ecommerce', 'other'];
 const defaults: DiagnosticFilters = { search: '', status: '', temperature: '', segment: '', source: '', page: 1 };
@@ -31,7 +33,7 @@ export default function AdminDiagnostics() {
         ['Inícios', metrics?.started, 'Sessões iniciadas'],
         ['Contatos recuperáveis', metrics?.contacts, metrics ? `${percent(metrics.contacts, metrics.started)} dos inícios` : ''],
         ['Concluídos', metrics?.completed, metrics ? `${percent(metrics.completed, metrics.started)} dos inícios` : ''],
-        ['Abandonados', metrics?.abandoned, '24 horas sem atividade'],
+        ['Abandonados', metrics?.abandoned, '10 minutos sem atividade'],
       ].map(([label, value, subtitle]) => <div key={label} className="rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="my-1 text-3xl font-semibold tabular-nums">{value ?? '—'}</p><p className="text-xs text-muted-foreground">{subtitle}</p></div>)}
     </div>
     <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -43,13 +45,13 @@ export default function AdminDiagnostics() {
     </div>
     {Object.entries(filters).some(([key, value]) => key !== 'page' && value) && <Button variant="ghost" size="sm" className="mb-3" onClick={() => setFilters(defaults)}>Limpar filtros</Button>}
     {query.isLoading ? <p role="status" className="py-12 text-center text-muted-foreground">Carregando diagnósticos…</p> : query.error ? <EstadoErro erro={query.error} aoTentarNovamente={() => void query.refetch()} /> : !query.data?.items.length ? <EstadoVazio titulo="Nenhum diagnóstico neste recorte" descricao="Os primeiros contatos aparecerão aqui assim que forem salvos na conversa." /> : <>
-      <div className="overflow-hidden rounded-xl border bg-card"><Table><TableHeader><TableRow>{['Nome / empresa', 'Contato', 'Segmento', 'Score', 'Temperatura', 'Status', 'Origem', 'Data'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader><TableBody>
+      <div className="overflow-hidden rounded-xl border bg-card"><Table><TableHeader><TableRow>{['Nome / empresa', 'Contato', 'Segmento', 'Score', 'Temperatura', 'Status', 'Acompanhamento', 'Origem', 'Data', 'Entrar em contato'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader><TableBody>
         {query.data.items.map(row => <TableRow key={row.id}>
           <TableCell className="min-w-40"><Link className="font-medium underline-offset-4 hover:underline focus-visible:underline" to={`/admin/diagnosticos/${row.id}`}>{row.lead?.name || 'Sem contato ainda'}</Link><p className="text-xs text-muted-foreground">{row.lead?.company || '—'}</p></TableCell>
           <TableCell className="text-xs"><div>{row.lead?.phone || '—'}</div><div>{row.lead?.email}</div></TableCell>
           <TableCell>{row.lead?.segment ? segmentLabel(row.lead.segment) : '—'}</TableCell>
           <TableCell>{row.score ?? '—'}</TableCell><TableCell><Badge variant={row.temperature === 'HOT' ? 'default' : 'secondary'}>{row.temperature || 'Sem avaliação'}</Badge></TableCell>
-          <TableCell className="whitespace-nowrap">{diagnosticStatusLabels[row.status]}</TableCell><TableCell>{row.utm_source || row.source || 'Direto'}</TableCell><TableCell className="whitespace-nowrap">{new Date(row.started_at).toLocaleDateString('pt-BR')}</TableCell>
+          <TableCell className="whitespace-nowrap">{diagnosticStatusLabels[row.status]}</TableCell><TableCell className="whitespace-nowrap">{row.lead ? followUpLabels[row.lead.follow_up_status || 'new'] : '—'}</TableCell><TableCell>{row.utm_source || row.source || 'Direto'}</TableCell><TableCell className="whitespace-nowrap">{new Date(row.started_at).toLocaleDateString('pt-BR')}</TableCell><TableCell><DiagnosticContactActions lead={row.lead} compact /></TableCell>
         </TableRow>)}
       </TableBody></Table></div>
       <div className="mt-4"><PaginacaoAdmin pagina={filters.page} porPagina={DIAGNOSTICS_PAGE_SIZE} total={query.data.total} aoMudarPagina={page => setFilters(previous => ({ ...previous, page }))} /></div>

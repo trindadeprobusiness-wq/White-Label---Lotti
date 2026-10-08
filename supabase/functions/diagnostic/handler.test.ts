@@ -27,6 +27,7 @@ beforeAll(async () => {
     CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;`);
   await db.exec(sql('20261007191137_diagnostic_conversational_mvp.sql'));
   await db.exec(sql('20261007191140_diagnostic_admin.sql'));
+  await db.exec(sql('20261008000000_diagnostic_abandonment_notifications.sql'));
 }, 30_000);
 afterAll(async () => { await db?.close(); });
 
@@ -36,7 +37,10 @@ const client = {
     const parameters = entries.map(([, value]) => value && typeof value === 'object' ? JSON.stringify(value) : value);
     const named = entries.map(([key], index) => `${key} => $${index + 1}`).join(', ');
     try {
-      const result = await db.query(`SELECT public.${name}(${named}) AS value`, parameters as (string | number | boolean | null)[]);
+      const query = name === 'diagnostic_claim_notifications'
+        ? `SELECT coalesce(jsonb_agg(to_jsonb(n)), '[]'::jsonb) AS value FROM public.${name}(${named}) n`
+        : `SELECT public.${name}(${named}) AS value`;
+      const result = await db.query(query, parameters as (string | number | boolean | null)[]);
       return { data: result.rows[0]?.value ?? null, error: null };
     } catch (error) {
       return { data: null, error: { message: error instanceof Error ? error.message : 'database error' } };
@@ -70,13 +74,24 @@ describe('diagnostic HTTP handler with the production PostgreSQL migrations', ()
     expect(lead.rows[0]).toMatchObject({ name: 'Ana QA', phone: '+5562999999999', status: 'lead_iniciado' });
     expect(result.body.session.status).toBe('contact_captured');
     expect(await db.query('SELECT kind FROM diagnostic_notifications WHERE session_id=$1', [ids.abandoned])).toMatchObject({ rows: [{ kind: 'started' }] });
-    await db.query("UPDATE diagnostic_sessions SET last_activity_at=now()-interval '25 hours' WHERE id=$1", [ids.abandoned]);
+    await db.query("UPDATE diagnostic_sessions SET last_activity_at=now()-interval '9 minutes' WHERE id=$1", [ids.abandoned]);
+    expect((await client.rpc('diagnostic_maintenance')).data).toBe(0);
+    await db.query("UPDATE diagnostic_sessions SET last_activity_at=now()-interval '10 minutes 1 second' WHERE id=$1", [ids.abandoned]);
     const maintenance = await client.rpc('diagnostic_maintenance');
     expect(maintenance.data).toBe(1);
     expect((await db.query('SELECT status FROM diagnostic_sessions WHERE id=$1', [ids.abandoned])).rows[0].status).toBe('abandoned');
+    await client.rpc('diagnostic_maintenance');
+    expect((await db.query("SELECT count(*)::int AS total FROM diagnostic_notifications WHERE session_id=$1 AND kind='abandoned'", [ids.abandoned])).rows[0].total).toBe(1);
     result = await post(ids.abandoned, { action: 'resume' });
     expect(result.body.session.status).toBe('in_progress');
     expect(result.body.answers).toMatchObject({ name: 'Ana QA', contact: '+5562999999999' });
+    const claim = await client.rpc('diagnostic_claim_notifications', { p_session: ids.abandoned });
+    expect((claim.data as { kind: string }[]).map(row => row.kind)).toEqual(['started']);
+    result = await answer(ids.abandoned, result.body, 'company', 'Empresa após retomada');
+    await db.query("UPDATE diagnostic_sessions SET last_activity_at=now()-interval '11 minutes' WHERE id=$1", [ids.abandoned]);
+    await client.rpc('diagnostic_maintenance');
+    const partial = await client.rpc('diagnostic_claim_notifications', { p_session: ids.abandoned });
+    expect(partial.data).toMatchObject([{ kind: 'abandoned', payload: { answers: { company: 'Empresa após retomada' } } }]);
   });
 
   it('completes the real-estate branch, computes score, summary, UTM and unique notification outbox rows', async () => {
@@ -104,6 +119,10 @@ describe('diagnostic HTTP handler with the production PostgreSQL migrations', ()
     expect(session.rows[0]).toMatchObject({ score: 16, temperature: 'HOT', utm_source: 'instagram', utm_term: 'growth' });
     const notifications = await db.query<{ kind: string }>('SELECT kind FROM diagnostic_notifications WHERE session_id=$1 ORDER BY kind', [ids.property]);
     expect(notifications.rows.map(row => row.kind)).toEqual(['completed','started']);
+    await db.query("INSERT INTO diagnostic_notifications(session_id,kind,payload) VALUES ($1,'abandoned',diagnostic_snapshot($1))", [ids.property]);
+    const claim = await client.rpc('diagnostic_claim_notifications', { p_session: ids.property });
+    expect((claim.data as { kind: string }[]).map(row => row.kind).sort()).toEqual(['completed','started']);
+    expect((await db.query("SELECT status,last_error FROM diagnostic_notifications WHERE session_id=$1 AND kind='abandoned'", [ids.property])).rows[0]).toMatchObject({ status: 'dead', last_error: 'session_completed' });
     expect(getQuestions({ segment: 'real_estate' }).map(item => item.id)).toContain('real_estate_type');
   });
 
@@ -122,5 +141,15 @@ describe('diagnostic HTTP handler with the production PostgreSQL migrations', ()
     expect(snapshot.next_question.id).toBe('revenue');
     expect(snapshot.answers).not.toHaveProperty('real_estate_type');
     expect(snapshot.answers).not.toHaveProperty('brokers');
+  });
+
+  it('does not queue a partial notification before a recoverable contact exists', async () => {
+    const sessionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    let result = await post(sessionId, { action: 'start', consent: true });
+    result = await answer(sessionId, result.body, 'name', 'Sem contato');
+    expect(result.status).toBe(200);
+    await db.query("UPDATE diagnostic_sessions SET last_activity_at=now()-interval '11 minutes' WHERE id=$1", [sessionId]);
+    await client.rpc('diagnostic_maintenance');
+    expect((await db.query('SELECT count(*)::int AS total FROM diagnostic_notifications WHERE session_id=$1', [sessionId])).rows[0].total).toBe(0);
   });
 });

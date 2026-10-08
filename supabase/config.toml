@@ -72,6 +72,10 @@ verify_jwt = false
 [functions.diagnostic-notifications]
 verify_jwt = false
 
+# Validates login and current administrator roles against the existing Railway API.
+[functions.diagnostic-admin]
+verify_jwt = false
+
 [auth]
 additional_redirect_urls = [
   "https://app.plataformalotti.com.br/nova-senha",
