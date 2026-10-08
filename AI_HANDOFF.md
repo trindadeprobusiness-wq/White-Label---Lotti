@@ -2416,3 +2416,10 @@ credencial); nao foi contornada.
 - **Revisão adversarial** (4 lentes + cético por achado): nenhuma brecha de cobrança/acesso; 4 problemas de tela confirmados e corrigidos no PR, cada um com teste que falha sem a correção. Suíte: 1307 passando; `tsc` sem erro novo.
 - **Decisão pendente do dono:** se a conta assinar plano pago, a isenção acaba e valem os limites do plano (Essencial = 5 aluguéis; a conta tem 16). Isso é o desenho original da cobrança, não foi alterado.
 - Diário — Claude: a regra de isenção agora mora numa função só, usada pelo banco e pela tela; antes a tela tinha uma cópia própria que divergia.
+
+### 2026-10-08 — Codex (diagnósticos e acompanhamento comercial)
+- Worker e notificações de início/conclusão publicados; cron autenticado a cada minuto instalado e verificado ativo. Migration 20261008000000 aplicada/registrada; abandono com contato após 10 minutos gera parcial único. E-mails iniciais e finais confirmados na caixa de entrada autorizada, sem depender apenas de aceitação do provedor.
+- Backend diagnostic-admin publicado com autenticação por sessão e papéis conferidos pela API Railway; chamadas sem sessão retornam 401. Migration 20261008010000 aplicada/registrada com acompanhamento, notas privadas e RPCs administrativas. Frontend acrescenta contato WhatsApp/e-mail, etapas e notas; publicação do frontend ainda pendente nesta entrada.
+- Verificação: 25 testes direcionados passaram em sete arquivos; ESLint direcionado, bundle da Edge Function, build Vite e diff --check passaram. Parcial de abandono validado em testes; entrega de parcial real ainda não observada.
+- Diário — Codex: corrigida integração de autenticação do painel sem modificar o login existente; alterações do checkout original preservadas.
+

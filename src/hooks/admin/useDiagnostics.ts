@@ -1,13 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
-import { AcessoNegadoError, BackOfficeNaoInstaladoError, chamarRpc, tabelaAdmin } from '@/lib/admin/api';
-import { apiDisponivel } from '@/lib/api';
-import { diagnosticoCrescimentoApi } from '@/lib/api/parceiros';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { diagnosticAdminRequest } from '@/features/diagnostic/admin-api';
 import { useAuth } from '@/hooks/useAuth';
+import type { FollowUpStatus } from '@/features/diagnostic/contact-links';
 
 export type DiagnosticStatus = 'started' | 'contact_captured' | 'in_progress' | 'completed' | 'abandoned';
 export interface DiagnosticLead {
   id: string; name: string; phone: string | null; email: string | null;
   company: string | null; segment: string | null; city: string | null;
+  follow_up_status: FollowUpStatus; follow_up_notes?: string; last_contact_at: string | null;
 }
 export interface DiagnosticRow {
   id: string; lead_id: string | null; status: DiagnosticStatus; source: string | null;
@@ -40,13 +40,8 @@ export function useDiagnostics(filters: DiagnosticFilters) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['admin', 'diagnostics', user?.id, filters], enabled: !!user,
-    queryFn: () => chamarRpc<DiagnosticList>('diagnostic_admin_list', {
-      _search: filters.search.trim() || null, _status: filters.status || null,
-      _temperature: filters.temperature || null, _segment: filters.segment || null,
-      _source: filters.source || null, _offset: (filters.page - 1) * DIAGNOSTICS_PAGE_SIZE,
-      _limit: DIAGNOSTICS_PAGE_SIZE,
-    }),
-    staleTime: 15_000, retry: false,
+    queryFn: () => diagnosticAdminRequest<DiagnosticList>({ action: 'list', filters }),
+    staleTime: 15_000, refetchInterval: 30_000, retry: false,
   });
 }
 
@@ -54,27 +49,14 @@ export function useDiagnosticDetail(id?: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['admin', 'diagnostics', user?.id, 'detail', id], enabled: !!user && !!id,
-    queryFn: async (): Promise<DiagnosticDetail> => {
-      // API Lotti: as mesmas cinco leituras numa rota só, com o is_admin() das policies.
-      if (apiDisponivel()) {
-        try {
-          return await diagnosticoCrescimentoApi(id!) as DiagnosticDetail;
-        } catch (erro) {
-          if (erro instanceof AcessoNegadoError || erro instanceof BackOfficeNaoInstaladoError) throw erro;
-          throw new Error('Não foi possível carregar este diagnóstico. Confira seu acesso e a instalação do módulo.');
-        }
-      }
-      // Select explicit columns: session credentials never leave the server.
-      const results = await Promise.all([
-        tabelaAdmin('diagnostic_sessions').select('id,lead_id,status,source,utm_source,utm_medium,utm_campaign,utm_content,utm_term,referrer,started_at,last_activity_at,completed_at,score,temperature,lead:diagnostic_leads(id,name,phone,email,company,segment,city)').eq('id', id).single(),
-        tabelaAdmin('diagnostic_answers').select('id,question_id,question,answer,position,created_at').eq('session_id', id).order('position'),
-        tabelaAdmin('diagnostic_events').select('id,event_type,metadata,created_at').eq('session_id', id).order('created_at').limit(200),
-        tabelaAdmin('diagnostic_summaries').select('summary,primary_bottleneck,secondary_bottleneck,recommended_next_step,source').eq('session_id', id).maybeSingle(),
-        tabelaAdmin('diagnostic_notifications').select('id,kind,status,attempts,sent_at,last_error').eq('session_id', id).order('kind'),
-      ]);
-      for (const result of results) if (result.error) throw new Error('Não foi possível carregar este diagnóstico. Confira seu acesso e a instalação do módulo.');
-      const [session, answers, events, summary, notifications] = results;
-      return { session: session.data, answers: answers.data, events: events.data, summary: summary.data, notifications: notifications.data } as unknown as DiagnosticDetail;
-    }, retry: false,
+    queryFn: () => diagnosticAdminRequest<DiagnosticDetail>({ action: 'detail', session_id: id }), retry: false,
+  });
+}
+
+export function useDiagnosticFollowUp(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ status, notes }: { status: FollowUpStatus; notes: string }) => diagnosticAdminRequest<DiagnosticLead>({ action: 'follow_up', session_id: sessionId, status, notes }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics'] }),
   });
 }

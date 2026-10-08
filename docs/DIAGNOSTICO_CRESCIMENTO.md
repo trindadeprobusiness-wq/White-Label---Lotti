@@ -128,9 +128,9 @@ O limite diário de chamadas é um orçamento operacional conservador; não é u
 
 As notificações são criadas na mesma transação da captura/conclusão. `UNIQUE(session_id, kind)` evita novos e-mails a cada resposta. O worker usa claim com lease e idempotência do Resend, com retentativas limitadas dentro da janela de deduplicação. Falhas nunca apagam leads. Aceitação pelo provedor não equivale a entrega na caixa de entrada.
 
-Publicar `diagnostic` e `diagnostic-notifications` depois das migrations. `verify_jwt=false` é intencional: a primeira usa token de sessão, a segunda usa segredo interno. O acesso administrativo continua com Supabase Auth e RLS. Não executar um `db push` amplo neste repositório sem reconciliar as migrations anteriores já registradas no handoff.
+Publicar `diagnostic` e `diagnostic-notifications` depois das migrations. `verify_jwt=false` é intencional: a primeira usa token de sessão, a segunda usa segredo interno. O painel usa `diagnostic-admin`: o servidor valida a sessão e os papéis atuais na API Railway (`/api/admin/papeis`), aceita apenas admin/super_admin e consulta RPCs privadas. Sessões Supabase existentes também são verificadas pela mesma API. Configure `DIAGNOSTIC_AUTH_API_URL` com a URL HTTPS da API. RLS permanece ativa, sem acesso público aos leads. Não executar um `db push` amplo neste repositório sem reconciliar as migrations anteriores já registradas no handoff.
 
-Agendar a execução do worker a cada cinco minutos com a credencial interna. A manutenção marca abandonos, limpa contadores vencidos e processa notificações pendentes. Sem agendamento, a persistência continua funcionando; reenvio após falha e marcação materializada de abandono dependem da próxima execução. Nunca expor o segredo do cron no browser ou em arquivos versionados.
+Agendar a execução do worker a cada minuto com a credencial interna, usando `supabase/operations/diagnostic-notifications-cron.sql` e Supabase Vault. Após 10 minutos sem atividade, sessões com contato geram um e-mail parcial com todas as respostas salvas (normalmente em 10–11 minutos, sujeito à disponibilidade do provedor). Cada sessão recebe no máximo uma notificação inicial, uma parcial por abandono e uma final. Retomar a conversa adia um parcial ainda não enviado; concluir cancela o parcial pendente. A manutenção marca abandonos, limpa contadores vencidos e processa notificações pendentes. Sem agendamento, a persistência continua funcionando; reenvio após falha e marcação materializada de abandono dependem da próxima execução. Nunca expor o segredo do cron no browser ou em arquivos versionados.
 
 ## Analytics
 
@@ -142,7 +142,7 @@ UTMs (`source`, `medium`, `campaign`, `content`, `term`) são capturadas no iní
 
 O relatório de execução fica em `docs/DIAGNOSTICO_QA.md`. Testes de banco usam PostgreSQL/PGlite com as migrations reais. O teste do navegador usa a interface real e o handler real com banco local; provedores externos são controlados no ambiente de teste, sem enviar dados fictícios para clientes.
 
-Confirmar em ambiente publicado: migrations aplicadas, functions ativas, secrets de e-mail, remetente validado, destinatário, cron autenticado, papéis administrativos e entrega dos dois e-mails. Não declarar entrega real a partir de mock, fila ou HTTP 200 do provedor.
+Confirmar em ambiente publicado: migrations aplicadas, functions ativas, secrets de e-mail, remetente validado, destinatário, cron autenticado, papéis administrativos e entrega dos e-mails inicial, parcial e final. Não declarar entrega real a partir de mock, fila ou HTTP 200 do provedor.
 
 ## Próximas fases
 
@@ -152,3 +152,7 @@ Confirmar em ambiente publicado: migrations aplicadas, functions ativas, secrets
 4. Testes A/B de extensão do fluxo imobiliário e medição consentida de visitas à entrada.
 
 Referências oficiais consultadas: [segurança de Edge Functions](https://supabase.com/docs/guides/functions/auth), [envio com Resend](https://resend.com/docs/api-reference/emails/send-email), [idempotência de e-mails](https://resend.com/docs/dashboard/emails/idempotency-keys).
+
+## Acompanhamento comercial
+
+O painel permite abrir WhatsApp ou um rascunho de e-mail, consultar a conversa inteira e registrar etapa (novo, contatado, reunião, ganho, perdido) e anotações privadas. Nenhuma mensagem é enviada automaticamente ao clicar no contato. O backend valida as alterações e registra evento de acompanhamento. As notas não entram em notificações ao visitante nem na listagem geral.
