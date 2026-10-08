@@ -10,6 +10,7 @@ import {
 import { checarCota, ClienteSql, consumirLimiteIa, COTA_ASSISTENTE, registrarUso } from './cotas';
 import { FERRAMENTAS_ASSISTENTE } from './ferramentas';
 import { FerramentasIaService } from './ferramentas.service';
+import { modeloReserva } from '../contratos/ia/gemini';
 import { chatIa, chaveGemini, estimarUso, FetchImpl, modeloRapido } from './gemini';
 import { AssistenteDto } from './ia.dto';
 import { codigoDe, erroApi, IA_INDISPONIVEL, SEM_CORRETOR, traduzirErroBanco } from './ia.erros';
@@ -20,6 +21,7 @@ import { finalizarExecucao, FimExecucao, iniciarExecucao, registrarFerramenta } 
 export const MENSAGENS_POR_MINUTO = 30;
 export const MAX_MENSAGENS_CONTEXTO = 20;
 export const TIMEOUT_ASSISTENTE_MS = 60_000;
+export const ERRO_DEMOROU = 'A IA demorou demais para responder. Tente de novo.';
 
 /** Eventos do stream, no formato exato da Edge Function: data: {"type":...}. */
 export type EventoAssistente =
@@ -221,6 +223,8 @@ export class AssistenteService {
     const atuais = [...s.mensagens];
     const uso = () => estimarUso(providerInputChars, outputChars);
     const fim = (f: Omit<FimExecucao, 'latencyMs'>) => finalizarExecucao(this.sql, s.runId, { ...f, latencyMs: Date.now() - s.inicio });
+    let modelo = s.modelo;
+    let usouReserva = false;
 
     try {
       for (;;) {
@@ -233,65 +237,77 @@ export class AssistenteService {
         }
 
         providerInputChars += JSON.stringify({ messages: atuais, tools: FERRAMENTAS_ASSISTENTE }).length;
-        const resposta = await chatIa({
-          chave: s.chave,
-          modelo: s.modelo,
-          corpo: { messages: atuais, tools: FERRAMENTAS_ASSISTENTE, stream: true },
-          politica: { timeoutMs: TIMEOUT_ASSISTENTE_MS, sinal },
-          fetchImpl: this.fetchImpl,
-        });
-
-        if (!resposta.ok || !resposta.body) {
-          this.log.error(`IA_ASSISTENTE status=${resposta.status}`);
-          falhou = true;
-          await resposta.body?.cancel().catch(() => undefined);
-          await fim({ status: 'failed', outputChars, ...uso(), errorCode: `provider_${resposta.status}` });
-          emitir({ type: 'error', error: 'Erro ao comunicar com IA' });
-          break;
-        }
-
-        const leitor = resposta.body.getReader();
-        const decodificador = new TextDecoder();
-        let buffer = '';
         let conteudo = '';
         let chamadas: ChamadaFerramenta[] = [];
         let temChamadas = false;
+        try {
+          const resposta = await chatIa({
+            chave: s.chave,
+            modelo,
+            corpo: { messages: atuais, tools: FERRAMENTAS_ASSISTENTE, stream: true },
+            politica: { timeoutMs: TIMEOUT_ASSISTENTE_MS, sinal },
+            fetchImpl: this.fetchImpl,
+          });
 
-        for (;;) {
-          const { done, value } = await leitor.read();
-          if (done) break;
-          buffer += decodificador.decode(value, { stream: true });
-          const linhas = buffer.split('\n');
-          buffer = linhas.pop() || '';
-          for (const linha of linhas) {
-            if (!linha.startsWith('data: ')) continue;
-            const dado = linha.slice(6).trim();
-            if (dado === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(dado);
-              const delta = parsed.choices?.[0]?.delta;
-              if (delta?.content) {
-                conteudo += delta.content;
-                outputChars += delta.content.length;
-                emitir({ type: 'text', content: delta.content });
-              }
-              if (delta?.tool_calls) {
-                temChamadas = true;
-                for (const tc of delta.tool_calls) {
-                  // OpenAI/xAI fragmentam a chamada em pedaços com 'index'; o endpoint OpenAI-compat do
-                  // Gemini manda cada chamada inteira e sem 'index' — aí cada entrada é uma chamada nova.
-                  const idx = typeof tc.index === 'number' ? tc.index : chamadas.length;
-                  if (!chamadas[idx]) chamadas[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
-                  if (tc.id) chamadas[idx].id = tc.id;
-                  if (tc.function?.name) chamadas[idx].function.name += tc.function.name;
-                  if (tc.function?.arguments) chamadas[idx].function.arguments += tc.function.arguments;
-                  if (tc.extra_content) chamadas[idx].extra_content = tc.extra_content;
+          if (!resposta.ok || !resposta.body) {
+            this.log.error(`IA_ASSISTENTE status=${resposta.status}`);
+            falhou = true;
+            await resposta.body?.cancel().catch(() => undefined);
+            await fim({ status: 'failed', outputChars, ...uso(), errorCode: `provider_${resposta.status}` });
+            emitir({ type: 'error', error: 'Erro ao comunicar com IA' });
+            break;
+          }
+
+          const leitor = resposta.body.getReader();
+          const decodificador = new TextDecoder();
+          let buffer = '';
+
+          for (;;) {
+            const { done, value } = await leitor.read();
+            if (done) break;
+            buffer += decodificador.decode(value, { stream: true });
+            const linhas = buffer.split('\n');
+            buffer = linhas.pop() || '';
+            for (const linha of linhas) {
+              if (!linha.startsWith('data: ')) continue;
+              const dado = linha.slice(6).trim();
+              if (dado === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(dado);
+                const delta = parsed.choices?.[0]?.delta;
+                if (delta?.content) {
+                  conteudo += delta.content;
+                  outputChars += delta.content.length;
+                  emitir({ type: 'text', content: delta.content });
                 }
+                if (delta?.tool_calls) {
+                  temChamadas = true;
+                  for (const tc of delta.tool_calls) {
+                    // OpenAI/xAI fragmentam a chamada em pedaços com 'index'; o endpoint OpenAI-compat do
+                    // Gemini manda cada chamada inteira e sem 'index' — aí cada entrada é uma chamada nova.
+                    const idx = typeof tc.index === 'number' ? tc.index : chamadas.length;
+                    if (!chamadas[idx]) chamadas[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
+                    if (tc.id) chamadas[idx].id = tc.id;
+                    if (tc.function?.name) chamadas[idx].function.name += tc.function.name;
+                    if (tc.function?.arguments) chamadas[idx].function.arguments += tc.function.arguments;
+                    if (tc.extra_content) chamadas[idx].extra_content = tc.extra_content;
+                  }
+                }
+              } catch {
+                // pedaço SSE malformado: ignora
               }
-            } catch {
-              // pedaço SSE malformado: ignora
             }
           }
+        } catch (e) {
+          // Gemini parado (timeout ou rede) sem ter mandado nada nesta rodada: refaz a rodada uma vez
+          // com o modelo reserva. Se já saiu texto ou ferramenta, refazer duplicaria a resposta.
+          const reserva = modeloReserva();
+          if (sinal?.aborted || usouReserva || conteudo || temChamadas || !reserva || reserva === modelo) throw e;
+          this.log.warn(`IA_ASSISTENTE_RESERVA ${codigoDe(e)}`);
+          usouReserva = true;
+          modelo = reserva;
+          rodada -= 1;
+          continue;
         }
 
         if (temChamadas && chamadas.length > 0) {
@@ -357,7 +373,7 @@ export class AssistenteService {
       }
       this.log.error(`IA_ASSISTENTE_STREAM ${codigoDe(e)}`);
       await fim({ status: 'failed', errorCode: 'stream_error' });
-      emitir({ type: 'error', error: 'Internal error' });
+      emitir({ type: 'error', error: (e as { name?: unknown })?.name === 'TimeoutError' ? ERRO_DEMOROU : 'Internal error' });
     }
   }
 }

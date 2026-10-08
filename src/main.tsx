@@ -2,21 +2,16 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { ThemeProvider } from "./components/theme-provider";
+import { recarregarParaVersaoNova } from "./lib/recarregar-versao";
 
 // Quando um novo deploy troca os chunks e o usuário está com a aba antiga aberta,
 // carregar uma tela sob demanda pode falhar ("Failed to fetch dynamically imported
-// module"). O Vite dispara `vite:preloadError` nesse caso — recarregamos UMA vez
-// (janela de 10s) para pegar a versão nova de forma transparente, sem tela de erro.
-// O guard por tempo evita loop caso o chunk esteja de fato indisponível.
+// module"). O Vite dispara `vite:preloadError` nesse caso: recarregamos para pegar a
+// versão nova. Com o preventDefault o import resolve undefined e o lazy() quebra
+// ("Element type is invalid"); o ErrorBoundary vê estaRecarregando() e mostra
+// "Atualizando…" em vez da tela de erro até o reload terminar.
 window.addEventListener("vite:preloadError", (event) => {
-  const last = Number(sessionStorage.getItem("vite-preload-reload-at") || 0);
-  if (Date.now() - last > 10000) {
-    sessionStorage.setItem("vite-preload-reload-at", String(Date.now()));
-    // Sem isto o erro seguia até o ErrorBoundary, que mostrava "Algo deu errado"
-    // por ~2s antes do reload terminar.
-    event.preventDefault();
-    window.location.reload();
-  }
+  if (recarregarParaVersaoNova()) event.preventDefault();
 });
 
 // Errar a área de upload por alguns pixels fazia o navegador abrir o arquivo solto

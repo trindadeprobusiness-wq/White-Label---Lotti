@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { estaRecarregando, recarregarParaVersaoNova, recarregouHaPouco } from '@/lib/recarregar-versao';
 
 interface Props {
   children: ReactNode;
@@ -32,15 +33,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    if (ehErroDeVersaoNova(error)) {
-      // Mesmo guard do main.tsx: recarrega uma vez para pegar a versão nova, sem tela de erro.
-      const last = Number(sessionStorage.getItem('vite-preload-reload-at') || 0);
-      if (Date.now() - last > 10000) {
-        sessionStorage.setItem('vite-preload-reload-at', String(Date.now()));
-        window.location.reload();
-        return;
-      }
-    }
+    // Reload já pedido (main.tsx): o erro é efeito colateral da versão antiga, nada a registrar.
+    if (estaRecarregando()) return;
+    // Mesmo guard do main.tsx: recarrega uma vez para pegar a versão nova, sem tela de erro.
+    if (ehErroDeVersaoNova(error) && recarregarParaVersaoNova()) return;
     // Fica no console para diagnóstico (e futuramente pode ir para um monitor).
     console.error('ErrorBoundary capturou um erro de render:', error, info);
   }
@@ -50,8 +46,9 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
-    if (this.state.hasError && ehErroDeVersaoNova(this.state.error)
-      && Date.now() - Number(sessionStorage.getItem('vite-preload-reload-at') || 0) < 10000) {
+    // Versão nova: o componentDidCatch recarrega logo depois deste render. Se já tinha recarregado há
+    // menos de 10s, não recarrega de novo (evita loop) e cai na tela de erro, que tem o botão.
+    if (this.state.hasError && (estaRecarregando() || (ehErroDeVersaoNova(this.state.error) && !recarregouHaPouco()))) {
       return (
         <div className="flex min-h-screen w-full items-center justify-center bg-background text-sm text-muted-foreground">
           Atualizando…

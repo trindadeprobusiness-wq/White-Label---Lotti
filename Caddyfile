@@ -29,6 +29,11 @@
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 
+	# index.html nunca do cache: depois de um deploy, o reload tem de pegar os chunks novos (os antigos
+	# somem do container). Sem isto o navegador reaproveitava o index velho e a tela quebrava de novo.
+	@html not path /assets/*
+	header @html Cache-Control "no-cache"
+
 	# SPA: qualquer rota que não seja arquivo cai no index.html.
 	handle {
 		try_files {path} /index.html
