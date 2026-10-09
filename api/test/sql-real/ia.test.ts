@@ -176,7 +176,7 @@ describe('assistente: preparo, stream e caminhos privilegiados', () => {
     assert.equal((msgs[0].metadata as Record<string, unknown>).module, 'clients');
     const [conv] = await banco.sqlSuperusuario<{ title: string; corretor_id: string; model: string }>(
       'select title, corretor_id::text, model from public.ai_conversations where id = $1', [sessao.conversationId]);
-    assert.deepEqual(conv, { title: 'Você tem 1 cliente.', corretor_id: banco.corretorA, model: 'gemini-3.8-flash' });
+    assert.deepEqual(conv, { title: 'Você tem 1 cliente.', corretor_id: banco.corretorA, model: 'gemini-3.1-flash-lite' });
     const [uso] = await banco.sqlSuperusuario<{ used_quantity: number }>(
       "select used_quantity from public.usage_counters where corretor_id = $1 and feature_key = 'ai_assistant_monthly'", [banco.corretorA]);
     assert.equal(uso.used_quantity, 1);

@@ -7,7 +7,7 @@ import { corretorDoUsuario } from './contratos.service';
 import { ClienteCota, finalizarCota, reservarCota } from './ia/cota';
 import { externalDataBlock } from './ia/dados-externos';
 import { valorParaExtenso } from './ia/extenso';
-import { chatGemini, chaveGemini, CONFIG_EXTRACAO, conteudoGemini, modeloRapido } from './ia/gemini';
+import { chatGemini, chaveGemini, CONFIG_EXTRACAO, conteudoGemini, modeloContrato } from './ia/gemini';
 import { promptAnalise, promptUsuarioGeracao, SYSTEM_PROMPT_GERACAO, VERSOES_PROMPT } from './ia/prompts';
 import { PedidoInvalido, sanitizarPedidoGeracao, sanitizeCentral, sanitizeExtraction } from './ia/sanitizar';
 
@@ -81,7 +81,7 @@ export class ContratosIaService {
     const dataAtual = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
     const userPrompt = promptUsuarioGeracao(body, valorParaExtenso(body.detalhes.valor), dataAtual);
     const safeUserPrompt = `Use os dados e a estrutura abaixo para produzir a minuta.\n${externalDataBlock('contract_request', userPrompt, 16_000)}`;
-    const modelo = modeloRapido();
+    const modelo = modeloContrato();
 
     return this.comCota(claims, async (chave) => {
       const falhou = () => erroApi(502, 'ia_falhou', 'Erro ao gerar contrato. Tente novamente.');
@@ -118,7 +118,7 @@ export class ContratosIaService {
   async analisar(claims: SupabaseClaims, dto: AnalisarContratoIaDto): Promise<{ dados: unknown }> {
     const central = dto.modo === 'central';
     const prompt = promptAnalise(central);
-    const modelo = modeloRapido();
+    const modelo = modeloContrato();
 
     return this.comCota(claims, async (chave) => {
       const falhou = () => erroApi(502, 'ia_falhou', 'Falha ao analisar o contrato com a IA');

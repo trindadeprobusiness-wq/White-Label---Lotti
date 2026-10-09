@@ -1,4 +1,4 @@
-import { chaveGemini, comModeloReserva, modeloRapido, NATIVE_BASE_URL, OPENAI_COMPAT_URL } from '../contratos/ia/gemini';
+import { chaveGemini, comModeloReserva, juntarSinais, modeloRapido, NATIVE_BASE_URL, OPENAI_COMPAT_URL } from '../contratos/ia/gemini';
 
 // Porte de supabase/functions/_shared/ai/provider.ts para as funções de IA gerais (assistente, fotos,
 // WhatsApp, Inbox). Reaproveita chave, modelo e URLs de contratos/ia/gemini.ts (mesma leitura de env).
@@ -52,20 +52,29 @@ export interface OpcoesIa {
  * de contratos, manda reasoning_effort 'none' (sem "thinking": menos latência e nada de timeout).
  */
 export function chatIa(o: OpcoesIa): Promise<Response> {
-  return comModeloReserva(o.modelo, (modelo) => comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), OPENAI_COMPAT_URL, {
+  // Com stream o prazo do principal cortaria a resposta no meio: o assistente vigia o primeiro pedaço.
+  const reserva = o.corpo.stream === true ? {} : { prazoPrincipalMs: prazoPrincipal(o.politica) };
+  return comModeloReserva(o.modelo, (modelo, prazo) => comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), OPENAI_COMPAT_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${o.chave}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...o.corpo, model: modelo, reasoning_effort: 'none' }),
-  }, o.politica));
+  }, { ...o.politica, sinal: juntarSinais(o.politica?.sinal, prazo) }), reserva);
 }
 
 /** Endpoint multimodal nativo (generateContent): corpo da função, sem mexer. */
 export function conteudoIa(o: OpcoesIa): Promise<Response> {
-  return comModeloReserva(o.modelo, (modelo) => comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), `${NATIVE_BASE_URL}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(o.chave)}`, {
+  return comModeloReserva(o.modelo, (modelo, prazo) => comPolitica(o.fetchImpl ?? ((...a) => globalThis.fetch(...a)), `${NATIVE_BASE_URL}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(o.chave)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(o.corpo),
-  }, o.politica));
+  }, { ...o.politica, sinal: juntarSinais(o.politica?.sinal, prazo) }), { prazoPrincipalMs: prazoPrincipal(o.politica) });
+}
+
+/** Metade do tempo da chamada, no máximo 20 s: travou, o reserva ainda tem o tempo inteiro dele. */
+export const PRAZO_PRINCIPAL_MAX_MS = 20_000;
+function prazoPrincipal(politica: PoliticaIa = {}): number {
+  const total = Math.max(1_000, Math.min(politica.timeoutMs ?? 45_000, 120_000));
+  return Math.min(PRAZO_PRINCIPAL_MAX_MS, Math.floor(total / 2));
 }
 
 function numeroDoAmbiente(nome: string, padrao: number): number {

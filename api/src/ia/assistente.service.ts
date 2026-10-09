@@ -10,7 +10,7 @@ import {
 import { checarCota, ClienteSql, consumirLimiteIa, COTA_ASSISTENTE, registrarUso } from './cotas';
 import { FERRAMENTAS_ASSISTENTE } from './ferramentas';
 import { FerramentasIaService } from './ferramentas.service';
-import { modeloReserva } from '../contratos/ia/gemini';
+import { juntarSinais, modeloReserva } from '../contratos/ia/gemini';
 import { chatIa, chaveGemini, estimarUso, FetchImpl, modeloRapido } from './gemini';
 import { AssistenteDto } from './ia.dto';
 import { codigoDe, erroApi, IA_INDISPONIVEL, SEM_CORRETOR, traduzirErroBanco } from './ia.erros';
@@ -21,6 +21,8 @@ import { finalizarExecucao, FimExecucao, iniciarExecucao, registrarFerramenta } 
 export const MENSAGENS_POR_MINUTO = 30;
 export const MAX_MENSAGENS_CONTEXTO = 20;
 export const TIMEOUT_ASSISTENTE_MS = 60_000;
+/** Sem texto nem ferramenta nesse tempo, o modelo travou: a rodada é refeita com o reserva. */
+export const PRIMEIRO_PEDACO_MS = 12_000;
 export const ERRO_DEMOROU = 'A IA demorou demais para responder. Tente de novo.';
 
 /** Eventos do stream, no formato exato da Edge Function: data: {"type":...}. */
@@ -87,6 +89,8 @@ export class AssistenteService {
   private readonly log = new Logger('IaAssistente');
   /** Injetável para teste; nunca chamado de verdade nos testes. */
   fetchImpl: FetchImpl = (...a) => globalThis.fetch(...a);
+  /** Trocável nos testes. */
+  primeiroPedacoMs = PRIMEIRO_PEDACO_MS;
 
   constructor(
     private readonly db: TenantDb,
@@ -240,12 +244,23 @@ export class AssistenteService {
         let conteudo = '';
         let chamadas: ChamadaFerramenta[] = [];
         let temChamadas = false;
+        // O 3.8-flash chegou a ficar 60 s sem mandar nada (08/10/2026). Vigia o primeiro texto ou
+        // ferramenta: sem nada em primeiroPedacoMs, corta e o catch abaixo refaz com o reserva.
+        const parado = new AbortController();
+        const vigia = setTimeout(() => parado.abort(new DOMException('modelo sem resposta', 'TimeoutError')), this.primeiroPedacoMs);
+        const inicioRodada = Date.now();
+        let primeiroMs: number | null = null;
+        const chegou = () => {
+          if (primeiroMs !== null) return;
+          primeiroMs = Date.now() - inicioRodada;
+          clearTimeout(vigia);
+        };
         try {
           const resposta = await chatIa({
             chave: s.chave,
             modelo,
             corpo: { messages: atuais, tools: FERRAMENTAS_ASSISTENTE, stream: true },
-            politica: { timeoutMs: TIMEOUT_ASSISTENTE_MS, sinal },
+            politica: { timeoutMs: TIMEOUT_ASSISTENTE_MS, sinal: juntarSinais(sinal, parado.signal) },
             fetchImpl: this.fetchImpl,
           });
 
@@ -275,6 +290,7 @@ export class AssistenteService {
               try {
                 const parsed = JSON.parse(dado);
                 const delta = parsed.choices?.[0]?.delta;
+                if (delta?.content || delta?.tool_calls) chegou();
                 if (delta?.content) {
                   conteudo += delta.content;
                   outputChars += delta.content.length;
@@ -301,14 +317,18 @@ export class AssistenteService {
         } catch (e) {
           // Gemini parado (timeout ou rede) sem ter mandado nada nesta rodada: refaz a rodada uma vez
           // com o modelo reserva. Se já saiu texto ou ferramenta, refazer duplicaria a resposta.
-          const reserva = modeloReserva();
+          const reserva = modeloReserva(modelo);
           if (sinal?.aborted || usouReserva || conteudo || temChamadas || !reserva || reserva === modelo) throw e;
-          this.log.warn(`IA_ASSISTENTE_RESERVA ${codigoDe(e)}`);
+          this.log.warn(`IA_ASSISTENTE_RESERVA modelo=${modelo} ${codigoDe(e)} ms=${Date.now() - inicioRodada}`);
           usouReserva = true;
           modelo = reserva;
           rodada -= 1;
           continue;
+        } finally {
+          clearTimeout(vigia);
         }
+        // Sem prompt nem resposta: só o tempo, para saber qual modelo está lento.
+        this.log.log(`IA_ASSISTENTE rodada=${rodada} modelo=${modelo} primeiro_ms=${primeiroMs ?? '-'} ms=${Date.now() - inicioRodada}`);
 
         if (temChamadas && chamadas.length > 0) {
           await this.gravar(s.claims, { conversationId: s.conversationId, role: 'assistant', content: conteudo, toolCalls: chamadas });

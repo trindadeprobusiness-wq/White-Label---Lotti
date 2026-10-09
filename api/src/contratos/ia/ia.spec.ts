@@ -98,7 +98,7 @@ describe('prompts e modelo', () => {
   it('LOTTI_AI_FAST_MODEL vazio usa o padrão', () => {
     const antes = process.env.LOTTI_AI_FAST_MODEL;
     process.env.LOTTI_AI_FAST_MODEL = ' ';
-    expect(modeloRapido()).toBe('gemini-3.8-flash');
+    expect(modeloRapido()).toBe('gemini-3.1-flash-lite');
     process.env.LOTTI_AI_FAST_MODEL = 'outro';
     expect(modeloRapido()).toBe('outro');
     if (antes === undefined) delete process.env.LOTTI_AI_FAST_MODEL;

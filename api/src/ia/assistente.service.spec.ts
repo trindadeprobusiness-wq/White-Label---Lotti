@@ -147,7 +147,7 @@ describe('AssistenteService.preparar', () => {
     const s = await servico.preparar(claims, corpo({ file_context: 'texto do PDF', entity_refs: [{ type: 'cliente', id: 'c1' }] }));
     expect(db.run.mock.calls.every(([c]) => c === claims)).toBe(true);
     const [conversa] = textos(tx.$queryRaw, /insert into public\.ai_conversations/);
-    expect(conversa.values).toEqual([CORRETOR, 'gemini-3.8-flash']);
+    expect(conversa.values).toEqual([CORRETOR, 'gemini-3.1-flash-lite']);
     const [msg] = textos(tx.$queryRaw, /insert into public\.ai_messages/);
     expect(msg.text).toMatch(/\$1::uuid, \$2::text, \$3::text,\s+\$4::jsonb, \$5::text,\s+\$6::jsonb/);
     expect(msg.values.slice(0, 3)).toEqual([CONV, 'user', 'Quantos clientes?']);
@@ -157,7 +157,7 @@ describe('AssistenteService.preparar', () => {
     const [hist] = textos(tx.$queryRaw, /from public\.ai_messages m/);
     expect(hist.values).toEqual([CONV, 20]);
 
-    expect(s).toMatchObject({ conversationId: CONV, novaConversa: true, corretorId: CORRETOR, runId: RUN, modelo: 'gemini-3.8-flash' });
+    expect(s).toMatchObject({ conversationId: CONV, novaConversa: true, corretorId: CORRETOR, runId: RUN, modelo: 'gemini-3.1-flash-lite' });
     expect(s.mensagens[0].role).toBe('system');
     expect(s.mensagens[0].content).toContain('- Corretor: Ana (CRECI 123/GO)');
     expect(s.mensagens[0].content).toContain('- Receita do mês: R$ 1.500,50');
@@ -166,7 +166,7 @@ describe('AssistenteService.preparar', () => {
     expect(s.mensagens.slice(1)).toEqual([{ role: 'user', content: 'Quantos clientes?' }]);
 
     const [run] = textos(prisma.$queryRaw, /insert into public\.ai_runs/);
-    expect(run.values).toEqual(['trace_teste_1', CORRETOR, USUARIO, 'clients', 'assistant.chat', 'gemini-3.8-flash',
+    expect(run.values).toEqual(['trace_teste_1', CORRETOR, USUARIO, 'clients', 'assistant.chat', 'gemini-3.1-flash-lite',
       'assistant.general@2026-08-20.1', 'text', 'Quantos clientes?'.length + 'texto do PDF'.length, false, JSON.stringify({ entity_count: 1 })]);
   });
 
@@ -206,7 +206,7 @@ describe('AssistenteService.transmitir', () => {
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
     expect(init.headers.Authorization).toBe('Bearer chave-falsa');
     const enviado = JSON.parse(init.body);
-    expect(enviado).toMatchObject({ stream: true, model: 'gemini-3.8-flash', reasoning_effort: 'none' });
+    expect(enviado).toMatchObject({ stream: true, model: 'gemini-3.1-flash-lite', reasoning_effort: 'none' });
     expect(enviado.tools.map((t: { function: { name: string } }) => t.function.name)).toContain('suggest_action');
     expect(enviado.messages[0].role).toBe('system');
 
@@ -303,7 +303,7 @@ describe('AssistenteService.transmitir', () => {
         .mockResolvedValueOnce(sse(texto('Você tem 3 clientes.')));
       const eventos = await rodar(m);
       expect(eventos.map((e) => e.type)).toEqual(['text', 'done']);
-      expect(m.fetchImpl.mock.calls.map((c) => JSON.parse(c[1].body).model)).toEqual(['gemini-3.8-flash', 'gemini-reserva']);
+      expect(m.fetchImpl.mock.calls.map((c) => JSON.parse(c[1].body).model)).toEqual(['gemini-3.1-flash-lite', 'gemini-reserva']);
     } finally {
       process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
     }
@@ -330,6 +330,45 @@ describe('AssistenteService.transmitir', () => {
     } finally {
       process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
     }
+  });
+
+  it('modelo que não manda nada em primeiroPedacoMs é cortado e a rodada vai para o reserva', async () => {
+    process.env.LOTTI_AI_FALLBACK_MODEL = 'gemini-reserva';
+    try {
+      const m = montar();
+      m.servico.primeiroPedacoMs = 30;
+      // Primeira chamada: conecta e não manda nada até ser cortada.
+      m.fetchImpl.mockImplementationOnce((_u: string, init: RequestInit) => new Promise((_ok, falha) => {
+        init.signal?.addEventListener('abort', () => falha(init.signal?.reason));
+      }));
+      m.fetchImpl.mockResolvedValueOnce(sse(texto('Pronto.')));
+      const eventos = await rodar(m);
+      expect(eventos.map((e) => e.type)).toEqual(['text', 'done']);
+      expect(m.fetchImpl.mock.calls.map((c) => JSON.parse(c[1].body).model)).toEqual(['gemini-3.1-flash-lite', 'gemini-reserva']);
+    } finally {
+      process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+    }
+  });
+
+  it('resposta que começa a chegar não é cortada pelo vigia', async () => {
+    const m = montar();
+    m.servico.primeiroPedacoMs = 30;
+    let pedidos = 0;
+    const devagar = new ReadableStream<Uint8Array>({
+      async pull(c) {
+        pedidos += 1;
+        if (pedidos === 1) c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(texto('Olá'))}
+
+`));
+        else if (pedidos === 2) { await new Promise((r) => setTimeout(r, 80)); c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(texto('!'))}
+
+`)); }
+        else c.close();
+      },
+    });
+    m.fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, body: devagar });
+    const eventos = await rodar(m);
+    expect(eventos.map((e) => e.type)).toEqual(['text', 'text', 'done']);
   });
 
   it('sem modelo reserva, o tempo esgotado chega em português', async () => {

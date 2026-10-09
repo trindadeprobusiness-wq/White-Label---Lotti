@@ -78,7 +78,7 @@ describe('RotinaComandoService', () => {
     expect(url).toBe(URL_GEMINI);
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer chave-teste');
     const corpo = JSON.parse(String(init.body));
-    expect(corpo).toMatchObject({ model: 'gemini-3.8-flash', temperature: 0.1, response_format: { type: 'json_object' } });
+    expect(corpo).toMatchObject({ model: 'gemini-3.1-flash-lite', temperature: 0.1, response_format: { type: 'json_object' } });
     expect(corpo.messages[1].content).toContain('Clientes disponíveis (id não deve sair no texto): José Álvares.');
   });
 

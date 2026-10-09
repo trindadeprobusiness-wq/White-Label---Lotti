@@ -56,6 +56,7 @@ describe('ContratosIaService', () => {
   beforeEach(() => {
     process.env.GEMINI_API_KEY = 'chave-falsa';
     delete process.env.LOTTI_AI_FAST_MODEL;
+    delete process.env.LOTTI_AI_MODEL;
   });
   afterAll(() => {
     process.env = ambiente;
@@ -144,8 +145,8 @@ describe('ContratosIaService', () => {
     expect(finalizacoes(prisma)).toEqual([[RESERVA, true]]);
   });
 
-  it('analisar: generateContent com ?key=, thinkingBudget 0 e modelo de LOTTI_AI_FAST_MODEL; extração sanitizada', async () => {
-    process.env.LOTTI_AI_FAST_MODEL = 'gemini-teste';
+  it('analisar: generateContent com ?key=, thinkingBudget 0 e modelo de LOTTI_AI_MODEL; extração sanitizada', async () => {
+    process.env.LOTTI_AI_MODEL = 'gemini-teste';
     const { prisma, servico, fetchImpl } = montar();
     fetchImpl.mockResolvedValueOnce(respostaConteudo('```json\n{"valor_aluguel":"R$ 1.234,56","data_inicio":"21/08/2026"}\n```'));
     const r = await servico.analisar(claims, arquivo());
