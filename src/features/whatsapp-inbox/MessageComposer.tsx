@@ -45,7 +45,7 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
   }catch(error){stream.current?.getTracks().forEach(t=>t.stop());if(!alive.current)return;
    const negado=error instanceof DOMException&&['NotAllowedError','SecurityError'].includes(error.name);
    setMicBlocked(negado);
-   setNotice(negado?'O navegador bloqueou o microfone para este site. Libere o acesso e toque em Tentar de novo — não precisa recarregar.':error instanceof Error&&error.message==='insecure'?'Gravar áudio exige endereço seguro (https). Aqui o navegador não libera o microfone; dá para anexar um arquivo de áudio.':'Não foi possível iniciar a gravação. Você também pode anexar um arquivo de áudio.');}
+   setNotice(negado?'O navegador bloqueou o microfone para este site. Libere o acesso no cadeado ao lado do endereço e toque em Tentar de novo. Não precisa recarregar a página.':error instanceof Error&&error.message==='insecure'?'Gravar áudio exige endereço seguro (https). Aqui o navegador não libera o microfone; dá para anexar um arquivo de áudio.':'Não foi possível iniciar a gravação. Você também pode anexar um arquivo de áudio.');}
  }
  const terminaPendente=(estado:'enviado'|'falhou'|'incerto')=>{if(chaveEmCurso.current){onPendingEnd?.(chaveEmCurso.current,estado);if(estado!=='incerto')chaveEmCurso.current=undefined;}};
  const restauraTexto=()=>{if(textoLimpo.current!==undefined){setText(textoLimpo.current);textoLimpo.current=undefined;}};
