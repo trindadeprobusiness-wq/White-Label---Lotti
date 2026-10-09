@@ -143,7 +143,7 @@ it('usa a inicial do nome exibido quando o nome antigo é Contato WhatsApp', asy
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Contato WhatsApp', clientes: { nome: 'Rafael' } })];
   mount(true);
   await screen.findByRole('button', { name: /Rafael/ });
-  expect(screen.getAllByLabelText('Inicial de Rafael')).toHaveLength(2);
+  expect(screen.getAllByLabelText('Inicial de Rafael')).toHaveLength(3);
   expect(screen.queryByLabelText('Inicial de Contato WhatsApp')).toBeNull();
 });
 
@@ -189,7 +189,7 @@ it('usa a inicial do nome em todos os avatares, sem mostrar dígitos do telefone
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Rafael' })];
   mount(true);
   await screen.findByRole('button', { name: /Rafael/ });
-  expect(screen.getAllByLabelText('Inicial de Rafael').length).toBe(2);
+  expect(screen.getAllByLabelText('Inicial de Rafael').length).toBe(3);
   expect(screen.queryByText('00')).toBeNull();
 });
 
@@ -197,7 +197,7 @@ it('usa o nome do cadastro quando não há nome de perfil no WhatsApp', async ()
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: null, clientes: { nome: 'Beatriz' } })];
   mount(true);
   await screen.findByRole('button', { name: /Beatriz/ });
-  expect(screen.getAllByLabelText('Inicial de Beatriz').length).toBe(2);
+  expect(screen.getAllByLabelText('Inicial de Beatriz').length).toBe(3);
 });
 
 it('mostra a hora, e não a data, na lista das conversas de hoje', async () => {
@@ -329,8 +329,8 @@ it('reproduz a hierarquia do Clix com cabeçalho compacto e painel de perfil', a
 it('mantém a densidade compacta da referência do Clix', async () => {
   mount(true);
   const shell = await screen.findByTestId('clix-inbox-shell');
-  expect(shell.className).toContain('lg:grid-cols-[230px_minmax(0,1fr)]');
-  expect(shell.className).toContain('2xl:grid-cols-[306px_minmax(0,1fr)_330px]');
+  expect(shell.className).toContain('lg:grid-cols-[214px_minmax(0,1fr)]');
+  expect(shell.className).toContain('2xl:grid-cols-[272px_minmax(0,1fr)_288px]');
   expect(shell.className).toContain('gap-[10px]');
   expect(shell.className).toContain('p-[10px]');
   expect(screen.getByTestId('conversation-header').className).toContain('min-h-[68px]');

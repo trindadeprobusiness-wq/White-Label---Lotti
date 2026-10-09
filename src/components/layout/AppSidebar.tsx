@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { prefetchFunil } from '@/hooks/crm/useCrm';
+import { useContext, useEffect, useState } from 'react';
+import { QueryClientContext, type QueryClient } from '@tanstack/react-query';
 import { SIDEBAR_ROUTE_LOADERS } from '@/lib/routePreloaders';
+
+// O funil é carregado sob demanda: importar useCrm aqui puxava o cliente do Supabase (que lê
+// localStorage ao ser importado) para dentro do menu, e o menu quebrava fora do navegador.
+function anteciparFunil(cliente: QueryClient | undefined) {
+  if (!cliente) return;
+  void import('@/hooks/crm/useCrm').then(m => m.prefetchFunil(cliente)).catch(() => undefined);
+}
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
@@ -124,11 +130,11 @@ function ItemMenu({
 }: {
   item: ItemNav; ativo: boolean; recolhida: boolean; aoNavegar?: () => void;
 }) {
-  const cliente = useQueryClient();
+  const cliente = useContext(QueryClientContext);
   // Mouse em cima (ou foco/toque) já é intenção: baixa o código da tela e, no funil, os dados.
   const antecipar = () => {
     void SIDEBAR_ROUTE_LOADERS[item.href]?.().catch(() => undefined);
-    if (item.href === '/crm') prefetchFunil(cliente);
+    if (item.href === '/crm') anteciparFunil(cliente);
   };
   const link = (
     <Link
@@ -179,11 +185,11 @@ export function ConteudoDaSidebar({
 }) {
   const { pathname } = useLocation();
   const { signOut, user } = useAuth();
-  const cliente = useQueryClient();
+  const cliente = useContext(QueryClientContext);
   // O funil é a tela mais aberta depois do login: deixa os dados prontos quando o app sossega.
   useEffect(() => {
     if (!user) return;
-    const t = window.setTimeout(() => prefetchFunil(cliente), 2500);
+    const t = window.setTimeout(() => anteciparFunil(cliente), 2500);
     return () => window.clearTimeout(t);
   }, [user, cliente]);
   const { corretor } = useCRMStore();

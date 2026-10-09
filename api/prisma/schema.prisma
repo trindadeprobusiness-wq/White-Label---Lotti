@@ -1633,7 +1633,7 @@ model LottiAgentConversation {
 }
 
 /// Tabela public.lotti_agent_messages — RLS ligado.
-/// Gatilhos: auditar_suporte, lotti_agent_detect_opt_out, lotti_inbox_reopen_on_inbound.
+/// Gatilhos: auditar_suporte, lotti_agent_detect_opt_out, lotti_agent_marca_so_historico, lotti_inbox_reopen_on_inbound.
 /// 2 check constraint(s) só no SQL.
 model LottiAgentMessage {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

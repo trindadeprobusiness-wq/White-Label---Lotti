@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, FileText, Filter, Menu, MessageCircle, Pencil, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
+import { AlertTriangle, Bot, FileText, Filter, Menu, MessageCircle, Pause, Pencil, Play, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { conversationTitle, formatContactPhone, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
@@ -152,13 +152,16 @@ function MessageBody({ message }: { message: Message }) {
   const nomeVisivel = message.content.replace(/^(📷 |🎥 |📄 )/u, '');
   // Foto virava cartão de arquivo, como se fosse planilha: para ver, era preciso
   // baixar. Com a URL assinada em mãos, ela aparece na conversa.
+  // Como no Clix: moldura de tamanho fixo e a imagem inteira dentro dela (object-contain). Com
+  // object-cover a foto em pé do celular era cortada e o balão mudava de tamanho a cada foto.
+  const moldura = `flex h-[300px] w-[280px] max-w-full items-center justify-center overflow-hidden rounded-[10px] ${message.direction === 'out' ? 'bg-white/15' : 'bg-[#eef0f4]'}`;
   if (url && ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(extension ?? '')) {
-    return <a href={url} target="_blank" rel="noopener noreferrer" className="block">
-      <img src={url} alt={nomeVisivel} loading="lazy" className="max-h-72 w-full max-w-[280px] rounded-lg object-cover" />
+    return <a href={url} target="_blank" rel="noopener noreferrer" className={moldura}>
+      <img src={url} alt={nomeVisivel} loading="lazy" className="max-h-full max-w-full object-contain" />
     </a>;
   }
   if (url && ['MP4', 'MOV', 'WEBM', '3GP'].includes(extension ?? '')) {
-    return <video src={url} controls preload="metadata" aria-label={nomeVisivel} className="max-h-72 w-full max-w-[280px] rounded-lg bg-black" />;
+    return <div className={moldura}><video src={url} controls preload="metadata" aria-label={nomeVisivel} className="max-h-full max-w-full bg-black" /></div>;
   }
   return <div className="flex min-w-[180px] max-w-full items-center gap-2.5 rounded-lg border border-current/20 bg-white/10 px-3 py-2.5 text-sm">
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/15"><FileText className="h-5 w-5" /></span>
@@ -207,7 +210,9 @@ function LinhaDoTempo({ eventos }: { eventos: { titulo: string; quando?: string 
 }
 
 function SecaoPerfil({ titulo, acessorio, children }: { titulo: string; acessorio?: React.ReactNode; children: React.ReactNode }) {
-  return <section className="mt-5 first:mt-0">
+  // Seções separadas por uma linha fina, sem caixa em volta de cada uma: com um quadro por bloco o
+  // painel virava uma pilha de caixas grandes.
+  return <section className="border-t py-3 first:border-t-0">
     <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}{acessorio && <span className="ml-auto">{acessorio}</span>}</h3>
     <div className="mt-2 space-y-2">{children}</div>
   </section>;
@@ -520,7 +525,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h2 className="font-semibold">Aguardando a primeira conversa</h2>
       <p className="mt-2 text-sm text-muted-foreground">Envie uma mensagem nova de um contato de teste depois de conectar. Conversas antigas do celular não são importadas automaticamente.</p>
     </div>}
-    {list.isSuccess && !semConversas && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[230px_minmax(0,1fr)] max-lg:grid-cols-1 ${infoVisible ? '2xl:grid-cols-[306px_minmax(0,1fr)_330px]' : '2xl:grid-cols-[306px_minmax(0,1fr)]'}`}>
+    {list.isSuccess && !semConversas && <div data-testid="clix-inbox-shell" className={`grid min-h-0 min-w-0 flex-1 gap-[10px] bg-[#f4f8f5] p-[10px] lg:grid-cols-[214px_minmax(0,1fr)] max-lg:grid-cols-1 ${infoVisible ? '2xl:grid-cols-[272px_minmax(0,1fr)_288px]' : '2xl:grid-cols-[272px_minmax(0,1fr)]'}`}>
       {/* Sobreposição só existe com a gaveta aberta; fechar tocando fora é o
           gesto esperado de quem abriu. */}
       {listaAberta && (
@@ -582,14 +587,14 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex min-w-[210px] flex-1 items-center gap-2">
+          <div className="flex min-w-0 flex-1 basis-[150px] items-center gap-2">
             <ContactAvatar name={conversationTitle(selected, client.data?.nome || selected.clientes?.nome)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" />
             <div className="min-w-0"><div className="flex items-center gap-1"><strong className="block truncate text-sm">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();mergeConversations.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3" /></button></div><p className="whitespace-nowrap text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p></div>
           </div>
           <div data-testid="conversation-header-actions" className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
             <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{preview ? 'Qualificação' : selected.cliente_id ? (client.data?.status_funil ? STATUS_FUNIL_LABELS[client.data.status_funil as StatusFunil] : 'Sem etapa definida') : 'Sem cliente vinculado'}</span></span>
             <button type="button" title={selected.status==='closed'&&selected.closed_reason?`Motivo: ${selected.closed_reason}`:undefined} onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?`Fechada${porQuem(selected.closed_by)}`:'Aberta'}</button>
-            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Sparkles className="h-3 w-3 text-primary" /><span>{optOut!=='none'?'IA bloqueada':rotuloDaIa(estadoIa)}</span><span className={`ml-0.5 h-2 w-2 rounded-full ${selected.mode==='ai'?'bg-primary':'bg-muted-foreground'}`} /></button>
+            <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Bot className={`h-3.5 w-3.5 ${selected.mode==='ai'?'text-primary':'text-muted-foreground'}`} /><span>{optOut!=='none'?'IA bloqueada':rotuloDaIa(estadoIa)}</span><span aria-hidden className="mx-0.5 h-3.5 w-px bg-border" />{selected.mode==='ai'?<Play aria-hidden className="h-3 w-3 fill-primary text-primary" />:<Pause aria-hidden className="h-3 w-3 fill-muted-foreground text-muted-foreground" />}</button>
             <Button size="sm" className="h-8 shrink-0 border-primary px-2 text-[11px] text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
           </div>
         </header>
@@ -602,8 +607,9 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         {notice?.id === selected.id && <p role="status" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice.text}</p>}
         {mode.isError && <p role="alert" className="p-3 text-sm text-destructive">{String((mode.error as { message?: string } | null)?.message ?? '').includes('contact_opted_out') ? 'Este contato pediu para não receber mensagens. Libere o contato antes de religar a IA.' : 'Não foi possível alterar o atendimento. Se houver entrega incerta, revise-a antes de retomar a IA.'}</p>}
         {messages.isError && <p role="alert" className="p-3 text-sm text-destructive">Não foi possível carregar o histórico.</p>}
-        {selected.last_error && ESPERA_DA_IA[selected.last_error] && <p role="status" data-testid="espera-da-ia" className="border-b bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
-          {selected.mode === 'ai' ? ESPERA_DA_IA[selected.last_error] : 'A conversa está com a equipe.'}
+        {/* Com a IA desligada, a faixa só dizia "A conversa está com a equipe." — o botão de IA já mostra isso. */}
+        {selected.mode === 'ai' && selected.last_error && ESPERA_DA_IA[selected.last_error] && <p role="status" data-testid="espera-da-ia" className="border-b bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+          {ESPERA_DA_IA[selected.last_error]}
         </p>}
         {selected.last_error && !ESPERA_DA_IA[selected.last_error] && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <span>{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</span>
@@ -654,24 +660,18 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       </aside>}
       {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
         <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
-        <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
+        <h2 className="sr-only">Perfil do contato</h2>
 
-        <div className="mt-3 rounded-xl border bg-secondary/30 p-3">
-          <p className="text-sm font-semibold leading-tight">{conversationTitle(selected, client.data?.nome)}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p>
-          {client.data?.email && <p className="break-words text-[11px] text-muted-foreground">{client.data.email}</p>}
+        {/* Contato no topo, sem caixa: avatar, nome, telefone e o atalho para o cadastro. */}
+        <div className="flex items-center gap-2.5 pb-3">
+          <ContactAvatar name={conversationTitle(selected, client.data?.nome || selected.clientes?.nome)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold leading-tight">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p>
+            {client.data?.email && <p className="truncate text-[11px] text-muted-foreground">{client.data.email}</p>}
+          </div>
         </div>
-
-        <SecaoPerfil titulo="Resumo do caso" acessorio={<Badge variant="secondary" className="gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge>}>
-          <p className="rounded-lg border border-dashed bg-card p-2.5 text-[11px] leading-4 text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p>
-        </SecaoPerfil>
-
-        <SecaoPerfil titulo="Linha do tempo">
-          <LinhaDoTempo eventos={[
-            { titulo: 'Lead criado', quando: client.data?.created_at },
-            { titulo: 'Conversou no WhatsApp', quando: selected.updated_at },
-          ]} />
-        </SecaoPerfil>
+        {selected?.cliente_id && !preview && <Link className="mb-1 flex h-8 w-full items-center justify-center rounded-lg border border-primary text-[12px] font-medium text-primary transition-colors hover:bg-primary/10" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
 
         <SecaoPerfil titulo="Qualificação comercial">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -683,7 +683,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </div>
           {/* Rótulo e valor na mesma linha: empilhados, cinco campos ocupavam a
               altura do painel inteiro e obrigavam a rolar para ver o botão. */}
-          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border bg-muted/20 px-3 py-2.5 text-[12px]">
+          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[12px]">
             {Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key} className="contents">
               <dt className="text-muted-foreground">{label}</dt>
               <dd className="break-words font-medium leading-snug">{valorLegivel(key, q!.profile![key]!)}</dd>
@@ -691,7 +691,17 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </dl>}
         </SecaoPerfil>
 
-        {selected?.cliente_id && !preview && <Link className="mt-5 flex h-9 w-full items-center justify-center rounded-lg border border-primary text-[12px] font-medium text-primary transition-colors hover:bg-primary/10" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
+        <SecaoPerfil titulo="Resumo do caso" acessorio={<Badge variant="secondary" className="gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge>}>
+          <p className="text-[12px] leading-[1.45] text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p>
+        </SecaoPerfil>
+
+        <SecaoPerfil titulo="Linha do tempo">
+          <LinhaDoTempo eventos={[
+            { titulo: 'Lead criado', quando: client.data?.created_at },
+            { titulo: 'Conversou no WhatsApp', quando: selected.updated_at },
+          ]} />
+        </SecaoPerfil>
+
       </aside>}
     </div>}
     <NewConversationDialog open={newOpen} onOpenChange={setNewOpen} onSubmit={data=>preview?demoStart(data):startConversation.mutate(data)} pending={!preview&&startConversation.isPending} outcome={startOutcome} error={!preview&&startConversation.isError?startErrorText(startConversation.error instanceof Error?startConversation.error.message:''):undefined} />
