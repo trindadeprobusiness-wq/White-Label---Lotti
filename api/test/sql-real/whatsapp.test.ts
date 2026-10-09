@@ -80,3 +80,39 @@ test('fechar conversa como no Clix: carimba quem fechou, não pausa a IA, some d
   assert.equal(evento.actor_label,'acompanhamento sem resposta');
  }finally{await b.fechar();}
 });
+
+test('agente encerra como no Clix: só a conversa que a IA deixou, carimbo "cliente" e motivo; o cliente reabre',async()=>{
+ const b=await criarBanco();
+ try{
+  const canal=randomUUID(),ok=randomUUID(),voltou=randomUUID(),humano=randomUUID();
+  await b.inserir('lotti_agent_channels',{id:canal,corretor_id:b.corretorA,instance:'teste-encerrar',enabled:true,sandbox:true});
+  await b.inserir('lotti_agent_conversations',{id:ok,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990021',mode:'ai'});
+  await b.inserir('lotti_agent_conversations',{id:voltou,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990022',mode:'ai'});
+  await b.inserir('lotti_agent_conversations',{id:humano,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990023',mode:'human'});
+  await b.sqlSuperusuario(`update public.lotti_agent_conversations set revision=3,processed_revision=3 where id in ($1,$2,$3)`,[ok,voltou,humano]);
+  // O cliente escreveu de novo depois da despedida: revision andou.
+  await b.sqlSuperusuario(`update public.lotti_agent_conversations set revision=4 where id=$1`,[voltou]);
+  const encerrar=async(id:string)=>(await b.sqlSuperusuario<{r:boolean}>(`select public.lotti_agent_end_conversation($1::uuid,3,$2) as r`,[id,'  cliente disse que era só isso  ']))[0].r;
+  assert.equal(await encerrar(ok),true);
+  assert.equal(await encerrar(voltou),false);
+  assert.equal(await encerrar(humano),false);
+  const estado=await b.sqlSuperusuario<{id:string;status:string;closed_by:string|null;closed_reason:string|null}>(
+   `select id::text,status,closed_by,closed_reason from public.lotti_agent_conversations where id in ($1,$2,$3)`,[ok,voltou,humano]);
+  assert.deepEqual(estado.find(x=>x.id===ok),{id:ok,status:'closed',closed_by:'cliente',closed_reason:'cliente disse que era só isso'});
+  assert.equal(estado.find(x=>x.id===voltou)?.status,'open');
+  assert.equal(estado.find(x=>x.id===humano)?.status,'open');
+  const [evento]=await b.sqlSuperusuario<{to_label:string;actor_label:string}>(
+   `select to_label,actor_label from public.lotti_inbox_events where conversation_id=$1 and kind='status'`,[ok]);
+  assert.deepEqual(evento,{to_label:'Fechada',actor_label:'IA'});
+  // Fechada não fecha de novo; o motivo aparece na lista do corretor.
+  assert.equal(await encerrar(ok),false);
+  const service=new WhatsappService(b.db);
+  const [linha]=(await service.listarConversas(b.claimsA,'closed')) as Array<{id:string;closed_by:string;closed_reason:string}>;
+  assert.deepEqual([linha.id,linha.closed_by,linha.closed_reason],[ok,'cliente','cliente disse que era só isso']);
+  // Cliente volta a escrever: reabre e o motivo some.
+  await b.inserir('lotti_agent_messages',{conversation_id:ok,external_id:'e-1',direction:'in',sender:'lead',content:'esqueci uma coisa'});
+  const [reaberta]=await b.sqlSuperusuario<{status:string;closed_by:string|null;closed_reason:string|null}>(
+   `select status,closed_by,closed_reason from public.lotti_agent_conversations where id=$1`,[ok]);
+  assert.deepEqual(reaberta,{status:'open',closed_by:null,closed_reason:null});
+ }finally{await b.fechar();}
+});

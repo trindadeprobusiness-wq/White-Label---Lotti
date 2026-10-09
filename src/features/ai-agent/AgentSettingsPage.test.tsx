@@ -88,7 +88,7 @@ it('deixa mover o lead no funil mesmo sem fechar a conversa', async () => {
 
 it('shows the model in use and changes it from the identity tab', async () => {
   render(<AgentSettingsPage />);
-  expect(screen.getByTestId('model-in-use').textContent).toContain('GPT-4o mini');
+  expect(screen.getByTestId('model-in-use').textContent).toContain('GPT-4.1 · OpenAI');
 
   // O link "Trocar modelo" saiu: o modelo virou um cartão do resumo, e os
   // cartões já levam à aba ao serem clicados. Era um botão a mais para a

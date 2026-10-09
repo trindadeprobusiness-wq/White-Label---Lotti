@@ -718,3 +718,15 @@ it('como no Clix: abre nas Abertas e as fechadas ficam em Fechadas, com quem fec
   expect(screen.queryByRole('button', { name: /Bruno Fechado/ })).toBeNull();
   expect(screen.getByRole('button', { name: /Carla Vendedor/ })).not.toBeNull();
 });
+
+it('fechada pela IA porque o cliente encerrou aparece como "Cliente pediu", com o motivo', async () => {
+  dataByTable.lotti_agent_conversations = [
+    conversationFixture({ id: 'c-ia', contact_name: 'Dora Encerrou', status: 'closed', closed_by: 'cliente', closed_reason: 'cliente disse que era só isso' }),
+  ];
+  mount(true);
+  fireEvent.click(await screen.findByRole('button', { name: /^Fechadas/ }));
+  expect(await screen.findByRole('button', { name: /Dora Encerrou.*Fechada · Cliente pediu/ })).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Fechada · Cliente pediu' }).getAttribute('title')).toBe('Motivo: cliente disse que era só isso');
+  fireEvent.change(screen.getByRole('combobox', { name: 'Fechada por' }), { target: { value: 'cliente' } });
+  expect(screen.getByRole('button', { name: /Dora Encerrou/ })).not.toBeNull();
+});

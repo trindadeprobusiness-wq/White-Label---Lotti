@@ -66,7 +66,7 @@ export class WhatsappService {
     return this.db.run(claims, async (tx) => jsonRows(await tx.$queryRaw<JsonRow[]>`
       select to_jsonb(x) - 'ordem' as row from (
         select c.id,c.phone,c.cliente_id,c.mode,c.status,c.updated_at,c.qualification,c.last_error,
-          c.contact_name,c.opted_out_at,c.pausa_ia_ate,c.closed_by,c.closed_at,lm.created_at as last_message_at,
+          c.contact_name,c.opted_out_at,c.pausa_ia_ate,c.closed_by,c.closed_at,c.closed_reason,lm.created_at as last_message_at,
           case when cl.id is null then null else jsonb_build_object('nome',cl.nome) end as clientes,
           coalesce(lm.created_at,c.updated_at) as ordem
         from public.lotti_agent_conversations c left join public.clientes cl on cl.id=c.cliente_id

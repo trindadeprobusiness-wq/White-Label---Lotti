@@ -104,6 +104,9 @@ describe('normalizeAgentSettings', () => {
   it('keeps a known AI model and falls back to the default for unknown ones', () => {
     expect(normalizeAgentSettings({ version: 2, model: 'gpt-4.1-mini' }).model).toBe('gpt-4.1-mini');
     expect(normalizeAgentSettings({ version: 2, model: 'modelo-inventado' }).model).toBe(createDefaultAgentSettings().model);
+    // O Google tirou o 2.5-flash de projetos novos: quem tinha salvo passa para o 3.1-flash-lite.
+    expect(normalizeAgentSettings({ version: 2, model: 'gemini-2.5-flash' }).model).toBe('gemini-3.1-flash-lite');
+    expect(createDefaultAgentSettings().model).toBe('gpt-4.1');
   });
 
   it('always keeps the request for a broker as a handoff trigger', () => {

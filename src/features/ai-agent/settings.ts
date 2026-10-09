@@ -33,11 +33,14 @@ export type DayHours = { enabled: boolean; start: string; end: string };
 // A ponte do WhatsApp usa o modelo escolhido em cada resposta (OpenAI ou Google,
 // conforme a chave configurada no servidor; sem a chave, entra o provedor que houver).
 export const AGENT_MODEL_OPTIONS = [
-  { id: 'gpt-4o-mini', label: 'GPT-4o mini', provider: 'OpenAI', description: 'Padrão atual do atendimento. Rápido e econômico.' },
-  { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini', provider: 'OpenAI', description: 'Segue instruções longas com mais precisão.' },
+  { id: 'gpt-4.1', label: 'GPT-4.1', provider: 'OpenAI', description: 'Recomendado: o mesmo do agente do Clix. O mais preciso da lista; custa mais por mensagem.' },
+  { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini', provider: 'OpenAI', description: 'Segue instruções longas com boa precisão, mais barato.' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o mini', provider: 'OpenAI', description: 'Rápido e econômico; erra mais em conversas longas.' },
   { id: 'gpt-5-mini', label: 'GPT-5 mini', provider: 'OpenAI', description: 'Melhor em conversas complexas; responde mais devagar.' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'Google', description: 'O mesmo modelo do Assistente da Lotti.' },
+  { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', provider: 'Google', description: 'O mesmo modelo do Assistente da Lotti.' },
 ] as const;
+/** Saíram da lista: o Google não libera mais o 2.5-flash para projetos novos. */
+const MODELOS_SUBSTITUIDOS: Record<string, AgentModelId> = { 'gemini-2.5-flash': 'gemini-3.1-flash-lite' };
 export type AgentModelId = typeof AGENT_MODEL_OPTIONS[number]['id'];
 export const agentModel = (id: AgentModelId) => AGENT_MODEL_OPTIONS.find((option) => option.id === id) ?? AGENT_MODEL_OPTIONS[0];
 
@@ -174,7 +177,7 @@ export function createDefaultAgentSettings(): AgentSettings {
   return {
     version: 2,
     active: false,
-    model: 'gpt-4o-mini',
+    model: 'gpt-4.1',
     identity: {
       name: 'Ana',
       company: '',
@@ -294,7 +297,7 @@ function normalizeCurrent(raw: Loose): AgentSettings {
   return {
     version: 2,
     active: bool(raw.active, defaults.active),
-    model: oneOf(raw.model, models, defaults.model),
+    model: oneOf(typeof raw.model === 'string' ? MODELOS_SUBSTITUIDOS[raw.model] ?? raw.model : raw.model, models, defaults.model),
     identity: {
       name: identity.name === PREVIOUS_DEFAULT_NAME ? defaults.identity.name : str(identity.name, defaults.identity.name),
       company: str(identity.company, defaults.identity.company),

@@ -42,6 +42,14 @@
 - Pendências: o token de atendimento fica em `sessionStorage` da aba (necessário para o reload; curto e revogado no servidor); o admin suspenso em `usuarios` sem perder o papel continua atendendo até a sessão vencer (paridade com a Edge, que só olhava o papel); desligar a Edge `admin-suporte` só depois da virada.
 - Diário — Claude: B6 implementado (API + front) atrás de `VITE_API_URL`.
 
+## Claude — agente de IA encerra atendimento como o Clix; IA rápida (2026-10-09)
+- Migration `20261009120000_agente_encerra_atendimento`: `closed_reason` e `lotti_agent_end_conversation(p_id,p_revision,p_reason)` (service_role): fecha como `cliente` só se revision/processed_revision batem, modo ia, aberta, sem pausa; evento "fechada por IA"; reabrir limpa o motivo.
+- Runtime (`codex/railway-data-plane`): `endConversation {reason}` no esquema (OpenAI estrito e Gemini) e na instrução (só quando o cliente sinaliza que terminou, regra do encerrar_atendimento do Clix); `validateQualification` descarta com humanRequested ou visitRequest; `afterDelivery` chama `end_conversation` e não arma follow-up; gemini-2.5-flash salvo vira gemini-3.1-flash-lite.
+- Front: filtro "Cliente pediu" e motivo no título do botão Fechada; Agente com GPT-4.1 (padrão novo, o do Clix) e Gemini 3.1 Flash-Lite no lugar do 2.5.
+- IA do app (8ad4baa): conversas no gemini-3.1-flash-lite, contratos no 3.8-flash, um é reserva do outro; assistente troca de modelo após 12 s sem pedaço; log IA_ASSISTENTE com tempos.
+- Validação: SQL real whatsapp 3/3; runtime qualification 22, turn 6, openai 3, agent-config 11, delivery 10, worker 7, followup 16, visits 4; vitest settings 13, AgentSettingsPage 19, ConnectedInbox 56, summary/prompt/validation 21; api tsc ok; front tsc só os 53 preexistentes.
+- Diário — Claude: a IA do WhatsApp fecha a conversa quando o cliente diz que terminou, e o Inbox mostra "Cliente pediu".
+
 ## Claude — Inbox do WhatsApp fecha conversa como o Clix; correções do dia (2026-10-08)
 - Migration `20261008150000_inbox_fechar_como_clix`: `closed_by` (humano|ia|cliente|silencio) e `closed_at` em `lotti_agent_conversations`; gatilho único de carimbo (reabrir limpa); `lotti_inbox_set_status` fecha como `humano` e NÃO pausa mais a IA; `lotti_agent_followup_close` fecha como `silencio`; `lotti_inbox_reopen_on_inbound` (mensagem da última hora) reabre e o evento sai como "Cliente" (`lotti.ator_evento`).
 - API: `GET /api/whatsapp/conversas?status=open|closed|all` (sem parâmetro = all) ordenada pela última mensagem; `/conversas/contagem` devolve `{ total, abertas, fechadas }`.
