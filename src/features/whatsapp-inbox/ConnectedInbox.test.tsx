@@ -16,14 +16,15 @@ const dataByTable: Record<string, unknown[]> = {
 };
 // missingColumns simulates the production database before the account-scope migration.
 const mockDb = { missingColumns: false, missingOptOut: false, filters: [] as string[], reads: {} as Record<string, number>, rpcError: null as null | { message: string },
-  counts: {} as Record<string, number>,
+  counts: {} as Record<string, number>, updates: [] as Array<{ table: string; valores: unknown }>, eqs: [] as Array<{ table: string; coluna: string; valor: unknown }>,
   rpcResults: {} as Record<string, { data: unknown; error: unknown }>, invokeResult: null as null | { data: unknown; error: unknown } };
 function builder(table: string) {
   let columns = '';
   let contar = false;
   const filters: string[] = [];
   const b: Record<string, unknown> = {
-    select: (cols: string, opcoes?: { count?: string; head?: boolean }) => { columns = cols ?? ''; contar = !!opcoes?.head; return b; }, order: () => b, limit: () => b, eq: () => b,
+    select: (cols: string, opcoes?: { count?: string; head?: boolean }) => { columns = cols ?? ''; contar = !!opcoes?.head; return b; }, order: () => b, limit: () => b, eq: (coluna: string, valor: unknown) => { mockDb.eqs.push({ table, coluna, valor }); return b; },
+    update: (valores: unknown) => { mockDb.updates.push({ table, valores }); return b; },
     is: (column: string, value: unknown) => { filters.push(column); mockDb.filters.push(`${table}.${column} is ${value}`); return b; },
     // Devolvia null sempre, então nenhuma consulta com .single() (a do cliente,
     // por exemplo) conseguia ser testada com dados.
@@ -165,7 +166,7 @@ it('atualiza a conversa aberta sem repetir toda a lista a cada ciclo', async () 
   expect(mockDb.reads.lotti_agent_conversations - listBefore).toBeLessThanOrEqual(1);
 });
 
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.missingOptOut = false; mockDb.rpcError = null; mockDb.rpcResults = {}; mockDb.invokeResult = null; mockDb.filters = []; mockDb.reads = {}; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mockDb.missingColumns = false; mockDb.missingOptOut = false; mockDb.rpcError = null; mockDb.rpcResults = {}; mockDb.invokeResult = null; mockDb.filters = []; mockDb.reads = {}; mockDb.updates = []; mockDb.eqs = []; dataByTable.lotti_agent_conversations = [conversationFixture()]; dataByTable.lotti_agent_messages = []; dataByTable.lotti_inbox_events = []; });
 
 function conversationFixture(extra: Record<string, unknown> = {}) {
   return { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null, ...extra };
@@ -487,15 +488,74 @@ it('foto aparece como imagem na conversa, não como cartão de arquivo', async (
   expect(imagem.getAttribute('src')).toContain('https://');
 });
 
-it('a pilula ETAPA mostra a etapa do funil do cliente, não um rótulo inventado', async () => {
-  // Ela dizia "Em atendimento humano", que não existe em funil nenhum: era só
-  // o texto que sobrava quando a IA ainda não tinha qualificado o contato.
+const ETAPAS_TESTE = [
+  { id: 'e-novo', corretor_id: 'owner', nome: 'Novo lead', ordem: 1, cor: 'slate', tipo: 'ABERTA', ativo: true },
+  { id: 'e-quali', corretor_id: 'owner', nome: 'Em qualificação', ordem: 3, cor: 'sky', tipo: 'ABERTA', ativo: true },
+];
+const negocioTeste = (extra: Record<string, unknown> = {}) => ({ id: 'n-1', corretor_id: 'owner', cliente_id: 'cliente-1', imovel_id: null, etapa_id: 'e-novo', titulo: 'Neves', valor_estimado: 0, probabilidade: 0, data_prevista_fechamento: null, motivo_perda: null, origem: 'whatsapp', ordem: 0, observacoes: null, fechada_em: null, created_at: '2026-10-09T12:00:00Z', updated_at: '2026-10-09T12:00:00.123456+00:00', ...extra });
+
+it('a pílula ETAPA mostra a etapa do negócio no Funil, a mesma do cartão (não o status antigo do cadastro)', async () => {
+  // O lead novo nasce com status_funil 'QUALIFICACAO' e o negócio em "Novo lead": o Inbox dizia
+  // "Qualificação" e o Funil "Novo lead". Agora os dois leem o negócio.
   dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
-  dataByTable.clientes = [{ id: 'cliente-1', nome: 'Neves', email: null, telefone: '5511999990000', created_at: '2026-09-20T12:00:00Z', status_funil: 'VISITA_PROPOSTA', tipo_interesse: 'AMBOS' }];
+  dataByTable.clientes = [{ id: 'cliente-1', nome: 'Neves', email: null, telefone: '5511999990000', created_at: '2026-09-20T12:00:00Z', status_funil: 'QUALIFICACAO', tipo_interesse: 'AMBOS' }];
+  dataByTable.crm_etapas = ETAPAS_TESTE;
+  // Outro negócio já na coluna de destino: a ordem do movido tem de ser 1 (fim da coluna), não a dele (5).
+  dataByTable.crm_oportunidades = [negocioTeste({ ordem: 5 }), negocioTeste({ id: 'n-outro', cliente_id: 'outro', etapa_id: 'e-quali', ordem: 0 })];
+  try {
+    mount(true);
+    await screen.findByRole('button', { name: /Neves/ });
+    await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Novo lead'));
+    expect(screen.getByTestId('conversation-stage-pill').textContent).not.toContain('Qualificação');
+
+    // Trocar pela pílula é o mesmo movimento de arrastar no Funil (mesmo token de concorrência).
+    const pilula = screen.getByTestId('conversation-stage-pill');
+    pilula.focus();
+    fireEvent.keyDown(pilula, { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Em qualificação/ }));
+    await waitFor(() => expect(mockDb.updates).toContainEqual({ table: 'crm_oportunidades', valores: { etapa_id: 'e-quali', ordem: 1 } }));
+    // Mesmo token de concorrência do arrastar no quadro: o id do negócio e o updated_at exato.
+    expect(mockDb.eqs).toContainEqual({ table: 'crm_oportunidades', coluna: 'id', valor: 'n-1' });
+    expect(mockDb.eqs).toContainEqual({ table: 'crm_oportunidades', coluna: 'updated_at', valor: '2026-10-09T12:00:00.123456+00:00' });
+  } finally {
+    delete dataByTable.clientes; delete dataByTable.crm_etapas; delete dataByTable.crm_oportunidades;
+  }
+});
+
+it('a pílula ETAPA acompanha o PRIMEIRO movimento do negócio feito pelo agente (evento de etapa novo)', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
+  dataByTable.crm_etapas = ETAPAS_TESTE;
+  dataByTable.crm_oportunidades = [negocioTeste()];
+  try {
+    mount(true);
+    await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Novo lead'));
+    // O agente transfere: o banco move o negócio e grava o primeiro evento 'stage' da conversa.
+    dataByTable.crm_oportunidades = [negocioTeste({ etapa_id: 'e-quali', updated_at: '2026-10-09T12:05:00.000001+00:00' })];
+    dataByTable.lotti_inbox_events = [{ id: 'ev-1', kind: 'stage', from_label: 'Novo lead', to_label: 'Em qualificação', subject_label: 'Neves', actor_label: 'transferência automática para a equipe', created_at: '2026-10-09T12:05:00Z' }];
+    await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Em qualificação'), { timeout: 6000 });
+  } finally {
+    delete dataByTable.crm_etapas; delete dataByTable.crm_oportunidades;
+  }
+}, 10000);
+
+it('a pílula ETAPA diz quando o cliente não tem negócio no Funil', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ cliente_id: 'cliente-1', contact_name: 'Neves' })];
+  dataByTable.crm_etapas = ETAPAS_TESTE;
+  dataByTable.crm_oportunidades = [negocioTeste({ cliente_id: 'outro-cliente' })];
+  try {
+    mount(true);
+    await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Sem negócio no funil'));
+  } finally {
+    delete dataByTable.crm_etapas; delete dataByTable.crm_oportunidades;
+  }
+});
+
+it('evento antigo de status do cadastro aparece com o rótulo, não com o código do banco', async () => {
+  dataByTable.lotti_inbox_events = [
+    { id: 'e1', kind: 'stage', from_label: 'QUALIFICACAO', to_label: 'VISITA_PROPOSTA', subject_label: null, actor_label: 'Corretor', created_at: '2026-09-24T14:00:00Z' },
+  ];
   mount(true);
-  await screen.findByRole('button', { name: /Neves/ });
-  await waitFor(() => expect(screen.getByTestId('conversation-stage-pill').textContent).toContain('Visita/Proposta'));
-  expect(screen.getByTestId('conversation-stage-pill').textContent).not.toContain('Em atendimento humano');
+  expect(await screen.findByText(/Status do cadastro mudou de Qualificação para Visita\/Proposta por Corretor/)).not.toBeNull();
 });
 
 it('o botão de adicionar ao CRM não existe mais: a conversa já entra sozinha', async () => {
@@ -775,4 +835,23 @@ it('conteúdo que cresce depois de aberto (foto carregando, eventos) mantém a c
   expect(trilha.scrollTop).toBe(3100);
   height.mockRestore();
   vi.unstubAllGlobals();
+});
+
+it('IA parada com motivo aparece como no Clix: quem assumiu pelo Inbox e a espera pelo celular', async () => {
+  dataByTable.lotti_inbox_events = [
+    { id: 'e1', kind: 'pausa', from_label: 'IA', to_label: 'Em espera', subject_label: 'respondeu_whatsapp', actor_label: 'a equipe', created_at: '2026-09-24T14:01:00Z' },
+    { id: 'e2', kind: 'mode', from_label: 'ai', to_label: 'Equipe', subject_label: 'assumiu_inbox', actor_label: 'Evandro', created_at: '2026-09-24T14:02:00Z' },
+    { id: 'e3', kind: 'mode', from_label: 'ai', to_label: 'Equipe', subject_label: 'respondeu_whatsapp', actor_label: 'a equipe', created_at: '2026-09-24T14:03:00Z' },
+    { id: 'e4', kind: 'mode', from_label: 'Equipe', to_label: 'IA', subject_label: null, actor_label: 'Evandro', created_at: '2026-09-24T14:04:00Z' },
+  ];
+  mount(true);
+  const avisos = await screen.findAllByTestId('evento-com-motivo');
+  expect(avisos.map(a => a.textContent?.replace(/·.*$/, '').trim())).toEqual([
+    'IA em espera porque a equipe respondeu pelo WhatsApp',
+    'IA desligada: Evandro assumiu a conversa',
+    'IA desligada porque a equipe respondeu pelo WhatsApp',
+  ]);
+  expect(Array.from(avisos[1].querySelectorAll('strong')).map(s => s.textContent)).toEqual(['desligada', 'Evandro']);
+  // Troca sem motivo continua no formato de sempre.
+  expect(screen.getByText(/IA ligada por Evandro/)).not.toBeNull();
 });

@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { crmKeys } from '@/hooks/crm/useCrm';
 import ConnectedInbox from '@/features/whatsapp-inbox/ConnectedInbox';
 
 /**
@@ -52,6 +53,17 @@ export default function InboxPreview() {
     client.setQueryData(['lotti-inbox-events', undefined, conversa.id, false], []);
   }
   client.setQueryData(['lotti-inbox-client', undefined, 'cli-1'], CLIENTE);
+  // A pílula de etapa lê o Funil (mesmas chaves do quadro): sem semente, ia à rede sem login.
+  client.setQueryDefaults(crmKeys.todos, { staleTime: Infinity });
+  client.setQueryData([...crmKeys.todos, 'modo'], 'completo');
+  client.setQueryData([...crmKeys.etapas(), 'completo'], [
+    { id: 'etapa-novo', corretor_id: 'previa', nome: 'Novo lead', ordem: 1, cor: 'slate', tipo: 'ABERTA', ativo: true },
+    { id: 'etapa-quali', corretor_id: 'previa', nome: 'Em qualificação', ordem: 2, cor: 'sky', tipo: 'ABERTA', ativo: true },
+    { id: 'etapa-visita', corretor_id: 'previa', nome: 'Visita agendada', ordem: 3, cor: 'amber', tipo: 'ABERTA', ativo: true },
+  ]);
+  client.setQueryData([...crmKeys.oportunidades(), 'completo'], [
+    { id: 'negocio-1', corretor_id: 'previa', cliente_id: 'cli-1', imovel_id: null, etapa_id: 'etapa-quali', titulo: 'Apartamento no Setor Bueno', valor_estimado: 0, probabilidade: 0, data_prevista_fechamento: null, motivo_perda: null, origem: 'whatsapp', ordem: 0, observacoes: null, fechada_em: null, created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-01T12:00:00Z' },
+  ]);
 
   return <QueryClientProvider client={client}><ConnectedInbox connected /></QueryClientProvider>;
 }

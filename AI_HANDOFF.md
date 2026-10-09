@@ -1,5 +1,37 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — IA parada com motivo e etapa do Inbox ligada ao Funil (2026-10-09)
+- Primeira entrega no fluxo de tarefa complexa (CLAUDE.md): pesquisa com 4 agentes, adversarial do plano (2 agentes), código, e adversarial do código pronto (workflow com 18 agentes: 4 revisores e 1 cético por achado). Resultado: 10 achados confirmados, todos corrigidos, e 4 derrubados.
+- Plano 1, aprovado pelo Rafael. Responder pelo app continua desligando a IA de vez.
+  - Migration `20261009170000_ia_parada_com_motivo`:
+    - kind novo `pausa` no CHECK de `lotti_inbox_events`.
+    - `lotti_inbox_record_mode` grava o motivo em `subject_label`.
+    - Gatilho `lotti_inbox_record_pausa`, com WHEN na transição de `pausa_ia_ate` e canal ligado e fora da sandbox. Só dispara se o cliente já escreveu; vale também com a conversa fechada.
+    - `lotti_manual_begin`, com a mesma assinatura, põe o nome do dono (`corretores.nome` por `p_owner`) e o motivo `assumiu_inbox` nos GUCs e zera depois.
+    - Mídia mandada pelo celular é detectada pela mensagem out/human com `created_at=now()` na mesma transação.
+  - Front: `eventoComMotivo` (ConnectedInbox) mostra "IA **em espera** porque a equipe respondeu pelo WhatsApp", "IA **desligada**: **Nome** assumiu a conversa" e "IA **desligada** porque a equipe respondeu pelo WhatsApp", com ícone de pausa.
+  - Sem mudança na API nem no runtime. A adversarial do plano trocou a ideia inicial (novo parâmetro em `lotti_manual_begin` e nome vindo da API), que quebraria o envio por RPC ambígua, e trocou `kind='mode'` por `pausa`, para não confundir o `religadaDepois` do runtime.
+- Plano 2, aprovado: a pílula "Etapa" do Inbox passa a ser a etapa do negócio aberto no Funil, a mesma do cartão.
+  - Antes ela mostrava `clientes.status_funil`, e o lead novo aparecia "Qualificação" no Inbox e "Novo lead" no Funil.
+  - Implementação:
+    - `EtapaDoFunil.tsx` usa os mesmos hooks e a mesma mutação de mover do Funil.
+    - `negocioDoCliente.ts` replica a regra de `crm_oportunidade_aberta`.
+    - Recarrega quando chega um evento `stage` novo, inclusive o primeiro.
+    - Estados próprios: "Etapa indisponível" (erro), "Sem negócio no funil" e "Etapa desativada".
+  - Com `FLAGS.crm` desligado ou na prévia, volta a pílula antiga.
+  - Filtro da lista renomeado para "Qualificação (IA)". Evento antigo de `status_funil` aparece com rótulo. Cores das etapas em `src/lib/crm/cores.ts`. A prévia `/__previa/inbox` semeia o Funil.
+- Validações (um arquivo por vez):
+  - vitest: `ConnectedInbox.test.tsx` 63/63, `ConnectedInbox.semCrm.test.tsx` 2/2 (novo), `negocioDoCliente.test.ts` 2/2 (novo), `CrmPipeline.*` 8/8.
+  - SQL real: `whatsapp.test.ts` 5/5. O caso novo cobre celular, repetição, conversa iniciada pelo celular, mídia, Inbox, GUC na mesma transação e conversa fechada.
+  - `baseline.test.mjs` 11/11.
+  - tsc e eslint sem erro novo nos arquivos mexidos.
+- Ordem de deploy obrigatória: primeiro o front (`main`, serviço casa-mente-contrato), depois a API (`feat/api-lotti-fundacao`, que aplica a migration). O front antigo mostraria o evento `pausa` como "Negócio respondeu_whatsapp movido…".
+- Pendências e dívida:
+  - `status_funil` ainda é lido no ClienteDetalhes, no Dashboard e no n8n, e é gravado pela tela Clientes, pelo assistente de IA, pela venda de imóvel e pelo n8n. Continua divergente da etapa do negócio.
+  - `fechada_em` nunca é preenchido, então negócio em GANHO/PERDIDO conta como aberto.
+  - A listagem do Funil tem limite de 1000.
+- Diário — Claude: a linha do tempo explica por que a IA parou; a etapa do Inbox é a mesma do Funil e anda junto.
+
 ## Claude — Diagnóstico de Crescimento (#53 204e0e0 + #54 61b1959) portado para o Railway (2026-10-08)
 - Nada commitado por mim (o coordenador fez o wip 4b491dd e o merge 82f63ca; o #54 está só no working tree), nada publicado, nenhuma rede/CLI. Branch `feat/api-lotti-fundacao`.
 - Migration `20261008120000_diagnostico_conversacional`: as 9 tabelas `diagnostic_*`, as 8 funções e as policies `diagnostic_admin_read` (is_admin()) iguais às duas migrations do Supabase (conferido por script: funções, tabelas e índices idênticos); grants com o papel conferido antes. `schema.prisma` regenerado (só +161).

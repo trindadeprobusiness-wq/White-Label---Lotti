@@ -1581,7 +1581,7 @@ model LottiAgentChannel {
 }
 
 /// Tabela public.lotti_agent_conversations — RLS ligado.
-/// Gatilhos: auditar_suporte, lotti_agent_conversation_phone_guard, lotti_agent_opt_out_mode_guard, lotti_conversa_carimbo_fechamento, lotti_conversa_no_crm_insert, lotti_conversa_no_crm_phone, lotti_inbox_record_mode, lotti_inbox_record_status, lotti_manual_mode_guard.
+/// Gatilhos: auditar_suporte, lotti_agent_conversation_phone_guard, lotti_agent_opt_out_mode_guard, lotti_conversa_carimbo_fechamento, lotti_conversa_no_crm_insert, lotti_conversa_no_crm_phone, lotti_inbox_record_mode, lotti_inbox_record_pausa, lotti_inbox_record_status, lotti_manual_mode_guard.
 /// 9 check constraint(s) só no SQL.
 /// Índices parciais/por expressão só no SQL: lotti_agent_conversation_active_idx, lotti_agent_conversation_lid_key, lotti_agent_conversation_phone_key_idx, lotti_agent_conversations_pausa_idx, lotti_agent_conversations_status_idx, lotti_agent_followup_due_idx, lotti_agent_pending_idx.
 model LottiAgentConversation {

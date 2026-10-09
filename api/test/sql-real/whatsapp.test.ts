@@ -136,3 +136,62 @@ test('transferência para a equipe aparece com o motivo, não como "Sistema"',as
   assert.notEqual(eventos.at(-1)?.actor_label,'transferência automática para a equipe');
  }finally{await b.fechar();}
 });
+
+test('IA parada com motivo: celular deixa "em espera" uma vez; mídia do celular e envio pelo Inbox dizem quem',async()=>{
+ const b=await criarBanco();
+ try{
+  const canal=randomUUID(),cv=randomUUID(),semCliente=randomUUID(),midia=randomUUID(),inbox=randomUUID();
+  await b.inserir('lotti_agent_channels',{id:canal,corretor_id:b.corretorA,instance:'teste-motivo',enabled:true,sandbox:false});
+  for(const [id,fone] of [[cv,'5511999990041'],[semCliente,'5511999990042'],[midia,'5511999990043'],[inbox,'5511999990044']] as const){
+   await b.inserir('lotti_agent_conversations',{id,channel_id:canal,corretor_id:b.corretorA,phone:fone,mode:'ai'});
+  }
+  for(const id of [cv,midia,inbox])await b.inserir('lotti_agent_messages',{conversation_id:id,external_id:'in-'+id,direction:'in',sender:'lead',content:'oi'});
+  const ingest=(fone:string,ext:string,extra:Record<string,unknown>={})=>b.sqlSuperusuario(`select public.lotti_agent_ingest($1::jsonb)`,
+   [JSON.stringify({instance:'teste-motivo',external_id:ext,phone:fone,from_me:true,text:'resposta da equipe',...extra})]);
+  const eventos=(id:string)=>b.sqlSuperusuario<{kind:string;to_label:string;subject_label:string|null;actor_label:string}>(
+   `select kind,to_label,subject_label,actor_label from public.lotti_inbox_events where conversation_id=$1 order by created_at,id`,[id]);
+
+  // Celular: IA em espera, sem trocar de modo, um evento só mesmo com duas respostas.
+  await ingest('5511999990041','cel-1');
+  await ingest('5511999990041','cel-2');
+  assert.deepEqual(await eventos(cv),[{kind:'pausa',to_label:'Em espera',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
+  const [estado]=await b.sqlSuperusuario<{mode:string;em_espera:boolean}>(`select mode,pausa_ia_ate>now() as em_espera from public.lotti_agent_conversations where id=$1`,[cv]);
+  assert.deepEqual(estado,{mode:'ai',em_espera:true});
+
+  // Conversa que a equipe começou pelo celular (o cliente ainda não escreveu): sem aviso.
+  await ingest('5511999990042','cel-3');
+  assert.deepEqual(await eventos(semCliente),[]);
+
+  // Mídia mandada pelo celular desliga de vez: o evento diz que foi a equipe pelo WhatsApp, não "Sistema".
+  await ingest('5511999990043','cel-4',{unsupported:true,text:'📷 Foto'});
+  assert.deepEqual(await eventos(midia),[{kind:'mode',to_label:'Equipe',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
+
+  // Inbox: quem enviou aparece pelo nome, com o motivo; o nome não vaza para a troca seguinte.
+  const [dono]=await b.sqlSuperusuario<{nome:string}>(`select nome from public.corretores where id=$1`,[b.corretorA]);
+  await b.sqlSuperusuario(`select public.lotti_manual_begin($1::uuid,$2::uuid,$3::uuid,'fp','olá',null)`,[b.corretorA,inbox,randomUUID()]);
+  assert.deepEqual(await eventos(inbox),[{kind:'mode',to_label:'Equipe',subject_label:'assumiu_inbox',actor_label:dono.nome}]);
+  await b.sqlSuperusuario(`update public.lotti_manual_sends set status='sent' where conversation_id=$1`,[inbox]);
+  await new WhatsappService(b.db).modo(b.claimsA,inbox,'ai');
+  const depois=await eventos(inbox);
+  assert.deepEqual(depois.at(-1),{kind:'mode',to_label:'IA',subject_label:null,actor_label:dono.nome});
+
+  // Nome e motivo não vazam para outra troca de modo na MESMA transação (o begin zera os dois).
+  await b.sqlSuperusuario(`do $$ begin
+    perform public.lotti_manual_begin('${b.corretorA}'::uuid,'${inbox}'::uuid,'${randomUUID()}'::uuid,'fp2','de novo',null);
+    update public.lotti_agent_conversations set mode='paused' where id='${inbox}'::uuid;
+  end $$`);
+  const mesmaTransacao=(await eventos(inbox)).slice(-2).sort((x,y)=>x.to_label.localeCompare(y.to_label)); // mesmo created_at: a ordem entre os dois não importa
+  assert.deepEqual(mesmaTransacao,[
+   {kind:'mode',to_label:'Equipe',subject_label:'assumiu_inbox',actor_label:dono.nome},
+   {kind:'mode',to_label:'Pausada',subject_label:null,actor_label:'Sistema'},
+  ]);
+
+  // Conversa fechada: a espera também aparece (se o cliente reabrir, a linha do tempo explica o silêncio).
+  const fechada=randomUUID();
+  await b.inserir('lotti_agent_conversations',{id:fechada,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990045',mode:'ai'});
+  await b.inserir('lotti_agent_messages',{conversation_id:fechada,external_id:'in-fechada',direction:'in',sender:'lead',content:'oi'});
+  await b.sqlSuperusuario(`update public.lotti_agent_conversations set status='closed',closed_by='cliente' where id=$1`,[fechada]);
+  await ingest('5511999990045','cel-5');
+  assert.deepEqual((await eventos(fechada)).filter(e=>e.kind==='pausa'),[{kind:'pausa',to_label:'Em espera',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
+ }finally{await b.fechar();}
+});

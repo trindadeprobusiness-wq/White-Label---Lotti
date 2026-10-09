@@ -16,6 +16,8 @@ import { optOutState, type OptOutState } from './optOut';
 import { STATUS_FUNIL_LABELS, type StatusFunil } from '@/types/crm';
 import { useCRMStore } from '@/stores/crmStore';
 import { crmKeys } from '@/hooks/crm/useCrm';
+import { FLAGS } from '@/lib/flags';
+import { EtapaDoFunil } from './EtapaDoFunil';
 import { codigoDoErro, registroDoErro } from '@/lib/crm/duplicidade';
 import { functionErrorCode, mergeErrorText, renameErrorText, startErrorText } from './inboxRequests';
 import { mesmoTelefone } from './deepLink';
@@ -59,12 +61,25 @@ async function fetchConversations(status: StatusLista) {
   return data as unknown as Conversation[];
 }
 type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; media_path: string | null; created_at: string; preview_kind?: 'file' | 'audio' };
-type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status' | 'consent'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
+type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status' | 'consent' | 'pausa'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
 function eventText(event: InboxEvent) {
   if (event.kind === 'consent') return event.to_label === 'Contato liberado' ? `Contato liberado por ${event.actor_label}` : 'Contato pediu para não receber mensagens';
   if (event.kind === 'status') return `Conversa ${event.to_label === 'Fechada' ? 'fechada' : 'reaberta'} por ${event.actor_label}`;
+  if (event.kind === 'pausa') return 'IA em espera porque a equipe respondeu pelo WhatsApp';
   if (event.kind === 'mode') return `${event.to_label === 'IA' ? 'IA ligada' : event.to_label === 'Pausada' ? 'IA pausada' : 'IA desligada'} por ${event.actor_label}`;
+  const doCadastro = (rotulo: string | null) => rotulo && rotulo in STATUS_FUNIL_LABELS ? STATUS_FUNIL_LABELS[rotulo as StatusFunil] : null;
+  if (!event.subject_label && doCadastro(event.to_label)) return `Status do cadastro mudou de ${doCadastro(event.from_label) ?? 'sem status'} para ${doCadastro(event.to_label)} por ${event.actor_label}`;
   return `${event.subject_label ? `Negócio ${event.subject_label} movido` : 'Movido'} de ${event.from_label || 'sem etapa'} para ${event.to_label} por ${event.actor_label}`;
+}
+// A IA parou porque alguém da equipe respondeu (banco: lotti_inbox_record_mode/lotti_inbox_record_pausa).
+// Como no Clix: ícone de pausa e o que importa em negrito. Pelo celular o WhatsApp não diz quem do time
+// respondeu, por isso "a equipe".
+function eventoComMotivo(event: InboxEvent): React.ReactNode {
+  const forte = (texto: string) => <strong className="font-semibold text-foreground">{texto}</strong>;
+  if (event.kind === 'pausa') return <>IA {forte('em espera')} porque a equipe respondeu pelo WhatsApp</>;
+  if (event.kind === 'mode' && event.subject_label === 'assumiu_inbox') return <>IA {forte('desligada')}: {forte(event.actor_label)} assumiu a conversa</>;
+  if (event.kind === 'mode' && event.subject_label === 'respondeu_whatsapp') return <>IA {forte('desligada')} porque a equipe respondeu pelo WhatsApp</>;
+  return null;
 }
 function OptOutNotice({ state, since, pending, failed, onRelease }: { state: Exclude<OptOutState, 'none'>; since: string; pending: boolean; failed: boolean; onRelease: () => void }) {
   return <div role="status" className="shrink-0 border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -463,6 +478,9 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // `mode` continua 'ai' durante a pausa — é por isso que o interruptor dizia
   // "IA ligada" com a IA calada. O estado real soma o modo e o prazo.
   const estadoIa = estadoDaIa(selected ?? { mode: 'human' });
+  // undefined = eventos ainda não carregados; null = carregados, sem nenhum de etapa. Separar os dois faz
+  // o PRIMEIRO movimento do negócio (null → id) recarregar a pílula.
+  const ultimoEventoDeEtapa = events.data ? (events.data.filter(e => e.kind === 'stage').at(-1)?.id ?? null) : undefined;
   const timeline = [...(messages.data ?? []).map(message => ({ type: 'message' as const, value: message })),
     ...(events.data ?? []).map(event => ({ type: 'event' as const, value: event }))]
     .sort((a, b) => new Date(a.value.created_at).getTime() - new Date(b.value.created_at).getTime());
@@ -607,7 +625,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
             <div className="min-w-0"><div className="flex items-center gap-1"><strong className="block truncate text-sm">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</strong><button type="button" aria-label="Editar nome" onClick={()=>{renameContact.reset();mergeConversations.reset();setRenameOpen(true)}} className="rounded p-1 text-muted-foreground hover:bg-muted"><Pencil className="h-3 w-3" /></button></div><p className="whitespace-nowrap text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p></div>
           </div>
           <div data-testid="conversation-header-actions" className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
-            <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{preview ? 'Qualificação' : selected.cliente_id ? (client.data?.status_funil ? STATUS_FUNIL_LABELS[client.data.status_funil as StatusFunil] : 'Sem etapa definida') : 'Sem cliente vinculado'}</span></span>
+            {/* Com o CRM ligado, a etapa é a do negócio no Funil (a mesma do cartão); sem ele, o status do cadastro. */}
+            {FLAGS.crm && !preview
+              ? <EtapaDoFunil key={selected.id} clienteId={selected.cliente_id} ultimoEventoDeEtapa={ultimoEventoDeEtapa} />
+              : <span data-testid="conversation-stage-pill" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] font-medium"><span className="font-semibold uppercase text-muted-foreground">Etapa</span><span className="h-2 w-2 rounded-full bg-primary" /><span>{preview ? 'Qualificação' : selected.cliente_id ? (client.data?.status_funil ? STATUS_FUNIL_LABELS[client.data.status_funil as StatusFunil] : 'Sem etapa definida') : 'Sem cliente vinculado'}</span></span>}
             <button type="button" title={selected.status==='closed'&&selected.closed_reason?`Motivo: ${selected.closed_reason}`:undefined} onClick={()=>{changeStatus.reset();setStatusOpen(true)}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10"><span className={`h-2 w-2 rounded-full ${selected.status==='closed'?'bg-muted-foreground':'bg-emerald-600'}`} />{selected.status==='closed'?`Fechada${porQuem(selected.closed_by)}`:'Aberta'}</button>
             <button type="button" role="switch" aria-label="IA" aria-checked={selected.mode === 'ai'} disabled={mode.isPending || optOut !== 'none'} title={optOut !== 'none' ? 'O contato pediu para não receber mensagens' : undefined} onClick={() => {if(preview){const next=selected.mode==='ai'?'human':'ai';updateDemoConversation(selected.id,{mode:next});appendDemoEvent(selected.id,next==='ai'?'IA':'Equipe',selected.mode==='ai'?'IA':'Equipe');}else mode.mutate(selected.mode === 'ai' ? 'human' : 'ai')}} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:bg-primary/10 disabled:opacity-50"><Bot className={`h-3.5 w-3.5 ${selected.mode==='ai'?'text-primary':'text-muted-foreground'}`} /><span>{optOut!=='none'?'IA bloqueada':rotuloDaIa(estadoIa)}</span><span aria-hidden className="mx-0.5 h-3.5 w-px bg-border" />{selected.mode==='ai'?<Play aria-hidden className="h-3 w-3 fill-primary text-primary" />:<Pause aria-hidden className="h-3 w-3 fill-muted-foreground text-muted-foreground" />}</button>
             <Button size="sm" className="h-8 shrink-0 border-primary px-2 text-[11px] text-primary hover:bg-primary/10" variant="outline" onClick={() => setInfoVisible(v => !v)}>{infoVisible ? 'Ocultar info' : 'Mostrar info'}</Button>
@@ -643,7 +664,16 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
               ainda disputava espaço com o compositor. */}
           <div ref={conteudoRef} className="space-y-2">
           {messages.data?.length === 200 && <p className="pb-2 text-center text-[11px] text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
-          {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
+          {timeline.map(item => {
+            if (item.type !== 'event') return <MessageBubble key={item.value.id} message={item.value} />;
+            const hora = new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const motivo = eventoComMotivo(item.value);
+            return <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">
+              {motivo
+                ? <span data-testid="evento-com-motivo" className="inline-flex items-center gap-1.5"><Pause aria-hidden className="h-3 w-3 fill-muted-foreground/60 text-muted-foreground/60" /><span>{motivo}</span><span className="opacity-60">· {hora}</span></span>
+                : <>{eventText(item.value)} · {hora}</>}
+            </span></div>;
+          })}
           {pendentes.map(pendente => <article key={pendente.key} data-testid="mensagem-pendente" className="ml-auto w-fit max-w-[78%] rounded-[15px] rounded-tr-[4px] border border-primary/40 bg-primary/10 px-3 py-1.5 text-[14px] leading-[1.4] text-[#10131f]">
             <p className="mb-1 text-[11px] font-medium text-muted-foreground">Corretor</p>
             <p className="whitespace-pre-wrap break-words">{pendente.kind === 'audio' ? '🎤 Áudio' : pendente.content}</p>
@@ -724,7 +754,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       {selected&&<><RenameContactDialog open={renameOpen} initialName={client.data?.nome??selected.contact_name??''} initialPhone={selected.phone ?? ''} phoneHidden={!selected.phone} onOpenChange={setRenameOpen} onSubmit={contact=>{if(preview){updateDemoConversation(selected.id,{contact_name:contact.name,phone:contact.phone});setRenameOpen(false)}else{mergeConversations.reset();renameContact.mutate({id:selected.id,...contact})}}} pending={!preview&&renameContact.isPending} error={preview?undefined:mergeConversations.isError?mergeErrorText(codigoDoErro(mergeConversations.error)):renameContact.isError?renameErrorText(codigoDoErro(renameContact.error)):undefined} action={!preview&&otherConversation&&!mergeConversations.isError?{label:'Unir conversas',pending:mergeConversations.isPending,onClick:()=>mergeConversations.mutate({keep:selected.id,drop:otherConversation,name:renameContact.variables?.name,phone:renameContact.variables?.phone})}:undefined} /><ConversationStatusDialog open={statusOpen} status={selected.status??'open'} onOpenChange={setStatusOpen} onConfirm={status=>{if(preview){updateDemoConversation(selected.id,{status,closed_by:status==='closed'?'humano':null});appendDemoStatusEvent(selected.id,status);setStatusOpen(false)}else changeStatus.mutate(status)}} pending={!preview&&changeStatus.isPending} error={!preview&&changeStatus.isError?'Não foi possível alterar o estado da conversa.':undefined} /></>}
     <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}><SheetContent side="left" className="space-y-5"><SheetTitle>Filtros</SheetTitle><SheetDescription>Filtre as conversas já recebidas.</SheetDescription>
       <label className="block text-sm">Atendimento<select className="mt-1 w-full rounded-md border bg-background p-2" value={modeFilter} onChange={e => setModeFilter(e.target.value)}><option value="">Todos</option><option value="human">Humano</option><option value="ai">IA</option><option value="paused">Pausado</option></select></label>
-      <label className="block text-sm">Etapa<select className="mt-1 w-full rounded-md border bg-background p-2" value={stageFilter} onChange={e => setStageFilter(e.target.value)}><option value="">Todas</option>{Object.entries(stages).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="block text-sm">Qualificação (IA)<select className="mt-1 w-full rounded-md border bg-background p-2" value={stageFilter} onChange={e => setStageFilter(e.target.value)}><option value="">Todas</option>{Object.entries(stages).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <label className="block text-sm">Última atividade<select className="mt-1 w-full rounded-md border bg-background p-2" value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}><option value="">Qualquer período</option><option value="1">Últimas 24 horas</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option></select></label>
       <Button onClick={() => setFiltersOpen(false)}>Ver {filtered.length} conversas</Button>
     </SheetContent></Sheet>

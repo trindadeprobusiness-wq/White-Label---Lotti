@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { PALETA_HEX, corParaHex } from '@/lib/crm/cores';
 import {
   DndContext, DragEndEvent, MouseSensor, TouchSensor,
   DragOverlay, useDraggable, useDroppable, useSensor, useSensors,
@@ -45,8 +46,6 @@ const moeda = (v: number) => moedaBR(v, true);
  * `ponto` é a bolinha do cabeçalho — o status não pode depender só de cor, e o
  * nome da etapa fica sempre ao lado.
  */
-const PALETA_HEX: Record<string, string> = { blue: '#2563eb', sky: '#0284c7', indigo: '#4f46e5', amber: '#f59e0b', orange: '#f97316', green: '#16a34a', red: '#dc2626', violet: '#7c3aed', slate: '#64748b' };
-const corParaHex = (cor: string) => PALETA_HEX[cor] ?? PALETA_HEX.slate;
 const hexParaCor = (hex: string) => Object.entries(PALETA_HEX).reduce((melhor, atual) => {
   const distancia = (valor: string) => Math.abs(parseInt(valor.slice(1, 3), 16) - parseInt(hex.slice(1, 3), 16)) + Math.abs(parseInt(valor.slice(3, 5), 16) - parseInt(hex.slice(3, 5), 16)) + Math.abs(parseInt(valor.slice(5, 7), 16) - parseInt(hex.slice(5, 7), 16));
   return distancia(atual[1]) < distancia(PALETA_HEX[melhor]) ? atual[0] : melhor;
