@@ -199,7 +199,7 @@ function LinhaDoTempo({ eventos }: { eventos: { titulo: string; quando?: string 
           bolinha e parava 14px antes da outra, no vazio. */}
       {indice < lista.length - 1 && <span aria-hidden="true" className="absolute -bottom-1.5 left-[3px] top-[13px] w-px bg-border" />}
       <span aria-hidden="true" className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-primary" />
-      <div className={`min-w-0 ${indice < lista.length - 1 ? 'pb-3' : ''}`}>
+      <div className={`min-w-0 ${indice < lista.length - 1 ? 'pb-4' : ''}`}>
         <strong className="block text-[11px] font-medium leading-tight text-foreground">{evento.titulo}</strong>
         <time dateTime={evento.quando ?? undefined} className="text-[11px] text-muted-foreground">
           {new Date(evento.instante).toLocaleString('pt-BR')}
@@ -212,9 +212,9 @@ function LinhaDoTempo({ eventos }: { eventos: { titulo: string; quando?: string 
 function SecaoPerfil({ titulo, acessorio, children }: { titulo: string; acessorio?: React.ReactNode; children: React.ReactNode }) {
   // Seções separadas por uma linha fina, sem caixa em volta de cada uma: com um quadro por bloco o
   // painel virava uma pilha de caixas grandes.
-  return <section className="border-t py-3 first:border-t-0">
+  return <section className="border-t py-4 first:border-t-0">
     <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}{acessorio && <span className="ml-auto">{acessorio}</span>}</h3>
-    <div className="mt-2 space-y-2">{children}</div>
+    <div className="mt-2.5 space-y-2.5">{children}</div>
   </section>;
 }
 
@@ -280,7 +280,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // lista desliza por cima. Empilhada, era preciso rolar dezenas de conversas
   // para alcançar a mensagem.
   const [listaAberta, setListaAberta] = useState(false);
-  const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); setStatusLista('open'); setFechadaPor(''); };
+  const limparFiltros = () => { setQuery(''); setQuick('all'); setModeFilter(''); setStageFilter(''); setPeriodFilter(''); setStatusLista('open'); };
   // /whatsapp?telefone=... abre direto no chat de quem veio da tela inicial.
   // Só vale enquanto ninguém escolheu outra conversa na lista.
   const telefoneAlvo = new URLSearchParams(useLocation().search).get('telefone');
@@ -291,7 +291,6 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const [stageFilter, setStageFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('');
   const [statusLista, setStatusLista] = useState<StatusLista>('open');
-  const [fechadaPor, setFechadaPor] = useState('');
   // Link do funil para uma conversa que está fechada: troca para Fechadas uma vez e acha lá.
   const tentouFechadas = useRef(false);
   const [infoVisible, setInfoVisible] = useState(() => typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 1536px)').matches);
@@ -308,6 +307,14 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     // Trocar Abertas/Fechadas não pode apagar a tela enquanto a outra lista chega.
     placeholderData: (anterior) => anterior,
     initialData: preview ? [demoConversation] : undefined,
+  });
+  // A lista do outro lado vem por trás, mais devagar: clicar em Fechadas mostrava a tela parada até a
+  // consulta voltar.
+  const outroLado: StatusLista = statusLista === 'open' ? 'closed' : 'open';
+  const outraLista = useQuery({
+    queryKey: ['lotti-agent-conversations', user?.id, false, outroLado],
+    enabled: !!user && !preview, refetchInterval: preview ? false : 15000,
+    queryFn: () => fetchConversations(outroLado),
   });
   // A lista traz no máximo 100 conversas, e o rodapé dizia "100 de 100" mesmo
   // com 104 existindo: o denominador era o tamanho da página, não o total.
@@ -339,11 +346,19 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const latest = latestByConversation(previews.data ?? []);
   const now = Date.now();
   const filtered = filterLiveConversations(list.data ?? [], latest, { query, quick, mode: modeFilter, stage: stageFilter, period: periodFilter, now })
-    .filter(c => (c.status === 'closed') === (statusLista === 'closed') && (!fechadaPor || c.closed_by === fechadaPor));
+    .filter(c => (c.status === 'closed') === (statusLista === 'closed'));
   const contagem = totalDeConversas.data;
-  const totalDoLado = statusLista === 'open' ? contagem?.abertas : contagem?.fechadas;
+  // Cada lado vem inteiro quando tem menos de 100 conversas: aí a própria lista é a contagem, sempre
+  // em dia com o que aparece. A contagem à parte (a cada 30 s) só vale acima disso — antes o botão
+  // dizia "Fechadas 0" com uma conversa fechada na tela.
+  const contarLado = (s: StatusLista) => {
+    const dados = s === statusLista ? (list.isPlaceholderData ? undefined : list.data) : outraLista.data;
+    if (dados && dados.length < 100) return dados.filter(c => (c.status === 'closed') === (s === 'closed')).length;
+    return s === 'open' ? contagem?.abertas : contagem?.fechadas;
+  };
+  const totalDoLado = contarLado(statusLista);
   // A tela de "primeira conversa" só quando não existe conversa nenhuma, aberta ou fechada.
-  const semConversas = list.isSuccess && !list.data?.length && statusLista === 'open' && !fechadaPor && (contagem?.total ?? 0) === 0;
+  const semConversas = list.isSuccess && !list.data?.length && statusLista === 'open' && (contagem?.total ?? 0) === 0;
   const selected = filtered.find(c => c.id === selectedId)
     ?? (telefoneAlvo ? filtered.find(c => mesmoTelefone(c.phone, telefoneAlvo)) : undefined)
     ?? filtered[0];
@@ -421,7 +436,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   const otherConversation=registroDoErro(renameContact.error,'phone_in_other_conversation');
   // History conversations are not CRM clients until the broker adds them. The
   // CRM screens read clients from their own store, refreshed after adding.
-  const changeStatus=useMutation({mutationFn:async(status:'open'|'closed')=>{if(apiDisponivel())return statusConversaApi(selected!.id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async(_d,status)=>{setStatusOpen(false);if(status!==statusLista)toast.success(status==='closed'?'Conversa fechada. Ela fica em "Fechadas" e volta sozinha se o cliente escrever.':'Conversa reaberta. Ela voltou para "Abertas".');await Promise.all([refreshConversation(),cache.invalidateQueries({queryKey:['lotti-agent-conversation-count',user?.id]})])}});
+  const changeStatus=useMutation({retry:1,retryDelay:1500,mutationFn:async(status:'open'|'closed')=>{if(apiDisponivel())return statusConversaApi(selected!.id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:selected!.id,p_status:status});if(error)throw error;return data},onSuccess:async(_d,status)=>{setStatusOpen(false);if(status!==statusLista)toast.success(status==='closed'?'Conversa fechada. Ela fica em "Fechadas" e volta sozinha se o cliente escrever.':'Conversa reaberta. Ela voltou para "Abertas".');await Promise.all([refreshConversation(),cache.invalidateQueries({queryKey:['lotti-agent-conversation-count',user?.id]})])}});
   const demoListKey=['lotti-agent-conversations',user?.id,true];
   const updateDemoConversation=(id:string,change:Partial<Conversation>)=>cache.setQueryData<Conversation[]>(demoListKey,current=>(current??[]).map(item=>item.id===id?{...item,...change}:item));
   const appendDemoMessage=(id:string,kind:'text'|'file'|'audio',content:string)=>{
@@ -544,11 +559,11 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">Conversas <span className="font-normal text-muted-foreground">· {list.data.length}</span></h2><Button size="sm" className="ml-auto h-7 bg-primary px-2.5 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={()=>{startConversation.reset();setNewOpen(true)}}><Plus className="mr-1 h-3 w-3" />Nova</Button></div>
           <div role="group" aria-label="Situação das conversas" className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f3f9] p-0.5">
             {(['open', 'closed'] as const).map(s => {
-              const n = s === 'open' ? contagem?.abertas : contagem?.fechadas;
-              return <button key={s} type="button" aria-pressed={statusLista === s} onClick={() => { setStatusLista(s); setFechadaPor(''); }} className={`h-7 rounded-md text-[11px] font-medium transition-colors ${statusLista === s ? 'bg-white text-primary shadow-sm' : 'text-[#565e76] hover:text-foreground'}`}>{s === 'open' ? 'Abertas' : 'Fechadas'}{typeof n === 'number' && <span className="ml-1 text-[10px] text-muted-foreground">{n}</span>}</button>;
+              const n = contarLado(s);
+              // O lado escolhido precisa saltar aos olhos: branco sobre cinza-claro não dizia onde se estava.
+              return <button key={s} type="button" aria-pressed={statusLista === s} onClick={() => setStatusLista(s)} className={`h-8 rounded-md border text-[12px] transition-colors ${statusLista === s ? 'border-primary bg-primary/10 font-semibold text-primary shadow-sm' : 'border-transparent font-medium text-[#565e76] hover:bg-white hover:text-foreground'}`}>{s === 'open' ? 'Abertas' : 'Fechadas'}{typeof n === 'number' && <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${statusLista === s ? 'bg-primary text-primary-foreground' : 'bg-white text-muted-foreground'}`}>{n}</span>}</button>;
             })}
           </div>
-          {statusLista === 'closed' && <label className="flex items-center gap-2 text-[11px] text-muted-foreground">Fechada por<select aria-label="Fechada por" value={fechadaPor} onChange={e => setFechadaPor(e.target.value)} className="h-7 flex-1 rounded-md border bg-background px-1.5 text-[11px] text-foreground"><option value="">Todas</option><option value="humano">Vendedor</option><option value="cliente">Cliente pediu</option><option value="silencio">Sem resposta</option></select></label>}
           <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
           <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground" title={(totalDoLado ?? 0) > list.data.length ? `Mostrando as ${list.data.length} mais recentes` : undefined}>{filtered.length} de {totalDoLado ?? list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
           {/* Sem contagem os atalhos continuam clicáveis: desabilitar em zero
@@ -658,20 +673,19 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
         <p className="mt-4 text-[12px] text-muted-foreground">Selecione uma conversa para ver o perfil do contato.</p>
       </aside>}
-      {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
-        <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
+      {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex flex-col rounded-[14px] border border-[#e9ebf3] bg-white p-4 shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
+        <button type="button" onClick={() => setInfoVisible(false)} className="self-end rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
         <h2 className="sr-only">Perfil do contato</h2>
 
         {/* Contato no topo, sem caixa: avatar, nome, telefone e o atalho para o cadastro. */}
-        <div className="flex items-center gap-2.5 pb-3">
-          <ContactAvatar name={conversationTitle(selected, client.data?.nome || selected.clientes?.nome)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" />
+        <div className="flex items-center gap-3 pb-4">
+          <ContactAvatar name={conversationTitle(selected, client.data?.nome || selected.clientes?.nome)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-semibold" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold leading-tight">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</p>
+            <p className="truncate text-[15px] font-semibold leading-tight">{conversationTitle(selected, client.data?.nome || selected.clientes?.nome)}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">{contactPhoneLabel(selected.phone)}</p>
             {client.data?.email && <p className="truncate text-[11px] text-muted-foreground">{client.data.email}</p>}
           </div>
         </div>
-        {selected?.cliente_id && !preview && <Link className="mb-1 flex h-8 w-full items-center justify-center rounded-lg border border-primary text-[12px] font-medium text-primary transition-colors hover:bg-primary/10" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link>}
 
         <SecaoPerfil titulo="Qualificação comercial">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -683,7 +697,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </div>
           {/* Rótulo e valor na mesma linha: empilhados, cinco campos ocupavam a
               altura do painel inteiro e obrigavam a rolar para ver o botão. */}
-          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[12px]">
+          {Object.entries(labels).some(([key]) => q?.profile?.[key]) && <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[12.5px]">
             {Object.entries(labels).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key} className="contents">
               <dt className="text-muted-foreground">{label}</dt>
               <dd className="break-words font-medium leading-snug">{valorLegivel(key, q!.profile![key]!)}</dd>
@@ -702,6 +716,8 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           ]} />
         </SecaoPerfil>
 
+        {/* O atalho para o cadastro fica no pé do painel: no topo, sobrava um vão grande embaixo. */}
+        {selected?.cliente_id && !preview && <div className="mt-auto pt-4"><Link className="flex h-9 w-full items-center justify-center rounded-lg border border-primary text-[12px] font-medium text-primary transition-colors hover:bg-primary/10" to={`/clientes/${selected.cliente_id}`}>Abrir cadastro do cliente</Link></div>}
       </aside>}
     </div>}
     <NewConversationDialog open={newOpen} onOpenChange={setNewOpen} onSubmit={data=>preview?demoStart(data):startConversation.mutate(data)} pending={!preview&&startConversation.isPending} outcome={startOutcome} error={!preview&&startConversation.isError?startErrorText(startConversation.error instanceof Error?startConversation.error.message:''):undefined} />

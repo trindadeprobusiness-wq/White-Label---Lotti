@@ -679,11 +679,12 @@ it('motivo que não é de envio não oferece os botões', async () => {
 it('o rodapé mostra o total real, não o teto da página', async () => {
   // A consulta traz no máximo 100; com 104 existindo, o rodapé dizia
   // "100 de 100" e parecia que não havia mais nada.
-  dataByTable.lotti_agent_conversations = Array.from({ length: 3 }, (_, i) => (
-    { id: `c${i}`, phone: `551199999000${i}`, cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null }));
+  // A lista vem cortada em 100 (o teto da consulta); abaixo disso ela mesma é a contagem.
+  dataByTable.lotti_agent_conversations = Array.from({ length: 100 }, (_, i) => (
+    { id: `c${i}`, phone: `55119999${String(i).padStart(5, '0')}`, cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: null }));
   mockDb.counts.lotti_agent_conversations = 104;
   mount(true);
-  expect(await screen.findByText('3 de 104')).toBeTruthy();
+  expect(await screen.findByText('100 de 104')).toBeTruthy();
   delete mockDb.counts.lotti_agent_conversations;
 });
 
@@ -714,10 +715,13 @@ it('como no Clix: abre nas Abertas e as fechadas ficam em Fechadas, com quem fec
   expect(await screen.findByRole('button', { name: /Bruno Fechado.*Fechada · Sem resposta/ })).not.toBeNull();
   expect(screen.getByRole('button', { name: /Carla Vendedor.*Fechada · Vendedor/ })).not.toBeNull();
   expect(screen.queryByRole('button', { name: /Ana Aberta/ })).toBeNull();
-
-  fireEvent.change(screen.getByRole('combobox', { name: 'Fechada por' }), { target: { value: 'humano' } });
-  expect(screen.queryByRole('button', { name: /Bruno Fechado/ })).toBeNull();
-  expect(screen.getByRole('button', { name: /Carla Vendedor/ })).not.toBeNull();
+  // O filtro "Fechada por" saiu a pedido do corretor; quem fechou continua escrito em cada conversa.
+  expect(screen.queryByRole('combobox', { name: 'Fechada por' })).toBeNull();
+  // O lado escolhido fica marcado e a contagem bate com a lista na tela.
+  const fechadas = screen.getByRole('button', { name: /^Fechadas/ });
+  expect(fechadas.getAttribute('aria-pressed')).toBe('true');
+  expect(fechadas.className).toContain('border-primary');
+  expect(fechadas.textContent).toBe('Fechadas2');
 });
 
 it('fechada pela IA porque o cliente encerrou aparece como "Cliente pediu", com o motivo', async () => {
@@ -728,8 +732,6 @@ it('fechada pela IA porque o cliente encerrou aparece como "Cliente pediu", com 
   fireEvent.click(await screen.findByRole('button', { name: /^Fechadas/ }));
   expect(await screen.findByRole('button', { name: /Dora Encerrou.*Fechada · Cliente pediu/ })).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Fechada · Cliente pediu' }).getAttribute('title')).toBe('Motivo: cliente disse que era só isso');
-  fireEvent.change(screen.getByRole('combobox', { name: 'Fechada por' }), { target: { value: 'cliente' } });
-  expect(screen.getByRole('button', { name: /Dora Encerrou/ })).not.toBeNull();
 });
 
 it('foto e arquivo recebidos sem a mídia guardada viram cartão com "Arquivo indisponível", não texto solto', async () => {
