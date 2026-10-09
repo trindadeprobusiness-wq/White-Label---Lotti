@@ -639,6 +639,12 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
               </div>
             : <p>Nenhuma conversa ainda.</p>}
       </div>}
+      {/* Sem conversa aberta (lista vazia em Fechadas, Atrasadas, Com erro): o quadro do perfil fica no
+          lugar, vazio, em vez de a tela terminar num vão cinza. */}
+      {!selected && infoVisible && <aside aria-label="Perfil do contato vazio" className="hidden min-h-0 rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-sm 2xl:block">
+        <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
+        <p className="mt-4 text-[12px] text-muted-foreground">Selecione uma conversa para ver o perfil do contato.</p>
+      </aside>}
       {selected && infoVisible && <aside aria-label="Perfil do contato" className="fixed bottom-3 right-3 top-16 z-30 min-h-0 w-[min(330px,calc(100vw-24px))] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#e9ebf3] bg-white p-[14px] shadow-xl 2xl:static 2xl:w-auto 2xl:shadow-sm">
         <button type="button" onClick={() => setInfoVisible(false)} className="float-right rounded px-2 py-1 text-xs text-primary 2xl:hidden">Fechar perfil</button>
         <h2 className="border-b pb-2.5 text-[11px] font-bold uppercase">Perfil do contato</h2>
