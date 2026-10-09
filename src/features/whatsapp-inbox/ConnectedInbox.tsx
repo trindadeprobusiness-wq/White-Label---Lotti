@@ -270,7 +270,8 @@ function MessageBubble({ message, onReply }: { message: Message; onReply?: (m: M
     <MessageBody message={message} />
     {/* Como no Clix: quem mandou e a hora no rodapé do balão, com ✓ na mensagem enviada. */}
     <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${outbound ? 'text-primary-foreground/80' : 'text-[#929aae]'}`}>
-      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium ${outbound ? 'bg-white/15' : 'bg-[#eef3ef] text-[#3f5a48]'}`}><UserRound aria-hidden className="h-2.5 w-2.5" />{message.sender === 'ai' ? 'Lotti IA' : message.sender === 'human' ? 'Corretor' : 'Cliente'}</span>
+      {/* Mensagem do cliente: só a hora, como no WhatsApp; a etiqueta fica para quem é da equipe ou a IA. */}
+      {outbound && <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 font-medium"><UserRound aria-hidden className="h-2.5 w-2.5" />{message.sender === 'ai' ? 'Lotti IA' : 'Corretor'}</span>}
       <time dateTime={message.created_at} title={new Date(message.created_at).toLocaleString('pt-BR', { timeZone: inboxTimeZone })}>
         {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: inboxTimeZone })}
       </time>
