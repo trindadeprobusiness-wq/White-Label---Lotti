@@ -468,6 +468,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   }, [list.data, list.isPlaceholderData, clienteNaUrl, telefoneNaUrl, setSelectedId, statusLista]);
 
   const timelineRef = useRef<HTMLDivElement>(null);
+  const conteudoRef = useRef<HTMLDivElement>(null);
  const followLatest = useRef(true);
   // Mensagens já enviadas e ainda sem confirmação da ponte. Aparecem na conversa
   // na hora: esperar três segundos olhando a tela parada era o custo de uma
@@ -494,13 +495,17 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // A régua de escrever muda de altura quando os botões quebram em duas linhas,
   // e a conversa encolhe junto — a rolagem parava algumas dezenas de pixels
   // antes do fim. Quem está acompanhando o fim continua no fim.
+  // O conteúdo também cresce depois de desenhado (foto que termina de carregar, eventos da linha do
+  // tempo que chegam depois): observando só a caixa, a conversa abria no meio. E o efeito liga a cada
+  // conversa aberta: com deps [] ele rodava antes de existir a caixa e nunca observava nada.
   useEffect(() => {
     const el = timelineRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const observador = new ResizeObserver(() => { if (followLatest.current) el.scrollTop = el.scrollHeight; });
     observador.observe(el);
+    if (conteudoRef.current) observador.observe(conteudoRef.current);
     return () => observador.disconnect();
-  }, []);
+  }, [selected?.id]);
   // A altura é travada em QUALQUER largura, não só a partir de `lg`.
   // Com `min-h` e sem teto, a lista de mensagens crescia até o tamanho do
   // conteúdo: `scrollHeight` virava igual a `clientHeight`, não havia rolagem
@@ -611,10 +616,11 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </span>}
           {reconciliar.isError && <span className="text-destructive">Não foi possível concluir. Tente de novo.</span>}
         </div>}
-        <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
+        <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {/* O aviso fala do histórico cortado, que fica no começo da lista.
               No fim, junto da mensagem mais nova, ele não descrevia nada e
               ainda disputava espaço com o compositor. */}
+          <div ref={conteudoRef} className="space-y-2">
           {messages.data?.length === 200 && <p className="pb-2 text-center text-[11px] text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
           {timeline.map(item => item.type === 'event' ? <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">{eventText(item.value)} · {new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div> : <MessageBubble key={item.value.id} message={item.value} />)}
           {pendentes.map(pendente => <article key={pendente.key} data-testid="mensagem-pendente" className="ml-auto w-fit max-w-[78%] rounded-[15px] rounded-tr-[4px] border border-primary/40 bg-primary/10 px-3 py-1.5 text-[14px] leading-[1.4] text-[#10131f]">
@@ -622,6 +628,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
             <p className="whitespace-pre-wrap break-words">{pendente.kind === 'audio' ? '🎤 Áudio' : pendente.content}</p>
             <p className="mt-1 text-right text-[10px] text-muted-foreground">{pendente.incerto ? 'sem confirmação' : 'enviando…'}</p>
           </article>)}
+          </div>
         </div>
         {connected === true || preview
           ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}

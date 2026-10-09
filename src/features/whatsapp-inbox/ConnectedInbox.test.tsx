@@ -114,7 +114,8 @@ it('prévia mantém o histórico compacto nas laterais e entre mensagens', async
   const timeline = screen.getByTestId('message-timeline');
   expect(timeline.className).toContain('px-[clamp(10px,1.5vw,18px)]');
   // Era space-y-1; o corretor pediu um pouco mais de ar entre as mensagens.
-  expect(timeline.className).toContain('space-y-2');
+  // O espaço fica no conteúdo de dentro, que é o que o vigia de altura observa.
+  expect(timeline.firstElementChild?.className).toContain('space-y-2');
 });
 
 it('prévia usa o fundo verde claro da Lotti no histórico', () => {
@@ -750,4 +751,26 @@ it('foto recebida com o arquivo guardado aparece como imagem, mesmo com o texto 
   mount(true);
   const imagem = await screen.findByRole('img', { name: 'Foto' });
   expect(imagem.getAttribute('src')).toBe('https://example.invalid/Custos.xlsx');
+});
+
+it('conteúdo que cresce depois de aberto (foto carregando, eventos) mantém a conversa no fim', async () => {
+  const observados: Element[] = [];
+  const avisos: Array<() => void> = [];
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(cb: () => void) { avisos.push(cb); }
+    observe(alvo: Element) { observados.push(alvo); }
+    disconnect() {}
+  });
+  const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, direction: 'in', sender: 'lead', content: `Mensagem ${i}`, media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString() }));
+  mount(true);
+  const trilha = await screen.findByTestId('message-timeline');
+  await waitFor(() => expect(trilha.scrollTop).toBe(2400));
+  // O vigia olha o conteúdo de dentro, não só a caixa.
+  expect(observados.some(alvo => alvo !== trilha && trilha.contains(alvo))).toBe(true);
+  height.mockReturnValue(3100);
+  avisos.forEach(aviso => aviso());
+  expect(trilha.scrollTop).toBe(3100);
+  height.mockRestore();
+  vi.unstubAllGlobals();
 });
