@@ -31,6 +31,11 @@
   - `fechada_em` nunca é preenchido, então negócio em GANHO/PERDIDO conta como aberto.
   - A listagem do Funil tem limite de 1000.
 - Diário — Claude: a linha do tempo explica por que a IA parou; a etapa do Inbox é a mesma do Funil e anda junto.
+- Depois (mesmo dia), três correções:
+  - **Visão `lotti_agent_latest_messages`**: não veio no 0_init. A API dava 42P01 umas 55 vezes por deploy em `ultimasMensagens`, e o Inbox ficava sem prévia e sem contadores. A migration `20261009180000_ultima_mensagem_da_conversa` recria a visão igual à do Supabase, com security_invoker e os mesmos grants. Teste SQL novo cobre a última mensagem e o isolamento entre contas.
+  - **Rolagem ao abrir a conversa**: agora só um gesto da pessoa (rodinha, toque, teclado ou barra) tira a tela do fim. Antes, o aviso de rolagem do próprio scrollTop chegava atrasado, depois de a conversa crescer, e a tela parava no meio. Conferido no navegador real com a prévia.
+  - **Busca**: no estilo do Clix.
+- Atenção: `railway logs --deployment <id>` sem `--service` falha em silêncio. Use sempre `--service api`.
 
 ## Claude — Diagnóstico de Crescimento (#53 204e0e0 + #54 61b1959) portado para o Railway (2026-10-08)
 - Nada commitado por mim (o coordenador fez o wip 4b491dd e o merge 82f63ca; o #54 está só no working tree), nada publicado, nenhuma rede/CLI. Branch `feat/api-lotti-fundacao`.

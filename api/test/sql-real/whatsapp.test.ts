@@ -195,3 +195,19 @@ test('IA parada com motivo: celular deixa "em espera" uma vez; mídia do celular
   assert.deepEqual((await eventos(fechada)).filter(e=>e.kind==='pausa'),[{kind:'pausa',to_label:'Em espera',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
  }finally{await b.fechar();}
 });
+
+test('última mensagem de cada conversa (prévia do Inbox): só a mais recente e só das conversas da conta',async()=>{
+ const b=await criarBanco();
+ try{
+  const canalA=randomUUID(),canalB=randomUUID(),cvA=randomUUID(),cvB=randomUUID();
+  await b.inserir('lotti_agent_channels',{id:canalA,corretor_id:b.corretorA,instance:'teste-previa-a',enabled:true,sandbox:true});
+  await b.inserir('lotti_agent_channels',{id:canalB,corretor_id:b.corretorB,instance:'teste-previa-b',enabled:true,sandbox:true});
+  await b.inserir('lotti_agent_conversations',{id:cvA,channel_id:canalA,corretor_id:b.corretorA,phone:'5511999990051',mode:'ai'});
+  await b.inserir('lotti_agent_conversations',{id:cvB,channel_id:canalB,corretor_id:b.corretorB,phone:'5511999990052',mode:'ai'});
+  await b.inserir('lotti_agent_messages',{conversation_id:cvA,external_id:'p-1',direction:'in',sender:'lead',content:'primeira',created_at:'2026-10-09T10:00:00Z'});
+  await b.inserir('lotti_agent_messages',{conversation_id:cvA,external_id:'p-2',direction:'out',sender:'human',content:'última',created_at:'2026-10-09T11:00:00Z'});
+  await b.inserir('lotti_agent_messages',{conversation_id:cvB,external_id:'p-3',direction:'in',sender:'lead',content:'de outra conta',created_at:'2026-10-09T12:00:00Z'});
+  const linhas=await new WhatsappService(b.db).ultimasMensagens(b.claimsA) as Array<{conversation_id:string;direction:string;content:string}>;
+  assert.deepEqual(linhas.map(l=>[l.conversation_id,l.direction,l.content]),[[cvA,'out','última']]);
+ }finally{await b.fechar();}
+});

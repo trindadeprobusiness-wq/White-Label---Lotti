@@ -687,7 +687,8 @@ it('trocar de conversa abre no fim, mesmo depois de ter subido na anterior', asy
   const trilha = await screen.findByTestId('message-timeline');
   await waitFor(() => expect(trilha.scrollTop).toBe(2400));
 
-  // Sobe na conversa atual: a partir daqui a tela não deve mais perseguir o fim.
+  // Sobe na conversa atual (com a rodinha): a partir daqui a tela não deve mais perseguir o fim.
+  fireEvent.wheel(trilha, { deltaY: -400 });
   trilha.scrollTop = 0;
   fireEvent.scroll(trilha);
 
@@ -854,4 +855,36 @@ it('IA parada com motivo aparece como no Clix: quem assumiu pelo Inbox e a esper
   expect(Array.from(avisos[1].querySelectorAll('strong')).map(s => s.textContent)).toEqual(['desligada', 'Evandro']);
   // Troca sem motivo continua no formato de sempre.
   expect(screen.getByText(/IA ligada por Evandro/)).not.toBeNull();
+});
+
+it('abre no fim mesmo quando o aviso da própria rolagem chega depois de a conversa crescer; só a pessoa tira do fim', async () => {
+  const avisos: Array<() => void> = [];
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(cb: () => void) { avisos.push(cb); }
+    observe() {}
+    disconnect() {}
+  });
+  const altura = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2400);
+  dataByTable.lotti_agent_messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, direction: 'in', sender: 'lead', content: `Mensagem ${i}`, media_path: null, created_at: new Date(Date.parse('2026-09-27T12:00:00Z') + i * 60000).toISOString() }));
+  try {
+    mount(true);
+    const trilha = await screen.findByTestId('message-timeline');
+    await waitFor(() => expect(trilha.scrollTop).toBe(2400));
+    // Fotos e eventos chegam: a conversa cresce e o aviso de rolagem (do nosso scrollTop) chega atrasado,
+    // longe do fim. Não foi a pessoa: continua acompanhando o fim.
+    altura.mockReturnValue(3200);
+    fireEvent.scroll(trilha);
+    avisos.forEach(aviso => aviso());
+    expect(trilha.scrollTop).toBe(3200);
+    // Agora a pessoa sobe com a rodinha: a conversa cresce de novo e a tela não puxa para baixo.
+    fireEvent.wheel(trilha, { deltaY: -500 });
+    trilha.scrollTop = 1000;
+    fireEvent.scroll(trilha);
+    altura.mockReturnValue(3600);
+    avisos.forEach(aviso => aviso());
+    expect(trilha.scrollTop).toBe(1000);
+  } finally {
+    altura.mockRestore();
+    vi.unstubAllGlobals();
+  }
 });

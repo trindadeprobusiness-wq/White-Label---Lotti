@@ -507,7 +507,13 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const conteudoRef = useRef<HTMLDivElement>(null);
- const followLatest = useRef(true);
+  const followLatest = useRef(true);
+  // Até quando um gesto da pessoa (rodinha, toque, teclado, barra de rolagem) vale como "foi ela que rolou".
+  // Só isso desliga o acompanhar o fim. Antes o onScroll decidia sozinho: o aviso de rolagem do nosso
+  // próprio scrollTop chega um quadro depois, quando fotos e eventos já aumentaram a conversa — a tela
+  // concluía que a pessoa tinha subido e parava no meio ao abrir.
+  const gestoAte = useRef(0);
+  const marcarGesto = () => { gestoAte.current = Date.now() + 1200; };
   // Mensagens já enviadas e ainda sem confirmação da ponte. Aparecem na conversa
   // na hora: esperar três segundos olhando a tela parada era o custo de uma
   // garantia que vem do request_id, não da espera.
@@ -582,7 +588,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
               return <button key={s} type="button" aria-pressed={statusLista === s} onClick={() => setStatusLista(s)} className={`h-8 rounded-md border text-[12px] transition-colors ${statusLista === s ? 'border-primary bg-primary/10 font-semibold text-primary shadow-sm' : 'border-transparent font-medium text-[#565e76] hover:bg-white hover:text-foreground'}`}>{s === 'open' ? 'Abertas' : 'Fechadas'}{typeof n === 'number' && <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${statusLista === s ? 'bg-primary text-primary-foreground' : 'bg-white text-muted-foreground'}`}>{n}</span>}</button>;
             })}
           </div>
-          <label className="relative block"><Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversa (nome, telefone, texto)..." className="h-8 rounded-lg pl-8 text-xs" /></label>
+          <Input aria-label="Buscar conversas" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar nome, telefone ou texto" className="h-9 rounded-xl border-[#e3e7ef] bg-white px-3 text-[13px] placeholder:text-[#9aa1b5]" />
           <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen(true)}><Filter className="mr-1 h-3 w-3" />Filtros</Button><span className="flex-1 text-[11px] text-muted-foreground" title={(totalDoLado ?? 0) > list.data.length ? `Mostrando as ${list.data.length} mais recentes` : undefined}>{filtered.length} de {totalDoLado ?? list.data.length}</span><button className="text-[11px] text-destructive" onClick={limparFiltros}>Limpar</button></div>
           {/* Sem contagem os atalhos continuam clicáveis: desabilitar em zero
               faz o corretor ler defeito onde só há fila vazia. Clicar mostra o
@@ -658,7 +664,12 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </span>}
           {reconciliar.isError && <span className="text-destructive">Não foi possível concluir. Tente de novo.</span>}
         </div>}
-        <div ref={timelineRef} onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} data-testid="message-timeline" className="min-h-0 flex-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
+        <div ref={timelineRef} onWheel={marcarGesto} onTouchMove={marcarGesto} onKeyDown={marcarGesto} onPointerDown={marcarGesto} onScroll={event => {
+          const el = event.currentTarget;
+          const noFim = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          if (noFim) followLatest.current = true;
+          else if (Date.now() < gestoAte.current) followLatest.current = false;
+        }} data-testid="message-timeline" className="min-h-0 flex-1 overflow-y-auto bg-[#f4f8f5] bg-[radial-gradient(circle_at_1px_1px,rgba(119,153,130,0.14)_1px,transparent_0)] bg-[length:24px_24px] px-[clamp(10px,1.5vw,18px)] py-3">
           {/* O aviso fala do histórico cortado, que fica no começo da lista.
               No fim, junto da mensagem mais nova, ele não descrevia nada e
               ainda disputava espaço com o compositor. */}
