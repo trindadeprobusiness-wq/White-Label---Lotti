@@ -171,9 +171,7 @@ function MessageBody({ message }: { message: Message }) {
   // object-cover a foto em pé do celular era cortada e o balão mudava de tamanho a cada foto.
   const moldura = `flex h-[300px] w-[280px] max-w-full items-center justify-center overflow-hidden rounded-[10px] ${message.direction === 'out' ? 'bg-white/15' : 'bg-[#eef0f4]'}`;
   if (url && ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(extension ?? '')) {
-    return <a href={url} target="_blank" rel="noopener noreferrer" className={moldura}>
-      <img src={url} alt={nomeVisivel} loading="lazy" className="max-h-full max-w-full object-contain" />
-    </a>;
+    return <FotoAmpliavel url={url} nome={nomeVisivel} moldura={moldura} />;
   }
   if (url && ['MP4', 'MOV', 'WEBM', '3GP'].includes(extension ?? '')) {
     return <div className={moldura}><video src={url} controls preload="metadata" aria-label={nomeVisivel} className="max-h-full max-w-full bg-black" /></div>;
@@ -233,14 +231,38 @@ function SecaoPerfil({ titulo, acessorio, children }: { titulo: string; acessori
   </section>;
 }
 
+// Foto aberta dentro do app (antes abria uma aba com endereço blob:). Fecha no Esc, no X ou clicando fora.
+function FotoAmpliavel({ url, nome, moldura }: { url: string; nome: string; moldura: string }) {
+  const [aberta, setAberta] = useState(false);
+  useEffect(() => {
+    if (!aberta) return;
+    const fechar = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberta(false); };
+    window.addEventListener('keydown', fechar);
+    return () => window.removeEventListener('keydown', fechar);
+  }, [aberta]);
+  return <>
+    <button type="button" onClick={() => setAberta(true)} aria-label={`Ampliar ${nome}`} className={`${moldura} cursor-zoom-in`}>
+      <img src={url} alt={nome} loading="lazy" className="max-h-full max-w-full object-contain" />
+    </button>
+    {aberta && <div role="dialog" aria-label="Foto ampliada" onClick={() => setAberta(false)} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-6">
+      <button type="button" aria-label="Fechar foto" onClick={() => setAberta(false)} className="absolute right-4 top-4 rounded-full bg-white/15 px-3 py-1 text-lg text-white hover:bg-white/25">×</button>
+      <img src={url} alt={nome} onClick={e => e.stopPropagation()} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />
+    </div>}
+  </>;
+}
+
 function MessageBubble({ message }: { message: Message }) {
   const outbound = message.direction === 'out';
   return <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-1.5 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'ml-auto rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
-    <p className={`mb-1 text-[11px] font-medium ${outbound ? 'text-primary-foreground/75' : 'text-[#929aae]'}`}>{message.sender === 'ai' ? 'Lotti IA' : message.sender === 'human' ? 'Corretor' : 'Cliente'}</p>
     <MessageBody message={message} />
-    <time dateTime={message.created_at} title={new Date(message.created_at).toLocaleString('pt-BR', { timeZone: inboxTimeZone })} className={`mt-1 block text-right text-[10px] ${outbound ? 'text-primary-foreground/75' : 'text-[#929aae]'}`}>
-      {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: inboxTimeZone })}
-    </time>
+    {/* Como no Clix: quem mandou e a hora no rodapé do balão, com ✓ na mensagem enviada. */}
+    <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${outbound ? 'text-primary-foreground/80' : 'text-[#929aae]'}`}>
+      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium ${outbound ? 'bg-white/15' : 'bg-[#eef3ef] text-[#3f5a48]'}`}><UserRound aria-hidden className="h-2.5 w-2.5" />{message.sender === 'ai' ? 'Lotti IA' : message.sender === 'human' ? 'Corretor' : 'Cliente'}</span>
+      <time dateTime={message.created_at} title={new Date(message.created_at).toLocaleString('pt-BR', { timeZone: inboxTimeZone })}>
+        {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: inboxTimeZone })}
+      </time>
+      {outbound && <span aria-label="Enviada">✓</span>}
+    </div>
   </article>;
 }
 // O banco registra por que a conversa saiu do automático. Até aqui os cinco
