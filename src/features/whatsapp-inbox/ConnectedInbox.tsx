@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Bot, FileText, Filter, Menu, MessageCircle, Pause, Pencil, Play, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
+import { AlertTriangle, Bot, Reply, X, FileText, Filter, Menu, MessageCircle, Pause, Pencil, Play, Plus, Search, Sparkles, Timer, UserRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { conversationTitle, formatContactPhone, filterLiveConversations, latestByConversation, liveUrgency, type LatestMessage, type QuickFilter } from './liveInboxFilters';
@@ -60,7 +60,10 @@ async function fetchConversations(status: StatusLista) {
   if (error) throw error;
   return data as unknown as Conversation[];
 }
-type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; media_path: string | null; created_at: string; preview_kind?: 'file' | 'audio' };
+type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' | 'ai'; content: string; media_path: string | null; created_at: string; preview_kind?: 'file' | 'audio';
+  external_id?: string | null; quoted_external_id?: string | null; quoted_content?: string | null; quoted_from_me?: boolean | null };
+// Só mensagem real do WhatsApp pode ser citada (o banco recusa ligação e simulação; pendente não tem id).
+const podeCitar = (m: Message) => !!m.external_id && !m.external_id.startsWith('call-') && !m.external_id.startsWith('simulation:');
 type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status' | 'consent' | 'pausa'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
 function eventText(event: InboxEvent) {
   if (event.kind === 'consent') return event.to_label === 'Contato liberado' ? `Contato liberado por ${event.actor_label}` : 'Contato pediu para não receber mensagens';
@@ -251,9 +254,19 @@ function FotoAmpliavel({ url, nome, moldura }: { url: string; nome: string; mold
   </>;
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, onReply }: { message: Message; onReply?: (m: Message) => void }) {
   const outbound = message.direction === 'out';
-  return <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-1.5 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'ml-auto rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
+  const responder = onReply && podeCitar(message)
+    ? <button type="button" aria-label="Responder citando" title="Responder" onClick={() => onReply(message)} className="mb-1 self-end rounded-full border bg-white p-1.5 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-primary focus:opacity-100 group-hover:opacity-100"><Reply className="h-3.5 w-3.5" /></button>
+    : null;
+  // Botão ↩ ao lado do balão, como no Clix/WhatsApp: aparece ao passar o mouse.
+  return <div className={`group flex items-end gap-1.5 ${outbound ? 'justify-end' : ''}`}>
+    {outbound && responder}
+    <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-1.5 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'ml-auto rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
+    {message.quoted_external_id && <div data-testid="citacao" className={`mb-1.5 rounded-lg border-l-4 px-2 py-1 text-[12px] ${outbound ? 'border-white/60 bg-white/15' : 'border-primary bg-[#eef3ef]'}`}>
+      <p className="font-semibold">{message.quoted_from_me === true ? 'Você' : message.quoted_from_me === false ? 'Cliente' : 'Mensagem citada'}</p>
+      <p className="line-clamp-2 opacity-90">{message.quoted_content || 'Mensagem'}</p>
+    </div>}
     <MessageBody message={message} />
     {/* Como no Clix: quem mandou e a hora no rodapé do balão, com ✓ na mensagem enviada. */}
     <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${outbound ? 'text-primary-foreground/80' : 'text-[#929aae]'}`}>
@@ -263,7 +276,9 @@ function MessageBubble({ message }: { message: Message }) {
       </time>
       {outbound && <span aria-label="Enviada">✓</span>}
     </div>
-  </article>;
+  </article>
+    {!outbound && responder}
+  </div>;
 }
 // O banco registra por que a conversa saiu do automático. Até aqui os cinco
 // motivos viravam a mesma frase genérica, escondida no painel do contato: o
@@ -541,6 +556,8 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // garantia que vem do request_id, não da espera.
   const [pendentes, setPendentes] = useState<{ key: string; kind: 'text' | 'file' | 'audio'; content: string; incerto?: boolean }[]>([]);
   useEffect(() => { setPendentes([]); }, [selected?.id]);
+  const [citando, setCitando] = useState<Message | null>(null);
+  useEffect(() => { setCitando(null); }, [selected?.id]);
   // Qual conversa já foi desenhada. O reset de `followLatest` morava num
   // useEffect, que roda DEPOIS do useLayoutEffect abaixo: quem tivesse subido
   // numa conversa abria a seguinte no topo.
@@ -698,7 +715,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           <div ref={conteudoRef} className="space-y-2">
           {messages.data?.length === 200 && <p className="pb-2 text-center text-[11px] text-muted-foreground">Exibindo as 200 mensagens mais recentes.</p>}
           {timeline.map(item => {
-            if (item.type !== 'event') return <MessageBubble key={item.value.id} message={item.value} />;
+            if (item.type !== 'event') return <MessageBubble key={item.value.id} message={item.value} onReply={preview ? undefined : setCitando} />;
             const hora = new Date(item.value.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const motivo = eventoComMotivo(item.value);
             return <div key={`event-${item.value.id}`} className="flex justify-center py-0.5"><span className="rounded-full border bg-card px-3 py-1 text-[11px] text-muted-foreground shadow-sm">
@@ -716,9 +733,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         </div>
         {connected === true || preview
           ? <>{optOut !== 'none' && selected.opted_out_at && <OptOutNotice state={optOut} since={selected.opted_out_at} pending={clearOptOut.isPending} failed={clearOptOut.isError} onRelease={() => clearOptOut.mutate()} />}
-            {optOut !== 'blocked' && <MessageComposer key={selected.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onPending={entrada => setPendentes(atual => [...atual, entrada])}
+            {citando && <div data-testid="respondendo-a" className="mx-3 mt-2 flex items-start gap-2 rounded-lg border-l-4 border-primary bg-[#eef3ef] px-3 py-1.5 text-[12px]"><div className="min-w-0 flex-1"><p className="font-semibold text-primary">Respondendo a {citando.direction === 'out' ? 'você mesmo' : 'cliente'}</p><p className="line-clamp-2 text-muted-foreground">{citando.content}</p></div><button type="button" aria-label="Cancelar resposta" onClick={() => setCitando(null)} className="rounded p-0.5 text-muted-foreground hover:bg-white"><X className="h-3.5 w-3.5" /></button></div>}
+            {optOut !== 'blocked' && <MessageComposer key={selected.id} quotedMessageId={citando?.id} conversationId={selected.id} preview={preview} onPreviewSend={message=>appendDemoMessage(selected.id,message.kind,message.content)} onPending={entrada => setPendentes(atual => [...atual, entrada])}
               onPendingEnd={(chave, estado) => setPendentes(atual => estado === 'incerto' ? atual.map(item => item.key === chave ? { ...item, incerto: true } : item) : atual.filter(item => item.key !== chave))}
-              onSent={() => { void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
+              onSent={() => { setCitando(null); void cache.invalidateQueries({ queryKey: ['lotti-agent-messages', user?.id, selected.id] }); void cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }); }} />}</>
           : <footer className="shrink-0 border-t p-3 text-xs text-muted-foreground">{connectionKnown ? <>Conecte o WhatsApp na página de <Link className="underline" to="/whatsapp/conexao">Conexão</Link> para responder por aqui.</> : <>Não foi possível confirmar a conexão. <Link className="underline" to="/whatsapp/conexao">Verificar conexão</Link> antes de responder.</>}</footer>}
       </section> : <div className="grid place-items-center rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
         {filtered.length

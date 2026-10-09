@@ -888,3 +888,21 @@ it('abre no fim mesmo quando o aviso da própria rolagem chega depois de a conve
     vi.unstubAllGlobals();
   }
 });
+
+it('responder citando: o ↩ abre "Respondendo a", o × cancela e a citação aparece no balão', async () => {
+  dataByTable.lotti_agent_messages = [
+    { id: 'q1', direction: 'in', sender: 'lead', content: 'Tem com 3 quartos?', media_path: null, created_at: '2026-10-09T12:00:00Z', external_id: 'WA-1' },
+    { id: 'q2', direction: 'out', sender: 'human', content: 'Tem sim!', media_path: null, created_at: '2026-10-09T12:01:00Z', external_id: 'WA-2', quoted_external_id: 'WA-1', quoted_content: 'Tem com 3 quartos?', quoted_from_me: false },
+    { id: 'q3', direction: 'in', sender: 'lead', content: 'Ligação perdida', media_path: null, created_at: '2026-10-09T12:02:00Z', external_id: 'call-1' },
+  ];
+  mount(true);
+  const citacao = await screen.findByTestId('citacao');
+  expect(citacao.textContent).toContain('Cliente');
+  expect(citacao.textContent).toContain('Tem com 3 quartos?');
+  // Ligação não pode ser citada: só as duas mensagens reais têm o botão.
+  expect(screen.getAllByRole('button', { name: 'Responder citando' })).toHaveLength(2);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Responder citando' })[0]);
+  expect((await screen.findByTestId('respondendo-a')).textContent).toContain('Tem com 3 quartos?');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar resposta' }));
+  expect(screen.queryByTestId('respondendo-a')).toBeNull();
+});

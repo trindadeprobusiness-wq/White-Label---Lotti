@@ -1,5 +1,14 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — responder citando no Inbox (2026-10-09)
+- Fluxo de tarefa complexa: pesquisa (1 agente), adversarial do plano (1 agente); plano aprovado pelo Rafael.
+- Etapa 1 (API f61c68f): migration `20261009190000_responder_citando` — colunas quoted_* em lotti_agent_messages, quoted_message_id em lotti_manual_sends; lotti_manual_begin com p_quote (DROP+CREATE, chamada de 6 args continua), recusa citação de outra conversa/ligação/simulação, conflito de request_id com outra citação; lotti_manual_finish grava a citação inclusive se o eco chegou antes; lotti_agent_set_quote (service_role) para citação vinda do WhatsApp sem reescrever o ingest. DTO quoted_message_id; mensagens() devolve external_id e quoted_*.
+- Etapa 2 (runtime 11f8a05): sendText com quoted {key,message:{conversation}}; normalizeEvent lê contextInfo.stanzaId; set_quote após o ingest.
+- Etapa 3 (front): botão ↩ (hover) ao lado do balão, faixa "Respondendo a" com ×, citação no balão. Só texto e só pela API (Edge de reserva não cita).
+- Validações: SQL real whatsapp 7/7, jest whatsapp 5/5, baseline 11/11, runtime manual 16/16 e qualification 23/23, vitest ConnectedInbox 65/65 e MessageComposer 15/15.
+- Não confirmado: se a Evolution 2.3.7 entrega a citação no celular — precisa de envio real. quoted_from_me da citação feita pelo cliente vem nulo (mostra "Mensagem citada").
+- Diário — Claude: responder citando, de ponta a ponta, em três etapas de deploy.
+
 ## Claude — IA parada com motivo e etapa do Inbox ligada ao Funil (2026-10-09)
 - Primeira entrega no fluxo de tarefa complexa (CLAUDE.md): pesquisa com 4 agentes, adversarial do plano (2 agentes), código, e adversarial do código pronto (workflow com 18 agentes: 4 revisores e 1 cético por achado). Resultado: 10 achados confirmados, todos corrigidos, e 4 derrubados.
 - Plano 1, aprovado pelo Rafael. Responder pelo app continua desligando a IA de vez.

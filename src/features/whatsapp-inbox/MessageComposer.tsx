@@ -10,8 +10,10 @@ import {whatsappBridgeApi} from '@/lib/api/whatsapp';
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
 export type EnvioPendente={key:string;kind:'text'|'file'|'audio';content:string};
 type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void;
- onPending?:(entry:EnvioPendente)=>void;onPendingEnd?:(key:string,estado:'enviado'|'falhou'|'incerto')=>void};
-export function MessageComposer({conversationId,onSent,preview:previewMode=false,onPreviewSend,onPending,onPendingEnd}:Props){
+ onPending?:(entry:EnvioPendente)=>void;onPendingEnd?:(key:string,estado:'enviado'|'falhou'|'incerto')=>void;
+ /** Responder citando: id da mensagem citada (só no texto, e só pela API; a Edge de reserva não cita). */
+ quotedMessageId?:string};
+export function MessageComposer({conversationId,onSent,preview:previewMode=false,onPreviewSend,onPending,onPendingEnd,quotedMessageId}:Props){
  const [text,setText]=useState(''),[audio,setAudio]=useState<Blob>(),[attachment,setAttachment]=useState<File>(),[preview,setPreview]=useState('');
  const [demoAudioReady,setDemoAudioReady]=useState(false);
  const [recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
@@ -77,7 +79,7 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
       const {error:uploadError}=await supabase.storage.from('lotti-inbox-files').uploadToSignedUrl(prepared.path,prepared.token,attachment,{contentType:meta.mime});if(uploadError)throw Error('upload_failed');
       pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:'file',name:attachment.name,mime:meta.mime,size:attachment.size,storage_path:prepared.path};
      }
-    }else pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:audio?'audio':'text',...(audio?{audio:encoded,mime:audio.type.split(';')[0]}:{text:text.trim()})};
+    }else pending.current={action:'send',conversation_id:conversationId,request_id:requestId,kind:audio?'audio':'text',...(audio?{audio:encoded,mime:audio.type.split(';')[0]}:{text:text.trim(),...(quotedMessageId&&apiDisponivel()?{quoted_message_id:quotedMessageId}:{})})};
     // A mensagem aparece na conversa agora, não daqui a três segundos. A
     // proteção contra duplicado é do request_id, não da espera.
     chaveEmCurso.current=requestId;
