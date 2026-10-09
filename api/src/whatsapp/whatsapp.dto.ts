@@ -12,6 +12,8 @@ export class BridgeDto {
   @IsOptional() @IsString() @MaxLength(200) mime?: string;
   @IsOptional() @IsString() @MaxLength(180) storage_path?: string;
   @IsOptional() @IsInt() @Min(1) @Max(104857600) size?: number;
+  // Responder citando: id (lotti_agent_messages.id) da mensagem citada; o banco confere que é da conversa.
+  @IsOptional() @IsUUID() quoted_message_id?: string;
 }
 
 export class ModoDto { @IsIn(['ai', 'human', 'paused']) mode!: string; }

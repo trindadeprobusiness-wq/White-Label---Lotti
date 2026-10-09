@@ -96,7 +96,7 @@ export class WhatsappService {
 
   mensagens(claims: SupabaseClaims, id: string) {
     return this.db.run(claims, async (tx) => jsonRows(await tx.$queryRaw<JsonRow[]>`
-      select to_jsonb(x) as row from (select id,direction,sender,content,media_path,created_at
+      select to_jsonb(x) as row from (select id,direction,sender,content,media_path,created_at,external_id,quoted_external_id,quoted_content,quoted_from_me
       from public.lotti_agent_messages where conversation_id=${id}::uuid order by created_at desc limit 200) x`).reverse());
   }
 

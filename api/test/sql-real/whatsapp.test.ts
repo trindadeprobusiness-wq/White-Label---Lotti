@@ -211,3 +211,44 @@ test('última mensagem de cada conversa (prévia do Inbox): só a mais recente e
   assert.deepEqual(linhas.map(l=>[l.conversation_id,l.direction,l.content]),[[cvA,'out','última']]);
  }finally{await b.fechar();}
 });
+
+test('responder citando: o envio guarda a citação (mesmo com o eco antes), recusa citação inválida e a citação do cliente aparece',async()=>{
+ const b=await criarBanco();
+ try{
+  const canal=randomUUID(),cv=randomUUID(),outra=randomUUID();
+  await b.inserir('lotti_agent_channels',{id:canal,corretor_id:b.corretorA,instance:'teste-cita',enabled:true,sandbox:false});
+  await b.inserir('lotti_agent_conversations',{id:cv,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990061',mode:'human'});
+  await b.inserir('lotti_agent_conversations',{id:outra,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990062',mode:'human'});
+  const citada=randomUUID(),deOutra=randomUUID(),ligacao=randomUUID();
+  await b.inserir('lotti_agent_messages',{id:citada,conversation_id:cv,external_id:'WA-1',direction:'in',sender:'lead',content:'Tem com 3 quartos?'});
+  await b.inserir('lotti_agent_messages',{id:deOutra,conversation_id:outra,external_id:'WA-9',direction:'in',sender:'lead',content:'oi'});
+  await b.inserir('lotti_agent_messages',{id:ligacao,conversation_id:cv,external_id:'call-1',direction:'in',sender:'lead',content:'Ligação'});
+  const begin=(req:string,quote:string|null)=>b.sqlSuperusuario<{r:Record<string,unknown>}>(`select public.lotti_manual_begin(p_owner=>$1::uuid,p_conversation=>$2::uuid,p_request=>$3::uuid,p_fingerprint=>'fp',p_content=>'Tem sim!',p_media=>null,p_quote=>$4::uuid) as r`,[b.corretorA,cv,req,quote]);
+  // Chamada de hoje do runtime (6 argumentos nomeados) continua funcionando.
+  const sem=randomUUID();
+  await b.sqlSuperusuario(`select public.lotti_manual_begin(p_owner=>$1::uuid,p_conversation=>$2::uuid,p_request=>$3::uuid,p_fingerprint=>'fp0',p_content=>'x',p_media=>null)`,[b.corretorA,cv,sem]);
+  await b.sqlSuperusuario(`select public.lotti_manual_finish($1::uuid,'sent','WA-0')`,[sem]);
+
+  await assert.rejects(begin(randomUUID(),deOutra),/invalid_quote/);
+  await assert.rejects(begin(randomUUID(),ligacao),/invalid_quote/);
+  const req=randomUUID();
+  const [{r}]=await begin(req,citada);
+  assert.deepEqual(r.quote,{external_id:'WA-1',from_me:false,content:'Tem com 3 quartos?'});
+  // Reenvio do mesmo pedido com outra citação é conflito, não reaproveita a citação antiga.
+  await assert.rejects(begin(req,null),/request_conflict/);
+  // O eco do WhatsApp chega antes do finish (sem citação); o finish completa sem apagar nada.
+  await b.inserir('lotti_agent_messages',{conversation_id:cv,external_id:'WA-2',direction:'out',sender:'human',content:'Tem sim!'});
+  await b.sqlSuperusuario(`select public.lotti_manual_finish($1::uuid,'sent','WA-2')`,[req]);
+  const [enviada]=await b.sqlSuperusuario<Record<string,unknown>>(`select quoted_external_id,quoted_content,quoted_from_me from public.lotti_agent_messages where conversation_id=$1 and external_id='WA-2'`,[cv]);
+  assert.deepEqual(enviada,{quoted_external_id:'WA-1',quoted_content:'Tem com 3 quartos?',quoted_from_me:false});
+
+  // Cliente cita a nossa resposta: o texto vem da própria conversa.
+  await b.inserir('lotti_agent_messages',{conversation_id:cv,external_id:'WA-3',direction:'in',sender:'lead',content:'Quanto custa?'});
+  const [{ok}]=await b.sqlSuperusuario<{ok:boolean}>(`select public.lotti_agent_set_quote('teste-cita','WA-3','WA-2','texto do celular',true) as ok`);
+  assert.equal(ok,true);
+  const msgs=await new WhatsappService(b.db).mensagens(b.claimsA,cv) as Array<Record<string,unknown>>;
+  const resposta=msgs.find(m=>m.external_id==='WA-3');
+  assert.equal(resposta?.quoted_content,'Tem sim!');
+  assert.equal(resposta?.quoted_from_me,true);
+ }finally{await b.fechar();}
+});

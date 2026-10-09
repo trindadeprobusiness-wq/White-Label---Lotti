@@ -1634,16 +1634,19 @@ model LottiAgentConversation {
 
 /// Tabela public.lotti_agent_messages — RLS ligado.
 /// Gatilhos: auditar_suporte, lotti_agent_detect_opt_out, lotti_agent_marca_so_historico, lotti_inbox_reopen_on_inbound.
-/// 2 check constraint(s) só no SQL.
+/// 3 check constraint(s) só no SQL.
 model LottiAgentMessage {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversationId String   @map("conversation_id") @db.Uuid
-  externalId     String   @map("external_id")
-  direction      String
-  sender         String
-  content        String
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  mediaPath      String?  @map("media_path")
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId   String   @map("conversation_id") @db.Uuid
+  externalId       String   @map("external_id")
+  direction        String
+  sender           String
+  content          String
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  mediaPath        String?  @map("media_path")
+  quotedExternalId String?  @map("quoted_external_id")
+  quotedContent    String?  @map("quoted_content")
+  quotedFromMe     Boolean? @map("quoted_from_me")
 
   conversation LottiAgentConversation @relation("lotti_agent_messages_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -1807,15 +1810,16 @@ model LottiInboxEvent {
 /// Gatilhos: auditar_suporte, lotti_manual_opt_out_guard.
 /// 1 check constraint(s) só no SQL.
 model LottiManualSend {
-  requestId      String   @id @map("request_id") @db.Uuid
-  conversationId String   @map("conversation_id") @db.Uuid
-  corretorId     String   @map("corretor_id") @db.Uuid
-  fingerprint    String
-  content        String
-  mediaPath      String?  @map("media_path")
-  status         String   @default("sending")
-  externalId     String?  @map("external_id")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  requestId       String   @id @map("request_id") @db.Uuid
+  conversationId  String   @map("conversation_id") @db.Uuid
+  corretorId      String   @map("corretor_id") @db.Uuid
+  fingerprint     String
+  content         String
+  mediaPath       String?  @map("media_path")
+  status          String   @default("sending")
+  externalId      String?  @map("external_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  quotedMessageId String?  @map("quoted_message_id") @db.Uuid
 
   conversation LottiAgentConversation @relation("lotti_manual_sends_conversation_id_fkey", fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   corretor     Corretor               @relation("lotti_manual_sends_corretor_id_fkey", fields: [corretorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
