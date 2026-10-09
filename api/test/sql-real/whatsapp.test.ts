@@ -252,3 +252,13 @@ test('responder citando: o envio guarda a citação (mesmo com o eco antes), rec
   assert.equal(resposta?.quoted_from_me,true);
  }finally{await b.fechar();}
 });
+
+test('conversa nova (mensagem de número desconhecido) chega com a IA desligada',async()=>{
+ const b=await criarBanco();
+ try{
+  await b.inserir('lotti_agent_channels',{id:randomUUID(),corretor_id:b.corretorA,instance:'teste-nova',enabled:true,sandbox:true});
+  await b.sqlSuperusuario(`select public.lotti_agent_ingest($1::jsonb)`,[JSON.stringify({instance:'teste-nova',external_id:'N-1',phone:'5511999990071',from_me:false,text:'Oi, vi o anúncio'})]);
+  const [cv]=await b.sqlSuperusuario<{mode:string}>(`select mode from public.lotti_agent_conversations where phone='5511999990071'`);
+  assert.equal(cv.mode,'human');
+ }finally{await b.fechar();}
+});

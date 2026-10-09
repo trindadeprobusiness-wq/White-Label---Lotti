@@ -1590,7 +1590,7 @@ model LottiAgentConversation {
   corretorId        String    @map("corretor_id") @db.Uuid
   clienteId         String?   @map("cliente_id") @db.Uuid
   phone             String?
-  mode              String    @default("ai")
+  mode              String    @default("human")
   revision          BigInt    @default(0)
   processedRevision BigInt    @default(0) @map("processed_revision")
   leaseToken        String?   @map("lease_token") @db.Uuid
