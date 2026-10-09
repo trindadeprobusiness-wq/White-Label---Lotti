@@ -57,7 +57,12 @@ export default function FunilPreview() {
   });
   cliente.setQueryData([...crmKeys.todos, 'modo'], 'completo');
   cliente.setQueryData([...crmKeys.etapas(), 'completo'], ETAPAS);
-  cliente.setQueryData([...crmKeys.oportunidades(), 'completo'], OPORTUNIDADES);
+  // ?n=150 multiplica os negócios (espalhados nas etapas) para medir o quadro com volume real.
+  const n = Number(new URLSearchParams(window.location.search).get('n')) || 0;
+  const volume = n > OPORTUNIDADES.length
+    ? Array.from({ length: n }, (_, i) => ({ ...OPORTUNIDADES[i % OPORTUNIDADES.length], id: `o${i}`, cliente_id: `c${i}`, etapa_id: ETAPAS[i % ETAPAS.length].id }))
+    : OPORTUNIDADES;
+  cliente.setQueryData([...crmKeys.oportunidades(), 'completo'], volume);
   cliente.setQueryData(crmKeys.leads(), []);
   cliente.setQueryData(crmKeys.tarefas(), []);
 

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -106,6 +106,18 @@ export const ETAPAS_LEGADO: CrmEtapa[] = [
   { id: 'FECHADO_GANHO', corretor_id: '', nome: 'Fechado — ganho', ordem: 4, cor: 'green', tipo: 'GANHO', ativo: true },
   { id: 'FECHADO_PERDIDO', corretor_id: '', nome: 'Fechado — perdido', ordem: 5, cor: 'red', tipo: 'PERDIDO', ativo: true },
 ];
+
+/**
+ * Busca etapas e negócios do funil antes de a tela abrir (mouse no menu, alguns segundos depois do
+ * login). Cada chamada à API leva ~0,3 s daqui; com o cache pronto, o quadro aparece na hora e a
+ * atualização roda por trás. Mesmas chaves e mesma leitura de useEtapas/useOportunidades no modo API.
+ */
+export function prefetchFunil(cliente: QueryClient): void {
+  if (!apiDisponivel()) return;
+  if (cliente.getQueryData([...crmKeys.todos, 'modo']) === undefined) cliente.setQueryData([...crmKeys.todos, 'modo'], 'completo');
+  void cliente.prefetchQuery({ queryKey: [...crmKeys.etapas(), 'completo'], queryFn: () => listarEtapasApi(), staleTime: 30_000 });
+  void cliente.prefetchQuery({ queryKey: [...crmKeys.oportunidades(), 'completo'], queryFn: () => listarOportunidadesApi(), staleTime: 30_000 });
+}
 
 export function useModoCrm() {
   return useQuery({

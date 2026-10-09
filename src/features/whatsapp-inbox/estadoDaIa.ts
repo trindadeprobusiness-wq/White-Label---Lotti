@@ -137,4 +137,5 @@ export const ESPERA_DA_IA: Record<string, string> = {
   aggregation: 'Juntando as mensagens do cliente antes de responder, para não interromper quem ainda está digitando.',
   inside_business_hours: 'Dentro do expediente a equipe atende primeiro. A IA entra se ninguém responder.',
   waiting_broker: 'Aguardando a equipe responder. A IA entra se ninguém responder no prazo configurado.',
+  religada_pela_equipe: 'IA religada pela equipe. Ela responde a partir da próxima mensagem do cliente.',
 };

@@ -116,3 +116,23 @@ test('agente encerra como no Clix: só a conversa que a IA deixou, carimbo "clie
   assert.deepEqual(reaberta,{status:'open',closed_by:null,closed_reason:null});
  }finally{await b.fechar();}
 });
+
+test('transferência para a equipe aparece com o motivo, não como "Sistema"',async()=>{
+ const b=await criarBanco();
+ try{
+  const canal=randomUUID(),cv=randomUUID();
+  await b.inserir('lotti_agent_channels',{id:canal,corretor_id:b.corretorA,instance:'teste-handoff',enabled:true,sandbox:true});
+  await b.inserir('lotti_agent_conversations',{id:cv,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990031',mode:'ai'});
+  await b.sqlSuperusuario(`update public.lotti_agent_conversations set revision=2,processed_revision=2 where id=$1`,[cv]);
+  const [r]=await b.sqlSuperusuario<{ok:boolean}>(`select public.lotti_agent_handoff($1::uuid,null,2,null,null,false) as ok`,[cv]);
+  assert.equal(r.ok,true);
+  const [ev]=await b.sqlSuperusuario<{to_label:string;actor_label:string}>(`select to_label,actor_label from public.lotti_inbox_events where conversation_id=$1 and kind='mode'`,[cv]);
+  assert.deepEqual(ev,{to_label:'Equipe',actor_label:'transferência automática para a equipe'});
+  // Quem religa continua aparecendo pelo nome (o autor da transferência não vaza para o evento seguinte).
+  const service=new WhatsappService(b.db);
+  await service.modo(b.claimsA,cv,'ai');
+  const eventos=await b.sqlSuperusuario<{to_label:string;actor_label:string}>(`select to_label,actor_label from public.lotti_inbox_events where conversation_id=$1 and kind='mode' order by created_at,id`,[cv]);
+  assert.equal(eventos.at(-1)?.to_label,'IA');
+  assert.notEqual(eventos.at(-1)?.actor_label,'transferência automática para a equipe');
+ }finally{await b.fechar();}
+});

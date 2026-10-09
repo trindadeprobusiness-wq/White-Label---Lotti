@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/shell/PageHeader';
  */
 export default function CRM() {
   return (
-    <div className="animate-fade-in flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm md:-mb-10 md:h-[calc(100dvh-3.5rem)] md:p-6 md:pb-4">
+    <div className="flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm md:-mb-10 md:h-[calc(100dvh-3.5rem)] md:p-6 md:pb-4">
       <PageHeader titulo="Funil de Vendas" className="mb-4 shrink-0" />
       <div className="min-h-0 flex-1">
         <CrmPipeline />

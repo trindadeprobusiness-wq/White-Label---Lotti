@@ -116,7 +116,10 @@ function MessageBody({ message }: { message: Message }) {
   // Áudio e ligação vêm antes do arquivo: o áudio recebido também tem media_path com 3 partes.
   const isAudio = message.preview_kind === 'audio' || ehAudio(message.content);
   const isCall = !isAudio && ehChamada(message.content);
-  const isFile = !isAudio && !isCall && (message.preview_kind === 'file' || (!!message.media_path && message.media_path.split('/').length >= 3));
+  // Foto, vídeo ou documento recebidos: com o arquivo guardado (media_path) ou só com o texto
+  // ("📷 Foto", "📄 nome") enquanto a mídia não foi recuperada — aí o cartão avisa que não está aqui.
+  const semArquivo = !message.media_path && /^(📷 Foto|🎥 Vídeo|📄 )/u.test(message.content);
+  const isFile = !isAudio && !isCall && (message.preview_kind === 'file' || (!!message.media_path && message.media_path.split('/').length >= 3) || semArquivo);
   useEffect(() => {
     if (!isFile || !message.media_path || message.preview_kind) return;
     let live = true;
@@ -141,20 +144,28 @@ function MessageBody({ message }: { message: Message }) {
   if (isAudio) return <PlayerAudio caminho={message.preview_kind ? null : message.media_path} />;
   if (isCall) return <CartaoChamada texto={message.content} direcao={message.direction} />;
   if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]">{message.content}</p>;
-  const extension = message.content.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase();
+  // A extensão vem do arquivo guardado ("…/foto.jpg"): o texto da foto recebida é só "📷 Foto", e
+  // por isso ela aparecia como cartão de arquivo em vez de imagem.
+  const nomeGuardado = message.media_path && !message.preview_kind ? message.media_path.split('/').pop() ?? '' : '';
+  const extension = (nomeGuardado || message.content).match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase();
+  const tipo = message.content.startsWith('📷') ? 'Foto' : message.content.startsWith('🎥') ? 'Vídeo' : 'Arquivo';
+  const nomeVisivel = message.content.replace(/^(📷 |🎥 |📄 )/u, '');
   // Foto virava cartão de arquivo, como se fosse planilha: para ver, era preciso
   // baixar. Com a URL assinada em mãos, ela aparece na conversa.
   if (url && ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(extension ?? '')) {
     return <a href={url} target="_blank" rel="noopener noreferrer" className="block">
-      <img src={url} alt={message.content} loading="lazy" className="max-h-72 w-full max-w-[280px] rounded-lg object-cover" />
+      <img src={url} alt={nomeVisivel} loading="lazy" className="max-h-72 w-full max-w-[280px] rounded-lg object-cover" />
     </a>;
+  }
+  if (url && ['MP4', 'MOV', 'WEBM', '3GP'].includes(extension ?? '')) {
+    return <video src={url} controls preload="metadata" aria-label={nomeVisivel} className="max-h-72 w-full max-w-[280px] rounded-lg bg-black" />;
   }
   return <div className="flex min-w-[180px] max-w-full items-center gap-2.5 rounded-lg border border-current/20 bg-white/10 px-3 py-2.5 text-sm">
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/15"><FileText className="h-5 w-5" /></span>
-    <span className="min-w-0 flex-1"><span className="block text-[10px] font-medium opacity-75">Arquivo{extension ? ` ${extension}` : ''}</span>
-      <span className="block break-all font-medium">{message.content}</span>
+    <span className="min-w-0 flex-1"><span className="block text-[10px] font-medium opacity-75">{tipo}{extension ? ` ${extension}` : ''}</span>
+      <span className="block break-all font-medium">{nomeVisivel}</span>
     </span>
-    <BaixarArquivo nome={message.content} caminho={message.media_path} urlPronta={url} />
+    <BaixarArquivo nome={nomeGuardado || nomeVisivel} caminho={message.media_path} urlPronta={url} />
   </div>;
 }
 // Cada bloco do painel inventava o seu espaçamento (mt-2.5, mt-4, mt-5) e o seu

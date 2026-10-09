@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { prefetchFunil } from '@/hooks/crm/useCrm';
+import { SIDEBAR_ROUTE_LOADERS } from '@/lib/routePreloaders';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
@@ -120,10 +123,19 @@ function ItemMenu({
 }: {
   item: ItemNav; ativo: boolean; recolhida: boolean; aoNavegar?: () => void;
 }) {
+  const cliente = useQueryClient();
+  // Mouse em cima (ou foco/toque) já é intenção: baixa o código da tela e, no funil, os dados.
+  const antecipar = () => {
+    void SIDEBAR_ROUTE_LOADERS[item.href]?.().catch(() => undefined);
+    if (item.href === '/crm') prefetchFunil(cliente);
+  };
   const link = (
     <Link
       to={item.href}
       onClick={aoNavegar}
+      onMouseEnter={antecipar}
+      onFocus={antecipar}
+      onTouchStart={antecipar}
       aria-current={ativo ? 'page' : undefined}
       className={cn(
         'group flex h-nav-item items-center gap-3 rounded-lg px-3 text-sm font-medium',
@@ -166,6 +178,13 @@ export function ConteudoDaSidebar({
 }) {
   const { pathname } = useLocation();
   const { signOut, user } = useAuth();
+  const cliente = useQueryClient();
+  // O funil é a tela mais aberta depois do login: deixa os dados prontos quando o app sossega.
+  useEffect(() => {
+    if (!user) return;
+    const t = window.setTimeout(() => prefetchFunil(cliente), 2500);
+    return () => window.clearTimeout(t);
+  }, [user, cliente]);
   const { corretor } = useCRMStore();
   const { theme, setTheme } = useTheme();
 

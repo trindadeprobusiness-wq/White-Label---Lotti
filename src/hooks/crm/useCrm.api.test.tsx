@@ -26,7 +26,7 @@ import { ErroApi } from '@/lib/api/http';
 import { useCRMStore } from '@/stores/crmStore';
 import {
   useClientesParecidos, useConverterLead, useCriarOportunidade, useCriarTarefa, useEtapas, useExcluirOportunidades,
-  useLeadsPendentes, useModoCrm, useMoverOportunidade, useRegistrarContatoWhatsApp,
+  prefetchFunil, useLeadsPendentes, useModoCrm, useMoverOportunidade, useOportunidades, useRegistrarContatoWhatsApp,
 } from './useCrm';
 
 const api = vi.mocked(crmApi);
@@ -131,5 +131,25 @@ describe('useCrm com a API Lotti', () => {
     await act(async () => { await r.current.converter.mutateAsync({ lead, etapaId: ETAPA, clienteExistente: CLIENTE }); });
     expect(api.converterLeadApi).toHaveBeenLastCalledWith(expect.objectContaining({ cliente_id: CLIENTE }));
     expect(toast.success).toHaveBeenCalledWith('Lead convertido em cliente e oportunidade.');
+  });
+});
+
+describe('prefetchFunil', () => {
+  it('deixa etapas e negócios no cache: o quadro já abre com os dados', async () => {
+    api.listarEtapasApi.mockResolvedValue([{ id: ETAPA, nome: 'Novo' }] as never);
+    api.listarOportunidadesApi.mockResolvedValue([{ id: NEGOCIO, etapa_id: ETAPA }] as never);
+    const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    prefetchFunil(cliente);
+    await waitFor(() => expect(cliente.getQueryData(['crm', 'oportunidades', 'completo'])).toEqual([{ id: NEGOCIO, etapa_id: ETAPA }]));
+    expect(cliente.getQueryData(['crm', 'etapas', 'completo'])).toEqual([{ id: ETAPA, nome: 'Novo' }]);
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={cliente}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useOportunidades(), { wrapper });
+    // Primeiro render já com os dados (sem esqueleto de carregamento).
+    expect(result.current.data).toEqual([{ id: NEGOCIO, etapa_id: ETAPA }]);
+    // O quadro ainda atualiza por trás ao montar; um novo prefetch logo em seguida não repete a chamada.
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    const chamadas = api.listarOportunidadesApi.mock.calls.length;
+    prefetchFunil(cliente);
+    expect(api.listarOportunidadesApi).toHaveBeenCalledTimes(chamadas);
   });
 });

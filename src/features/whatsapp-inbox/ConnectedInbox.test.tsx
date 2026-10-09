@@ -730,3 +730,24 @@ it('fechada pela IA porque o cliente encerrou aparece como "Cliente pediu", com 
   fireEvent.change(screen.getByRole('combobox', { name: 'Fechada por' }), { target: { value: 'cliente' } });
   expect(screen.getByRole('button', { name: /Dora Encerrou/ })).not.toBeNull();
 });
+
+it('foto e arquivo recebidos sem a mídia guardada viram cartão com "Arquivo indisponível", não texto solto', async () => {
+  dataByTable.lotti_agent_messages = [
+    { id: 'f1', direction: 'in', sender: 'lead', content: '📷 Foto', media_path: null, created_at: '2026-10-08T13:59:00Z' },
+    { id: 'f2', direction: 'in', sender: 'lead', content: '📄 Lotti.maestri', media_path: null, created_at: '2026-10-08T14:00:00Z' },
+  ];
+  mount(true);
+  expect(await screen.findByText('Lotti.maestri')).not.toBeNull();
+  expect(screen.getAllByText('Foto').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Arquivo indisponível')).toHaveLength(2);
+  expect(screen.queryByText('📷 Foto')).toBeNull();
+});
+
+it('foto recebida com o arquivo guardado aparece como imagem, mesmo com o texto "📷 Foto"', async () => {
+  dataByTable.lotti_agent_messages = [
+    { id: 'f3', direction: 'in', sender: 'lead', content: '📷 Foto', media_path: 'corretor/in/K1/foto.jpg', created_at: '2026-10-08T14:01:00Z' },
+  ];
+  mount(true);
+  const imagem = await screen.findByRole('img', { name: 'Foto' });
+  expect(imagem.getAttribute('src')).toBe('https://example.invalid/Custos.xlsx');
+});
