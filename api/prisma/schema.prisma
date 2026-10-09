@@ -1615,6 +1615,7 @@ model LottiAgentConversation {
   closedBy          String?   @map("closed_by")
   closedAt          DateTime? @map("closed_at") @db.Timestamptz(6)
   closedReason      String?   @map("closed_reason")
+  soHistorico       Boolean   @default(false) @map("so_historico")
 
   channel                  LottiAgentChannel        @relation("lotti_agent_conversations_channel_id_fkey", fields: [channelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   cliente                  Cliente?                 @relation("lotti_agent_conversations_cliente_id_fkey", fields: [clienteId], references: [id], onDelete: SetNull, onUpdate: NoAction)

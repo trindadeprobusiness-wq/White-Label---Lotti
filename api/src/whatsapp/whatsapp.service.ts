@@ -60,7 +60,7 @@ export class WhatsappService {
   /**
    * As 100 conversas com mensagem mais recente (como no WhatsApp e no Clix): fechar, pausar ou o runtime
    * mexer na linha não reordena a lista. `status`: 'open' (Abertas, padrão do Inbox), 'closed' (Fechadas)
-   * ou 'all' (sem filtro, o comportamento antigo).
+   * ou 'all' (sem filtro, o comportamento antigo). Conversa só com histórico importado não entra (so_historico).
    */
   listarConversas(claims: SupabaseClaims, status: FiltroStatusConversa = 'all') {
     return this.db.run(claims, async (tx) => jsonRows(await tx.$queryRaw<JsonRow[]>`
@@ -72,7 +72,7 @@ export class WhatsappService {
         from public.lotti_agent_conversations c left join public.clientes cl on cl.id=c.cliente_id
         left join lateral (select m.created_at from public.lotti_agent_messages m
           where m.conversation_id=c.id order by m.created_at desc limit 1) lm on true
-        where c.archived_at is null and (${status}::text='all' or c.status=${status}::text)
+        where c.archived_at is null and not c.so_historico and (${status}::text='all' or c.status=${status}::text)
         order by ordem desc, c.id limit 100
       ) x`));
   }
@@ -84,7 +84,7 @@ export class WhatsappService {
         select count(*)::bigint total,
           count(*) filter (where status<>'closed')::bigint abertas,
           count(*) filter (where status='closed')::bigint fechadas
-        from public.lotti_agent_conversations where archived_at is null`;
+        from public.lotti_agent_conversations where archived_at is null and not so_historico`;
       return { total: Number(r?.total ?? 0n), abertas: Number(r?.abertas ?? 0n), fechadas: Number(r?.fechadas ?? 0n) };
     });
   }
