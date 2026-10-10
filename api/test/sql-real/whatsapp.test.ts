@@ -137,7 +137,7 @@ test('transferência para a equipe aparece com o motivo, não como "Sistema"',as
  }finally{await b.fechar();}
 });
 
-test('IA parada com motivo: celular deixa "em espera" uma vez; mídia do celular e envio pelo Inbox dizem quem',async()=>{
+test('IA parada com motivo: resposta pelo celular desliga a IA (sem "em espera"); mídia do celular e envio pelo Inbox dizem quem',async()=>{
  const b=await criarBanco();
  try{
   const canal=randomUUID(),cv=randomUUID(),semCliente=randomUUID(),midia=randomUUID(),inbox=randomUUID();
@@ -151,16 +151,17 @@ test('IA parada com motivo: celular deixa "em espera" uma vez; mídia do celular
   const eventos=(id:string)=>b.sqlSuperusuario<{kind:string;to_label:string;subject_label:string|null;actor_label:string}>(
    `select kind,to_label,subject_label,actor_label from public.lotti_inbox_events where conversation_id=$1 order by created_at,id`,[id]);
 
-  // Celular: IA em espera, sem trocar de modo, um evento só mesmo com duas respostas.
+  // Celular: a IA desliga de vez (modo equipe), um evento só mesmo com duas respostas, sem "em espera".
   await ingest('5511999990041','cel-1');
   await ingest('5511999990041','cel-2');
-  assert.deepEqual(await eventos(cv),[{kind:'pausa',to_label:'Em espera',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
-  const [estado]=await b.sqlSuperusuario<{mode:string;em_espera:boolean}>(`select mode,pausa_ia_ate>now() as em_espera from public.lotti_agent_conversations where id=$1`,[cv]);
-  assert.deepEqual(estado,{mode:'ai',em_espera:true});
+  assert.deepEqual(await eventos(cv),[{kind:'mode',to_label:'Equipe',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
+  const [estado]=await b.sqlSuperusuario<{mode:string;pausa:string|null}>(`select mode,pausa_ia_ate as pausa from public.lotti_agent_conversations where id=$1`,[cv]);
+  assert.deepEqual(estado,{mode:'human',pausa:null});
 
-  // Conversa que a equipe começou pelo celular (o cliente ainda não escreveu): sem aviso.
+  // Conversa que a equipe começou pelo celular: a IA também fica desligada.
   await ingest('5511999990042','cel-3');
-  assert.deepEqual(await eventos(semCliente),[]);
+  const [comecada]=await b.sqlSuperusuario<{mode:string}>(`select mode from public.lotti_agent_conversations where id=$1`,[semCliente]);
+  assert.equal(comecada.mode,'human');
 
   // Mídia mandada pelo celular desliga de vez: o evento diz que foi a equipe pelo WhatsApp, não "Sistema".
   await ingest('5511999990043','cel-4',{unsupported:true,text:'📷 Foto'});
@@ -186,13 +187,13 @@ test('IA parada com motivo: celular deixa "em espera" uma vez; mídia do celular
    {kind:'mode',to_label:'Pausada',subject_label:null,actor_label:'Sistema'},
   ]);
 
-  // Conversa fechada: a espera também aparece (se o cliente reabrir, a linha do tempo explica o silêncio).
+  // Conversa fechada: o desligamento também aparece (se o cliente reabrir, a linha do tempo explica o silêncio).
   const fechada=randomUUID();
   await b.inserir('lotti_agent_conversations',{id:fechada,channel_id:canal,corretor_id:b.corretorA,phone:'5511999990045',mode:'ai'});
   await b.inserir('lotti_agent_messages',{conversation_id:fechada,external_id:'in-fechada',direction:'in',sender:'lead',content:'oi'});
   await b.sqlSuperusuario(`update public.lotti_agent_conversations set status='closed',closed_by='cliente' where id=$1`,[fechada]);
   await ingest('5511999990045','cel-5');
-  assert.deepEqual((await eventos(fechada)).filter(e=>e.kind==='pausa'),[{kind:'pausa',to_label:'Em espera',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
+  assert.deepEqual((await eventos(fechada)).filter(e=>e.kind!=='status'),[{kind:'mode',to_label:'Equipe',subject_label:'respondeu_whatsapp',actor_label:'a equipe'}]);
  }finally{await b.fechar();}
 });
 
