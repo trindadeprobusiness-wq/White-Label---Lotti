@@ -7,6 +7,8 @@ import {FALHA_CERTA,codigoDoErro} from './bridgeError';
 import {apiDisponivel} from '@/lib/api';
 import {baixarInboxApi,enviarInboxApi,prepararInboxApi} from '@/lib/api/arquivos';
 import {whatsappBridgeApi} from '@/lib/api/whatsapp';
+import {X} from 'lucide-react';
+import {OndaDaVoz} from './OndaDaVoz';
 type PreviewSend={kind:'text'|'file'|'audio';content:string};
 export type EnvioPendente={key:string;kind:'text'|'file'|'audio';content:string};
 type Props={conversationId:string;onSent:()=>void;preview?:boolean;onPreviewSend?:(message:PreviewSend)=>void;
@@ -18,6 +20,9 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  const [demoAudioReady,setDemoAudioReady]=useState(false);
  const [recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const [micBlocked,setMicBlocked]=useState(false);
+ // Microfone ao vivo para desenhar a onda; e se o X foi tocado, o áudio gravado é jogado fora.
+ const [aoVivo,setAoVivo]=useState<MediaStream>();
+ const descartar=useRef(false);
  const recorder=useRef<MediaRecorder>(),stream=useRef<MediaStream>(),timer=useRef<ReturnType<typeof setTimeout>>(),alive=useRef(true);
  const fileInput=useRef<HTMLInputElement>(null);
  const messageInput=useRef<HTMLTextAreaElement>(null);
@@ -29,6 +34,7 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());}},[]);
  useEffect(()=>{if(!audio){setPreview('');return;}const url=URL.createObjectURL(audio);setPreview(url);return()=>URL.revokeObjectURL(url)},[audio]);
  const stop=()=>{if(previewMode){setRecording(false);setDemoAudioReady(true);setNotice('Áudio de demonstração pronto para enviar.');return;}clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());};
+ const cancelar=()=>{if(previewMode){setRecording(false);setNotice('Gravação cancelada.');return;}descartar.current=true;stop();};
  async function record(){
   if(previewMode){setRecording(true);setDemoAudioReady(false);setNotice('Gravação simulada: clique novamente para finalizar.');return;}
   setNotice('');setMicBlocked(false);try{
@@ -37,11 +43,11 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
    if(typeof window!=='undefined'&&window.isSecureContext===false)throw Error('insecure');
    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined')throw Error('unsupported');
    const input=await navigator.mediaDevices.getUserMedia({audio:true});if(!alive.current){input.getTracks().forEach(t=>t.stop());return;}
-   stream.current=input;const mime=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'].find(m=>MediaRecorder.isTypeSupported(m));
+   stream.current=input;setAoVivo(input);const mime=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'].find(m=>MediaRecorder.isTypeSupported(m));
    if(!mime){input.getTracks().forEach(t=>t.stop());throw Error('unsupported');}
    const r=new MediaRecorder(input,{mimeType:mime,audioBitsPerSecond:64000});recorder.current=r;const chunks:BlobPart[]=[];
    r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-   r.onstop=()=>{input.getTracks().forEach(t=>t.stop());if(alive.current){setRecording(false);setAudio(new Blob(chunks,{type:mime.split(';')[0]}));}};
+   r.onstop=()=>{input.getTracks().forEach(t=>t.stop());if(alive.current){setRecording(false);setAoVivo(undefined);if(descartar.current){descartar.current=false;setNotice('Gravação cancelada.');}else setAudio(new Blob(chunks,{type:mime.split(';')[0]}));}};
    r.onerror=()=>{stop();if(alive.current)setNotice('Não foi possível gravar. Verifique o microfone.');};
    r.start();setRecording(true);timer.current=setTimeout(stop,90000);
   }catch(error){stream.current?.getTracks().forEach(t=>t.stop());if(!alive.current)return;
@@ -115,7 +121,8 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
   <div className="flex min-h-12 items-end gap-1 rounded-xl border border-[#d6dae6] bg-[#fbfcfe] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] focus-within:ring-2 focus-within:ring-primary/25">
    <input ref={fileInput} aria-label="Anexar arquivo" className="sr-only" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov,.mp3,.ogg,.m4a,.wav" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f)try{validateAttachment(f);setAttachment(new File([f],safeAttachmentName(f.name),{type:f.type}));setAudio(undefined);setDemoAudioReady(false);setNotice('');messageInput.current?.focus()}catch(error){setNotice(error instanceof Error&&error.message==='file_too_large'?'O arquivo deve ter até 100 MB.':'Este tipo de arquivo não é permitido por segurança.')}e.target.value='';}}/>
    <Button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" disabled={locked||recording} onClick={()=>fileInput.current?.click()}><Paperclip className="h-5 w-5"/></Button>
-   {!audio&&<textarea ref={messageInput} aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0 max-lg:text-base"/>}
+   {recording&&<><Button type="button" aria-label="Cancelar gravação" title="Cancelar gravação" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" onClick={cancelar}><X className="h-5 w-5"/></Button><OndaDaVoz stream={aoVivo}/></>}
+   {!audio&&!recording&&<textarea ref={messageInput} aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0 max-lg:text-base"/>}
    {canSend?<Button type="button" aria-label={busy?'Enviando':pending.current?'Verificar envio':'Enviar'} title={pending.current?'Verificar envio':'Enviar'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-primary max-lg:h-11 max-lg:w-11" disabled={busy||recording} onClick={send}><Send className="h-5 w-5"/></Button>
     :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
   </div>
