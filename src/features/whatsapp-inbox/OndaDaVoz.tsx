@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-const BARRAS = 48;
+const BARRAS = 40;
+// Uma barra nova a cada 140 ms (~7 por segundo): mais rápido parecia tremer em vez de acompanhar a fala.
+const INTERVALO_MS = 140;
 
 /**
  * Onda do som ao vivo enquanto grava (como no ChatGPT/WhatsApp): barras que sobem com a voz e um
@@ -17,20 +19,29 @@ export function OndaDaVoz({ stream }: { stream: MediaStream | undefined }) {
     const Contexto = typeof window !== 'undefined' ? (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) : undefined;
     if (!stream || !Contexto) return () => clearInterval(relogio);
     const contexto = new Contexto();
+    // Criado depois do pedido de microfone (fora do clique), o Chrome pode deixar o áudio suspenso, e o
+    // analisador lê só silêncio: as barras não acompanhavam a voz.
+    void contexto.resume().catch(() => undefined);
     const analisador = contexto.createAnalyser();
     analisador.fftSize = 512;
     contexto.createMediaStreamSource(stream).connect(analisador);
     const amostras = new Uint8Array(analisador.fftSize);
     let ultimo = 0;
+    let pico = 0;
     const passo = (agora: number) => {
       quadro.current = requestAnimationFrame(passo);
-      if (agora - ultimo < 70) return; // ~14 barras novas por segundo, como uma onda andando
-      ultimo = agora;
+      // Lê o volume a cada quadro e guarda o PICO do intervalo: uma leitura solta pegava silêncio ou
+      // estalo por acaso, e a barra não batia com a sílaba falada.
       analisador.getByteTimeDomainData(amostras);
       let soma = 0;
       for (const v of amostras) { const x = (v - 128) / 128; soma += x * x; }
-      const volume = Math.min(1, Math.sqrt(soma / amostras.length) * 4);
-      setNiveis(atual => [...atual.slice(1), Math.max(0.08, volume)]);
+      pico = Math.max(pico, Math.sqrt(soma / amostras.length));
+      if (agora - ultimo < INTERVALO_MS) return;
+      ultimo = agora;
+      // Voz falada fica perto de 0,02–0,25 de RMS: a curva abre o meio da escala, onde a fala está.
+      const nivel = Math.min(1, Math.pow(pico * 5, 0.75));
+      pico = 0;
+      setNiveis(atual => [...atual.slice(1), Math.max(0.08, nivel)]);
     };
     quadro.current = requestAnimationFrame(passo);
     return () => { clearInterval(relogio); if (quadro.current) cancelAnimationFrame(quadro.current); void contexto.close(); };
