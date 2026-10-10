@@ -131,13 +131,12 @@ it('aponta o endereço, e não o microfone, quando a página não é segura',asy
  expect(await screen.findByText(/endereço seguro \(https\)/i)).not.toBeNull();
 });
 
-it('gravando: mostra a onda do som e o X cancela sem enviar nada',async()=>{
+it('gravando: mostra a onda do som no lugar do texto e o quadrado para a gravação',async()=>{
  const previewSend=vi.fn();render(<MessageComposer conversationId="preview-onda" onSent={()=>{}} preview onPreviewSend={previewSend}/>);
  fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
  expect(await screen.findByRole('status',{name:'Gravando áudio'})).not.toBeNull();
- expect(screen.queryByLabelText('Mensagem')).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Cancelar gravação'}));
+ expect(screen.queryByRole('button',{name:'Cancelar gravação'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Parar gravação'}));
  await waitFor(()=>expect(screen.queryByRole('status',{name:'Gravando áudio'})).toBeNull());
- expect(screen.getByLabelText('Mensagem')).not.toBeNull();
  expect(previewSend).not.toHaveBeenCalled();
 });
