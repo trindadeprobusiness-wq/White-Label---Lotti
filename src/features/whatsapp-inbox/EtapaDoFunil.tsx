@@ -58,6 +58,9 @@ export function EtapaDoFunil({ clienteId, ultimoEventoDeEtapa }: { clienteId: st
       // Igual ao arrastar no quadro: o cartão entra no fim da coluna de destino.
       ordem: (oportunidades.data ?? []).filter(o => o.etapa_id === etapaId).length,
       updatedAt: negocio.updated_at, // token de concorrência
+    }, {
+      // "Negócio movido" entra na linha do tempo logo, sem esperar a próxima busca de eventos.
+      onSettled: () => { void cache.invalidateQueries({ queryKey: ['lotti-inbox-events'] }); },
     });
   };
 

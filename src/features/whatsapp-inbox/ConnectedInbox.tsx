@@ -466,7 +466,16 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
       const { data, error } = await db.rpc('lotti_agent_set_mode', { p_id: selected!.id, p_mode: nextMode });
       if (error || data !== true) throw error ?? new Error('mode_update_failed');
     },
-    onSuccess: () => cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
+    // O botão muda na hora (antes esperava a lista voltar) e o aviso entra na linha do tempo logo depois,
+    // sem esperar a próxima busca de 3 s.
+    onMutate: (nextMode) => {
+      const id = selected?.id;
+      cache.setQueriesData<Conversation[]>({ queryKey: ['lotti-agent-conversations', user?.id] }, lista => lista?.map(c => c.id === id ? { ...c, mode: nextMode, pausa_ia_ate: nextMode === 'ai' ? null : c.pausa_ia_ate } : c));
+    },
+    onSettled: () => Promise.all([
+      cache.invalidateQueries({ queryKey: ['lotti-agent-conversations', user?.id] }),
+      cache.invalidateQueries({ queryKey: ['lotti-inbox-events', user?.id] }),
+    ]),
   });
   // O envio sem confirmação é a única pergunta que o sistema não consegue
   // responder sozinho: só quem abre o WhatsApp sabe se a mensagem chegou.
@@ -498,7 +507,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // History conversations are not CRM clients until the broker adds them. The
   // CRM screens read clients from their own store, refreshed after adding.
   // A conversa vai junto no pedido: ao repetir, a selecionada podia já ter saído da lista (Fechadas → Abertas).
-  const changeStatus=useMutation({retry:1,retryDelay:1500,mutationFn:async({id,status}:{id:string;status:'open'|'closed'})=>{if(apiDisponivel())return statusConversaApi(id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:id,p_status:status});if(error)throw error;return data},onSuccess:async(_d,{id,status})=>{setStatusOpen(false);if(status==='open'&&statusLista==='closed'){setStatusLista('open');setSelectedId(id);}else if(status!==statusLista)toast.success(status==='closed'?'Conversa fechada. Ela fica em "Fechadas" e volta sozinha se o cliente escrever.':'Conversa reaberta. Ela voltou para "Abertas".');await Promise.all([refreshConversation(),cache.invalidateQueries({queryKey:['lotti-agent-conversation-count',user?.id]})])}});
+  const changeStatus=useMutation({retry:1,retryDelay:1500,mutationFn:async({id,status}:{id:string;status:'open'|'closed'})=>{if(apiDisponivel())return statusConversaApi(id,status);const {data,error}=await db.rpc('lotti_inbox_set_status',{p_conversation:id,p_status:status});if(error)throw error;return data},onSuccess:async(_d,{id,status})=>{setStatusOpen(false);if(status==='open'&&statusLista==='closed'){setStatusLista('open');setSelectedId(id);}else if(status!==statusLista)toast.success(status==='closed'?'Conversa fechada. Ela fica em "Fechadas" e volta sozinha se o cliente escrever.':'Conversa reaberta. Ela voltou para "Abertas".');await Promise.all([refreshConversation(),cache.invalidateQueries({queryKey:['lotti-agent-conversation-count',user?.id]}),cache.invalidateQueries({queryKey:['lotti-inbox-events',user?.id]})])}});
   const demoListKey=['lotti-agent-conversations',user?.id,true];
   const updateDemoConversation=(id:string,change:Partial<Conversation>)=>cache.setQueryData<Conversation[]>(demoListKey,current=>(current??[]).map(item=>item.id===id?{...item,...change}:item));
   const appendDemoMessage=(id:string,kind:'text'|'file'|'audio',content:string)=>{
