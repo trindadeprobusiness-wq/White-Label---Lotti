@@ -263,3 +263,33 @@ test('conversa nova (mensagem de número desconhecido) chega com a IA desligada'
   assert.equal(cv.mode,'human');
  }finally{await b.fechar();}
 });
+
+test('IA avança o lead no funil pela posição da etapa: nunca volta, nunca mexe em Proposta/fechado',async()=>{
+ const b=await criarBanco();
+ try{
+  const etapas=await b.sqlSuperusuario<{id:string;nome:string}>(`select id,nome from public.crm_etapas where corretor_id=$1 and ativo and tipo='ABERTA' order by ordem,id`,[b.corretorA]);
+  assert.ok(etapas.length>=6,'conta com as etapas padrão');
+  const canal=randomUUID(),cv=randomUUID(),token=randomUUID();
+  const cliente=(await b.inserir('clientes',{corretor_id:b.corretorA,nome:'Lead Funil',telefone:'62981230001'})).id as string;
+  await b.inserir('lotti_agent_channels',{id:canal,corretor_id:b.corretorA,instance:'teste-funil',enabled:true,sandbox:false});
+  await b.inserir('lotti_agent_conversations',{id:cv,channel_id:canal,corretor_id:b.corretorA,phone:'5562981230001',mode:'ai',cliente_id:cliente});
+  const responder=async(stage:string,extra:Record<string,unknown>={})=>{
+   await b.sqlSuperusuario(`update public.lotti_agent_conversations set lease_token=$2,lease_until=now()+interval '1 minute' where id=$1`,[cv,token]);
+   const [{revision}]=await b.sqlSuperusuario<{revision:string}>(`select revision from public.lotti_agent_conversations where id=$1`,[cv]);
+   await b.sqlSuperusuario(`select public.lotti_agent_prepare($1,$2,$3,$4::jsonb)`,[cv,token,revision,JSON.stringify({response:'ok',stage,humanRequested:false,...extra})]);
+  };
+  const etapa=async()=>(await b.sqlSuperusuario<{nome:string}>(`select e.nome from public.crm_oportunidades o join public.crm_etapas e on e.id=o.etapa_id where o.cliente_id=$1 and o.fechada_em is null`,[cliente]))[0]?.nome;
+  await responder('pre_qualificacao');
+  assert.equal(await etapa(),etapas[1].nome,'começou a atender: 2ª etapa');
+  await responder('qualificando');
+  assert.equal(await etapa(),etapas[2].nome);
+  await responder('pre_qualificacao');
+  assert.equal(await etapa(),etapas[2].nome,'nunca volta');
+  await responder('qualificando',{visitRequest:{date:'2026-10-20',time:'10:00'}});
+  assert.equal(await etapa(),etapas[4].nome,'pediu visita: 5ª etapa');
+  // A equipe levou para a 6ª (Proposta): a IA não mexe mais.
+  await b.sqlSuperusuario(`update public.crm_oportunidades set etapa_id=$2 where cliente_id=$1`,[cliente,etapas[5].id]);
+  await responder('qualificado_visita');
+  assert.equal(await etapa(),etapas[5].nome);
+ }finally{await b.fechar();}
+});
