@@ -43,6 +43,9 @@ function builder(table: string) {
   return b;
 }
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner-1' } }) }));
+// Avisos de ação viram notificação rápida (sonner), não faixa na conversa.
+const { avisos } = vi.hoisted(() => ({ avisos: [] as string[] }));
+vi.mock('sonner', () => ({ toast: { success: (m: string) => avisos.push(m), warning: (m: string) => avisos.push(m), error: (m: string) => avisos.push(m), info: (m: string) => avisos.push(m) } }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (t: string) => builder(t),
@@ -473,12 +476,12 @@ it('deixa entrar em filtro vazio, sempre com a saída à vista', async () => {
   await waitFor(() => expect(screen.queryByText(/Nenhuma conversa neste filtro/)).toBeNull());
 });
 
-it('diz por que a IA parou, em vez de "revisão operacional"', async () => {
+it('sem faixa de aviso na conversa quando a IA parou por motivo que não pede ação (pedido do Rafael)', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({ contact_name: 'Neves', last_error: 'no_active_entitlement' })];
   mount(true);
-  const aviso = await screen.findByTestId('motivo-da-parada');
-  expect(aviso.textContent).toContain('não tem plano ativo');
-  expect(aviso.textContent).not.toContain('revisão operacional');
+  await screen.findByRole('button', { name: 'Editar nome' });
+  expect(screen.queryByTestId('motivo-da-parada')).toBeNull();
+  expect(document.body.textContent).not.toContain('revisão operacional');
 });
 
 it('foto aparece como imagem na conversa, não como cartão de arquivo', async () => {
@@ -625,7 +628,7 @@ it('telefone que já é de outro cliente do CRM: a conversa passa para esse clie
   mount(true);
   await screen.findByRole('button', { name: 'Editar nome' });
   editPhone('(11) 98888-7777');
-  expect(await screen.findByText('Este telefone já era de outro cliente do CRM. A conversa foi vinculada a esse cadastro.')).not.toBeNull();
+  await waitFor(() => expect(avisos).toContain('Este telefone já era de outro cliente do CRM. A conversa foi vinculada a esse cadastro.'));
   expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_update_contact', { p_conversation: 'c1', p_name: 'Neves', p_phone: '5511988887777' });
   await waitFor(() => expect(mockDb.reads.clientes ?? 0).toBeGreaterThan(0));
 });
@@ -637,7 +640,7 @@ it('nova conversa sem confirmação da entrega abre a conversa com o aviso, sem 
   fireEvent.change(screen.getByRole('textbox', { name: 'Telefone' }), { target: { value: '(11) 99999-0000' } });
   fireEvent.change(screen.getByRole('textbox', { name: 'Mensagem inicial' }), { target: { value: 'Olá' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enviar mensagem' }));
-  expect(await screen.findByText('Envio sem confirmação. Confira no WhatsApp antes de mandar de novo.')).not.toBeNull();
+  await waitFor(() => expect(avisos).toContain('Envio sem confirmação. Confira no WhatsApp antes de mandar de novo.'));
   expect(screen.queryByRole('dialog', { name: 'Nova conversa' })).toBeNull();
   const body = (previewInvoke.mock.calls[0][1] as { body: { request_id: string } }).body;
   expect(body.request_id).toMatch(/^[0-9a-f-]{36}$/);
@@ -733,8 +736,8 @@ it('motivo que não é de envio não oferece os botões', async () => {
     { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'human', updated_at: new Date().toISOString(), qualification: {}, last_error: 'quota_exhausted' },
   ];
   mount(true);
-  const faixa = await screen.findByTestId('motivo-da-parada');
-  expect(within(faixa).queryByRole('button', { name: 'A mensagem chegou' })).toBeNull();
+  await screen.findByRole('button', { name: 'Editar nome' });
+  expect(screen.queryByTestId('motivo-da-parada')).toBeNull();
 });
 
 it('o rodapé mostra o total real, não o teto da página', async () => {
@@ -757,7 +760,9 @@ it('IA esperando a vez dela não aparece como problema', async () => {
     { id: 'c1', phone: '5511999990000', cliente_id: null, mode: 'ai', updated_at: new Date().toISOString(), qualification: {}, last_error: 'aggregation' },
   ];
   mount(true);
-  expect((await screen.findByTestId('espera-da-ia')).textContent).toContain('Juntando as mensagens');
+  await screen.findByRole('button', { name: 'Editar nome' });
+  expect(screen.queryByTestId('espera-da-ia')).toBeNull();
+  expect(document.body.textContent).not.toContain('Juntando as mensagens');
   expect(screen.queryByTestId('motivo-da-parada')).toBeNull();
   expect(document.body.textContent).not.toContain('revisão operacional');
 });
