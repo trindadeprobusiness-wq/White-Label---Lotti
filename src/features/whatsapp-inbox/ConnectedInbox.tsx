@@ -593,7 +593,10 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     if (conversaDesenhada.current !== selected?.id) {
       conversaDesenhada.current = selected?.id;
       followLatest.current = true;
+      gestoAte.current = 0;
     }
+    // Mensagem que eu mesmo mandei: sempre leva ao fim, mesmo se eu tinha subido.
+    if (pendentes.length) followLatest.current = true;
     if (followLatest.current) el.scrollTop = el.scrollHeight;
   }, [selected?.id, ultimoDaLista, pendentes.length]);
   // A régua de escrever muda de altura quando os botões quebram em duas linhas,
@@ -715,7 +718,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
           </span>}
           {reconciliar.isError && <span className="text-destructive">Não foi possível concluir. Tente de novo.</span>}
         </div>}
-        <div ref={timelineRef} onWheel={marcarGesto} onTouchMove={marcarGesto} onKeyDown={marcarGesto} onPointerDown={marcarGesto} onScroll={event => {
+        <div ref={timelineRef} onWheel={marcarGesto} onTouchMove={marcarGesto} onKeyDown={marcarGesto} onPointerDown={event => { if (event.target === event.currentTarget) marcarGesto(); }} onScroll={event => {
           const el = event.currentTarget;
           const noFim = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
           if (noFim) followLatest.current = true;

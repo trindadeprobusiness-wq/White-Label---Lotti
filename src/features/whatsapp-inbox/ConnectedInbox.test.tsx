@@ -881,6 +881,12 @@ it('abre no fim mesmo quando o aviso da própria rolagem chega depois de a conve
     fireEvent.scroll(trilha);
     avisos.forEach(aviso => aviso());
     expect(trilha.scrollTop).toBe(3200);
+    // Clicar numa mensagem (foto, responder, selecionar texto) não é rolar: a conversa cresce e segue no fim.
+    fireEvent.pointerDown(screen.getByText('Mensagem 29'));
+    altura.mockReturnValue(3300);
+    fireEvent.scroll(trilha);
+    avisos.forEach(aviso => aviso());
+    expect(trilha.scrollTop).toBe(3300);
     // Agora a pessoa sobe com a rodinha: a conversa cresce de novo e a tela não puxa para baixo.
     fireEvent.wheel(trilha, { deltaY: -500 });
     trilha.scrollTop = 1000;
