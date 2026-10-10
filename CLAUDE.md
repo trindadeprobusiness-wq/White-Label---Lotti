@@ -24,6 +24,8 @@ as validações realizadas, pendências e uma entrada curta no diário identific
 - Ação para o Codex vem sempre com o prompt pronto para colar.
 - O Codex não mexe no worktree `follow-up-leads`.
 - Não pausar nem apagar o Supabase antes da recuperação combinada.
+- Não mexer em nada do Asaas nem da API do Gemini (já configurados): código, configuração, webhooks e
+  chaves. Nem pedir ao Codex para consultar ou alterar esses dois.
 
 ## Fluxo para tarefa complexa
 
