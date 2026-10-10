@@ -5,6 +5,7 @@ import { buildGreetingPreview } from '../prompt';
 import { AGENT_MODEL_OPTIONS, AGENT_NAME_VARIABLE, COMPANY_VARIABLE, INTRO_LIMIT, NAME_LIMIT, agentModel, type AgentModelId, type AgentSettings } from '../settings';
 import type { AgentTabProps } from './types';
 import { PromptTab } from './PromptTab';
+import { SystemPromptSection } from './SystemPromptSection';
 
 export function IdentityTab(props: AgentTabProps) {
   const { settings, onChange, issues } = props;
@@ -60,6 +61,8 @@ export function IdentityTab(props: AgentTabProps) {
         </p>
       </figure>
     </SettingsSection>
+
+    <SystemPromptSection {...props} />
 
     <PromptTab {...props} />
 

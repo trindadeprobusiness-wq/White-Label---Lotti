@@ -3,6 +3,7 @@ import {
   INTRO_LIMIT,
   NAME_LIMIT,
   PROMPT_LIMIT,
+  SYSTEM_PROMPT_LIMIT,
   WEEKDAYS,
   type AgentSettings,
   type AgentTab,
@@ -59,6 +60,7 @@ export function validateAgentSettings(settings: AgentSettings): AgentIssue[] {
   }
 
   if (settings.prompt.length > PROMPT_LIMIT) error('identity', 'prompt', `As instruções adicionais podem ter até ${PROMPT_LIMIT} caracteres.`);
+  if (settings.systemPrompt.length > SYSTEM_PROMPT_LIMIT) error('identity', 'systemPrompt', `O prompt do agente pode ter até ${SYSTEM_PROMPT_LIMIT} caracteres.`);
 
   return issues;
 }

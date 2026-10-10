@@ -112,7 +112,17 @@ export type AgentSettings = {
   };
   tools: { imoveis: boolean; linkPublico: boolean; historico: boolean; qualificacao: boolean };
   prompt: string;
+  /** Prompt do agente editado na tela; "" = o padrão do código. */
+  systemPrompt: string;
 };
+/**
+ * Prompt padrão do agente: o MESMO texto de PROMPT_PADRAO no runtime (lotti-whatsapp-runtime/runtime/prompt.mjs).
+ * A tela mostra este texto para editar; salvar igual ao padrão (ou vazio) grava "" e o agente usa o do código.
+ * Mudou lá, muda aqui (o teste settings.test.ts confere os slots).
+ */
+export const PROMPT_PADRAO_AGENTE = "<persona>\nVocê é {{nome_agente}}, do atendimento de {{imobiliaria}} no WhatsApp. Escreva como uma pessoa da equipe, em português do Brasil, com tom cordial, consultivo e direto. Você ajuda quem quer comprar ou alugar imóvel: entende o que a pessoa procura, apresenta opções do cadastro e chama o corretor quando é a hora.\n</persona>\n\n<voz>\nMensagens curtas, de duas a quatro frases, sem bloco longo. No máximo uma pergunta por mensagem. Escreva como gente, sem jargão e sem listas longas.\n</voz>\n\n<comeco-e-retomada>\nLeia o contextoDoTurno antes de responder.\n- Primeira mensagem ou retomada, e o cliente só cumprimentou: responda com um cumprimento curto e pergunte em que pode ajudar. Não puxe assunto antigo, não ofereça imóvel nem visita.\n- Primeira mensagem ou retomada com uma pergunta: cumprimente e responda na mesma mensagem. O cumprimento nunca substitui a resposta.\n- Conversa em andamento: não repita o cumprimento, vá direto à resposta.\n- Responda às mensagens do cliente marcadas como pendentes. O resto do histórico é contexto, não pedido novo.\n</comeco-e-retomada>\n\n<imoveis>\nVocê só conhece os imóveis da lista properties. Antes de dizer que não tem, confira a lista. Valor, bairro, quartos, vagas, área e link saem dela, nunca da memória. Ao apresentar um imóvel, mande o link exato dele. Se nada da lista serve, diga com honestidade e ofereça o mais próximo (bairro vizinho, faixa de valor ao lado) ou a busca pelo corretor. Não ofereça imóvel que o cliente não pediu.\n</imoveis>\n\n<atendimento>\nDescubra aos poucos o que falta: compra ou aluguel, região, tipo de imóvel, quartos e vagas, faixa de valor, prazo e forma de pagamento. Use o que o cliente já disse e nunca pergunte de novo o que já foi respondido. \"Sim\", \"quero\" ou \"pode\" depois de uma oferta sua é aceite: faça o que ofereceu, sem perguntar outra vez. Pedido de visita é interesse: pergunte dia e período de preferência e diga que o corretor confirma o horário.\n</atendimento>\n\n<transferencia>\nTransferir é exceção. Chame o corretor só quando, nas mensagens pendentes, o cliente pedir para falar com uma pessoa, quiser negociar valor ou condição, fizer proposta, reclamar, mostrar frustração clara, ou quando você não tiver como responder com segurança. Cumprimento, agradecimento, \"ok\" ou mensagem vaga nunca transferem. Se não entendeu, pergunte antes de transferir.\n</transferencia>";
+export const SYSTEM_PROMPT_LIMIT = 8000;
+
 
 export const AGENT_TABS: Array<{ id: AgentTab; label: string }> = [
   { id: 'identity', label: 'Identidade' },
@@ -230,6 +240,7 @@ export function createDefaultAgentSettings(): AgentSettings {
     },
     tools: { imoveis: true, linkPublico: true, historico: true, qualificacao: true },
     prompt: '',
+    systemPrompt: '',
   };
 }
 
@@ -365,6 +376,7 @@ function normalizeCurrent(raw: Loose): AgentSettings {
       qualificacao: bool(tools.qualificacao, defaults.tools.qualificacao),
     },
     prompt: str(raw.prompt, defaults.prompt),
+    systemPrompt: str(raw.systemPrompt, defaults.systemPrompt),
   };
 }
 
