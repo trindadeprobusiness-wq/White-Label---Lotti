@@ -118,17 +118,3 @@ describe('useAuth com a API — cadastro', () => {
     expect(r).toEqual({ ok: false, erro: 'Não foi possível criar a conta com este e-mail.', precisaConfirmarEmail: false });
   });
 });
-
-describe('useAuth com a API — login social', () => {
-  it('entrarCom não abre o OAuth do Supabase (sessão que o app não veria) e explica', async () => {
-    const signInWithOAuth = vi.fn();
-    const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.auth as unknown as Record<string, unknown>).signInWithOAuth = signInWithOAuth;
-    const { result } = renderHook(() => useAuth(), { wrapper });
-    let r: Awaited<ReturnType<typeof result.current.entrarCom>> | undefined;
-    await act(async () => { r = await result.current.entrarCom('google'); });
-    expect(r?.ok).toBe(false);
-    expect(r?.erro).toMatch(/e-mail e senha/);
-    expect(signInWithOAuth).not.toHaveBeenCalled();
-  });
-});

@@ -35,7 +35,6 @@ interface AuthContextValue {
   signUp: (email: string, password: string, metadata: SignUpMetadata) => Promise<Resultado & { precisaConfirmarEmail?: boolean }>;
   signIn: (email: string, password: string) => Promise<Resultado>;
   signOut: () => Promise<void>;
-  entrarCom: (provedor: 'google' | 'azure') => Promise<Resultado>;
   pedirRecuperacao: (email: string) => Promise<Resultado>;
   definirNovaSenha: (senha: string) => Promise<Resultado>;
 }
@@ -262,38 +261,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   /**
-   * Login social. O Supabase redireciona o navegador para o provedor e volta em
-   * `redirectTo`; o `onAuthStateChange` acima captura a sessão na volta, então
-   * não há o que fazer aqui além de disparar.
-   *
-   * O trigger `handle_new_user` cria o corretor para QUALQUER novo usuário do
-   * auth, inclusive social — mas o Google não manda CNPJ nem telefone, então
-   * esses campos continuam pendentes para um onboarding futuro.
-   */
-  const entrarCom = useCallback(async (provedor: 'google' | 'azure') => {
-    // Login próprio: a API ainda não tem OAuth. Seguir pelo Supabase criaria uma
-    // sessão que o app (que só escuta o clienteAuth) nunca enxerga — o usuário
-    // voltaria do Google para a tela de login sem explicação.
-    if (apiDisponivel()) {
-      return { ok: false, erro: 'Entrar com Google ou Microsoft ainda não está disponível. Use seu e-mail e senha.' };
-    }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: provedor,
-      options: {
-        redirectTo: `${window.location.origin}/auth`,
-        // Microsoft: sem 'email' explícito o token volta sem endereço e o
-        // corretor nasce sem e-mail.
-        scopes: provedor === 'azure' ? 'email openid profile' : undefined,
-      },
-    });
-    if (error) {
-      console.error(`Erro no login com ${provedor}:`, error);
-      return { ok: false, erro: mensagemDeAuth(error) };
-    }
-    return { ok: true };
-  }, []);
-
-  /**
    * Envia o e-mail de recuperação. Não existia caminho nenhum de recuperação no
    * projeto: quem esquecia a senha ficava trancado para sempre.
    */
@@ -334,7 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user, session, loading, isAuthenticated: !!session,
-        signUp, signIn, signOut, entrarCom, pedirRecuperacao, definirNovaSenha,
+        signUp, signIn, signOut, pedirRecuperacao, definirNovaSenha,
       }}
     >
       {children}

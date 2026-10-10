@@ -3,7 +3,6 @@ import { loadEnv, ORIGEM_APP, ORIGENS_LOCAIS } from './env';
 const base = {
   DATABASE_URL: 'postgresql://u:p@db:5432/postgres',
   REDIS_URL: 'redis://redis:6379',
-  SUPABASE_URL: 'https://abc.supabase.co',
 };
 
 describe('loadEnv', () => {
@@ -61,7 +60,7 @@ describe('loadEnv', () => {
   });
 
   it('recusa subir sem variável obrigatória e diz qual falta', () => {
-    expect(() => loadEnv({ REDIS_URL: base.REDIS_URL, SUPABASE_URL: base.SUPABASE_URL })).toThrow('DATABASE_URL');
+    expect(() => loadEnv({ REDIS_URL: base.REDIS_URL })).toThrow('DATABASE_URL');
   });
 
   it('lê o segredo do agente só quando tem 32+ caracteres', () => {
@@ -105,9 +104,7 @@ describe('loadEnv', () => {
     expect(env.corsOrigins).toEqual(expect.arrayContaining(['http://localhost:8080', 'http://localhost:5173', ORIGEM_APP]));
   });
 
-  it('em produção, sem AUTH_JWT_SECRET (único login da API) a API não sobe; SUPABASE_URL não é mais exigida', () => {
+  it('em produção, sem AUTH_JWT_SECRET (único login da API) a API não sobe', () => {
     expect(() => loadEnv({ ...base, NODE_ENV: 'production', CORS_ORIGINS: 'https://app.plataformalotti.com.br' })).toThrow('AUTH_JWT_SECRET');
-    const { SUPABASE_URL: _semSupabase, ...semSupabase } = base;
-    expect(loadEnv({ ...semSupabase }).authJwtSecret).toBeUndefined();
   });
 });

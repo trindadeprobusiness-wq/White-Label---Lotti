@@ -3,10 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
 import { apagarArquivoApi, enviarArquivoApi, urlPublicaFoto, type GrupoUpload } from '@/lib/api/arquivos';
 
-type BucketName = 'imoveis-fotos' | 'documentos' | 'avatars';
+type BucketName = 'imoveis-fotos' | 'documentos';
 
-// Com a API ligada, imoveis-fotos e documentos passam pela API (Garage). avatars não tem
-// rota na API (sem uso real), então segue pelo Supabase. ai-attachments não passa por aqui.
+// Com a API ligada, imoveis-fotos e documentos passam pela API (Garage). ai-attachments não passa por aqui.
 const GRUPO_POR_BUCKET: Partial<Record<BucketName, GrupoUpload>> = {
   'imoveis-fotos': 'foto',
   documentos: 'documento',

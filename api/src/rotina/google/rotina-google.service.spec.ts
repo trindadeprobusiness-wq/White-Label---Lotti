@@ -13,7 +13,7 @@ const EVENTO = '33333333-3333-4333-8333-333333333333';
 const claims = { sub: USER, role: 'authenticated' };
 const VARIAVEIS = [
   'GOOGLE_CALENDAR_CLIENT_ID', 'GOOGLE_CALENDAR_CLIENT_SECRET', 'GOOGLE_TOKEN_ENCRYPTION_KEY', 'GOOGLE_CALENDAR_REDIRECT_URI',
-  'GOOGLE_CALENDAR_APP_REDIRECT_URL', 'GOOGLE_CALENDAR_WEBHOOK_URL', 'SUPABASE_URL', 'ROUTINE_CALENDAR_MAINTAIN_ENABLED',
+  'GOOGLE_CALENDAR_APP_REDIRECT_URL', 'GOOGLE_CALENDAR_WEBHOOK_URL', 'ROUTINE_CALENDAR_MAINTAIN_ENABLED',
 ];
 const salvas: Record<string, string | undefined> = {};
 
@@ -157,7 +157,7 @@ describe('auth', () => {
     expect(ver.startsWith('v1.')).toBe(true);
   });
 
-  it('G2 sem redirect URI nem SUPABASE_URL → 503', async () => {
+  it('G2 sem redirect URI → 503 (não cai mais no callback do Supabase)', async () => {
     comChaves();
     delete process.env.GOOGLE_CALENDAR_REDIRECT_URI;
     const { servico } = montar();

@@ -100,7 +100,7 @@ export default function AdminIntegracoes() {
               : 'Todo pedido pago gerou acesso.',
           acao:
             data.checkout.pagos_sem_acesso > 0
-              ? 'Verifique em Pagamentos e reenvie o convite pelo Supabase Auth.'
+              ? 'Verifique em Pagamentos quem pagou e ainda não recebeu o acesso.'
               : undefined,
         },
         {

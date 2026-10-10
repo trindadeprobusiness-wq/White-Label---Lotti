@@ -37,9 +37,7 @@ export function lerConfigRotina(env: NodeJS.ProcessEnv = process.env): ConfigRot
   const clientId = texto(env.GOOGLE_CALENDAR_CLIENT_ID);
   const clientSecret = texto(env.GOOGLE_CALENDAR_CLIENT_SECRET);
   const chaveCripto = chaveValida(texto(env.GOOGLE_TOKEN_ENCRYPTION_KEY));
-  const supabaseUrl = texto(env.SUPABASE_URL);
-  const redirectUri = texto(env.GOOGLE_CALENDAR_REDIRECT_URI)
-    ?? (supabaseUrl ? `${supabaseUrl}/functions/v1/google-calendar-auth/callback` : null);
+  const redirectUri = texto(env.GOOGLE_CALENDAR_REDIRECT_URI);
   return {
     google: {
       clientId,
