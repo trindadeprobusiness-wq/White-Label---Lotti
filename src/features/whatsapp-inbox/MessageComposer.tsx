@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from '@/integrations/supabase/client';
 import {Button} from '@/components/ui/button';
-import {Mic,Paperclip,Send,Square,Trash2} from 'lucide-react';
+import {Mic,Paperclip,Pause,Play,Send,Trash2} from 'lucide-react';
 import {safeAttachmentName,validateAttachment} from './attachments';
 import {FALHA_CERTA,codigoDoErro} from './bridgeError';
 import {apiDisponivel} from '@/lib/api';
@@ -21,6 +21,9 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  const [micBlocked,setMicBlocked]=useState(false);
  // Microfone ao vivo para desenhar a onda.
  const [aoVivo,setAoVivo]=useState<MediaStream>();
+ // Gravação como no Clix: lixeira cancela, pausar/retomar, e o enviar para e manda direto.
+ const [pausado,setPausado]=useState(false),[segundos,setSegundos]=useState(0);
+ const descartar=useRef(false),enviarAoParar=useRef(false),acumulado=useRef(0),desde=useRef(0),relogio=useRef<ReturnType<typeof setInterval>>();
  const recorder=useRef<MediaRecorder>(),stream=useRef<MediaStream>(),timer=useRef<ReturnType<typeof setTimeout>>(),alive=useRef(true);
  const fileInput=useRef<HTMLInputElement>(null);
  const messageInput=useRef<HTMLTextAreaElement>(null);
@@ -31,7 +34,10 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
  const textoLimpo=useRef<string>();
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());}},[]);
  useEffect(()=>{if(!audio){setPreview('');return;}const url=URL.createObjectURL(audio);setPreview(url);return()=>URL.revokeObjectURL(url)},[audio]);
- const stop=()=>{if(previewMode){setRecording(false);setDemoAudioReady(true);setNotice('Áudio de demonstração pronto para enviar.');return;}clearTimeout(timer.current);if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());};
+ const stop=()=>{if(previewMode){setRecording(false);setDemoAudioReady(true);setNotice('Áudio de demonstração pronto para enviar.');return;}clearTimeout(timer.current);clearInterval(relogio.current);if(recorder.current&&recorder.current.state!=='inactive')recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());};
+ const cancelar=()=>{descartar.current=true;enviarAoParar.current=false;if(previewMode){setRecording(false);setNotice('');return;}stop();};
+ const enviarGravacao=()=>{if(previewMode){setRecording(false);setNotice('');onPreviewSend?.({kind:'audio',content:'Áudio de demonstração'});return;}enviarAoParar.current=true;stop();};
+ const alternarPausa=()=>{const r=recorder.current;if(!r)return;if(r.state==='recording'){r.pause();acumulado.current+=Date.now()-desde.current;desde.current=0;setPausado(true);}else if(r.state==='paused'){r.resume();desde.current=Date.now();setPausado(false);}};
  async function record(){
   if(previewMode){setRecording(true);setDemoAudioReady(false);setNotice('Gravação simulada: clique novamente para finalizar.');return;}
   setNotice('');setMicBlocked(false);try{
@@ -44,9 +50,11 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
    if(!mime){input.getTracks().forEach(t=>t.stop());throw Error('unsupported');}
    const r=new MediaRecorder(input,{mimeType:mime,audioBitsPerSecond:64000});recorder.current=r;const chunks:BlobPart[]=[];
    r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-   r.onstop=()=>{input.getTracks().forEach(t=>t.stop());if(alive.current){setRecording(false);setAoVivo(undefined);setAudio(new Blob(chunks,{type:mime.split(';')[0]}));}};
+   r.onstop=()=>{input.getTracks().forEach(t=>t.stop());clearInterval(relogio.current);const fora=descartar.current;descartar.current=false;if(alive.current){setRecording(false);setPausado(false);setAoVivo(undefined);if(!fora)setAudio(new Blob(chunks,{type:mime.split(';')[0]}));else enviarAoParar.current=false;}};
    r.onerror=()=>{stop();if(alive.current)setNotice('Não foi possível gravar. Verifique o microfone.');};
-   r.start();setRecording(true);timer.current=setTimeout(stop,90000);
+   r.start();descartar.current=false;enviarAoParar.current=false;acumulado.current=0;desde.current=Date.now();setSegundos(0);setPausado(false);
+   relogio.current=setInterval(()=>setSegundos(Math.floor((acumulado.current+(desde.current?Date.now()-desde.current:0))/1000)),250);
+   setRecording(true);timer.current=setTimeout(stop,300000);
   }catch(error){stream.current?.getTracks().forEach(t=>t.stop());if(!alive.current)return;
    const negado=error instanceof DOMException&&['NotAllowedError','SecurityError'].includes(error.name);
    setMicBlocked(negado);
@@ -111,18 +119,27 @@ export function MessageComposer({conversationId,onSent,preview:previewMode=false
   }
   finally{if(alive.current)setBusy(false);}
  }
+ // Enviar pela barra de gravação: assim que o áudio fica pronto, sai sem a prévia.
+ useEffect(()=>{if(audio&&enviarAoParar.current){enviarAoParar.current=false;void send();}},[audio]);// eslint-disable-line react-hooks/exhaustive-deps
  const locked=busy||!!pending.current;
  const canSend=!!text.trim()||!!audio||!!attachment||demoAudioReady||!!pending.current;
  return <footer className="space-y-2 border-t border-[#e9ebf3] bg-white px-[14px] pb-[max(14px,env(safe-area-inset-bottom))] pt-[11px]">
   {(preview||attachment||demoAudioReady)&&<div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">{preview?<audio controls src={preview} className="h-10 min-w-0 flex-1"/>:<span className="min-w-0 flex-1 truncate">{demoAudioReady?'Áudio de demonstração':`${attachment?.name} · ${attachment&&Math.ceil(attachment.size/1024/1024)} MB`}</span>}<Button aria-label="Descartar anexo" variant="ghost" disabled={locked} onClick={()=>{setAudio(undefined);setAttachment(undefined);setDemoAudioReady(false)}}><Trash2 className="h-4 w-4"/></Button></div>}
-  <div className="flex min-h-12 items-end gap-1 rounded-xl border border-[#d6dae6] bg-[#fbfcfe] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] focus-within:ring-2 focus-within:ring-primary/25">
+  {recording?<div role="status" aria-label="Gravando áudio" className="flex h-12 items-center gap-2 rounded-full border border-[#d6dae6] bg-white px-2">
+   <Button type="button" aria-label="Cancelar gravação" title="Cancelar gravação" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700" onClick={cancelar}><Trash2 className="h-4 w-4"/></Button>
+   <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${pausado?'bg-muted-foreground/50':'animate-pulse bg-red-500'}`}/>
+   <span className="w-11 shrink-0 font-mono text-sm tabular-nums">{String(Math.floor(segundos/60)).padStart(2,'0')}:{String(segundos%60).padStart(2,'0')}</span>
+   <OndaDaVoz stream={aoVivo} pausado={pausado}/>
+   <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{pausado?'Pausado':'Gravando…'}</span>
+   <Button type="button" aria-label={pausado?'Retomar gravação':'Pausar gravação'} title={pausado?'Retomar gravação':'Pausar gravação'} variant="outline" size="icon" className="h-9 w-9 shrink-0 rounded-full" onClick={alternarPausa}>{pausado?<Play className="ml-0.5 h-4 w-4"/>:<Pause className="h-4 w-4"/>}</Button>
+   <Button type="button" aria-label="Enviar áudio" title="Enviar áudio" size="icon" className="h-10 w-10 shrink-0 rounded-full" onClick={enviarGravacao}><Send className="h-4 w-4"/></Button>
+  </div>:<div className="flex min-h-12 items-end gap-1 rounded-xl border border-[#d6dae6] bg-[#fbfcfe] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] focus-within:ring-2 focus-within:ring-primary/25">
    <input ref={fileInput} aria-label="Anexar arquivo" className="sr-only" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov,.mp3,.ogg,.m4a,.wav" disabled={locked||recording} onChange={e=>{const f=e.target.files?.[0];if(f)try{validateAttachment(f);setAttachment(new File([f],safeAttachmentName(f.name),{type:f.type}));setAudio(undefined);setDemoAudioReady(false);setNotice('');messageInput.current?.focus()}catch(error){setNotice(error instanceof Error&&error.message==='file_too_large'?'O arquivo deve ter até 100 MB.':'Este tipo de arquivo não é permitido por segurança.')}e.target.value='';}}/>
    <Button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" disabled={locked||recording} onClick={()=>fileInput.current?.click()}><Paperclip className="h-5 w-5"/></Button>
-   {recording&&<OndaDaVoz stream={aoVivo}/>}
    {!audio&&!recording&&<textarea ref={messageInput} aria-label="Mensagem" placeholder="Digite uma mensagem" value={text} maxLength={8000} rows={1} disabled={locked||recording} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(canSend&&!busy&&!recording)void send();}}} className="max-h-28 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0 max-lg:text-base"/>}
    {canSend?<Button type="button" aria-label={busy?'Enviando':pending.current?'Verificar envio':'Enviar'} title={pending.current?'Verificar envio':'Enviar'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-primary max-lg:h-11 max-lg:w-11" disabled={busy||recording} onClick={send}><Send className="h-5 w-5"/></Button>
-    :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" disabled={locked||!!audio} onClick={recording?stop:record}>{recording?<Square className="h-4 w-4"/>:<Mic className="h-5 w-5"/>}</Button>}
-  </div>
+    :<Button type="button" aria-label={recording?'Parar gravação':'Gravar áudio'} title={recording?'Parar gravação':'Gravar áudio'} variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full text-muted-foreground max-lg:h-11 max-lg:w-11" disabled={locked||!!audio} onClick={recording?stop:record}>{<Mic className="h-5 w-5"/>}</Button>}
+  </div>}
   {notice&&<p role="status" className="px-1 text-[11px] text-muted-foreground">{notice}</p>}
   {/* Depois de liberar o microfone no navegador, gravar de novo é uma chamada
       nova a getUserMedia — recarregar a página nunca foi necessário. */}

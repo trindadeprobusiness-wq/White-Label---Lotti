@@ -76,9 +76,8 @@ it('prévia envia texto e arquivo ao callback local sem chamar Supabase',async()
 it('prévia simula gravar e enviar áudio sem pedir microfone nem chamar Supabase',()=>{
  const previewSend=vi.fn();render(<MessageComposer conversationId="preview-audio" onSent={()=>{}} preview onPreviewSend={previewSend}/>);
  fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
- fireEvent.click(screen.getByRole('button',{name:'Parar gravação'}));
- expect(screen.getByText('Áudio de demonstração')).not.toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Enviar'}));
+ // Como no Clix: o enviar da barra de gravação para e manda direto, sem prévia.
+ fireEvent.click(screen.getByRole('button',{name:'Enviar áudio'}));
  expect(previewSend).toHaveBeenCalledWith({kind:'audio',content:'Áudio de demonstração'});
  expect(invoke).not.toHaveBeenCalled();
 });
@@ -131,12 +130,14 @@ it('aponta o endereço, e não o microfone, quando a página não é segura',asy
  expect(await screen.findByText(/endereço seguro \(https\)/i)).not.toBeNull();
 });
 
-it('gravando: mostra a onda do som no lugar do texto e o quadrado para a gravação',async()=>{
+it('gravando: barra do Clix com lixeira, tempo, onda, pausar e enviar; a lixeira descarta',async()=>{
  const previewSend=vi.fn();render(<MessageComposer conversationId="preview-onda" onSent={()=>{}} preview onPreviewSend={previewSend}/>);
  fireEvent.click(screen.getByRole('button',{name:'Gravar áudio'}));
  expect(await screen.findByRole('status',{name:'Gravando áudio'})).not.toBeNull();
- expect(screen.queryByRole('button',{name:'Cancelar gravação'})).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Parar gravação'}));
+ expect(screen.getByText('00:00')).not.toBeNull();
+ expect(screen.getByRole('button',{name:'Pausar gravação'})).not.toBeNull();
+ expect(screen.getByRole('button',{name:'Enviar áudio'})).not.toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Cancelar gravação'}));
  await waitFor(()=>expect(screen.queryByRole('status',{name:'Gravando áudio'})).toBeNull());
  expect(previewSend).not.toHaveBeenCalled();
 });

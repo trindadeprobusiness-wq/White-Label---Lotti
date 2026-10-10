@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Mic, Pause, PhoneIncoming, PhoneMissed, PhoneOutgoing, Play, Video } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { PhoneIncoming, PhoneMissed, PhoneOutgoing, Video } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
 import { baixarInboxApi } from '@/lib/api/arquivos';
@@ -38,19 +38,9 @@ export function CartaoChamada({ texto, direcao }: { texto: string; direcao: 'in'
   );
 }
 
-const relogio = (s: number) => {
-  if (!Number.isFinite(s) || s < 0) return '0:00';
-  const t = Math.floor(s);
-  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-};
-
 export function PlayerAudio({ caminho }: { caminho: string | null }) {
   const [url, setUrl] = useState('');
   const [falhou, setFalhou] = useState(false);
-  const [tocando, setTocando] = useState(false);
-  const [tempo, setTempo] = useState(0);
-  const [duracao, setDuracao] = useState(0);
-  const audio = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (!caminho) return;
@@ -69,49 +59,13 @@ export function PlayerAudio({ caminho }: { caminho: string | null }) {
     return () => { vivo = false; if (objeto) URL.revokeObjectURL(objeto); };
   }, [caminho]);
 
-  if (!caminho || falhou) {
-    return (
-      <div className="flex min-w-[180px] items-center gap-2.5 py-0.5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-current/10"><Mic className="h-4 w-4" /></span>
-        <span className="min-w-0">
-          <span className="block text-[14px] font-medium leading-tight">Áudio</span>
-          <span className="block text-[11px] opacity-75">{falhou ? 'Indisponível no momento' : 'Ouça no WhatsApp do celular'}</span>
-        </span>
-      </div>
-    );
-  }
-
-  const alternar = () => {
-    const el = audio.current;
-    if (!el) return;
-    if (el.paused) void el.play().catch(() => setFalhou(true)); else el.pause();
-  };
-  const total = duracao || 0;
+  // Como no Clix: o ícone de voz e o player do próprio navegador (play, posição, tempo, velocidade).
   return (
-    <div className="flex min-w-[220px] max-w-[300px] items-center gap-2.5 py-0.5" data-testid="player-audio">
-      <button type="button" onClick={alternar} disabled={!url} aria-label={tocando ? 'Pausar áudio' : 'Tocar áudio'}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-current/15 hover:bg-current/25 disabled:opacity-50">
-        {tocando ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
-      </button>
-      <span className="min-w-0 flex-1">
-        <input type="range" min={0} max={total || 1} step={0.1} value={Math.min(tempo, total || 1)} aria-label="Posição do áudio"
-          onChange={(e) => { const el = audio.current; if (el) { el.currentTime = Number(e.target.value); setTempo(el.currentTime); } }}
-          className="h-1 w-full cursor-pointer accent-current" />
-        <span className="mt-0.5 flex justify-between text-[11px] opacity-75">
-          <span>{relogio(tocando || tempo ? tempo : total)}</span>
-          <Mic className="h-3 w-3" />
-        </span>
-      </span>
-      <audio ref={audio} src={url || undefined} preload="metadata" className="hidden"
-        onLoadedMetadata={(e) => {
-          const el = e.currentTarget;
-          // ogg/webm do WhatsApp às vezes chegam sem duração (Infinity): força o cálculo.
-          if (Number.isFinite(el.duration)) setDuracao(el.duration);
-          else { el.currentTime = 1e7; el.ontimeupdate = () => { el.ontimeupdate = null; setDuracao(el.duration); el.currentTime = 0; }; }
-        }}
-        onTimeUpdate={(e) => setTempo(e.currentTarget.currentTime)}
-        onPlay={() => setTocando(true)} onPause={() => setTocando(false)}
-        onEnded={() => { setTocando(false); setTempo(0); }} />
+    <div className="flex min-w-[240px] max-w-[320px] items-center gap-2 py-0.5" data-testid="player-audio">
+      <span aria-hidden className="text-[20px] leading-none">🎙️</span>
+      {caminho && url && !falhou
+        ? <audio src={url} controls preload="metadata" className="h-10 min-w-0 flex-1" />
+        : <span className="text-[13px] opacity-75">{falhou || !caminho ? 'Áudio indisponível no momento' : 'Carregando áudio…'}</span>}
     </div>
   );
 }

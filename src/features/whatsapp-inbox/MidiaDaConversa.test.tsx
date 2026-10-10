@@ -30,19 +30,19 @@ it('cartão de ligação: perdida em vermelho, atendida com duração', () => {
   expect(screen.getByText('2 min')).not.toBeNull();
 });
 
-it('áudio com arquivo: player com botão tocar; sem arquivo: aviso claro', async () => {
+it('áudio com arquivo: player do navegador (como no Clix); sem arquivo: aviso claro', async () => {
   baixar.mockResolvedValue('blob:audio');
   render(<PlayerAudio caminho="c1/in/M1.ogg" />);
   expect(screen.getByTestId('player-audio')).not.toBeNull();
   await waitFor(() => expect(baixar).toHaveBeenCalledWith('lotti-inbox-audio', 'c1/in/M1.ogg'));
-  expect(screen.getByRole('button', { name: 'Tocar áudio' })).not.toBeNull();
+  await waitFor(() => expect(screen.getByTestId('player-audio').querySelector('audio[controls]')?.getAttribute('src')).toBe('blob:audio'));
   cleanup();
   render(<PlayerAudio caminho={null} />);
-  expect(screen.getByText('Ouça no WhatsApp do celular')).not.toBeNull();
+  expect(screen.getByText('Áudio indisponível no momento')).not.toBeNull();
 });
 
 it('áudio que não baixa mostra indisponível', async () => {
   baixar.mockRejectedValue(new Error('403'));
   render(<PlayerAudio caminho="c1/in/M2.ogg" />);
-  await waitFor(() => expect(screen.getByText('Indisponível no momento')).not.toBeNull());
+  await waitFor(() => expect(screen.getByText('Áudio indisponível no momento')).not.toBeNull());
 });
