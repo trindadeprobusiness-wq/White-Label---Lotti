@@ -711,7 +711,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
         {selected.mode === 'ai' && selected.last_error && ESPERA_DA_IA[selected.last_error] && <p role="status" data-testid="espera-da-ia" className="border-b bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
           {ESPERA_DA_IA[selected.last_error]}
         </p>}
-        {selected.last_error && !ESPERA_DA_IA[selected.last_error] && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        {selected.last_error && !(selected.last_error in ESPERA_DA_IA) && <div role="status" data-testid="motivo-da-parada" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <span>{MOTIVO_DA_PARADA[selected.last_error] ?? 'Esta conversa precisa de revisão operacional. O histórico foi preservado.'}</span>
           {/* Sem estes dois botões a conversa ficava morta até alguém mexer no
               banco: nada limpa `uncertain` sozinho, e enquanto ele existe a
