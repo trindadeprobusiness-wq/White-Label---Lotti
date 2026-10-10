@@ -17,7 +17,8 @@ export const reconciliarApi=(id:string,chegou:boolean)=>json(`/api/whatsapp/conv
 export const limparOptOutApi=(id:string)=>json(`/api/whatsapp/conversas/${id}/limpar-opt-out`,body({}));
 export const atualizarContatoApi=<T>(id:string,name:string,phone:string)=>json<T>(`/api/whatsapp/conversas/${id}/contato`,patch({name,phone}));
 export const mesclarConversasApi=<T>(keep:string,drop:string)=>json<T>('/api/whatsapp/conversas/mesclar',body({keep,drop}));
-export const statusConversaApi=(id:string,status:string)=>json(`/api/whatsapp/conversas/${id}/status`,patch({status}));
+// A API devolve o status como texto puro ("open"), não JSON: ler como JSON acusava erro com a conversa já reaberta.
+export const statusConversaApi=async(id:string,status:string)=>{const res=await chamarApi(`/api/whatsapp/conversas/${id}/status`,patch({status}));if(!res.ok)return lerJson(res,'Não foi possível alterar o estado da conversa.');return status;};
 export const canalApi=<T>(phone:string)=>json<T|null>(`/api/whatsapp/canal?phone=${encodeURIComponent(phone)}`);
 export const empresaCanalApi=(phone:string,name:string)=>json('/api/whatsapp/canal/empresa?phone='+encodeURIComponent(phone),patch({name}));
 export const configuracoesAgenteApi=<T>()=>json<T|null>('/api/whatsapp/configuracoes');

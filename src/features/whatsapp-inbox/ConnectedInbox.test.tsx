@@ -906,3 +906,13 @@ it('responder citando: o ↩ abre "Respondendo a", o × cancela e a citação ap
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar resposta' }));
   expect(screen.queryByTestId('respondendo-a')).toBeNull();
 });
+
+it('reabrir a partir de Fechadas manda o id da conversa e volta para Abertas', async () => {
+  dataByTable.lotti_agent_conversations = [conversationFixture({ id: 'c-f', contact_name: 'Felipe Fechado', status: 'closed', closed_by: 'humano' })];
+  mount(true);
+  fireEvent.click(await screen.findByRole('button', { name: /^Fechadas/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Fechada · Vendedor$/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Reabrir' }));
+  await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_set_status', { p_conversation: 'c-f', p_status: 'open' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Abertas/ }).getAttribute('aria-pressed')).toBe('true'));
+});
