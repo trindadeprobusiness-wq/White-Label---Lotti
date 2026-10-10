@@ -65,6 +65,15 @@ type Message = { id: string; direction: 'in' | 'out'; sender: 'lead' | 'human' |
 // Só mensagem real do WhatsApp pode ser citada (o banco recusa ligação e simulação; pendente não tem id).
 const podeCitar = (m: Message) => !!m.external_id && !m.external_id.startsWith('call-') && !m.external_id.startsWith('simulation:');
 type InboxEvent = { id: string; kind: 'mode' | 'stage' | 'status' | 'consent' | 'pausa'; from_label: string | null; to_label: string; subject_label: string | null; actor_label: string; created_at: string };
+// Link na mensagem abre em outra aba (como no WhatsApp Web). Só http(s); o resto continua texto.
+const LINK = /(https?:\/\/[^\s<>]*[^\s<>.,;:!?)\]'"])/g;
+export function TextoComLinks({ texto }: { texto: string }) {
+  const partes = texto.split(LINK);
+  return <>{partes.map((parte, i) => i % 2 === 1
+    ? <a key={i} href={parte} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">{parte}</a>
+    : parte)}</>;
+}
+
 function eventText(event: InboxEvent) {
   if (event.kind === 'consent') return event.to_label === 'Contato liberado' ? `Contato liberado por ${event.actor_label}` : 'Contato pediu para não receber mensagens';
   if (event.kind === 'status') return `Conversa ${event.to_label === 'Fechada' ? 'fechada' : 'reaberta'} por ${event.actor_label}`;
@@ -161,7 +170,7 @@ function MessageBody({ message }: { message: Message }) {
   }, [isFile, message.media_path, message.preview_kind]);
   if (isAudio) return <PlayerAudio caminho={message.preview_kind ? null : message.media_path} />;
   if (isCall) return <CartaoChamada texto={message.content} direcao={message.direction} />;
-  if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]">{message.content}</p>;
+  if (!isFile) return <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.4]"><TextoComLinks texto={message.content} /></p>;
   // A extensão vem do arquivo guardado ("…/foto.jpg"): o texto da foto recebida é só "📷 Foto", e
   // por isso ela aparecia como cartão de arquivo em vez de imagem.
   const nomeGuardado = message.media_path && !message.preview_kind ? message.media_path.split('/').pop() ?? '' : '';

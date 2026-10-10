@@ -937,3 +937,13 @@ it('aberto por ?telefone=, seleciona a conversa e tira o telefone do endereço',
   await waitFor(() => expect(screen.getByTestId('endereco').textContent).toBe('/whatsapp'));
   expect(await screen.findByRole('button', { name: 'Editar nome' })).not.toBeNull();
 });
+
+it('link na mensagem abre em outra aba', async () => {
+  const { TextoComLinks } = await import('./ConnectedInbox');
+  render(<p><TextoComLinks texto="Entra aqui: https://meet.google.com/ggi-fddo-ati." /></p>);
+  const link = screen.getByRole('link', { name: 'https://meet.google.com/ggi-fddo-ati' });
+  expect(link.getAttribute('href')).toBe('https://meet.google.com/ggi-fddo-ati');
+  expect(link.getAttribute('target')).toBe('_blank');
+  expect(link.getAttribute('rel')).toContain('noopener');
+  expect(screen.getByText(/Entra aqui:/)).toBeTruthy();
+});
