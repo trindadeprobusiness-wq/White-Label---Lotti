@@ -285,6 +285,8 @@ test('IA avança o lead no funil pela posição da etapa: nunca volta, nunca mex
   assert.equal(await etapa(),etapas[2].nome);
   await responder('pre_qualificacao');
   assert.equal(await etapa(),etapas[2].nome,'nunca volta');
+  await responder('qualificado_visita');
+  assert.equal(await etapa(),etapas[3].nome,'quer visitar sem dia e hora: Qualificado, não Visita agendada');
   await responder('qualificando',{visitRequest:{date:'2026-10-20',time:'10:00'}});
   assert.equal(await etapa(),etapas[4].nome,'pediu visita: 5ª etapa');
   // A equipe levou para a 6ª (Proposta): a IA não mexe mais.
