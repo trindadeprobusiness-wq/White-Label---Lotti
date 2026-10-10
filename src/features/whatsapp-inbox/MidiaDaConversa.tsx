@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PhoneIncoming, PhoneMissed, PhoneOutgoing, Video } from 'lucide-react';
+import { Mic, PhoneIncoming, PhoneMissed, PhoneOutgoing, Video } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { apiDisponivel } from '@/lib/api';
 import { baixarInboxApi } from '@/lib/api/arquivos';
@@ -62,7 +62,7 @@ export function PlayerAudio({ caminho }: { caminho: string | null }) {
   // Como no Clix: o ícone de voz e o player do próprio navegador (play, posição, tempo, velocidade).
   return (
     <div className="flex min-w-[240px] max-w-[320px] items-center gap-2 py-0.5" data-testid="player-audio">
-      <span aria-hidden className="text-[20px] leading-none">🎙️</span>
+      <Mic aria-hidden strokeWidth={1.5} className="h-4 w-4 shrink-0 opacity-70" />
       {caminho && url && !falhou
         ? <audio src={url} controls preload="metadata" className="h-10 min-w-0 flex-1" />
         : <span className="text-[13px] opacity-75">{falhou || !caminho ? 'Áudio indisponível no momento' : 'Carregando áudio…'}</span>}
