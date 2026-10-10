@@ -333,7 +333,7 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
   // de novo quem você acabou de clicar. Com ?cliente= ou ?telefone= a conversa
   // já abre selecionada — uma vez só, para não brigar com quem troca de
   // conversa depois.
-  const [parametrosDaUrl] = useSearchParams();
+  const [parametrosDaUrl, setParametrosDaUrl] = useSearchParams();
   const clienteNaUrl = parametrosDaUrl.get('cliente');
   const telefoneNaUrl = parametrosDaUrl.get('telefone');
   const alvoAplicado = useRef(false);
@@ -554,11 +554,14 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
     if (achada) {
       alvoAplicado.current = true;
       setSelectedId(achada.id);
+      // O telefone do cliente não fica no endereço (histórico do navegador, prints, link copiado, gravação
+      // de sessão): a conversa já está aberta, o parâmetro sai sem criar entrada nova no histórico.
+      if (telefoneNaUrl) setParametrosDaUrl(atual => { const sem = new URLSearchParams(atual); sem.delete('telefone'); return sem; }, { replace: true });
     } else if (statusLista === 'open' && !tentouFechadas.current && !list.isPlaceholderData) {
       tentouFechadas.current = true;
       setStatusLista('closed');
     }
-  }, [list.data, list.isPlaceholderData, clienteNaUrl, telefoneNaUrl, setSelectedId, statusLista]);
+  }, [list.data, list.isPlaceholderData, clienteNaUrl, telefoneNaUrl, setSelectedId, statusLista, setParametrosDaUrl]);
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const conteudoRef = useRef<HTMLDivElement>(null);

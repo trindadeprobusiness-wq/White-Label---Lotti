@@ -921,3 +921,13 @@ it('reabrir a partir de Fechadas manda o id da conversa e volta para Abertas', a
   await waitFor(() => expect(previewRpc).toHaveBeenCalledWith('lotti_inbox_set_status', { p_conversation: 'c-f', p_status: 'open' }));
   await waitFor(() => expect(screen.getByRole('button', { name: /^Abertas/ }).getAttribute('aria-pressed')).toBe('true'));
 });
+
+it('aberto por ?telefone=, seleciona a conversa e tira o telefone do endereço', async () => {
+  const { useLocation } = await import('react-router-dom');
+  function Endereco() { const l = useLocation(); return <output data-testid="endereco">{l.pathname + l.search}</output>; }
+  dataByTable.lotti_agent_conversations = [conversationFixture({ id: 'c-tel', contact_name: 'Telefone Alvo', phone: '5511988887777' })];
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MemoryRouter initialEntries={['/whatsapp?telefone=5511988887777']}><QueryClientProvider client={client}><ConnectedInbox connected /><Endereco /></QueryClientProvider></MemoryRouter>);
+  await waitFor(() => expect(screen.getByTestId('endereco').textContent).toBe('/whatsapp'));
+  expect(await screen.findByRole('button', { name: 'Editar nome' })).not.toBeNull();
+});
