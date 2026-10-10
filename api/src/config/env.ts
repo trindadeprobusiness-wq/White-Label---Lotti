@@ -7,9 +7,6 @@ export interface AppEnv {
   /** Conexão de sessão (migrations e LISTEN do sino ao vivo). Opcional. */
   directUrl?: string;
   redisUrl: string;
-  supabaseUrl: string;
-  /** Projetos com chave JWT legada (HS256). Vazio: valida pelas chaves públicas (JWKS). */
-  supabaseJwtSecret?: string;
   corsOrigins: string[];
   /**
    * Origens das rotas públicas que outros sites chamam (vitrine do site institucional e captura de
@@ -31,16 +28,16 @@ export interface AppEnv {
    */
   passwordSetupUrl?: string;
   /**
-   * Chave simétrica (HS256) do login próprio da API. Faltando: as rotas de
-   * /api/auth respondem 503 e o guard age como hoje, só com o Supabase. Exigida
-   * com pelo menos 32 caracteres para não nascer uma chave fraca por engano.
+   * Chave simétrica (HS256) do login próprio — o ÚNICO login da API. Faltando: /api/auth responde 503 e o
+   * guard não deixa ninguém entrar (em produção a API nem sobe). Exigida com pelo menos 32 caracteres
+   * para não nascer uma chave fraca por engano.
    */
   authJwtSecret?: string;
   /** Validade do access token, em segundos (curto, 10–15 min). */
   authAccessTtl: number;
   /** Validade do refresh token, em segundos. */
   authRefreshTtl: number;
-  /** Issuer do token próprio. NUNCA pode ser igual ao issuer do Supabase. */
+  /** Issuer do token próprio. */
   authIssuer: string;
   /** Domínio do cookie de refresh. Vazio: o navegador usa o host da própria API. */
   authCookieDomain?: string;
@@ -129,16 +126,16 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const corsOrigins = origensCors(source.CORS_ORIGINS, isProd);
 
   const authIssuer = source.AUTH_ISSUER?.trim() || 'lotti-api';
-  const supabaseUrl = required(source, 'SUPABASE_URL').replace(/\/+$/, '');
-  if (authIssuer === `${supabaseUrl}/auth/v1`) {
-    throw new Error('AUTH_ISSUER não pode ser igual ao issuer do Supabase.');
-  }
-  // Chave fraca é pior que ausente: faltando a API age como hoje (só Supabase);
-  // presente mas curta é um convite a forjar token. Recusa de cara.
+  // Chave fraca é pior que ausente: presente mas curta é um convite a forjar token. Recusa de cara.
   const authJwtBruto = source.AUTH_JWT_SECRET?.trim();
   if (authJwtBruto && authJwtBruto.length < 32) {
     throw new Error('AUTH_JWT_SECRET precisa ter pelo menos 32 caracteres.');
   }
+  // O login próprio é o único da API (o do Supabase saiu): em produção, sem ele ninguém entraria.
+  if (isProd && !authJwtBruto) {
+    throw new Error('AUTH_JWT_SECRET é obrigatório em produção (é o único login da API).');
+  }
+
 
   const resendApiKey = source.RESEND_API_KEY?.trim() || undefined;
   const emailFrom = source.EMAIL_FROM?.trim() || undefined;
@@ -153,8 +150,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     databaseUrl: required(source, 'DATABASE_URL'),
     directUrl: source.DIRECT_URL?.trim() || undefined,
     redisUrl: required(source, 'REDIS_URL'),
-    supabaseUrl,
-    supabaseJwtSecret: source.SUPABASE_JWT_SECRET?.trim() || undefined,
     corsOrigins,
     publicCorsOrigins: origensCorsPublicas(source.PUBLIC_CORS_ORIGINS, corsOrigins),
     agentApiToken: (source.AGENT_API_TOKEN?.trim().length ?? 0) >= 32 ? source.AGENT_API_TOKEN!.trim() : undefined,

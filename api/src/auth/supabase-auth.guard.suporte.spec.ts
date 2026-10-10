@@ -18,7 +18,7 @@ const authSecret = 'segredo-proprio-com-mais-de-32-caracteres!!';
 const authIssuer = 'lotti-api';
 const env: AppEnv = {
   isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x',
-  supabaseUrl: 'https://abc.supabase.co', supabaseJwtSecret: supabaseSecret, corsOrigins: [],
+  corsOrigins: [],
   authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer, authJwtSecret: authSecret, emailHabilitado: false,
 };
 
@@ -167,14 +167,14 @@ describe('SupabaseAuthGuard — token de atendimento', () => {
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
-  it('token do Supabase com a marca de atendimento → 401; sem ela segue como hoje (session_id nativo não é atendimento)', async () => {
+  it('token do Supabase → 401 com ou sem a marca de atendimento (o login do Supabase saiu da API)', async () => {
     const { guard, prisma } = bancoFalso([{ corretor_id: CORRETOR }]);
     const supabase = (extra: Record<string, unknown>) => new SignJWT({ role: 'authenticated', session_id: AUTH_SESSAO, ...extra })
       .setProtectedHeader({ alg: 'HS256' }).setSubject(TITULAR).setIssuer('https://abc.supabase.co/auth/v1')
       .setAudience('authenticated').setExpirationTime('5m').sign(new TextEncoder().encode(supabaseSecret));
     await expect(guard.canActivate(contexto(await supabase({ [CLAIM_SUPORTE]: { sessao_id: SESSAO, ator: ADMIN } })).ctx))
       .rejects.toBeInstanceOf(UnauthorizedException);
-    await expect(guard.canActivate(contexto(await supabase({})).ctx)).resolves.toBe(true);
+    await expect(guard.canActivate(contexto(await supabase({})).ctx)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 

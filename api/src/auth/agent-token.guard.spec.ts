@@ -3,7 +3,7 @@ import { AppEnv } from '../config/env';
 import { AgentTokenGuard } from './agent-token.guard';
 
 const env = (agentApiToken?: string): AppEnv => ({
-  isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', supabaseUrl: 'https://abc.supabase.co', corsOrigins: [], agentApiToken,
+  isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', corsOrigins: [], agentApiToken,
   authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer: 'lotti-api', emailHabilitado: false,
 });
 const ctx = (header?: string) =>

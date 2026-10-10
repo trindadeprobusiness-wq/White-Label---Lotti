@@ -20,7 +20,7 @@ const TOKEN_STATUS = 'f'.repeat(64);
 const HASH_STATUS = createHash('sha256').update(TOKEN_STATUS).digest('hex');
 
 const envBase = (over: Partial<AppEnv> = {}): AppEnv => ({
-  isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', supabaseUrl: 'https://abc.supabase.co', corsOrigins: [],
+  isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', corsOrigins: [],
   authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer: 'lotti-api', emailHabilitado: false,
   checkoutApiToken: SEGREDO, passwordSetupUrl: PAGINA, ...over,
 });

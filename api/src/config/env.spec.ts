@@ -15,8 +15,6 @@ describe('loadEnv', () => {
       databaseUrl: base.DATABASE_URL,
       directUrl: undefined,
       redisUrl: base.REDIS_URL,
-      supabaseUrl: 'https://abc.supabase.co',
-      supabaseJwtSecret: undefined,
       corsOrigins: [ORIGEM_APP, ...ORIGENS_LOCAIS],
       publicCorsOrigins: '*',
       agentApiToken: undefined,
@@ -40,9 +38,6 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...base, AUTH_JWT_SECRET: 'curto' })).toThrow('AUTH_JWT_SECRET');
   });
 
-  it('AUTH_ISSUER não pode ser igual ao issuer do Supabase', () => {
-    expect(() => loadEnv({ ...base, AUTH_ISSUER: 'https://abc.supabase.co/auth/v1' })).toThrow('AUTH_ISSUER');
-  });
 
   it('emailHabilitado só com todas as variáveis de e-mail presentes', () => {
     expect(loadEnv({ ...base }).emailHabilitado).toBe(false);
@@ -58,9 +53,8 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...base, AUTH_REFRESH_TTL: '-5' }).authRefreshTtl).toBe(2592000);
   });
 
-  it('separa as origens de CORS e tira a barra final da URL do Supabase', () => {
-    const env = loadEnv({ ...base, SUPABASE_URL: 'https://abc.supabase.co/', CORS_ORIGINS: 'https://app.plataformalotti.com.br, http://127.0.0.1:8085', PORT: '8080' });
-    expect(env.supabaseUrl).toBe('https://abc.supabase.co');
+  it('separa as origens de CORS e lê a porta', () => {
+    const env = loadEnv({ ...base, CORS_ORIGINS: 'https://app.plataformalotti.com.br, http://127.0.0.1:8085', PORT: '8080' });
     // O app e as locais já vêm por padrão; CORS_ORIGINS soma sem repetir.
     expect(env.corsOrigins).toEqual([ORIGEM_APP, ...ORIGENS_LOCAIS]);
     expect(env.port).toBe(8080);
@@ -86,8 +80,8 @@ describe('loadEnv', () => {
   });
 
   it('em produção o app entra sempre e as origens locais ficam de fora', () => {
-    expect(loadEnv({ ...base, NODE_ENV: 'production' }).corsOrigins).toEqual([ORIGEM_APP]);
-    const comEnsaio = loadEnv({ ...base, NODE_ENV: 'production', CORS_ORIGINS: 'https://app-teste.up.railway.app/' });
+    expect(loadEnv({ ...base, AUTH_JWT_SECRET: 'x'.repeat(40), NODE_ENV: 'production' }).corsOrigins).toEqual([ORIGEM_APP]);
+    const comEnsaio = loadEnv({ ...base, AUTH_JWT_SECRET: 'x'.repeat(40), NODE_ENV: 'production', CORS_ORIGINS: 'https://app-teste.up.railway.app/' });
     expect(comEnsaio.corsOrigins).toEqual([ORIGEM_APP, 'https://app-teste.up.railway.app']);
     expect(comEnsaio.corsOrigins).not.toContain('http://localhost:8080');
   });
@@ -97,10 +91,10 @@ describe('loadEnv', () => {
   });
 
   it('PUBLIC_CORS_ORIGINS: vazia ou "*" libera qualquer origem; lista soma as do app sem repetir', () => {
-    expect(loadEnv({ ...base, NODE_ENV: 'production' }).publicCorsOrigins).toBe('*');
+    expect(loadEnv({ ...base, AUTH_JWT_SECRET: 'x'.repeat(40), NODE_ENV: 'production' }).publicCorsOrigins).toBe('*');
     expect(loadEnv({ ...base, PUBLIC_CORS_ORIGINS: ' * ' }).publicCorsOrigins).toBe('*');
     expect(loadEnv({ ...base, PUBLIC_CORS_ORIGINS: 'https://a.example,*' }).publicCorsOrigins).toBe('*');
-    const lista = loadEnv({ ...base, NODE_ENV: 'production', PUBLIC_CORS_ORIGINS: 'https://site.example/, https://lp.example,https://site.example' });
+    const lista = loadEnv({ ...base, AUTH_JWT_SECRET: 'x'.repeat(40), NODE_ENV: 'production', PUBLIC_CORS_ORIGINS: 'https://site.example/, https://lp.example,https://site.example' });
     expect(lista.publicCorsOrigins).toEqual([ORIGEM_APP, 'https://site.example', 'https://lp.example']);
     // A lista pública nunca mexe na lista com credenciais.
     expect(lista.corsOrigins).toEqual([ORIGEM_APP]);
@@ -109,5 +103,11 @@ describe('loadEnv', () => {
   it('fora de produção libera o front local nas portas 8080 e 5173', () => {
     const env = loadEnv({ ...base });
     expect(env.corsOrigins).toEqual(expect.arrayContaining(['http://localhost:8080', 'http://localhost:5173', ORIGEM_APP]));
+  });
+
+  it('em produção, sem AUTH_JWT_SECRET (único login da API) a API não sobe; SUPABASE_URL não é mais exigida', () => {
+    expect(() => loadEnv({ ...base, NODE_ENV: 'production', CORS_ORIGINS: 'https://app.plataformalotti.com.br' })).toThrow('AUTH_JWT_SECRET');
+    const { SUPABASE_URL: _semSupabase, ...semSupabase } = base;
+    expect(loadEnv({ ...semSupabase }).authJwtSecret).toBeUndefined();
   });
 });

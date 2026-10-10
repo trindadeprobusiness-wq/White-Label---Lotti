@@ -21,7 +21,7 @@ import { type BancoTeste, capturarErroHttp, criarBanco } from './harness';
 
 const PAGINA = 'https://app.plataformalotti.com.br/nova-senha';
 const env: AppEnv = {
-  isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', supabaseUrl: 'https://abc.supabase.co', corsOrigins: [],
+  isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x', corsOrigins: [],
   authJwtSecret: 'segredo-de-teste-com-mais-de-32-caracteres!!', authAccessTtl: 900, authRefreshTtl: 2592000,
   authIssuer: 'lotti-api', emailHabilitado: false, checkoutApiToken: 'c'.repeat(40), passwordSetupUrl: PAGINA,
 };

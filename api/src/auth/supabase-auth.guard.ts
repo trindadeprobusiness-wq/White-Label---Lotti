@@ -2,15 +2,16 @@ import {
   CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, Optional, UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { createRemoteJWKSet, JWTPayload, jwtVerify } from 'jose';
+import type { JWTPayload } from 'jose';
 import { AppEnv, ENV } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseClaims } from '../prisma/tenant-db';
 import { conferirSessaoSuporte, RECUSA_SUPORTE } from './sessao-suporte';
-import { CLAIM_SUPORTE, lerSuporte, SuporteDoToken } from './token-suporte';
+import { lerSuporte, SuporteDoToken } from './token-suporte';
 import { verificarAccessToken } from './tokens';
 
 const METODOS_DE_LEITURA = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 
 /** Atendimento encerrado, vencido ou com o acesso revogado (mesmo texto do proxy da Edge). */
 const ATENDIMENTO_ENCERRADO = {
@@ -21,14 +22,9 @@ const INDISPONIVEL_NO_ATENDIMENTO = {
 };
 
 /**
- * Aceita DOIS tokens durante a transição para o login próprio:
- *  1) o token próprio da API (HS256, AUTH_JWT_SECRET, issuer AUTH_ISSUER);
- *  2) o token do Supabase (JWKS/HS256, issuer <supabaseUrl>/auth/v1) — exatamente
- *     como antes.
- * Qualquer um resolve para o MESMO request.claims { sub, role:'authenticated', email },
- * então nada quebra enquanto o front ainda manda o token do Supabase. A validação
- * do Supabase NUNCA é removida aqui. Sem AUTH_JWT_SECRET, o caminho próprio é
- * pulado e o guard age exatamente como hoje.
+ * Só o login próprio da API (HS256, AUTH_JWT_SECRET, issuer AUTH_ISSUER). O login do Supabase saiu de vez:
+ * o Supabase Auth é outro banco, a senha antiga seguia valendo lá e abria a API. Sem AUTH_JWT_SECRET
+ * ninguém entra (falha fechada; em produção a API nem sobe sem ele — ver config/env.ts).
  *
  * Token de ATENDIMENTO (token próprio com a marca `suporte`, ver token-suporte.ts): além da
  * assinatura, a sessão em admin_sessoes_suporte é conferida no banco A CADA requisição (encerrada,
@@ -38,8 +34,6 @@ const INDISPONIVEL_NO_ATENDIMENTO = {
  */
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
-  private jwks?: ReturnType<typeof createRemoteJWKSet>;
-
   constructor(
     @Inject(ENV) private readonly env: AppEnv,
     // Opcionais só para os testes que montam o guard à mão. Sem o banco, token de atendimento
@@ -63,10 +57,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     let suporte: SuporteDoToken | null;
     try {
-      // A marca de atendimento só vale em token próprio. No do Supabase ela não existe; se vier,
-      // o token não é nenhum dos dois que a API emite ou aceita.
-      if (!resolvido.proprio && payload[CLAIM_SUPORTE] !== undefined) throw new Error('suporte_invalido');
-      suporte = resolvido.proprio ? lerSuporte(payload) : null;
+      suporte = lerSuporte(payload);
     } catch {
       throw new UnauthorizedException('Sessão inválida ou expirada.');
     }
@@ -98,34 +89,14 @@ export class SupabaseAuthGuard implements CanActivate {
     return this.reflector.getAllAndOverride<boolean>(RECUSA_SUPORTE, [ctx.getHandler(), ctx.getClass()]) === true;
   }
 
-  /**
-   * Tenta o token próprio primeiro (quando há segredo configurado); se falhar,
-   * cai no Supabase, sem mudar a verificação de hoje. Falha nos dois ⇒ null, e o
-   * chamador responde com a mesma mensagem de sempre.
-   */
-  private async resolver(token: string): Promise<{ payload: JWTPayload; proprio: boolean } | null> {
-    if (this.env.authJwtSecret) {
-      try {
-        const payload = await verificarAccessToken(token, { segredo: this.env.authJwtSecret, issuer: this.env.authIssuer });
-        return { payload, proprio: true };
-      } catch {
-        // Não é (ou não é mais) um token próprio válido: tenta o Supabase.
-      }
-    }
+  /** Token próprio válido ⇒ payload; qualquer outra coisa (inclusive o do Supabase) ⇒ null. */
+  private async resolver(token: string): Promise<{ payload: JWTPayload } | null> {
+    if (!this.env.authJwtSecret) return null;
     try {
-      return { payload: (await this.verify(token)).payload, proprio: false };
+      return { payload: await verificarAccessToken(token, { segredo: this.env.authJwtSecret, issuer: this.env.authIssuer }) };
     } catch {
       return null;
     }
-  }
-
-  private verify(token: string) {
-    const options = { issuer: `${this.env.supabaseUrl}/auth/v1`, audience: 'authenticated' };
-    if (this.env.supabaseJwtSecret) {
-      return jwtVerify(token, new TextEncoder().encode(this.env.supabaseJwtSecret), options);
-    }
-    this.jwks ??= createRemoteJWKSet(new URL(`${this.env.supabaseUrl}/auth/v1/.well-known/jwks.json`));
-    return jwtVerify(token, this.jwks, options);
   }
 }
 

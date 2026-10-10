@@ -6,7 +6,7 @@ import { RefreshTokenGravado, UsuarioAuth, UsuariosRepo } from './usuarios.repo'
 
 const baseEnv: AppEnv = {
   isProd: false, port: 3001, databaseUrl: 'x', redisUrl: 'x',
-  supabaseUrl: 'https://abc.supabase.co', corsOrigins: [],
+  corsOrigins: [],
   authJwtSecret: 'segredo-proprio-com-mais-de-32-caracteres!!',
   authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer: 'lotti-api', emailHabilitado: false,
 };

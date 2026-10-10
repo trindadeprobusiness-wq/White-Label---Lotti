@@ -17,7 +17,7 @@ describe('CORS do login próprio (app → api com cookie)', () => {
   const sessao: SessaoEmitida = { accessToken: 'a.b.c', refreshToken: 'opaco', accessTtl: 900, refreshTtl: 2592000 };
   const servico = { login: jest.fn(async () => sessao), refresh: jest.fn(async () => sessao) };
   const env: AppEnv = {
-    ...loadEnv({ DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x', SUPABASE_URL: 'https://abc.supabase.co', NODE_ENV: 'production' }),
+    ...loadEnv({ DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x', AUTH_JWT_SECRET: 'x'.repeat(40), NODE_ENV: 'production' }),
     authJwtSecret: 'segredo-proprio-com-mais-de-32-caracteres!!',
   };
 
@@ -93,7 +93,7 @@ describe('CORS das rotas públicas de outros sites', () => {
 
   async function subir(publicas?: string): Promise<INestApplication> {
     const env: AppEnv = loadEnv({
-      DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x', SUPABASE_URL: 'https://abc.supabase.co', NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x', AUTH_JWT_SECRET: 'x'.repeat(40), NODE_ENV: 'production',
       ...(publicas === undefined ? {} : { PUBLIC_CORS_ORIGINS: publicas }),
     });
     const ref = await Test.createTestingModule({

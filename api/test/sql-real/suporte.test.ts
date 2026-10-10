@@ -23,8 +23,7 @@ const SEGREDO = 'segredo-proprio-com-mais-de-32-caracteres!!';
 const ISSUER = 'lotti-api';
 const env = {
   authJwtSecret: SEGREDO, authIssuer: ISSUER,
-  supabaseUrl: 'https://abc.supabase.co', supabaseJwtSecret: 'segredo-do-supabase-com-mais-de-32-caracteres',
-} as AppEnv;
+  } as AppEnv;
 
 let banco: BancoTeste;
 let suporte: SuporteService;

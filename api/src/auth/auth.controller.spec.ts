@@ -6,7 +6,7 @@ import { AuthService, SessaoEmitida } from './auth.service';
 
 const envProd: AppEnv = {
   isProd: true, port: 3001, databaseUrl: 'x', redisUrl: 'x',
-  supabaseUrl: 'https://abc.supabase.co', corsOrigins: ['https://app'],
+  corsOrigins: ['https://app'],
   authJwtSecret: 'segredo-proprio-com-mais-de-32-caracteres!!',
   authAccessTtl: 900, authRefreshTtl: 2592000, authIssuer: 'lotti-api',
   authCookieDomain: 'app.exemplo.com', emailHabilitado: false,
