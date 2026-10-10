@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { MobileTopBar } from './MobileTopBar';
@@ -21,11 +21,19 @@ export function AppLayout() {
   // que o aviso dependa de a pessoa parar na página certa.
   useGoogleCalendarReturn();
 
+  // Janelas e menus (Radix) abrem fora deste container, direto no body: o body também fica mascarado
+  // enquanto a área logada está na tela.
+  useEffect(() => {
+    document.body.setAttribute('data-clarity-mask', 'true');
+    return () => document.body.removeAttribute('data-clarity-mask');
+  }, []);
   return (
     // `min-h-screen` com rolagem no documento, não `h-screen` com rolagem
     // interna: o container com altura fixa quebrava o scroll do iOS e impedia
     // a barra de endereço de recolher.
-    <div className="flex min-h-screen w-full bg-background selection:bg-primary/15">
+    // data-clarity-mask: a gravação de sessão do Microsoft Clarity não leva o texto da área logada
+    // (conversas do WhatsApp, nomes, telefones, valores) — só a navegação, com o texto mascarado.
+    <div data-clarity-mask="true" className="flex min-h-screen w-full bg-background selection:bg-primary/15">
       {/* Desktop: coluna lateral fixa. Mobile: some — a navegação vai para a
           gaveta do hambúrguer, com o mesmo conteúdo. */}
       <AppSidebar />
