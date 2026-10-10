@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 function montar(systemPrompt: string) {
   const onChange = vi.fn();
-  render(<SystemPromptSection settings={{ ...createDefaultAgentSettings(), systemPrompt }} onChange={onChange} issues={[]} stages={[]} />);
+  render(<SystemPromptSection settings={{ ...createDefaultAgentSettings(), systemPrompt }} onChange={onChange} issues={[]} stages={[]} onOpenTab={vi.fn()} />);
   return onChange;
 }
 
