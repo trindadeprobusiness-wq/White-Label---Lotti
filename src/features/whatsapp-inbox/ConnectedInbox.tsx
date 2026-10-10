@@ -265,12 +265,12 @@ function erroDeStatus(e: unknown) {
 function MessageBubble({ message, onReply }: { message: Message; onReply?: (m: Message) => void }) {
   const outbound = message.direction === 'out';
   const responder = onReply && podeCitar(message)
-    ? <button type="button" aria-label="Responder citando" title="Responder" onClick={() => onReply(message)} className="mb-1 self-end rounded-full border bg-white p-1.5 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-primary focus:opacity-100 group-hover:opacity-100"><Reply className="h-3.5 w-3.5" /></button>
+    ? <button type="button" aria-label="Responder citando" title="Responder" onClick={() => onReply(message)} className="mt-1 shrink-0 rounded-full border bg-white p-1.5 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-primary focus:opacity-100 group-hover:opacity-100"><Reply className="h-3.5 w-3.5" /></button>
     : null;
   // Botão ↩ ao lado do balão, como no Clix/WhatsApp: aparece ao passar o mouse.
-  return <div className={`group flex items-end gap-1.5 ${outbound ? 'justify-end' : ''}`}>
+  return <div className={`group flex items-start gap-1.5 ${outbound ? 'justify-end' : ''}`}>
     {outbound && responder}
-    <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-1.5 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'ml-auto rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
+    <article className={`w-fit max-w-[78%] rounded-[15px] px-3 py-1.5 text-[14px] leading-[1.4] shadow-[0_5px_16px_rgba(16,19,31,0.08)] ${outbound ? 'rounded-tr-[4px] bg-primary text-primary-foreground' : 'rounded-tl-[4px] border border-[#e9ebf3] bg-white text-[#10131f]'}`}>
     {message.quoted_external_id && <div data-testid="citacao" className={`mb-1.5 rounded-lg border-l-4 px-2 py-1 text-[12px] ${outbound ? 'border-white/60 bg-white/15' : 'border-primary bg-[#eef3ef]'}`}>
       <p className="font-semibold">{message.quoted_from_me === true ? 'Você' : message.quoted_from_me === false ? 'Cliente' : 'Mensagem citada'}</p>
       <p className="line-clamp-2 opacity-90">{message.quoted_content || 'Mensagem'}</p>
