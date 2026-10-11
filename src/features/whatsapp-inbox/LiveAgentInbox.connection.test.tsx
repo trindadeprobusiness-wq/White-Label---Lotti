@@ -24,9 +24,9 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
   it('desconectado exige o QR antes de abrir o Inbox', async () => {
     invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
     mount();
-    expect(await screen.findByRole('heading', { name: 'Conecte ao WhatsApp' })).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Conecte seu WhatsApp' })).not.toBeNull();
     expect(await screen.findByText('Preparando QR Code…')).not.toBeNull();
-    expect(screen.getByText(/WhatsApp → Configurações → Aparelhos conectados/)).not.toBeNull();
+    expect(screen.getByText(/Entre em Aparelhos conectados/)).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'Inbox real' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Inbox completo' })).toBeNull();
   });
@@ -52,7 +52,7 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
     // vez de afirmar desconexão que ainda não foi confirmada. O que importa
     // segue igual: em nenhum momento o Inbox é liberado.
     expect(screen.queryByRole('heading', { name: 'Inbox real' })).toBeNull();
-    expect(await screen.findByRole('heading', { name: 'Conecte ao WhatsApp' }, { timeout: 4000 })).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Conecte seu WhatsApp' }, { timeout: 4000 })).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'Inbox real' })).toBeNull();
   });
 
@@ -71,14 +71,14 @@ describe('acesso ao Inbox pela conexão do WhatsApp', () => {
     await waitFor(() => expect(invoke.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 4000 });
 
     expect(screen.getByRole('heading', { name: 'Inbox real' })).not.toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Conecte ao WhatsApp' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Conecte seu WhatsApp' })).toBeNull();
   });
 
   it('a prévia local de pareamento mostra QR e instruções sem chamar a ponte', async () => {
     invoke.mockResolvedValue({ data: { state: 'disconnected', agentEnabled: false }, error: null });
     mount('/whatsapp?preview=pairing');
     expect(await screen.findByAltText('QR Code de demonstração para conectar seu WhatsApp')).not.toBeNull();
-    expect(screen.getByText(/WhatsApp → Configurações → Aparelhos conectados/)).not.toBeNull();
+    expect(screen.getByText(/Entre em Aparelhos conectados/)).not.toBeNull();
     expect(invoke.mock.calls.every(call => call[1].body.action === 'status')).toBe(true);
   });
 });

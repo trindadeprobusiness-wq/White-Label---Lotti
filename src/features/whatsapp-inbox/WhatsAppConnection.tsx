@@ -43,10 +43,16 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
    const timer=setTimeout(()=>{setPairing(false);setExpired(true);},120000);
    return()=>clearTimeout(timer);
  },[pairing,connected,previewPairing]);
- return <section aria-label="Conexão com WhatsApp" className="rounded-xl border bg-card p-5">
-   <div className="flex flex-wrap items-center gap-3">{connected?<CheckCircle2 className="h-6 w-6 text-emerald-600"/>:<QrCode className="h-6 w-6 text-primary"/>}
-     <div className="mr-auto"><h2 className="font-semibold">{connected?'WhatsApp conectado':'Conecte ao WhatsApp'}</h2>
-     <p className="mt-1 text-sm text-muted-foreground">{connected?(connection.data?.agentEnabled?'O agente está liberado para atender conforme o seu plano.':'Seu número está conectado. O atendimento automático aguarda liberação.'):reconnecting?'O WhatsApp está reconectando. Não é preciso escanear o QR de novo.':'Conecte o número de atendimento para receber as conversas nesta conta.'}</p></div>
+ const cancelar=()=>{attempt.current++;setPairing(false);setStarting(false);setVisibleQr(null)};
+ const restante=visibleQr?Math.max(0,Math.ceil((visibleQr.expiresAt-now)/1000)):0;
+ const passos=['Abra o WhatsApp no celular.','Toque em Configurações (ou nos três pontinhos). Entre em Aparelhos conectados.','Toque em Conectar aparelho.','Aponte a câmera para este código.'];
+ // Visual no estilo do WhatsApp Web: passos de um lado, o código grande do outro. O fluxo (gerar,
+ // retomar o QR pendente, expirar em 2 min, cancelar) é o mesmo de antes.
+ return <section aria-label="Conexão com WhatsApp" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+   <div className="flex flex-wrap items-center gap-3 border-b bg-[#f7faf8] px-6 py-4">
+     <span className={`flex h-10 w-10 items-center justify-center rounded-full ${connected?'bg-emerald-100 text-emerald-700':'bg-primary/10 text-primary'}`}>{connected?<CheckCircle2 className="h-5 w-5"/>:<QrCode className="h-5 w-5"/>}</span>
+     <div className="mr-auto min-w-0"><h2 className="text-base font-semibold">{connected?'WhatsApp conectado':'Conecte seu WhatsApp'}</h2>
+     <p className="mt-0.5 text-sm text-muted-foreground">{connected?(connection.data?.agentEnabled?'O agente está liberado para atender conforme o seu plano.':'Seu número está conectado. O atendimento automático aguarda liberação.'):reconnecting?'O WhatsApp está reconectando. Não é preciso escanear o QR de novo.':'Conecte o número de atendimento para receber as conversas nesta conta.'}</p></div>
      {/* Com autoStart a tela não oferecia botão nenhum: se o connect falhasse,
          sumia o único caminho de conectar. Enquanto não houver pareamento em
          curso, sempre sobra como pedir o QR de novo. */}
@@ -55,12 +61,25 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
    {/* São dois erros diferentes: falhar ao consultar o estado e falhar ao pedir
        o QR. Tentar de novo precisa refazer o que falhou — repetir o status
        depois de um connect recusado não muda nada e parece defeito. */}
-   {startError&&<p role="alert" className="mt-3 text-sm text-destructive">Não foi possível gerar o QR Code agora. <button className="underline" disabled={starting} onClick={()=>void begin()}>Tentar de novo</button></p>}
-   {connection.isError&&!startError&&<p role="alert" className="mt-3 text-sm text-destructive">{MENSAGEM_DA_PONTE[(connection.error as {codigo?:string}|null)?.codigo??'']??'Não foi possível consultar a conexão agora.'} <button className="underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
-   {expired&&!connected&&<p role="alert" className="mt-3 text-sm text-destructive">O WhatsApp não confirmou a conexão em dois minutos. A tentativa nesta tela foi encerrada. Clique em Conectar WhatsApp para iniciar outra tentativa.</p>}
-   {pairing&&!connected&&<div className="mt-5 grid gap-4 sm:grid-cols-[280px_1fr]">
-     <div className="grid min-h-56 place-items-center rounded-xl bg-white p-4">{previewPairing?<img className="w-64 max-w-full" src={previewQr} alt="QR Code de demonstração para conectar seu WhatsApp"/>:visibleQr&&visibleQr.expiresAt>now?<img className="w-64 max-w-full" src={visibleQr.src} alt="QR Code atualizado para conectar seu WhatsApp"/>:<p role="status" className="text-center text-sm text-slate-600">{connection.isError?'Código indisponível no momento.':'Preparando QR Code…'}</p>}</div>
-     <div className="self-center space-y-3 text-sm"><p>No celular, abra <strong>WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho</strong>.</p><p className="text-muted-foreground">Escaneie uma vez e aguarde a confirmação no celular. O código se renova enquanto aguarda; isso não significa que você precisa escanear novamente. Esta tentativa dura até dois minutos.</p>{!previewPairing&&<Button variant="outline" onClick={()=>{attempt.current++;setPairing(false);setStarting(false);setVisibleQr(null)}}>Cancelar</Button>}</div>
+   {(startError||connection.isError||(expired&&!connected))&&<div className="space-y-2 px-6 pt-4">
+     {startError&&<p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">Não foi possível gerar o QR Code agora. <button className="font-medium underline" disabled={starting} onClick={()=>void begin()}>Tentar de novo</button></p>}
+     {connection.isError&&!startError&&<p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{MENSAGEM_DA_PONTE[(connection.error as {codigo?:string}|null)?.codigo??'']??'Não foi possível consultar a conexão agora.'} <button className="font-medium underline" onClick={()=>connection.refetch()}>Tentar novamente</button></p>}
+     {expired&&!connected&&<p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">O WhatsApp não confirmou a conexão em dois minutos. A tentativa nesta tela foi encerrada. Clique em Gerar QR Code para iniciar outra tentativa.</p>}
+   </div>}
+   {(pairing||starting)&&!connected&&<div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-center">
+     <div className="space-y-5">
+       <ol className="space-y-4">{passos.map((passo,n)=><li key={n} className="flex items-start gap-3 text-[15px] leading-snug"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{n+1}</span><span className="pt-0.5">{passo}</span></li>)}</ol>
+       <p className="text-sm text-muted-foreground">Escaneie uma vez e aguarde a confirmação no celular. O código se renova sozinho enquanto aguarda; não precisa escanear de novo.</p>
+       {!previewPairing&&<Button variant="outline" onClick={cancelar}>Cancelar</Button>}
+     </div>
+     <div className="mx-auto flex flex-col items-center gap-3">
+       <div className="relative grid h-[280px] w-[280px] place-items-center rounded-2xl border-2 border-[#e2e8e4] bg-white p-3 shadow-sm">
+         {previewPairing?<img className="h-full w-full" src={previewQr} alt="QR Code de demonstração para conectar seu WhatsApp"/>
+          :visibleQr&&visibleQr.expiresAt>now?<img className="h-full w-full" src={visibleQr.src} alt="QR Code atualizado para conectar seu WhatsApp"/>
+          :<div role="status" className="flex flex-col items-center gap-3 text-center text-sm text-slate-600"><span aria-hidden className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"/>{connection.isError?'Código indisponível no momento.':'Preparando QR Code…'}</div>}
+       </div>
+       {!previewPairing&&visibleQr&&visibleQr.expiresAt>now&&<p className="text-xs tabular-nums text-muted-foreground">Este código se renova em {restante}s</p>}
+     </div>
    </div>}
  </section>;
 }

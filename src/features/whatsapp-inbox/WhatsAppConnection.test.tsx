@@ -16,7 +16,7 @@ it('inicia o QR automaticamente quando usado como bloqueio do Inbox',async()=>{
    :{state:'disconnected',agentEnabled:false},error:null}));
  mount({autoStart:true});await advance();
  expect(screen.queryByAltText('QR Code atualizado para conectar seu WhatsApp')).not.toBeNull();
- expect(screen.getByText(/WhatsApp → Configurações → Aparelhos conectados/)).not.toBeNull();
+ expect(screen.getByText(/Entre em Aparelhos conectados/)).not.toBeNull();
  expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(1);
 });
 it('mantém o QR ilustrativo visível sem aplicar a expiração real',async()=>{
