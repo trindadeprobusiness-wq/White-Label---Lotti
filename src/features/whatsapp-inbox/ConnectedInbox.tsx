@@ -304,6 +304,8 @@ function MessageBubble({ message, onReply }: { message: Message; onReply?: (m: M
 
 const stages: Record<string, string> = { pre_qualificacao: 'Pré-qualificação', qualificando: 'Em qualificação', qualificado_busca: 'Qualificado para busca', qualificado_visita: 'Qualificado para visita' };
 const labels: Record<string, string> = { intent: 'Interesse', region: 'Região', budget: 'Orçamento', needs: 'Essenciais', nextStep: 'Próximo passo', timeframe: 'Prazo', payment: 'Pagamento', communication: 'Preferência de conversa' };
+// O que a IA registra do jeito do cliente (só pelo que ele escreveu) e o horário em que ele mais responde.
+const labelsComportamento: Record<string, string> = { style: 'Jeito de conversar', objections: 'Objeções', highlights: 'O que chamou atenção', bestTime: 'Melhor horário' };
 const inboxTimeZone = 'America/Sao_Paulo';
 const CHAVE_CONVERSA_ABERTA = 'lotti:inbox:conversa-aberta';
 const TOM_TEMPERATURA: Record<Temperatura['tom'], string> = {
@@ -809,6 +811,15 @@ export default function ConnectedInbox({ connected = true, preview = false }: { 
             </div>)}
           </dl>}
         </SecaoPerfil>
+
+        {Object.keys(labelsComportamento).some((key) => q?.profile?.[key]) && <SecaoPerfil titulo="Comportamento" acessorio={<Badge variant="secondary" className="gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge>}>
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[12.5px]">
+            {Object.entries(labelsComportamento).filter(([key]) => q?.profile?.[key]).map(([key, label]) => <div key={key} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="break-words font-medium leading-snug">{String(q!.profile![key])}</dd>
+            </div>)}
+          </dl>
+        </SecaoPerfil>}
 
         <SecaoPerfil titulo="Resumo do caso" acessorio={<Badge variant="secondary" className="gap-1 text-[9px]"><Sparkles className="h-2.5 w-2.5" />IA</Badge>}>
           <p className="text-[12px] leading-[1.45] text-muted-foreground">{q?.reason || 'Ainda sem qualificação. A IA preenche conforme conversa com o cliente.'}</p>

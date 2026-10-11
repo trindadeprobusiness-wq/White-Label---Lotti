@@ -398,7 +398,7 @@ it('banco sem a coluna de opt-out continua mostrando o nome do contato', async (
 it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async () => {
   dataByTable.lotti_agent_conversations = [conversationFixture({
     qualification: { stage: 'qualificado_busca', temperature: 'quente', priority: 'alta', reason: 'Quer comprar no Centro com financiamento aprovado.',
-      profile: { budget: 'Até 500 mil', timeframe: 'em 3 meses', needs: '2 quartos com garagem', nextStep: 'enviar opções', region: 'Centro' } },
+      profile: { budget: 'Até 500 mil', timeframe: 'em 3 meses', needs: '2 quartos com garagem', nextStep: 'enviar opções', region: 'Centro', style: 'direto e objetivo', objections: 'preço do condomínio', bestTime: 'noite (18h às 23h)' } },
   })];
   mount(true);
   const profile = await screen.findByRole('complementary', { name: 'Perfil do contato' });
@@ -408,6 +408,11 @@ it('mostra ao corretor o resumo, a etapa e o perfil qualificado pela IA', async 
   // O que a tela mostra é o valor legível: primeira letra maiúscula. O dado
   // gravado continua como a IA escreveu.
   for (const [label, value] of [['Orçamento', 'Até 500 mil'], ['Prazo', 'Em 3 meses'], ['Essenciais', '2 quartos com garagem'], ['Próximo passo', 'Enviar opções'], ['Região', 'Centro']]) {
+    const term = Array.from(profile.querySelectorAll('dt')).find(dt => dt.textContent === label);
+    expect(term?.nextElementSibling?.textContent).toBe(value);
+  }
+  // Comportamento registrado pela IA, numa seção própria.
+  for (const [label, value] of [['Jeito de conversar', 'direto e objetivo'], ['Objeções', 'preço do condomínio'], ['Melhor horário', 'noite (18h às 23h)']]) {
     const term = Array.from(profile.querySelectorAll('dt')).find(dt => dt.textContent === label);
     expect(term?.nextElementSibling?.textContent).toBe(value);
   }
