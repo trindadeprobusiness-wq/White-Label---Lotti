@@ -1,5 +1,14 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — segurança, saída do Supabase, IA refeita no modelo do Clix, funil e agenda da IA (2026-10-10)
+
+- Segurança: API só aceita o login próprio (0eff23e); Clarity mascara a área logada; telefone sai da URL; senha do Postgres rotacionada (Codex).
+- Supabase: código morto, preconnect, chave anon e callback do Google saíram (6e2c074); runtime só com o banco do Railway (adb7764, sem SUPABASE_*). Pendente: ramos sem API no front (mapa em workflow wf_9d3ce9c4), Central Comercial (tabelas vazias no Supabase), 46 fotos com URL supabase.co, Vercel antiga e login do Supabase Auth (prompt ao Codex enviado). Regra nova: não mexer em Asaas nem Gemini.
+- IA: prompt único em blocos (runtime/prompt.mjs), contextoDoTurno (primeira/retomada/religada/pendentes), saudação solta = recomeço só com as mensagens novas, acabamento em código. Validado com a IA real (simulação no container do agent, sem envio).
+- Inbox: resposta da equipe pelo WhatsApp desliga a IA (migration 20261010150000, sem "em espera"); conversa sempre no fim; link abre em nova aba; áudio como no Clix (player nativo; gravação com lixeira, pausar e enviar direto).
+- Funil: IA avança o card pela posição da etapa (20261010180000/190000): 2ª ao atender, 3ª com fato do cliente, 4ª qualificado, 5ª só com visita marcada; nunca volta nem mexe em Proposta/fechado.
+- Agenda da IA (como o Dr. Marco no Clix): api/src/visitas/horarios.ts + POST agente/visitas/{horarios,cancelar}; reserva com trava por corretor; IA oferece só horários livres, marca antes de responder, remarca e desmarca; continua atendendo. Testes: visitas 13/13, sql-real visitas-agente 1/1, runtime turn 15/15. Pendente: lembretes antes da visita (confirm-machine do Clix) e Google Agenda nos ocupados.
+
 ## Claude — responder citando no Inbox (2026-10-09)
 - Fluxo de tarefa complexa: pesquisa (1 agente), adversarial do plano (1 agente); plano aprovado pelo Rafael.
 - Etapa 1 (API f61c68f): migration `20261009190000_responder_citando` — colunas quoted_* em lotti_agent_messages, quoted_message_id em lotti_manual_sends; lotti_manual_begin com p_quote (DROP+CREATE, chamada de 6 args continua), recusa citação de outra conversa/ligação/simulação, conflito de request_id com outra citação; lotti_manual_finish grava a citação inclusive se o eco chegou antes; lotti_agent_set_quote (service_role) para citação vinda do WhatsApp sem reescrever o ingest. DTO quoted_message_id; mensagens() devolve external_id e quoted_*.
