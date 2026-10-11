@@ -21,6 +21,7 @@ import { useCRMStore } from '@/stores/crmStore';
 import { useFachadas } from '@/hooks/useFachadas';
 import { linkDoInbox } from '@/features/whatsapp-inbox/deepLink';
 import { useConversasEsperando } from '@/hooks/useConversasEsperando';
+import { useEtapas, useOportunidades } from '@/hooks/crm/useCrm';
 import { contratosVencendo, tempoDeEspera } from '@/lib/inicio';
 import { FLAGS } from '@/lib/flags';
 import { moeda, numero, dataBR } from '@/lib/formato';
@@ -109,13 +110,18 @@ export default function Dashboard() {
     return [...porTexto.values()];
   }, [alertasNaoLidos, valoresOcultos]);
 
-  const contagemEtapas = useMemo(() => {
-    const mapa: Record<string, number> = {};
-    for (const e of ETAPAS) {
-      mapa[e.chave] = clientesReais.filter((c) => c.status_funil === e.chave).length;
-    }
-    return mapa;
-  }, [clientesReais]);
+  // Conta pelo Funil de Vendas (o que a pessoa vê no kanban), não pelo campo antigo status_funil do
+  // cadastro: ele contava contatos que nunca entraram no funil (histórico importado, número antigo).
+  const { data: etapasFunil = [] } = useEtapas();
+  const { data: oportunidades = [] } = useOportunidades();
+  const emQualificacao = useMemo(() => {
+    const abertas = (etapasFunil as Array<{ id: string; ordem: number; tipo?: string }>)
+      .filter((e) => !e.tipo || e.tipo === 'ABERTA').sort((a, b) => a.ordem - b.ordem);
+    const etapa = abertas[2];
+    if (!etapa) return 0;
+    return (oportunidades as Array<{ etapa_id: string; fechada_em?: string | null }>)
+      .filter((o) => o.etapa_id === etapa.id && !o.fechada_em).length;
+  }, [etapasFunil, oportunidades]);
 
   const incompletos = useMemo(() => imoveisReais.filter(cadastroIncompleto), [imoveisReais]);
   const vencendo = useMemo(() => contratosVencendo(contratos), [contratos]);
@@ -286,8 +292,8 @@ export default function Dashboard() {
               icone={<Users className="h-[18px] w-[18px]" />}
               titulo="Leads aguardando avanço"
               descricao={
-                (contagemEtapas.QUALIFICACAO ?? 0) > 0
-                  ? `${numero(contagemEtapas.QUALIFICACAO)} leads na etapa de qualificação`
+                emQualificacao > 0
+                  ? `${numero(emQualificacao)} ${emQualificacao === 1 ? 'lead' : 'leads'} em qualificação no funil`
                   : 'Nenhum lead parado na qualificação'
               }
               acao={

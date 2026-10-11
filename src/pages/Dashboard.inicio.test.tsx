@@ -25,6 +25,15 @@ vi.mock('@/stores/crmStore', () => ({ useCRMStore: () => estado }));
 vi.mock('@/hooks/useFachadas', () => ({
   useFachadas: () => ({ leads: leadsQr, fachadas: fachadasQr, fetchLeads: vi.fn(), fetchFachadas: vi.fn() }),
 }));
+// O card de qualificação conta pelo Funil de Vendas (etapas e oportunidades), não pelo status_funil do cadastro.
+const funil = vi.hoisted(() => ({
+  etapas: [1, 2, 3, 4].map((ordem) => ({ id: 'e' + ordem, ordem, tipo: 'ABERTA' })),
+  oportunidades: [{ etapa_id: 'e3', fechada_em: null }, { etapa_id: 'e3', fechada_em: null }, { etapa_id: 'e2', fechada_em: null }],
+}));
+vi.mock('@/hooks/crm/useCrm', () => ({
+  useEtapas: () => ({ data: funil.etapas }),
+  useOportunidades: () => ({ data: funil.oportunidades }),
+}));
 vi.mock('@/hooks/useConversasEsperando', () => ({
   useConversasEsperando: () => ({ data: espera }),
 }));
@@ -172,4 +181,9 @@ describe('Tela inicial — só o que pede ação', () => {
     expect(screen.getByText('Atrasado 3d')).toBeTruthy();
     expect(screen.getByText('Contato hoje')).toBeTruthy();
   });
+});
+
+it('"Leads aguardando avanço" conta pelo Funil: só a etapa Em qualificação (3ª), não o cadastro antigo', () => {
+  render(<MemoryRouter><Dashboard /></MemoryRouter>);
+  expect(screen.getByText('2 leads em qualificação no funil')).toBeTruthy();
 });
