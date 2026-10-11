@@ -42,6 +42,8 @@ describe('fallback do contrato pelo Assistente da API', () => {
     expect(r.dia_vencimento).toBe(10);
     const [corpo] = vi.mocked(abrirAssistenteApi).mock.calls[0];
     expect(corpo.message).toMatch(/^Extraia os dados do contrato de locação/);
+    // Modo estruturado: a API responde só o JSON, sem ferramentas e sem as regras de formato do chat.
+    expect(corpo).toMatchObject({ module: 'contracts', intent: 'contracts.extraction', output_mode: 'structured' });
     expect(String(corpo.file_context)).toMatch(/^Contrato de locação \(texto extraído do PDF\):\n\nCONTRATO DE LOCAÇÃO/);
     expect(getSession).not.toHaveBeenCalled();
   });

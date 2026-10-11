@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Send, RotateCcw, AlertCircle, Sparkles, Trash2,
 } from 'lucide-react';
@@ -46,6 +47,19 @@ export default function Assistente() {
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isStreaming]);
+
+  // "Expandir" no widget traz a conversa aberta: /assistente?conversa=<id>.
+  const [busca, setBusca] = useSearchParams();
+  const conversaPedida = busca.get('conversa');
+  useEffect(() => {
+    if (!conversaPedida) return;
+    void loadConversation(conversaPedida);
+    setBusca((atual) => {
+      const proxima = new URLSearchParams(atual);
+      proxima.delete('conversa');
+      return proxima;
+    }, { replace: true });
+  }, [conversaPedida, loadConversation, setBusca]);
 
   const handleSend = async () => {
     const text = inputText.trim();
@@ -137,8 +151,10 @@ export default function Assistente() {
         </header>
 
         {/* Mensagens */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="max-w-4xl mx-auto px-5 py-3 space-y-4">
+        {/* O Radix embrulha o conteúdo num display:table que cresce com tabela larga; block deixa a tabela
+            rolar de lado dentro da bolha. */}
+        <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
+          <div className="max-w-4xl mx-auto px-5 py-3 space-y-4" role="log" aria-live="polite" aria-busy={isStreaming}>
             {messages.length === 0 ? (
               <EstadoInicialIA
                 nome={corretor?.nome}
@@ -157,7 +173,7 @@ export default function Assistente() {
             ))}
             {isStreaming && <AITypingIndicator />}
             {error && (
-              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg max-w-md">
+              <div role="alert" className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg max-w-md">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span className="flex-1">{error}</span>
                 <Button size="sm" variant="ghost" onClick={retry}>

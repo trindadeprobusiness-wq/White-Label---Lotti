@@ -13,7 +13,22 @@ import {
   dataHoraBR,
   competenciaBR,
   documentoMascarado,
+  diaDoLancamento,
 } from './formato';
+
+describe('diaDoLancamento', () => {
+  it('o ISO que a API devolve (00:00 UTC) continua no mesmo dia, não volta para o anterior', () => {
+    const d = diaDoLancamento('2026-10-01T00:00:00+00:00');
+    expect([d?.getFullYear(), d?.getMonth(), d?.getDate()]).toEqual([2026, 9, 1]);
+    expect(dataBR(diaDoLancamento('2026-10-01T00:00:00+00:00'))).toBe('01/10/2026');
+    expect(dataBR(diaDoLancamento('2026-10-01'))).toBe('01/10/2026');
+  });
+
+  it('valor inválido vira null', () => {
+    expect(diaDoLancamento('ontem')).toBeNull();
+    expect(diaDoLancamento(null)).toBeNull();
+  });
+});
 
 // Espaço não-quebrável: o Intl separa "R$" do valor com U+00A0, não com espaço
 // comum. Comparar com ' ' faz o teste falhar por um caractere invisível.

@@ -164,7 +164,11 @@ const ASSISTANT_INSTRUCTION = `Extraia os dados do contrato de locação enviado
 Regras: use null quando não tiver certeza e NUNCA invente dados; "inquilino" é o locatário e "proprietario_nome" é o locador; valor_aluguel é o aluguel mensal como número puro; data_inicio no formato YYYY-MM-DD; imovel.tipo deve ser APARTAMENTO, CASA, COMERCIAL ou TERRENO; dia_vencimento é um inteiro de 1 a 31. NÃO use tools nem sugira ações — apenas responda o JSON.`;
 
 async function analyzeViaAssistant(contractText: string): Promise<ExtractedContractData> {
+    // Modo estruturado: a API responde só o JSON, sem ferramentas e sem as regras de formato do chat.
     const pedido = {
+        module: "contracts",
+        intent: "contracts.extraction",
+        output_mode: "structured",
         message: ASSISTANT_INSTRUCTION,
         file_context: `Contrato de locação (texto extraído do PDF):\n\n${contractText}`,
     };

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Sparkles, X, Maximize2, RotateCcw, AlertCircle } from 'lucide-react';
+import { Send, Sparkles, X, Maximize2, RotateCcw, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,7 +47,7 @@ export function AIChatWidget() {
     error,
     sendMessage,
     uploadFile,
-    startConversation,
+    activeConversation,
     confirmAction,
     rejectAction,
     retry,
@@ -111,9 +111,10 @@ export function AIChatWidget() {
               </div>
               <div>
                 <CardTitle className="text-sm font-semibold text-primary">
-                  IA Assistant
+                  IA Lotti
                 </CardTitle>
-                <p className="text-[10px] text-muted-foreground">Powered by Grok</p>
+                {/* Sem nome de modelo: o que importa é que a IA enxerga os dados da conta (como na tela do Assistente). */}
+                <p className="text-[10px] text-muted-foreground">Explore os dados da sua operação imobiliária</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -123,9 +124,13 @@ export function AIChatWidget() {
                 className="h-7 w-7"
                 onClick={() => {
                   setIsOpen(false);
-                  navigate('/assistente');
+                  // A tela cheia abre na mesma conversa, não numa vazia.
+                  navigate(activeConversation ? `/assistente?conversa=${encodeURIComponent(activeConversation)}` : '/assistente');
                 }}
+                // Com resposta chegando ou ação esperando confirmação, a tela cheia não teria o stream nem o cartão.
+                disabled={isStreaming || pendingActions.some((a) => a.status === 'pending')}
                 title="Expandir"
+                aria-label="Abrir esta conversa na tela do Assistente"
               >
                 <Maximize2 className="h-3.5 w-3.5" />
               </Button>
@@ -143,8 +148,10 @@ export function AIChatWidget() {
           </CardHeader>
 
           <CardContent className="flex-1 p-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-3 space-y-3">
+            {/* O Radix embrulha o conteúdo num display:table que cresce com tabela larga; block deixa a tabela
+                rolar de lado dentro da bolha. */}
+            <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]>div]:!block">
+              <div className="p-3 space-y-3" role="log" aria-live="polite" aria-busy={isStreaming}>
                 {displayMessages.map((msg) => (
                   <AIMessageBubble key={msg.id} message={msg} />
                 ))}
@@ -160,7 +167,7 @@ export function AIChatWidget() {
                   ))}
                 {isStreaming && <AITypingIndicator />}
                 {error && (
-                  <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 p-2 rounded-lg">
+                  <div role="alert" className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 p-2 rounded-lg">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     <span className="flex-1">{error}</span>
                     <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={retry}>
@@ -178,10 +185,12 @@ export function AIChatWidget() {
               <div className="w-full text-xs bg-primary/5 border border-primary/20 p-2 rounded-lg flex items-center justify-between">
                 <span className="truncate">📎 Arquivo pronto para análise</span>
                 <Button
+                  type="button"
                   size="icon"
                   variant="ghost"
                   className="h-5 w-5"
                   onClick={() => setFileContext(null)}
+                  aria-label="Remover arquivo"
                 >
                   ×
                 </Button>
@@ -202,6 +211,7 @@ export function AIChatWidget() {
               />
               <Input
                 placeholder="Pergunte algo..."
+                aria-label="Pergunta para o assistente"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="flex-1 h-9"
@@ -210,6 +220,7 @@ export function AIChatWidget() {
               <Button
                 type="submit"
                 size="icon"
+                aria-label="Enviar pergunta"
                 className="h-9 w-9 shrink-0"
                 disabled={(!inputText.trim() && !fileContext) || isStreaming}
               >

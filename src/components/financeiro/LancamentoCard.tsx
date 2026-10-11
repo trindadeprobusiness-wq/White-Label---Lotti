@@ -4,6 +4,7 @@ import { Trash2, Repeat, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { diaDoLancamento } from '@/lib/formato';
 import {
   LancamentoFinanceiro,
   CATEGORIA_LABELS,
@@ -61,7 +62,7 @@ export function LancamentoCard({ lancamento, onDelete, onEdit }: LancamentoCardP
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{CATEGORIA_LABELS[lancamento.categoria]}</span>
             <span>•</span>
-            <span>{format(new Date(lancamento.data), "dd 'de' MMM, yyyy", { locale: ptBR })}</span>
+            <span>{(() => { const dia = diaDoLancamento(lancamento.data); return dia ? format(dia, "dd 'de' MMM, yyyy", { locale: ptBR }) : '—'; })()}</span>
           </div>
         </div>
       </div>

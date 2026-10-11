@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-// Porte de supabase/functions/_shared/ai/contracts.ts (normalizeLottiAIRequest): mesmas regras e textos.
+// Porte de supabase/functions/_shared/ai/contracts.ts (normalizeLottiAIRequest): mesmos textos. Diferenças:
+// 5 rodadas de ferramenta (a função tem 4; a resposta final gasta uma) e fuso com dígitos (Etc/GMT+3).
 
 export const MODULOS_IA = [
   'assistant', 'attendance', 'clients', 'funnel', 'properties', 'proposals', 'contracts',
@@ -32,7 +33,7 @@ export interface PedidoIa {
 
 export const MAX_ENTRADA_IA = 4_000;
 export const MAX_REFS_ENTIDADE = 10;
-export const MAX_RODADAS_FERRAMENTA = 4;
+export const MAX_RODADAS_FERRAMENTA = 5;
 
 export class PedidoIaInvalido extends Error {
   constructor(message: string) {
@@ -80,7 +81,7 @@ export function normalizarPedidoIa(valor: unknown, autoridade: { organizationId:
   if (!MODOS_SAIDA_IA.includes(saida as ModoSaidaIa)) throw new PedidoIaInvalido('Modo de saída inválido');
 
   const timezone = textoOpcional(valor.timezone) ?? 'America/Sao_Paulo';
-  if (timezone.length > 64 || !/^[A-Za-z_+\/-]+$/.test(timezone)) throw new PedidoIaInvalido('Fuso horário inválido');
+  if (timezone.length > 64 || !/^[A-Za-z0-9_+\/-]+$/.test(timezone)) throw new PedidoIaInvalido('Fuso horário inválido');
 
   return {
     organizationId: autoridade.organizationId,

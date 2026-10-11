@@ -75,7 +75,7 @@ export const AIFileUpload = forwardRef<AIFileUploadHandle, AIFileUploadProps>(
       {selectedFile && (
         <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-lg border text-xs w-full">
           {preview ? (
-            <img src={preview} alt="Preview" className="h-10 w-10 object-cover rounded" />
+            <img src={preview} alt="Prévia do arquivo" className="h-10 w-10 object-cover rounded" />
           ) : (
             <FileIcon className="h-5 w-5 text-muted-foreground shrink-0" />
           )}
@@ -84,10 +84,10 @@ export const AIFileUpload = forwardRef<AIFileUploadHandle, AIFileUploadProps>(
             <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           ) : (
             <>
-              <Button size="sm" variant="default" className="h-6 text-xs px-2" onClick={handleUpload}>
+              <Button type="button" size="sm" variant="default" className="h-6 text-xs px-2" onClick={handleUpload}>
                 Enviar
               </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={clear}>
+              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={clear} aria-label="Remover arquivo">
                 <X className="h-3 w-3" />
               </Button>
             </>

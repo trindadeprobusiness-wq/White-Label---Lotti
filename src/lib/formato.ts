@@ -61,6 +61,18 @@ function paraData(valor: string | Date | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Dia de um lançamento financeiro. O banco guarda só a data (00:00 UTC) e a API devolve
+ * '2026-10-01T00:00:00+00:00': lido no fuso local, virava 30/09 às 21h — o cartão mostrava o dia anterior e
+ * editar sem mexer na data gravava o dia anterior. Vale o dia escrito, ao meio-dia local.
+ */
+export function diaDoLancamento(valor: string | null | undefined): Date | null {
+  const dia = typeof valor === 'string' ? valor.slice(0, 10) : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return null;
+  const d = new Date(`${dia}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** `dataBR('2026-08-14')` → "14/08/2026". */
 export function dataBR(valor: string | Date | null | undefined): string {
   const d = paraData(valor);

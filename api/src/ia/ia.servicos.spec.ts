@@ -111,54 +111,206 @@ describe('FerramentasIaService', () => {
     return { tx, db, prisma, s: new FerramentasIaService(db as never, prisma as never) };
   }
 
-  it('leituras rodam no TenantDb com as claims (RLS) e com os filtros parametrizados', async () => {
-    const m = montar([[/from public\.clientes c/, [{ linha: { id: ID, nome: 'Ana' } }]]]);
-    expect(JSON.parse(await m.s.executar('search_clients', { query: 'Ana%', status_funil: 'QUALIFICACAO', limit: 99 }, ctx))).toEqual([{ id: ID, nome: 'Ana' }]);
+  // 11/10/2026 12:00 em São Paulo: "hoje" das consultas.
+  const ctxHoje = { ...ctx, agora: new Date('2026-10-11T15:00:00Z'), fuso: 'America/Sao_Paulo' };
+
+  it('clientes: TenantDb com as claims (RLS), busca por palavras, rótulos prontos e envelope com total', async () => {
+    const m = montar([[/from public\.clientes c/, [{
+      linha: { id: ID, nome: 'Ana', status: 'QUALIFICACAO', interesse: 'COMPRA', demonstracao: false, proximo_followup: null }, total: 12, demonstracao: 0,
+    }]]]);
+    expect(JSON.parse(await m.s.executar('search_clients', { query: 'Ana% 99999-0001', status_funil: 'QUALIFICACAO', limit: 99 }, ctxHoje))).toEqual({
+      total: 12, mostrando: 1, clientes: [{ id: ID, nome: 'Ana', status: 'Qualificação', interesse: 'Compra' }],
+    });
     expect(m.db.run.mock.calls[0][0]).toBe(claims);
     const [q] = sqls(m.tx.$queryRaw, /from public\.clientes c/);
-    expect(q.text).toMatch(/c\.nome ilike \$2::text or c\.email ilike \$3::text or c\.telefone ilike \$4::text/);
-    expect(q.text).toMatch(/c\.status_funil::text = \$6::text/);
-    expect(q.text).toMatch(/order by c\.created_at desc nulls first, c\.id\s+limit \$9::int/);
-    expect(q.values).toEqual(['Ana ', '%Ana %', '%Ana %', '%Ana %', 'QUALIFICACAO', 'QUALIFICACAO', null, null, 25]);
+    expect(q.text).toMatch(/\(c\.nome ilike \$\d+::text or c\.email ilike \$\d+::text or c\.telefone ilike \$\d+::text\)/);
+    expect(q.text).toMatch(/regexp_replace\(coalesce\(c\.telefone, ''\), '\[\^0-9\]', '', 'g'\) like \$\d+::text/);
+    expect(q.text).toMatch(/order by c\.created_at desc nulls first, c\.id\s+limit \$\d+::int/);
+    expect(q.values).toEqual(expect.arrayContaining(['%Ana%', '%999990001%', 'QUALIFICACAO', 'America/Sao_Paulo', '2026-10-11']));
+    expect(q.values.at(-1)).toBe(50);
   });
 
-  it('imóveis, financeiro, contratos, alertas, funil e histórico', async () => {
-    const m = montar([
-      [/from public\.imoveis i/, [{ linha: { id: ID } }]],
-      [/sum\(l\.valor\)/, [{ receita: 1000, despesa: 250.5, total: 3 }]],
-      [/from public\.lancamentos_financeiros l\s+where \(/, [{ linha: { id: 'l1' } }]],
-      [/from public\.contratos c/, []],
-      [/from public\.alertas a/, []],
-      [/group by 1/, [{ status: 'QUALIFICACAO', n: 2 }, { status: 'FECHADO_GANHO', n: 1 }]],
-      [/from public\.historico_contatos h/, [{ linha: { id: 'h1' } }]],
-    ]);
-    await m.s.executar('search_properties', { cidade: 'Anápolis', preco_min: 0, preco_max: '500000', tipo: 'CASA' }, ctx);
-    const [imoveis] = sqls(m.tx.$queryRaw, /from public\.imoveis i/);
-    expect(imoveis.values).toEqual(['', '%%', '%%', 'CASA', 'CASA', '%Anápolis%', '%Anápolis%', null, null, 500000, 500000, 10]);
-    expect(imoveis.text).toMatch(/i\.valor <= \$11::numeric/);
+  it('clientes por telefone colado inteiro (+55 do WhatsApp): uma busca só pelos dígitos, sem o 55', async () => {
+    const m = montar([[/from public\.clientes c/, []]]);
+    expect(JSON.parse(await m.s.executar('search_clients', { query: '+55 62 99999-0001' }, ctxHoje))).toMatchObject({ total: 0, mostrando: 0 });
+    const [q] = sqls(m.tx.$queryRaw, /from public\.clientes c/);
+    expect(q.values).toContain('%62999990001%');
+    expect(uma(q)).not.toContain('c.nome ilike');
+  });
 
-    expect(JSON.parse(await m.s.executar('get_financial_summary', { period: 'year' }, ctx))).toEqual({
-      period: 'year', receita: 1000, despesa: 250.5, saldo: 749.5, total_lancamentos: 3,
+  it('clientes sem retorno: como a aba da tela (fechados fora, mais de 30 dias por padrão) e follow-up como o Início', async () => {
+    const m = montar([[/from public\.clientes c/, [{ linha: { id: ID, nome: 'Ana' }, total: 7, demonstracao: 1 }]]]);
+    const sem = JSON.parse(await m.s.executar('search_clients', { ordem: 'sem_contato' }, ctxHoje));
+    expect(sem).toMatchObject({ total: 7, demonstracao: 1, criterio: 'mais de 30 dias sem contato, sem os fechados (aba Sem retorno da tela Clientes)' });
+    const [q] = sqls(m.tx.$queryRaw, /from public\.clientes c/);
+    expect(uma(q)).toContain("c.status_funil::text not in ('FECHADO_GANHO', 'FECHADO_PERDIDO') and c.ultimo_contato is not null");
+    expect(uma(q)).toMatch(/order by c\.ultimo_contato asc, c\.id/);
+    expect(q.values).toEqual(expect.arrayContaining(['2026-10-11T15:00:00.000Z', 30]));
+
+    // Outro corte: o número não é o da aba, então o critério não cita a aba.
+    expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'sem_contato', sem_contato_dias: 60 }, ctxHoje)).criterio)
+      .toBe('mais de 60 dias sem contato, sem os fechados');
+
+    // Follow-ups: só os marcados (total = quantos follow-ups), sem perdidos e sem demonstração, como o Início.
+    expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'proximo_followup' }, ctxHoje)))
+      .toMatchObject({ criterio: 'follow-ups marcados, sem os perdidos e sem demonstração' });
+    const f = sqls(m.tx.$queryRaw, /from public\.clientes c/)[2];
+    expect(uma(f)).toContain("c.status_funil::text <> 'FECHADO_PERDIDO' and c.proximo_followup is not null and not c.is_sample_data");
+    expect(uma(f)).toMatch(/order by c\.proximo_followup asc nulls last, c\.ultimo_contato asc nulls first, c\.id/);
+    expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'proximo_followup', followup_ate: '2026-10-11' }, ctxHoje)).criterio)
+      .toBe('follow-ups marcados, sem os perdidos e sem demonstração, até 11/10/2026');
+    expect(sqls(m.tx.$queryRaw, /from public\.clientes c/)[3].values).toContain('2026-10-11');
+    expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'proximo_followup', followup_ate: 'hoje' }, ctxHoje)).error).toBe('invalid_date');
+  });
+
+  it('imóveis: disponível e finalidade como o agente do WhatsApp (inclui "venda e locação"), página da Lotti só ativa', async () => {
+    const m = montar([[/from public\.imoveis i/, [{
+      linha: { id: ID, titulo: 'Casa', tipo: 'CASA', finalidade: 'VENDA', situacao: 'DISPONIVEL', inativo: false, links_anuncio: [], valor: 450000 }, total: 31, demonstracao: 0,
+    }]]]);
+    expect(JSON.parse(await m.s.executar('search_properties', { finalidade: 'VENDA', disponivel: true, cidade: 'Anápolis', preco_max: '500000' }, ctxHoje))).toEqual({
+      total: 31, mostrando: 1, imoveis: [{ id: ID, titulo: 'Casa', tipo: 'Casa', finalidade: 'Venda', situacao: 'Disponível', valor: 450000 }],
     });
-    expect(sqls(m.tx.$queryRaw, /sum\(l\.valor\)/)[0].values[0]).toMatch(/^\d{4}-01-01$/);
+    const [q] = sqls(m.tx.$queryRaw, /from public\.imoveis i/);
+    expect(uma(q)).toContain("i.finalidade::text in ($");
+    expect(uma(q)).toContain("::text, 'AMBOS')");
+    expect(uma(q)).toContain("(i.status_venda::text = 'DISPONIVEL' and i.ativo is not false)");
+    expect(uma(q)).toContain('where f.imovel_id = i.id and f.ativo');
+    expect(q.values).toEqual(expect.arrayContaining(['VENDA', true, '%Anápolis%', 500000]));
 
-    await m.s.executar('get_financial_entries', { tipo: 'DESPESA', date_from: '2026-01-01' }, ctx);
-    const [lanc] = sqls(m.tx.$queryRaw, /from public\.lancamentos_financeiros l\s+where \(/);
-    expect(lanc.text).toMatch(/l\.data >= \$6::timestamptz/);
-    expect(lanc.values.at(-1)).toBe(20);
+    await m.s.executar('search_properties', { situacao: 'VENDIDO' }, ctxHoje);
+    const [, vendidos] = sqls(m.tx.$queryRaw, /from public\.imoveis i/);
+    expect(uma(vendidos)).toMatch(/i\.status_venda::text = \$\d+::text/);
+    expect(vendidos.values).toContain('VENDIDO');
+  });
 
-    await m.s.executar('get_alerts', { prioridade: 'ALTA' }, ctx);
-    expect(sqls(m.tx.$queryRaw, /from public\.alertas a/)[0].text).toMatch(/a\.metadata->>'prioridade' = \$4::text/);
-    expect(JSON.parse(await m.s.executar('get_funnel_stats', {}, ctx))).toEqual({ total: 3, by_status: { QUALIFICACAO: 2, FECHADO_GANHO: 1 } });
-    expect(JSON.parse(await m.s.executar('get_contact_history', { client_id: ID }, ctx))).toEqual([{ id: 'h1' }]);
-    expect(sqls(m.tx.$queryRaw, /from public\.historico_contatos h/)[0].text).toMatch(/order by h\.data_contato desc, h\.id limit 20/);
-    expect(JSON.parse(await m.s.executar('get_contact_history', { client_id: 'x' }, ctx))).toEqual({ error: 'invalid_client_id' });
-    expect(JSON.parse(await m.s.executar('nao_existe', {}, ctx))).toEqual({ error: 'Unknown tool: nao_existe' });
+  it('ficha do imóvel: mesmos nomes da busca, inativo e "não anunciado" visíveis, sem colunas técnicas', async () => {
+    const m = montar([[/from public\.imoveis i where i\.id/, [{
+      linha: { id: ID, titulo: 'Casa', tipo: 'CASA', finalidade: 'AMBOS', situacao: 'DISPONIVEL', inativo: true, anunciado: false,
+        exclusividade_ate: '31/12/2026', links_anuncio: [], demonstracao: false, valor: 450000 },
+      fotos: 3,
+    }]]]);
+    expect(JSON.parse(await m.s.executar('get_property_details', { property_id: ID }, ctxHoje))).toEqual({
+      imovel: { id: ID, titulo: 'Casa', tipo: 'Casa', finalidade: 'Venda e locação', situacao: 'Disponível', inativo: true, anunciado: false,
+        exclusividade_ate: '31/12/2026', valor: 450000 },
+      fotos: 3,
+    });
+    const [q] = sqls(m.tx.$queryRaw, /from public\.imoveis i where i\.id/);
+    expect(uma(q)).not.toContain('to_jsonb(i)');
+    expect(uma(q)).not.toContain('proprietario_id');
+    expect(uma(q)).not.toContain('tracking_data');
+  });
+
+  it('financeiro: mês inteiro da tela, filtro do dono, lançado até hoje e previsto; período fechado sem previsto', async () => {
+    const m = montar([[/sum\(valor\) filter/, [{
+      receita: 1000, despesa: 250.5, saldo: 749.5, total: 3, receita_ate_hoje: 600, despesa_ate_hoje: 250.5, saldo_ate_hoje: 349.5,
+    }]]]);
+    expect(JSON.parse(await m.s.executar('get_financial_summary', {}, ctxHoje))).toEqual({
+      periodo: { de: '01/10/2026', ate: '31/10/2026' }, consultado_em: '11/10/2026',
+      receitas: 1000, despesas: 250.5, saldo: 749.5, total_lancamentos: 3,
+      lancado_ate_hoje: { receitas: 600, despesas: 250.5, saldo: 349.5 },
+      previsto_depois_de_hoje: { receitas: 400, despesas: 0 },
+    });
+    const [q] = sqls(m.tx.$queryRaw, /sum\(valor\) filter/);
+    expect(uma(q)).toContain('l.corretor_id = public.get_corretor_id()');
+    expect(q.values).toEqual(expect.arrayContaining(['2026-10-01', '2026-10-31', '2026-10-12']));
+
+    const fechado = JSON.parse(await m.s.executar('get_financial_summary', { date_from: '2026-09-01', date_to: '2026-09-30' }, ctxHoje));
+    expect(fechado.periodo).toEqual({ de: '01/09/2026', ate: '30/09/2026' });
+    expect(fechado.lancado_ate_hoje).toBeUndefined();
+    expect(sqls(m.tx.$queryRaw, /sum\(valor\) filter/)[1].values).toEqual(expect.arrayContaining(['2026-09-01', '2026-09-30']));
+
+    expect(JSON.parse(await m.s.executar('get_financial_summary', { date_from: '2026-09-30', date_to: '2026-09-01' }, ctxHoje)).error).toBe('invalid_period');
+    expect(JSON.parse(await m.s.executar('get_financial_summary', { period: 'quarter' }, ctxHoje)).periodo).toEqual({ de: '01/08/2026', ate: '31/10/2026' });
+  });
+
+  it('lançamentos: dia do calendário, somas do filtro inteiro, rótulos; data inválida volta sem ir ao banco', async () => {
+    const m = montar([[/from public\.lancamentos_financeiros l/, [{
+      linha: { data: '01/10/2026', tipo: 'RECEITA', categoria: 'COMISSAO_VENDA', valor: 1500.5, recorrente: false, futuro: false }, total: 4, receitas: 3000, despesas: 80,
+    }]]]);
+    expect(JSON.parse(await m.s.executar('get_financial_entries', { tipo: 'RECEITA', date_from: '2026-10-01' }, ctxHoje))).toEqual({
+      periodo: { de: '01/10/2026', ate: null }, total: 4, mostrando: 1, soma_receitas: 3000, soma_despesas: 80,
+      lancamentos: [{ data: '01/10/2026', tipo: 'Receita', categoria: 'Comissão de Venda', valor: 1500.5 }],
+    });
+    const [q] = sqls(m.tx.$queryRaw, /from public\.lancamentos_financeiros l/);
+    expect(uma(q)).toContain("to_char(l.data at time zone 'UTC', 'DD/MM/YYYY')");
+    expect(q.values.at(-1)).toBe(10);
+    expect(JSON.parse(await m.s.executar('get_financial_entries', { date_from: 'ontem' }, ctxHoje))).toEqual({ error: 'invalid_date', message: 'Datas no formato AAAA-MM-DD.' });
+    expect(sqls(m.tx.$queryRaw, /from public\.lancamentos_financeiros l/)).toHaveLength(1);
+  });
+
+  it('contratos: ativos da tela Aluguéis, fim pela coluna ou pelo conteúdo da locação, vencendo em N dias', async () => {
+    const base = { tipo: 'LOCACAO_RESIDENCIAL', status: 'ATIVO', valor: 2000, inicio: '2025-11-01', prazo_meses: null, dia_vencimento: 10, imovel: 'Apto', cliente_id: ID };
+    const m = montar([[/from public\.contratos c/, [
+      { ...base, id: 'k1', fim: null, fim_conteudo: '2026-10-20', cliente: 'Ana' },
+      { ...base, id: 'k2', fim: '2027-05-01', fim_conteudo: null, cliente: 'Bia' },
+      { ...base, id: 'k3', fim: null, fim_conteudo: '2026-10-01', cliente: 'Caio' },
+      { ...base, id: 'k4', status: 'ENCERRADO', fim: '2026-10-15', fim_conteudo: null, cliente: 'Davi' },
+    ]]]);
+    const vencendo = JSON.parse(await m.s.executar('get_contracts', { ativos: true, vence_em_dias: 30 }, ctxHoje));
+    expect(vencendo).toMatchObject({ total: 1, mostrando: 1, soma_valor: 2000, criterio: 'terminam entre 11/10/2026 e 10/11/2026' });
+    expect(vencendo.contratos).toEqual([{
+      id: 'k1', tipo: 'Locação Residencial', status: 'Ativo', cliente: 'Ana', cliente_id: ID, imovel: 'Apto', valor: 2000,
+      inicio: '01/11/2025', fim: '20/10/2026', dia_vencimento: 10,
+    }]);
+    const [q] = sqls(m.tx.$queryRaw, /from public\.contratos c/);
+    expect(uma(q)).toContain("::boolean is false or c.status = 'ATIVO')");
+    expect(uma(q)).toContain('"data_fim_calculada"');
+    expect(JSON.parse(await m.s.executar('get_contracts', { vencidos: true }, ctxHoje)).contratos.map((c: { id: string }) => c.id)).toEqual(['k3']);
+    expect(JSON.parse(await m.s.executar('get_contracts', {}, ctxHoje))).toMatchObject({ total: 4, soma_valor: 8000 });
+
+    // "Locação" vale para residencial e comercial; tipo que não existe não volta zero calado.
+    await m.s.executar('get_contracts', { tipo: 'LOCACAO' }, ctxHoje);
+    const porTipo = sqls(m.tx.$queryRaw, /from public\.contratos c/).at(-1)!;
+    expect(uma(porTipo)).toMatch(/c\.tipo::text in \(\$\d+,\$\d+\)/);
+    expect(porTipo.values).toEqual(expect.arrayContaining(['LOCACAO_RESIDENCIAL', 'LOCACAO_COMERCIAL']));
+    expect(JSON.parse(await m.s.executar('get_contracts', { tipo: 'Locação Residencial' }, ctxHoje)).error).toBe('invalid_tipo');
+  });
+
+  it('contratos: fim gravado como instante (cadastro manual) sai no dia que a tela Aluguéis mostra', async () => {
+    const base = { tipo: 'LOCACAO_RESIDENCIAL', status: 'ATIVO', valor: 2000, inicio: '2025-11-10', prazo_meses: 12, dia_vencimento: 10, imovel: 'Apto', cliente_id: ID, fim: null };
+    // 10/11/2026 00:00 UTC = 09/11/2026 21:00 em São Paulo: a tela mostra 09/11, dentro dos 30 dias.
+    const m = montar([[/from public\.contratos c/, [{ ...base, id: 'k1', fim_conteudo: '2026-11-10T00:00:00.000Z', cliente: 'Ana' }]]]);
+    const r = JSON.parse(await m.s.executar('get_contracts', { vence_em_dias: 29 }, ctxHoje));
+    expect(r.total).toBe(1);
+    expect(r.contratos[0].fim).toBe('09/11/2026');
+  });
+
+  it('alertas, funil por etapa (como o kanban) e histórico de contatos', async () => {
+    const m = montar([
+      [/from public\.alertas a/, [{ linha: { tipo: 'LEAD_QUENTE', mensagem: 'Ana quer visitar', prioridade: 'ALTA', criado_em: '11/10/2026 09:00' }, total: 3 }]],
+      [/from public\.crm_etapas e/, [
+        { id: 'e1', nome: 'Novo lead', tipo: 'ABERTA', negocios: 4, demonstracao: 1, valor: 900, valor_demonstracao: 100 },
+        { id: 'e2', nome: 'Visita agendada', tipo: 'ABERTA', negocios: 2, demonstracao: 0, valor: 500, valor_demonstracao: 0 },
+        { id: 'e3', nome: 'Fechado', tipo: 'GANHO', negocios: 3, demonstracao: 0, valor: 3000, valor_demonstracao: 0 },
+        { id: 'e4', nome: 'Perdido', tipo: 'PERDIDO', negocios: 1, demonstracao: 0, valor: 0, valor_demonstracao: 0 },
+      ]],
+      [/where o\.etapa_id = /, [{ linha: { titulo: 'Apto Centro', cliente: 'Ana', cliente_id: ID, valor: 300 }, total: 2 }]],
+      [/count\(\*\)::int as n from public\.historico_contatos/, [{ n: 14 }]],
+      [/from public\.historico_contatos h/, [{ linha: { data: '10/10/2026 18:00', canal: 'WHATSAPP', direcao: 'Recebido', conteudo: 'Oi' } }]],
+    ]);
+    expect(JSON.parse(await m.s.executar('get_alerts', { prioridade: 'ALTA' }, ctxHoje))).toEqual({
+      total: 3, mostrando: 1, alertas: [{ tipo: 'Lead quente', mensagem: 'Ana quer visitar', prioridade: 'Alta', criado_em: '11/10/2026 09:00' }],
+    });
+    expect(uma(sqls(m.tx.$queryRaw, /from public\.alertas a/)[0])).toMatch(/a\.metadata->>'prioridade' = \$\d+::text/);
+
+    const funil = JSON.parse(await m.s.executar('get_funnel_stats', { etapa: 'visita agendada' }, ctxHoje));
+    expect(funil.etapas[0]).toEqual({ etapa: 'Novo lead', situacao: 'Em aberto', negocios: 4, valor: 900, demonstracao: 1 });
+    expect(funil.resumo).toMatchObject({ em_aberto: 5, valor_em_aberto: 1300, ganhos: 3, valor_ganho: 3000, perdidos: 1, taxa_conversao: '75%' });
+    expect(funil.etapa).toEqual({ nome: 'Visita agendada', total: 2, mostrando: 1, negocios: [{ titulo: 'Apto Centro', cliente: 'Ana', cliente_id: ID, valor: 300 }] });
+    expect(uma(sqls(m.tx.$queryRaw, /from public\.crm_etapas e/)[0])).toContain('where e.ativo = true');
+    expect(JSON.parse(await m.s.executar('get_funnel_stats', { etapa: 'nenhuma' }, ctxHoje)).etapa.error).toBe('etapa_nao_encontrada');
+
+    expect(JSON.parse(await m.s.executar('get_contact_history', { client_id: ID }, ctxHoje))).toEqual({
+      total: 14, mostrando: 1, contatos: [{ data: '10/10/2026 18:00', canal: 'WhatsApp', direcao: 'Recebido', conteudo: 'Oi' }],
+    });
+    expect(JSON.parse(await m.s.executar('get_contact_history', { client_id: 'x' }, ctxHoje))).toEqual({ error: 'invalid_client_id' });
+    expect(JSON.parse(await m.s.executar('nao_existe', {}, ctxHoje))).toEqual({ error: 'Unknown tool: nao_existe' });
+    expect(JSON.parse(await m.s.executar('get_alerts', {}, ctxHoje, []))).toEqual({ error: 'tool_not_available' });
   });
 
   it('erro do banco numa leitura volta como { error } para o modelo', async () => {
     const m = montar([[/from public\.lancamentos_financeiros/, () => { throw erroPrisma('22007'); }]]);
-    expect(JSON.parse(await m.s.executar('get_financial_entries', { date_from: 'ontem' }, ctx))).toEqual({ error: 'query_failed' });
+    expect(JSON.parse(await m.s.executar('get_financial_entries', { date_from: '2026-01-01' }, ctx))).toEqual({ error: 'query_failed' });
   });
 
   it('suggest_action grava a proposta pelo caminho privilegiado e devolve a ação pendente', async () => {
@@ -177,9 +329,18 @@ describe('FerramentasIaService', () => {
     expect(JSON.parse(q.values[6] as string)).toEqual({ action_type: 'create_alert', description: 'Criar alerta', fields: ['mensagem', 'prioridade'] });
   });
 
+  it('suggest_action com cliente: o cartão recebe o nome (lido com o RLS de quem conversa), nunca só o ID', async () => {
+    const m = montar([[/select c\.nome from public\.clientes c/, [{ nome: 'Ana Souza' }]]]);
+    const r = JSON.parse(await m.s.executar('suggest_action', {
+      action_type: 'schedule_followup', params: { client_id: ID, date: '2026-10-12' }, description: 'Follow-up com Ana Souza em 12/10/2026',
+    }, ctx));
+    expect(r.action).toMatchObject({ action_type: 'schedule_followup', cliente_nome: 'Ana Souza', params: { client_id: ID, date: '2026-10-12' } });
+    expect(m.db.run.mock.calls[0][0]).toBe(claims);
+  });
+
   it('suggest_action inválida ou sem tabela de propostas: erros da função', async () => {
     const m = montar([], [[/ai_action_proposals/, () => { throw erroPrisma('42P01'); }]]);
-    expect(JSON.parse(await m.s.executar('suggest_action', { action_type: 'apagar_tudo' }, ctx)).error).toBe('invalid_action_schema');
+    expect(JSON.parse(await m.s.executar('suggest_action', { action_type: 'apagar_tudo' }, ctx))).toMatchObject({ error: 'invalid_action_schema', campo: 'action_type' });
     expect(JSON.parse(await m.s.executar('suggest_action', { action_type: 'create_alert', params: { mensagem: 'x' }, description: 'd' }, ctx))).toEqual({
       error: 'action_persistence_unavailable', message: 'A ação não pôde ser preparada com segurança. Tente novamente.',
     });

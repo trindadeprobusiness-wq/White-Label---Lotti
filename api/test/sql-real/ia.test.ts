@@ -18,6 +18,8 @@ import { FerramentasIaService } from '../../src/ia/ferramentas.service';
 import { FotosIaService } from '../../src/ia/fotos.service';
 import { AlterarConversaDto, AssistenteDto, DecisaoAcaoDto, SugestaoInboxDto } from '../../src/ia/ia.dto';
 import { MensagensIaService } from '../../src/ia/mensagens.service';
+import { diaBr, diaNoFuso, FUSO_PADRAO, fimDoMes, inicioDoMes, somarDias } from '../../src/ia/periodo';
+import { VERSOES_PROMPT_IA } from '../../src/ia/prompts';
 import type { PrismaService } from '../../src/prisma/prisma.service';
 import type { StorageService } from '../../src/storage/storage.service';
 import { type BancoTeste, capturarErroHttp, criarBanco } from './harness';
@@ -30,6 +32,8 @@ let assistente: AssistenteService;
 let acao: AcaoIaService;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// "Hoje" de quem conversa (São Paulo): o lançamento do teste é do dia 1º do mês, sempre dentro do mês e até hoje.
+const HOJE = diaNoFuso(new Date(), FUSO_PADRAO);
 const INEXISTENTE = '99999999-9999-4999-8999-999999999999';
 const ambiente = { ...process.env };
 
@@ -79,7 +83,7 @@ before(async () => {
   imovelB = String((await banco.inserir('imoveis', {
     corretor_id: banco.corretorB, titulo: 'Apto B', tipo: 'APARTAMENTO', valor: 1, endereco: 'Rua 2', cidade: 'Goiânia', proprietario_nome: 'Dono B',
   }, { semGatilhos: true })).id);
-  await banco.inserir('lancamentos_financeiros', { corretor_id: banco.corretorA, tipo: 'RECEITA', categoria: 'COMISSAO_VENDA', descricao: 'Venda', valor: 1500.5, data: new Date().toISOString() });
+  await banco.inserir('lancamentos_financeiros', { corretor_id: banco.corretorA, tipo: 'RECEITA', categoria: 'COMISSAO_VENDA', descricao: 'Venda', valor: 1500.5, data: `${inicioDoMes(HOJE)}T00:00:00Z` });
   await banco.inserir('historico_contatos', { cliente_id: clienteA, tipo: 'WHATSAPP', direcao: 'IN', conteudo: 'Quero visitar' });
 });
 
@@ -127,33 +131,119 @@ describe('ferramentas de leitura (TenantDb)', () => {
 
   test('search_clients e get_client_details só enxergam a conta de quem conversa', async () => {
     const achados = JSON.parse(await ferramentas.executar('search_clients', { query: 'Ana' }, ctx()));
-    assert.deepEqual(achados.map((c: { id: string }) => c.id), [clienteA]);
-    assert.equal(achados[0].status_funil, 'QUALIFICACAO');
+    assert.deepEqual(achados.clientes.map((c: { id: string }) => c.id), [clienteA]);
+    assert.equal(achados.total, 1);
+    assert.equal(achados.clientes[0].status, 'Qualificação');
+    // pelo telefone formatado, comparando só os dígitos
+    assert.deepEqual(JSON.parse(await ferramentas.executar('search_clients', { query: '(62) 99999-0001' }, ctx())).clientes.map((c: { id: string }) => c.id), [clienteA]);
+    // colado do WhatsApp, com o 55 do país
+    assert.deepEqual(JSON.parse(await ferramentas.executar('search_clients', { query: '+55 62 99999-0001' }, ctx())).clientes.map((c: { id: string }) => c.id), [clienteA]);
     const detalhe = JSON.parse(await ferramentas.executar('get_client_details', { client_id: clienteA }, ctx()));
-    assert.equal(detalhe.client.id, clienteA);
-    assert.deepEqual(detalhe.history.map((h: { conteudo: string }) => h.conteudo), ['Quero visitar']);
+    assert.equal(detalhe.cliente.id, clienteA);
+    assert.deepEqual(detalhe.contatos.map((h: { conteudo: string }) => h.conteudo), ['Quero visitar']);
     const deB = JSON.parse(await ferramentas.executar('get_client_details', { client_id: clienteB }, ctx()));
-    assert.deepEqual(deB, { client: null, history: [] });
+    assert.deepEqual(deB, { cliente: null, negocios: [], contatos: [] });
   });
 
   test('as outras leituras rodam no Postgres sem erro e respeitam o RLS', async () => {
     const imoveis = JSON.parse(await ferramentas.executar('search_properties', { cidade: 'anáp', preco_max: 500000, tipo: 'CASA' }, ctx()));
-    assert.deepEqual(imoveis.map((i: { id: string }) => i.id), [imovelA]);
-    assert.equal(imoveis[0].valor, 450000);
+    assert.deepEqual(imoveis.imoveis.map((i: { id: string }) => i.id), [imovelA]);
+    assert.equal(imoveis.imoveis[0].valor, 450000);
+    assert.equal(imoveis.imoveis[0].tipo, 'Casa');
     const detalhe = JSON.parse(await ferramentas.executar('get_property_details', { property_id: imovelB }, ctx()));
-    assert.deepEqual(detalhe, { property: null, photos: [] });
+    assert.deepEqual(detalhe, { imovel: null });
+    const ficha = JSON.parse(await ferramentas.executar('get_property_details', { property_id: imovelA }, ctx())).imovel;
+    assert.equal(ficha.titulo, 'Casa Centro');
+    assert.equal(ficha.situacao, 'Disponível');
+    assert.equal(ficha.anunciado, false, '"não anunciado" não some');
+    assert.equal('is_sample_data' in ficha || 'proprietario_id' in ficha || 'tracking_data' in ficha, false);
+    assert.equal(JSON.parse(await ferramentas.executar('search_properties', { situacao: 'VENDIDO' }, ctx())).total, 0);
     const resumo = JSON.parse(await ferramentas.executar('get_financial_summary', {}, ctx()));
-    assert.deepEqual(resumo, { period: 'month', receita: 1500.5, despesa: 0, saldo: 1500.5, total_lancamentos: 1 });
+    assert.deepEqual(
+      { periodo: resumo.periodo, receitas: resumo.receitas, despesas: resumo.despesas, saldo: resumo.saldo, total: resumo.total_lancamentos },
+      { periodo: { de: diaBr(inicioDoMes(HOJE)), ate: diaBr(fimDoMes(HOJE)) }, receitas: 1500.5, despesas: 0, saldo: 1500.5, total: 1 });
+    assert.deepEqual(resumo.lancado_ate_hoje, { receitas: 1500.5, despesas: 0, saldo: 1500.5 });
     const lancamentos = JSON.parse(await ferramentas.executar('get_financial_entries', { tipo: 'RECEITA', date_from: '2000-01-01' }, ctx()));
-    assert.equal(lancamentos.length, 1);
-    assert.equal(lancamentos[0].valor, 1500.5);
-    assert.deepEqual(JSON.parse(await ferramentas.executar('get_contracts', { status: 'RASCUNHO', tipo: 'XYZ' }, ctx())), []);
-    assert.deepEqual(JSON.parse(await ferramentas.executar('get_alerts', { tipo: 'GERAL', prioridade: 'ALTA' }, ctx())), []);
-    assert.deepEqual(JSON.parse(await ferramentas.executar('get_funnel_stats', {}, ctx())), { total: 1, by_status: { QUALIFICACAO: 1 } });
-    assert.equal(JSON.parse(await ferramentas.executar('get_contact_history', { client_id: clienteA }, ctx())).length, 1);
-    // filtro inválido do modelo: o erro volta para ele e a conversa segue
-    assert.deepEqual(JSON.parse(await ferramentas.executar('get_financial_entries', { date_from: 'ontem' }, ctx())), { error: 'query_failed' });
+    assert.equal(lancamentos.total, 1);
+    assert.equal(lancamentos.lancamentos[0].valor, 1500.5);
+    assert.equal(lancamentos.lancamentos[0].data, diaBr(inicioDoMes(HOJE)));
+    assert.equal(lancamentos.lancamentos[0].categoria, 'Comissão de Venda');
+    assert.deepEqual(JSON.parse(await ferramentas.executar('get_contracts', { status: 'RASCUNHO', tipo: 'LOCACAO' }, ctx())), { total: 0, mostrando: 0, soma_valor: 0, contratos: [] });
+    assert.equal(JSON.parse(await ferramentas.executar('get_contracts', { tipo: 'XYZ' }, ctx())).error, 'invalid_tipo');
+    assert.deepEqual(JSON.parse(await ferramentas.executar('get_alerts', { tipo: 'GERAL', prioridade: 'ALTA' }, ctx())), { total: 0, mostrando: 0, alertas: [] });
+    const funil = JSON.parse(await ferramentas.executar('get_funnel_stats', {}, ctx()));
+    assert.equal(funil.etapas.length, 9, 'as 9 etapas que o gatilho cria para a conta');
+    assert.equal(funil.resumo.em_aberto, 0);
+    assert.equal(JSON.parse(await ferramentas.executar('get_contact_history', { client_id: clienteA }, ctx())).total, 1);
+    // data inválida do modelo: o erro volta para ele e a conversa segue
+    assert.equal(JSON.parse(await ferramentas.executar('get_financial_entries', { date_from: 'ontem' }, ctx())).error, 'invalid_date');
     assert.equal(banco.transacoes.commitsAbortados, 0);
+  });
+
+  test('os números batem com as telas: sem retorno, contratos vencendo, funil e financeiro com previsto', async () => {
+    try {
+      const semRetorno = String((await banco.inserir('clientes', {
+        corretor_id: banco.corretorA, nome: 'Caio Sumido', telefone: '62999990009', ultimo_contato: new Date(Date.now() - 40 * 86_400_000).toISOString(),
+        proximo_followup: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+      })).id);
+      await banco.inserir('clientes', {
+        corretor_id: banco.corretorA, nome: 'Cliente demonstração', telefone: '62999990011', is_sample_data: true,
+        proximo_followup: new Date(Date.now() - 86_400_000).toISOString(),
+      });
+      const followups = JSON.parse(await ferramentas.executar('search_clients', { ordem: 'proximo_followup', followup_ate: HOJE }, ctx()));
+      assert.deepEqual(followups.clientes.map((c: { id: string; followup_atrasado: boolean }) => [c.id, c.followup_atrasado]), [[semRetorno, true]],
+        'só follow-ups marcados, sem demonstração, como Próximos contatos do Início');
+      assert.equal(followups.total, 1);
+      await banco.inserir('clientes', {
+        corretor_id: banco.corretorA, nome: 'Dora Fechada', telefone: '62999990010', status_funil: 'FECHADO_GANHO',
+        ultimo_contato: new Date(Date.now() - 90 * 86_400_000).toISOString(),
+      });
+      const sem = JSON.parse(await ferramentas.executar('search_clients', { ordem: 'sem_contato' }, ctx()));
+      assert.deepEqual(sem.clientes.map((c: { id: string }) => c.id), [semRetorno], 'fechado e quem falou há menos de 30 dias ficam fora');
+      assert.equal(sem.clientes[0].dias_sem_contato >= 39, true);
+
+      const fimLocacao = somarDias(HOJE, 20);
+      await banco.inserir('contratos', {
+        corretor_id: banco.corretorA, cliente_id: semRetorno, imovel_id: imovelA, tipo: 'LOCACAO_RESIDENCIAL', valor: 2000, data_inicio: '2025-01-01',
+        // como o cadastro manual grava: 00:00 UTC, que em São Paulo ainda é o dia anterior (é o que a tela mostra)
+        status: 'ATIVO', conteudo: JSON.stringify({ obs: 'x', data_fim_calculada: `${fimLocacao}T00:00:00.000Z` }),
+      }, { semGatilhos: true }); // sem o gatilho do limite de contratos do plano
+      await banco.inserir('contratos', {
+        corretor_id: banco.corretorA, tipo: 'EXCLUSIVIDADE_VENDA', valor: 0, data_inicio: '2025-01-01', data_fim: somarDias(HOJE, 200),
+        status: 'VIGENTE', conteudo: 'Contrato de exclusividade',
+      }, { semGatilhos: true });
+      const ativos = JSON.parse(await ferramentas.executar('get_contracts', { ativos: true }, ctx()));
+      assert.deepEqual([ativos.total, ativos.soma_valor], [1, 2000], 'ativos = status ATIVO, como a tela Aluguéis');
+      const vencendo = JSON.parse(await ferramentas.executar('get_contracts', { vence_em_dias: 30 }, ctx()));
+      assert.deepEqual(vencendo.contratos.map((c: { fim: string; cliente: string; imovel: string }) => [c.fim, c.cliente, c.imovel]), [[diaBr(somarDias(fimLocacao, -1)), 'Caio Sumido', 'Casa Centro']]);
+      assert.equal(JSON.parse(await ferramentas.executar('get_contracts', { tipo: 'LOCACAO' }, ctx())).total, 1, 'locação = residencial e comercial');
+
+      const [etapa] = await banco.sqlSuperusuario<{ id: string; nome: string }>(
+        "select id::text as id, nome from public.crm_etapas where corretor_id = $1::uuid and tipo = 'ABERTA' and ativo order by ordem limit 1", [banco.corretorA]);
+      await banco.inserir('crm_oportunidades', { corretor_id: banco.corretorA, cliente_id: semRetorno, etapa_id: etapa.id, titulo: 'Casa do Caio', valor_estimado: 450000 });
+      await banco.inserir('crm_oportunidades', { corretor_id: banco.corretorA, etapa_id: etapa.id, titulo: 'Exemplo', valor_estimado: 1, is_sample_data: true });
+      const funil = JSON.parse(await ferramentas.executar('get_funnel_stats', { etapa: etapa.nome }, ctx()));
+      assert.deepEqual(funil.etapas[0], { etapa: etapa.nome, situacao: 'Em aberto', negocios: 2, valor: 450001, demonstracao: 1 }, 'a coluna conta como o kanban');
+      assert.deepEqual([funil.resumo.em_aberto, funil.resumo.valor_em_aberto], [1, 450000], 'o resumo tira a demonstração');
+      assert.deepEqual(funil.etapa.negocios.map((n: { titulo: string }) => n.titulo).sort(), ['Casa do Caio', 'Exemplo']);
+      assert.equal((await ferramentas.executar('search_clients', { query: 'Caio' }, ctx())).includes(`"etapa_funil":"${etapa.nome}"`), true);
+
+      const futuro = somarDias(HOJE, 10);
+      await banco.inserir('lancamentos_financeiros', { corretor_id: banco.corretorA, tipo: 'RECEITA', categoria: 'TAXA_ADMINISTRACAO', descricao: 'Aluguel', valor: 200, data: `${futuro}T00:00:00Z` });
+      const periodo = JSON.parse(await ferramentas.executar('get_financial_summary', { date_from: inicioDoMes(HOJE), date_to: somarDias(HOJE, 30) }, ctx()));
+      assert.equal(periodo.receitas, 1700.5);
+      assert.deepEqual(periodo.lancado_ate_hoje, { receitas: 1500.5, despesas: 0, saldo: 1500.5 });
+      assert.deepEqual(periodo.previsto_depois_de_hoje, { receitas: 200, despesas: 0 });
+      const lista = JSON.parse(await ferramentas.executar('get_financial_entries', { date_from: futuro, date_to: futuro }, ctx()));
+      assert.deepEqual([lista.total, lista.soma_receitas, lista.lancamentos[0].futuro], [1, 200, true]);
+      assert.equal(banco.transacoes.commitsAbortados, 0);
+    } finally {
+      // limpa o que só este teste usa, para os outros testes contarem como antes
+      await banco.sqlSuperusuario("delete from public.lancamentos_financeiros where descricao = 'Aluguel'");
+      await banco.sqlSuperusuario('delete from public.crm_oportunidades where corretor_id = $1::uuid', [banco.corretorA]);
+      await banco.sqlSuperusuario('delete from public.contratos where corretor_id = $1::uuid', [banco.corretorA]);
+      await banco.sqlSuperusuario("delete from public.clientes where nome in ('Caio Sumido', 'Dora Fechada', 'Cliente demonstração')");
+    }
   });
 });
 
@@ -169,14 +259,19 @@ describe('assistente: preparo, stream e caminhos privilegiados', () => {
     assert.match(sessao.mensagens[0].content, /- Receita do mês: R\$ 1\.500,50/);
     const eventos: EventoAssistente[] = [];
     await assistente.transmitir(sessao, (e) => eventos.push(e));
-    assert.deepEqual(eventos.at(-1), { type: 'done', conversation_id: sessao.conversationId, trace_id: sessao.pedido.traceId, prompt_version: 'assistant.general@2026-08-20.1' });
+    const done = eventos.at(-1) as Extract<EventoAssistente, { type: 'done' }>;
+    assert.deepEqual({ ...done, duracao_ms: 0 }, {
+      type: 'done', conversation_id: sessao.conversationId, trace_id: sessao.pedido.traceId, prompt_version: VERSOES_PROMPT_IA.assistant, consultas: 0, duracao_ms: 0,
+    });
+    assert.ok(Number.isInteger(done.duracao_ms) && Number(done.duracao_ms) >= 0);
 
     const msgs = await conversas.mensagens(banco.claimsA, sessao.conversationId);
     assert.deepEqual(msgs.map((m) => [m.role, m.content]), [['user', 'Quantos clientes?'], ['assistant', 'Você tem **1** cliente.']]);
     assert.equal((msgs[0].metadata as Record<string, unknown>).module, 'clients');
     const [conv] = await banco.sqlSuperusuario<{ title: string; corretor_id: string; model: string }>(
       'select title, corretor_id::text, model from public.ai_conversations where id = $1', [sessao.conversationId]);
-    assert.deepEqual(conv, { title: 'Você tem 1 cliente.', corretor_id: banco.corretorA, model: 'gemini-3.1-flash-lite' });
+    assert.deepEqual(conv, { title: 'Quantos clientes?', corretor_id: banco.corretorA, model: 'gemini-3.1-flash-lite' });
+    assert.equal((msgs[1].metadata as Record<string, unknown>).consultas, 0, 'a resposta guarda o rodapé');
     const [uso] = await banco.sqlSuperusuario<{ used_quantity: number }>(
       "select used_quantity from public.usage_counters where corretor_id = $1 and feature_key = 'ai_assistant_monthly'", [banco.corretorA]);
     assert.equal(uso.used_quantity, 1);

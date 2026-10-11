@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
+import { diaDoLancamento } from '@/lib/formato';
 import { Calendar as CalendarIcon, Plus, Edit2 } from 'lucide-react';
 import {
   Dialog,
@@ -94,23 +95,11 @@ export function NovoLancamentoDialog({
       setValue('descricao', lancamentoToEdit.descricao);
       setValue('valor', Number(lancamentoToEdit.valor));
 
-      let safeDate = new Date();
-      if (lancamentoToEdit.data) {
-        // Handle both YYYY-MM-DD and ISO formats
-        const dateStr = lancamentoToEdit.data;
-        if (dateStr.includes('T')) {
-          safeDate = new Date(dateStr);
-        } else {
-          // Append time to ensure local date matches
-          safeDate = new Date(dateStr + 'T12:00:00');
-        }
-      }
-
-      // Fallback if date is invalid
-      if (isNaN(safeDate.getTime())) {
-        console.error("Invalid date found in record:", lancamentoToEdit.data);
-        safeDate = new Date();
-      }
+      // Vale o dia gravado ('2026-10-01' ou '2026-10-01T00:00:00+00:00'): lido no fuso local, o ISO virava o
+      // dia anterior e salvar sem mexer na data gravava esse dia errado.
+      const dia = diaDoLancamento(lancamentoToEdit.data);
+      if (lancamentoToEdit.data && !dia) console.error("Invalid date found in record:", lancamentoToEdit.data);
+      const safeDate = dia ?? new Date();
 
       setValue('data', safeDate);
       setValue('recorrente', lancamentoToEdit.recorrente ?? false);

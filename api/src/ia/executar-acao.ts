@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { PropostaValidada } from './acoes';
+import { diaNoFuso, FUSO_PADRAO } from './periodo';
 
 type Tx = Prisma.TransactionClient;
 
@@ -65,8 +66,10 @@ export async function executarAcao(tx: Tx, corretorId: string, proposta: Propost
       return { record_id: id(r, 'client_not_authorized') };
     }
     case 'schedule_followup': {
+      // Meio-dia de Brasília: cai no mesmo dia em todos os fusos do Brasil (UTC-2 a UTC-5); a meia-noite virava
+      // o dia anterior em Manaus ou Cuiabá. As telas só mostram o dia do follow-up.
       const r = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        update public.clientes set proximo_followup = ${String(p.date)}::timestamptz
+        update public.clientes set proximo_followup = (${String(p.date)}::date + time '12:00') at time zone ${FUSO_PADRAO}::text
         where id = ${String(p.client_id)}::uuid and corretor_id = ${corretorId}::uuid returning id::text as id`);
       return { record_id: id(r, 'client_not_authorized') };
     }
@@ -104,7 +107,7 @@ export async function executarAcao(tx: Tx, corretorId: string, proposta: Propost
       const r = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         insert into public.lancamentos_financeiros (tipo, categoria, descricao, valor, data, recorrente, corretor_id)
         values (${String(p.tipo)}::text, ${String(p.categoria)}::text, ${String(p.descricao)}::text, ${Number(p.valor)}::numeric,
-          ${String(p.data || new Date().toISOString().slice(0, 10))}::timestamptz, ${p.recorrente === true}::boolean, ${corretorId}::uuid)
+          ${String(p.data || diaNoFuso(new Date(), FUSO_PADRAO))}::timestamptz, ${p.recorrente === true}::boolean, ${corretorId}::uuid)
         returning id::text as id`);
       return { record_id: id(r, 'create_financial_entry_failed') };
     }

@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { MetricCard, SectionCard } from '@/components/shell/primitivos';
-import { moeda, percentual } from '@/lib/formato';
+import { diaDoLancamento, moeda, percentual } from '@/lib/formato';
 import { DadoSensivel } from '@/components/ui/dado-sensivel';
 import { Dinheiro } from '@/components/ui/dinheiro';
 import {
@@ -190,7 +190,7 @@ function LinhaDetalhe({ linha }: { linha: LinhaDRE }) {
                   {l.subcategoria || l.descricao}
                 </span>
                 <span className="text-muted-foreground/60 shrink-0">
-                  {format(new Date(l.data + 'T12:00:00'), 'dd/MM', { locale: ptBR })}
+                  {(() => { const dia = diaDoLancamento(l.data); return dia ? format(dia, 'dd/MM', { locale: ptBR }) : '—'; })()}
                 </span>
               </div>
               <span className="text-xs tabular font-medium shrink-0">

@@ -9,13 +9,14 @@ import {
 } from './conversas.service';
 import { checarCota, ClienteSql, consumirLimiteIa, COTA_ASSISTENTE, registrarUso } from './cotas';
 import { FERRAMENTAS_ASSISTENTE } from './ferramentas';
-import { FerramentasIaService } from './ferramentas.service';
+import { FerramentasIaService, RegistroCitado, registrosCitados } from './ferramentas.service';
 import { juntarSinais, modeloReserva } from '../contratos/ia/gemini';
 import { chatIa, chaveGemini, estimarUso, FetchImpl, modeloRapido } from './gemini';
 import { AssistenteDto } from './ia.dto';
 import { codigoDe, erroApi, IA_INDISPONIVEL, SEM_CORRETOR, traduzirErroBanco } from './ia.erros';
 import { MAX_RODADAS_FERRAMENTA, normalizarPedidoIa, PedidoIa, PedidoIaInvalido } from './pedido';
-import { promptSistemaAssistente, VERSOES_PROMPT_IA } from './prompts';
+import { fusoValido } from './periodo';
+import { ModoAssistente, modoDoPedido, promptSistemaAssistente, VERSOES_PROMPT_IA } from './prompts';
 import { finalizarExecucao, FimExecucao, iniciarExecucao, registrarFerramenta } from './telemetria';
 
 export const MENSAGENS_POR_MINUTO = 30;
@@ -24,13 +25,21 @@ export const TIMEOUT_ASSISTENTE_MS = 60_000;
 /** Sem texto nem ferramenta nesse tempo, o modelo travou: a rodada é refeita com o reserva. */
 export const PRIMEIRO_PEDACO_MS = 12_000;
 export const ERRO_DEMOROU = 'A IA demorou demais para responder. Tente de novo.';
+export const ERRO_INTERNO = 'Erro interno. Tente de novo.';
+/**
+ * Texto de uma rodada fica retido até este tamanho: se a rodada terminar chamando ferramenta, era preâmbulo
+ * ("vou consultar...") e não vai para a tela nem fica gravado. Passou disso, é resposta e segue em stream.
+ */
+export const LIMITE_PREAMBULO = 280;
+/** Registros citados que voltam no prompt do turno seguinte. */
+export const MAX_REGISTROS_CITADOS = 20;
 
 /** Eventos do stream, no formato exato da Edge Function: data: {"type":...}. */
 export type EventoAssistente =
   | { type: 'text'; content: string }
   | { type: 'action'; action: Record<string, unknown> }
   | { type: 'error'; error: string }
-  | { type: 'done'; conversation_id: string; trace_id: string; prompt_version: string };
+  | { type: 'done'; conversation_id: string; trace_id: string; prompt_version: string; consultas?: number; duracao_ms?: number };
 
 interface MensagemChat {
   role: string;
@@ -58,6 +67,37 @@ export interface SessaoAssistente {
   mensagens: MensagemChat[];
   runId: string | null;
   inicio: number;
+  /** chat (Assistente), estruturado (extração de documento) ou onboarding: muda prompt, ferramentas e título. */
+  modo: ModoAssistente;
+  agora: Date;
+  fuso: string;
+}
+
+/** Ferramentas que cada modo oferece: a extração responde só o JSON e o onboarding só orienta. */
+export function ferramentasDoModo(modo: ModoAssistente): typeof FERRAMENTAS_ASSISTENTE {
+  return modo === 'chat' ? FERRAMENTAS_ASSISTENTE : [];
+}
+
+/** Título da conversa nova: a pergunta da pessoa (a resposta começa por "Leitura" ou é o JSON de um contrato). */
+export function tituloDaConversa(modo: ModoAssistente, intent: string, mensagem: string): string {
+  if (modo === 'estruturado') return intent === 'contracts.extraction' ? 'Extração de contrato' : 'Extração de dados';
+  if (modo === 'onboarding') return 'Ajuda da configuração';
+  const linha = mensagem.split('\n').map((l) => l.replace(/[#*_|`>]/g, '').replace(/\s+/g, ' ').trim()).find(Boolean) ?? '';
+  return linha.slice(0, 80) || 'Nova conversa';
+}
+
+/** Registros citados nas últimas respostas (a mais nova primeiro), sem repetir. */
+export function registrosDoHistorico(historico: LinhaHistorico[]): RegistroCitado[] {
+  const vistos = new Map<string, RegistroCitado>();
+  for (const linha of historico) {
+    if (linha.role !== 'assistant') continue;
+    const lista = (linha.metadata as { registros?: unknown } | null | undefined)?.registros;
+    if (!Array.isArray(lista)) continue;
+    for (const r of lista as RegistroCitado[]) {
+      if (r && typeof r.id === 'string' && !vistos.has(r.id)) vistos.set(r.id, r);
+    }
+  }
+  return [...vistos.values()].slice(0, MAX_REGISTROS_CITADOS);
 }
 
 const CONVERSA_NAO_ENCONTRADA = () => erroApi(404, 'conversa_nao_encontrada', 'Conversa não encontrada.');
@@ -139,6 +179,9 @@ export class AssistenteService {
     const fileContext = typeof dto.file_context === 'string' ? dto.file_context : undefined;
     const modelo = modeloRapido();
     const inicio = Date.now();
+    const agora = new Date(inicio);
+    const fuso = fusoValido(pedido.timezone);
+    const modo = modoDoPedido(pedido);
 
     const runId = await iniciarExecucao(this.sql, {
       traceId: pedido.traceId,
@@ -151,7 +194,7 @@ export class AssistenteService {
       outputMode: pedido.outputMode,
       inputChars: pedido.message.length + (fileContext?.length ?? 0),
       confirmationRequired: pedido.requiresConfirmation,
-      metadata: { entity_count: pedido.entityRefs.length },
+      metadata: { entity_count: pedido.entityRefs.length, modo },
     });
 
     let preparo: { conversationId: string; historico: LinhaHistorico[]; crm: string };
@@ -176,7 +219,8 @@ export class AssistenteService {
           },
         });
         const historico = await historicoRecente(tx, conversationId, MAX_MENSAGENS_CONTEXTO);
-        const crm = await contextoCrm(tx);
+        // Extração e onboarding não usam o resumo da conta.
+        const crm = modo === 'chat' ? await contextoCrm(tx, agora, fuso) : '';
         return { conversationId, historico, crm };
       });
     } catch (e) {
@@ -184,7 +228,10 @@ export class AssistenteService {
       traduzirErroBanco(e);
     }
 
-    const sistema = promptSistemaAssistente({ module: pedido.module, crmContext: preparo.crm, fileContext });
+    const sistema = promptSistemaAssistente({
+      module: pedido.module, crmContext: preparo.crm, fileContext, intent: pedido.intent, outputMode: pedido.outputMode,
+      agora, timezone: fuso, registros: registrosDoHistorico(preparo.historico),
+    });
     return {
       claims,
       corretorId,
@@ -196,6 +243,9 @@ export class AssistenteService {
       mensagens: mensagensDoHistorico(sistema, preparo.historico),
       runId,
       inicio,
+      modo,
+      agora,
+      fuso,
     };
   }
 
@@ -208,8 +258,8 @@ export class AssistenteService {
     }
   }
 
-  private async tocarConversa(s: SessaoAssistente, conteudoFinal: string): Promise<void> {
-    const titulo = s.novaConversa ? conteudoFinal.slice(0, 80).replace(/[#*_]/g, '').trim() || 'Nova conversa' : null;
+  private async tocarConversa(s: SessaoAssistente): Promise<void> {
+    const titulo = s.novaConversa ? tituloDaConversa(s.modo, s.pedido.intent, s.pedido.message) : null;
     try {
       await this.db.run(s.claims, (tx) => tx.$executeRaw(Prisma.sql`
         update public.ai_conversations set title = coalesce(${titulo}::text, title), updated_at = now()
@@ -224,6 +274,14 @@ export class AssistenteService {
     let rodada = 0;
     let outputChars = 0;
     let providerInputChars = 0;
+    /** Consultas de leitura feitas no turno e a duração: o rodapé "N consultas · X s" da resposta. */
+    let consultas = 0;
+    let duracaoMs = 0;
+    /** Já saiu texto para a tela em alguma rodada: o texto da rodada seguinte entra num parágrafo novo. */
+    let emitiuTexto = false;
+    const registros = new Map<string, RegistroCitado>();
+    const ferramentas = ferramentasDoModo(s.modo);
+    const permitidas = ferramentas.map((f) => f.function.name);
     const atuais = [...s.mensagens];
     const uso = () => estimarUso(providerInputChars, outputChars);
     const fim = (f: Omit<FimExecucao, 'latencyMs'>) => finalizarExecucao(this.sql, s.runId, { ...f, latencyMs: Date.now() - s.inicio });
@@ -240,10 +298,19 @@ export class AssistenteService {
           break;
         }
 
-        providerInputChars += JSON.stringify({ messages: atuais, tools: FERRAMENTAS_ASSISTENTE }).length;
+        providerInputChars += JSON.stringify({ messages: atuais, tools: ferramentas }).length;
         let conteudo = '';
         let chamadas: ChamadaFerramenta[] = [];
         let temChamadas = false;
+        let segurado = '';
+        let soltou = false;
+        const soltar = (texto: string) => {
+          if (!texto) return;
+          if (emitiuTexto && !soltou) emitir({ type: 'text', content: '\n\n' });
+          soltou = true;
+          emitiuTexto = true;
+          emitir({ type: 'text', content: texto });
+        };
         // O 3.8-flash chegou a ficar 60 s sem mandar nada (08/10/2026). Vigia o primeiro texto ou
         // ferramenta: sem nada em primeiroPedacoMs, corta e o catch abaixo refaz com o reserva.
         const parado = new AbortController();
@@ -259,7 +326,7 @@ export class AssistenteService {
           const resposta = await chatIa({
             chave: s.chave,
             modelo,
-            corpo: { messages: atuais, tools: FERRAMENTAS_ASSISTENTE, stream: true },
+            corpo: { messages: atuais, ...(ferramentas.length ? { tools: ferramentas } : {}), stream: true },
             politica: { timeoutMs: TIMEOUT_ASSISTENTE_MS, sinal: juntarSinais(sinal, parado.signal) },
             fetchImpl: this.fetchImpl,
           });
@@ -294,7 +361,17 @@ export class AssistenteService {
                 if (delta?.content) {
                   conteudo += delta.content;
                   outputChars += delta.content.length;
-                  emitir({ type: 'text', content: delta.content });
+                  // Texto que chega depois de uma chamada de ferramenta é preâmbulo: fica fora da tela.
+                  if (!temChamadas && soltou) {
+                    soltar(delta.content);
+                  } else if (!temChamadas) {
+                    segurado += delta.content;
+                    if (segurado.length >= LIMITE_PREAMBULO) {
+                      const texto = segurado;
+                      segurado = '';
+                      soltar(texto);
+                    }
+                  }
                 }
                 if (delta?.tool_calls) {
                   temChamadas = true;
@@ -315,10 +392,11 @@ export class AssistenteService {
             }
           }
         } catch (e) {
-          // Gemini parado (timeout ou rede) sem ter mandado nada nesta rodada: refaz a rodada uma vez
-          // com o modelo reserva. Se já saiu texto ou ferramenta, refazer duplicaria a resposta.
+          // Gemini parado (timeout ou rede) sem ter mostrado nada nesta rodada: refaz a rodada uma vez com o
+          // modelo reserva (o texto ainda retido é descartado). Se já saiu texto para a tela ou pediu
+          // ferramenta, refazer duplicaria a resposta.
           const reserva = modeloReserva(modelo);
-          if (sinal?.aborted || usouReserva || conteudo || temChamadas || !reserva || reserva === modelo) throw e;
+          if (sinal?.aborted || usouReserva || soltou || temChamadas || !reserva || reserva === modelo) throw e;
           this.log.warn(`IA_ASSISTENTE_RESERVA modelo=${modelo} ${codigoDe(e)} ms=${Date.now() - inicioRodada}`);
           usouReserva = true;
           modelo = reserva;
@@ -331,8 +409,17 @@ export class AssistenteService {
         this.log.log(`IA_ASSISTENTE rodada=${rodada} modelo=${modelo} primeiro_ms=${primeiroMs ?? '-'} ms=${Date.now() - inicioRodada}`);
 
         if (temChamadas && chamadas.length > 0) {
-          await this.gravar(s.claims, { conversationId: s.conversationId, role: 'assistant', content: conteudo, toolCalls: chamadas });
-          atuais.push({ role: 'assistant', content: conteudo, tool_calls: chamadas });
+          // Última rodada permitida pedindo mais consultas: não roda nada (gastaria a consulta e a resposta não viria).
+          if (rodada >= MAX_RODADAS_FERRAMENTA) {
+            falhou = true;
+            await fim({ status: 'blocked', outputChars, ...uso(), errorCode: 'tool_round_limit' });
+            emitir({ type: 'error', error: 'A solicitação exigiu ações demais. Reformule o pedido em uma etapa por vez.' });
+            break;
+          }
+          // Preâmbulo retido não foi mostrado: não fica gravado (reaberta, a conversa não ganha bolha fantasma).
+          const preambulo = soltou ? conteudo : '';
+          await this.gravar(s.claims, { conversationId: s.conversationId, role: 'assistant', content: preambulo, toolCalls: chamadas });
+          atuais.push({ role: 'assistant', content: preambulo, tool_calls: chamadas });
 
           for (const tc of chamadas) {
             let args: Record<string, unknown> = {};
@@ -348,7 +435,15 @@ export class AssistenteService {
               corretorId: s.corretorId,
               userId: s.pedido.userId,
               entityRefs: s.pedido.entityRefs,
-            });
+              agora: s.agora,
+              fuso: s.fuso,
+            }, permitidas);
+            if (tc.function.name !== 'suggest_action' && permitidas.includes(tc.function.name)) consultas += 1;
+            try {
+              for (const r of registrosCitados(tc.function.name, JSON.parse(resultado))) registros.set(r.id, r);
+            } catch {
+              // resultado sem JSON: nada a lembrar
+            }
             await registrarFerramenta(this.sql, s.runId, {
               toolName: tc.function.name,
               toolKind: tc.function.name === 'suggest_action' ? 'proposal' : 'read',
@@ -370,8 +465,20 @@ export class AssistenteService {
             atuais.push({ role: 'tool', content: resultado, tool_call_id: tc.id });
           }
         } else {
-          await this.gravar(s.claims, { conversationId: s.conversationId, role: 'assistant', content: conteudo });
-          await this.tocarConversa(s, conteudo);
+          soltar(segurado);
+          duracaoMs = Date.now() - s.inicio;
+          await this.gravar(s.claims, {
+            conversationId: s.conversationId,
+            role: 'assistant',
+            content: conteudo,
+            metadata: {
+              prompt_version: VERSOES_PROMPT_IA.assistant,
+              consultas,
+              duracao_ms: duracaoMs,
+              ...(registros.size ? { registros: [...registros.values()].slice(0, MAX_REGISTROS_CITADOS) } : {}),
+            },
+          });
+          await this.tocarConversa(s);
           break;
         }
       }
@@ -384,6 +491,8 @@ export class AssistenteService {
           conversation_id: s.conversationId,
           trace_id: s.pedido.traceId,
           prompt_version: VERSOES_PROMPT_IA.assistant,
+          consultas,
+          duracao_ms: duracaoMs,
         });
       }
     } catch (e) {
@@ -393,7 +502,7 @@ export class AssistenteService {
       }
       this.log.error(`IA_ASSISTENTE_STREAM ${codigoDe(e)}`);
       await fim({ status: 'failed', errorCode: 'stream_error' });
-      emitir({ type: 'error', error: (e as { name?: unknown })?.name === 'TimeoutError' ? ERRO_DEMOROU : 'Internal error' });
+      emitir({ type: 'error', error: (e as { name?: unknown })?.name === 'TimeoutError' ? ERRO_DEMOROU : ERRO_INTERNO });
     }
   }
 }

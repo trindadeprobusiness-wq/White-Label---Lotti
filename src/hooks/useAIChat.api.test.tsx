@@ -62,6 +62,70 @@ describe('useAIChat com a API Lotti', () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  it('done com o rodapé grava consultas e duração na resposta; intent do onboarding vai no corpo e no tentar de novo', async () => {
+    m.abrirAssistenteApi.mockResolvedValueOnce(sse(
+      { type: 'text', content: 'Você tem 3 clientes.' },
+      { type: 'done', conversation_id: CONV, trace_id: 't', prompt_version: 'v', consultas: 2, duracao_ms: 4200 },
+    ));
+    const { result } = renderHook(() => useAIChat());
+    await act(() => result.current.sendMessage('Quantos clientes?', 'Persona: corretor.', { intent: 'onboarding.help' }));
+    expect(m.abrirAssistenteApi.mock.calls[0][0]).toMatchObject({ intent: 'onboarding.help', file_context: 'Persona: corretor.' });
+    expect(result.current.messages[1].metadata).toEqual({ consultas: 2, duracao_ms: 4200 });
+    m.abrirAssistenteApi.mockResolvedValueOnce(sse({ type: 'error', error: 'Erro ao comunicar com IA' }));
+    await act(() => result.current.retry());
+    expect(m.abrirAssistenteApi.mock.calls[1][0]).toMatchObject({ intent: 'onboarding.help', message: 'Quantos clientes?' });
+    // erro no stream sem texto: a bolha vazia da resposta sai da tela
+    expect(result.current.messages.map((x) => [x.role, x.content])).toEqual([
+      ['user', 'Quantos clientes?'], ['assistant', 'Você tem 3 clientes.'], ['user', 'Quantos clientes?'],
+    ]);
+    expect(result.current.error).toBe('Erro ao comunicar com IA');
+  });
+
+  it('trocar de conversa no meio do stream encerra o envio: nada cai na conversa nova', async () => {
+    m.abrirAssistenteApi.mockImplementationOnce((_corpo, sinal) => new Promise<Response>((_ok, falha) => {
+      sinal?.addEventListener('abort', () => falha(new DOMException('abortado', 'AbortError')));
+    }));
+    m.listarMensagensIaApi.mockResolvedValueOnce([{ id: 'x', role: 'user', content: 'outra conversa' }]);
+    const { result } = renderHook(() => useAIChat());
+    let envio: Promise<void> = Promise.resolve();
+    act(() => { envio = result.current.sendMessage('pergunta'); });
+    await waitFor(() => expect(result.current.isStreaming).toBe(true));
+    await act(() => result.current.loadConversation(OUTRA));
+    await act(() => envio);
+    expect(result.current.activeConversation).toBe(OUTRA);
+    expect(result.current.messages.map((x) => x.content)).toEqual(['outra conversa']);
+    expect(result.current.isStreaming).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('apagar a conversa aberta no meio do stream encerra o envio', async () => {
+    m.listarMensagensIaApi.mockResolvedValueOnce([]);
+    m.apagarConversaIaApi.mockResolvedValueOnce(undefined);
+    let sinalVisto: AbortSignal | undefined;
+    m.abrirAssistenteApi.mockImplementationOnce((_corpo, sinal) => new Promise<Response>((_ok, falha) => {
+      sinalVisto = sinal;
+      sinal?.addEventListener('abort', () => falha(new DOMException('abortado', 'AbortError')));
+    }));
+    const { result } = renderHook(() => useAIChat());
+    await act(() => result.current.loadConversation(CONV));
+    let envio: Promise<void> = Promise.resolve();
+    act(() => { envio = result.current.sendMessage('pergunta'); });
+    await waitFor(() => expect(result.current.isStreaming).toBe(true));
+    await act(() => result.current.deleteConversation(CONV));
+    await act(() => envio);
+    expect(sinalVisto?.aborted).toBe(true);
+    expect(result.current.isStreaming).toBe(false);
+    expect(result.current.messages).toEqual([]);
+  });
+
+  it('turno que termina sem texto e sem ação vira erro com tentar de novo, sem bolha vazia', async () => {
+    m.abrirAssistenteApi.mockResolvedValueOnce(sse({ type: 'done', conversation_id: CONV, trace_id: 't', prompt_version: 'v', consultas: 3, duracao_ms: 900 }));
+    const { result } = renderHook(() => useAIChat());
+    await act(() => result.current.sendMessage('Como está o funil?'));
+    expect(result.current.error).toBe('O assistente não trouxe resposta. Tente novamente.');
+    expect(result.current.messages.map((x) => x.role)).toEqual(['user']);
+  });
+
   it('erro antes do stream (cota) aparece com o texto da API e some a bolha vazia', async () => {
     m.abrirAssistenteApi.mockRejectedValueOnce(new ErroApi(402, 'PLAN_LIMIT_REACHED', 'Seu plano atual não inclui o Assistente Lotti.'));
     const { result } = renderHook(() => useAIChat());
@@ -94,6 +158,8 @@ describe('useAIChat com a API Lotti', () => {
     m.apagarConversaIaApi.mockResolvedValueOnce(undefined);
     m.listarMensagensIaApi.mockResolvedValueOnce([
       { id: 'a', role: 'user', content: 'oi' },
+      // rodada de consulta: gravada sem texto, não vira bolha vazia
+      { id: 'd', role: 'assistant', content: '', tool_calls: [{ id: 'call_1' }] },
       { id: 'b', role: 'tool', content: '{}' },
       { id: 'c', role: 'assistant', content: 'olá' },
     ]);

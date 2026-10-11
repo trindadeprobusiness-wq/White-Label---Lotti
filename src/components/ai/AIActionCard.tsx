@@ -1,6 +1,8 @@
 import { Check, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { camposDaAcao } from '@/lib/ia/acao';
+import { humanizarTexto } from '@/lib/ia/humanizar';
 import type { AISuggestedAction } from '@/types/ai';
 
 interface AIActionCardProps {
@@ -10,31 +12,36 @@ interface AIActionCardProps {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  create_client: 'Criar Cliente',
-  update_client_status: 'Atualizar Status',
-  schedule_followup: 'Agendar Follow-up',
-  create_alert: 'Criar Alerta',
-  register_contact: 'Registrar Contato',
-  create_property: 'Cadastrar Imóvel',
+  create_client: 'Cadastrar cliente',
+  update_client_status: 'Mudar status do cliente',
+  schedule_followup: 'Agendar follow-up',
+  create_alert: 'Criar alerta',
+  register_contact: 'Registrar contato',
+  create_property: 'Cadastrar imóvel',
   create_financial_entry: 'Lançar no Financeiro',
 };
 
 export function AIActionCard({ action, onConfirm, onReject }: AIActionCardProps) {
   const isDone = action.status !== 'pending';
-  const fields = Object.keys(action.params).slice(0, 8);
+  const campos = camposDaAcao(action);
 
   return (
     <Card className="border-primary/20 bg-primary/5 max-w-[85%]">
       <CardContent className="p-3 space-y-2">
         <div className="flex items-center gap-2 text-xs font-medium text-primary">
           <Zap className="h-3.5 w-3.5" />
-          {ACTION_LABELS[action.action_type] || action.action_type}
+          {ACTION_LABELS[action.action_type] || 'Ação proposta'}
         </div>
-        <p className="text-sm">{action.description}</p>
-        {fields.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Campos envolvidos: {fields.join(', ')}
-          </p>
+        <p className="text-sm">{humanizarTexto(action.description)}</p>
+        {campos.length > 0 && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+            {campos.map(({ rotulo, valor }) => (
+              <div key={rotulo} className="contents">
+                <dt className="text-muted-foreground">{rotulo}</dt>
+                <dd className="min-w-0 [overflow-wrap:anywhere]">{valor}</dd>
+              </div>
+            ))}
+          </dl>
         )}
         {isDone ? (
           <p className="text-xs text-muted-foreground">

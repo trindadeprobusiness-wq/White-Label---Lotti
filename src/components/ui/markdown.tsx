@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components, type Options } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +13,25 @@ import { cn } from '@/lib/utils';
  * HTML cru não é renderizado: o `rehype-raw` não está instalado, de propósito.
  * Texto do usuário entra aqui, e aparecer como texto literal é o certo.
  */
-export function Markdown({ children, className }: { children: string; className?: string }) {
+
+/**
+ * Fora do componente: um objeto novo a cada render trocaria o tipo do elemento e a tabela remontaria a cada
+ * pedaço do stream, voltando a rolagem lateral para o começo. `node` não vai para o DOM.
+ */
+const COMPONENTES: Components = {
+  // Tabela larga rola de lado dentro da bolha, em vez de alargar a coluna ou ser cortada.
+  table: ({ node: _node, className, ...props }) => (
+    <div role="region" aria-label="Tabela" tabIndex={0} className="my-4 max-w-full overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
+      <table className={cn('my-0', className)} {...props} />
+    </div>
+  ),
+  // Imagem externa não carrega (evita pixel de rastreio e link montado com dado da conta): fica o texto alternativo.
+  img: ({ alt }) => (alt ? <span className="text-muted-foreground">[{alt}]</span> : null),
+  // Link abre em outra aba: a conversa e o stream em andamento continuam onde estavam.
+  a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer nofollow" referrerPolicy="no-referrer" />,
+};
+
+export function Markdown({ children, className, rehypePlugins }: { children: string; className?: string; rehypePlugins?: Options['rehypePlugins'] }) {
   return (
     <div
       className={cn(
@@ -35,7 +53,7 @@ export function Markdown({ children, className }: { children: string; className?
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={COMPONENTES}>{children}</ReactMarkdown>
     </div>
   );
 }

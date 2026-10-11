@@ -57,6 +57,8 @@ export interface AISuggestedAction {
   params: Record<string, unknown>;
   description: string;
   status: 'pending' | 'confirmed' | 'rejected';
+  /** Nome do cliente da proposta (a API lê pelo client_id), para o cartão nunca mostrar o ID. */
+  cliente_nome?: string;
 }
 
 export interface AIStreamChunk {
@@ -64,6 +66,10 @@ export interface AIStreamChunk {
   content?: string;
   action?: AISuggestedAction;
   error?: string;
+  /** No done: a conversa, as consultas feitas e a duração (o rodapé da resposta). Só a API Lotti manda os dois últimos. */
+  conversation_id?: string;
+  consultas?: number;
+  duracao_ms?: number;
 }
 
 export const AI_FILE_LIMITS: Record<string, number> = {

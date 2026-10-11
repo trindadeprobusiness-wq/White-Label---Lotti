@@ -1,7 +1,9 @@
 import { HttpException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { AssistenteService, ERRO_DEMOROU, EventoAssistente } from './assistente.service';
+import { AssistenteService, ERRO_DEMOROU, ERRO_INTERNO, EventoAssistente, LIMITE_PREAMBULO } from './assistente.service';
 import { AssistenteDto } from './ia.dto';
+import { MAX_RODADAS_FERRAMENTA } from './pedido';
+import { VERSOES_PROMPT_IA } from './prompts';
 
 // Estes testes cobrem o tratamento de erro do provedor; o modelo reserva tem teste próprio (ia/reserva.spec.ts).
 process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
@@ -33,13 +35,14 @@ function sqlFalso(regras: Regra[]) {
 function montar(o: { tx?: Regra[]; prisma?: Regra[] } = {}) {
   const tx = sqlFalso([
     ...(o.tx ?? []),
+    // Antes de get_corretor_id: a receita do resumo da conta também filtra pelo dono.
+    [/from public\.clientes\) as clientes/, [{ clientes: 3, imoveis: 2, contratos: 0, alertas: 1, receita: 1500.5 }]],
     [/get_corretor_id/, [{ id: CORRETOR }]],
     [/count\(\*\)::int as n from public\.ai_conversations/, [{ n: 1 }]],
     [/insert into public\.ai_conversations/, [{ id: CONV }]],
     [/insert into public\.ai_messages/, [{ id: '99999999-9999-4999-8999-999999999999' }]],
     [/from public\.ai_messages m/, [{ role: 'user', content: 'Quantos clientes?', tool_calls: null, tool_name: null }]],
     [/from public\.corretores/, [{ nome: 'Ana', creci: '123', creci_estado: 'GO' }]],
-    [/from public\.clientes\) as clientes/, [{ clientes: 3, imoveis: 2, contratos: 0, alertas: 1, receita: 1500.5 }]],
   ]);
   const db = { run: jest.fn(async (_c: unknown, w: (t: typeof tx) => unknown) => w(tx)) };
   const prisma = sqlFalso([
@@ -167,7 +170,7 @@ describe('AssistenteService.preparar', () => {
 
     const [run] = textos(prisma.$queryRaw, /insert into public\.ai_runs/);
     expect(run.values).toEqual(['trace_teste_1', CORRETOR, USUARIO, 'clients', 'assistant.chat', 'gemini-3.1-flash-lite',
-      'assistant.general@2026-10-11.2', 'text', 'Quantos clientes?'.length + 'texto do PDF'.length, false, JSON.stringify({ entity_count: 1 })]);
+      VERSOES_PROMPT_IA.assistant, 'text', 'Quantos clientes?'.length + 'texto do PDF'.length, false, JSON.stringify({ entity_count: 1, modo: 'chat' })]);
   });
 
   it('telemetria indisponível (tabela ausente) não derruba: runId null', async () => {
@@ -193,14 +196,14 @@ describe('AssistenteService.transmitir', () => {
     return eventos;
   }
 
-  it('só texto: repassa os pedaços, grava a resposta, dá título, conta o uso e termina com done', async () => {
+  it('só texto: repassa a resposta, grava com o rodapé, dá título pela pergunta, conta o uso e termina com done', async () => {
     const m = montar();
     m.fetchImpl.mockResolvedValueOnce(sse(texto('Você tem '), texto('**3** clientes.'), '[DONE]'));
     const eventos = await rodar(m);
+    // Resposta curta fica retida até o fim da rodada (poderia ser preâmbulo de ferramenta) e sai de uma vez.
     expect(eventos).toEqual([
-      { type: 'text', content: 'Você tem ' },
-      { type: 'text', content: '**3** clientes.' },
-      { type: 'done', conversation_id: CONV, trace_id: 'trace_teste_1', prompt_version: 'assistant.general@2026-10-11.2' },
+      { type: 'text', content: 'Você tem **3** clientes.' },
+      { type: 'done', conversation_id: CONV, trace_id: 'trace_teste_1', prompt_version: VERSOES_PROMPT_IA.assistant, consultas: 0, duracao_ms: expect.any(Number) },
     ]);
     const [url, init] = m.fetchImpl.mock.calls[0];
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
@@ -210,10 +213,11 @@ describe('AssistenteService.transmitir', () => {
     expect(enviado.tools.map((t: { function: { name: string } }) => t.function.name)).toContain('suggest_action');
     expect(enviado.messages[0].role).toBe('system');
 
-    const gravadas = textos(m.tx.$queryRaw, /insert into public\.ai_messages/).map((q) => q.values.slice(1, 3));
-    expect(gravadas).toEqual([['user', 'Quantos clientes?'], ['assistant', 'Você tem **3** clientes.']]);
+    const inseridas = textos(m.tx.$queryRaw, /insert into public\.ai_messages/);
+    expect(inseridas.map((q) => q.values.slice(1, 3))).toEqual([['user', 'Quantos clientes?'], ['assistant', 'Você tem **3** clientes.']]);
+    expect(JSON.parse(inseridas[1].values[5] as string)).toEqual({ prompt_version: VERSOES_PROMPT_IA.assistant, consultas: 0, duracao_ms: expect.any(Number) });
     const [titulo] = textos(m.tx.$executeRaw, /update public\.ai_conversations/);
-    expect(titulo.values).toEqual(['Você tem 3 clientes.', CONV]);
+    expect(titulo.values).toEqual(['Quantos clientes?', CONV]);
     const [uso] = textos(m.prisma.$executeRaw, /incrementar_uso/);
     expect(uso.values).toEqual([CORRETOR, 'ai_assistant_monthly', 1]);
     const [fim] = textos(m.prisma.$executeRaw, /update public\.ai_runs/);
@@ -260,6 +264,58 @@ describe('AssistenteService.transmitir', () => {
     ]);
     const ferramentasRegistradas = textos(m.prisma.$executeRaw, /insert into public\.ai_tool_calls/).map((q) => q.values.slice(0, 4));
     expect(ferramentasRegistradas).toEqual([[RUN, 'search_clients', 'read', 'completed'], [RUN, 'suggest_action', 'proposal', 'completed']]);
+    // Rodapé: a proposta não conta como consulta.
+    expect(eventos[2]).toMatchObject({ type: 'done', consultas: 1 });
+  });
+
+  it('preâmbulo antes da ferramenta não aparece nem fica gravado; a resposta lembra os registros citados', async () => {
+    const m = montar();
+    m.ferramentas.executar.mockResolvedValueOnce(JSON.stringify({ total: 1, mostrando: 1, clientes: [{ id: 'c1', nome: 'Ana', telefone: '62999990001' }] }));
+    m.fetchImpl
+      .mockResolvedValueOnce(sse(texto('Vou consultar '), chamada('call_1', 'search_clients', { query: 'Ana' })))
+      .mockResolvedValueOnce(sse(texto('Ana está em Qualificação.')));
+    const eventos = await rodar(m);
+    expect(eventos.filter((e) => e.type === 'text')).toEqual([{ type: 'text', content: 'Ana está em Qualificação.' }]);
+    const inseridas = textos(m.tx.$queryRaw, /insert into public\.ai_messages/);
+    expect(inseridas[1].values.slice(1, 3)).toEqual(['assistant', '']);
+    expect(JSON.parse(inseridas[3].values[5] as string)).toMatchObject({
+      consultas: 1, registros: [{ tipo: 'cliente', id: 'c1', nome: 'Ana', telefone_final: '0001' }],
+    });
+    expect((m.ferramentas.executar.mock.calls[0] as unknown[])[2]).toMatchObject({ agora: expect.any(Date), fuso: 'America/Sao_Paulo' });
+  });
+
+  it('texto longo de uma rodada já sai em stream; o da rodada seguinte vem em parágrafo novo', async () => {
+    const m = montar();
+    const longo = 'a'.repeat(LIMITE_PREAMBULO);
+    m.fetchImpl
+      .mockResolvedValueOnce(sse(texto(longo), texto('b'), chamada('call_1', 'get_funnel_stats', {})))
+      .mockResolvedValueOnce(sse(texto('fim')));
+    const eventos = await rodar(m);
+    expect(eventos.filter((e) => e.type === 'text').map((e) => (e as { content: string }).content)).toEqual([longo, 'b', '\n\n', 'fim']);
+    expect(textos(m.tx.$queryRaw, /insert into public\.ai_messages/)[1].values.slice(1, 3)).toEqual(['assistant', `${longo}b`]);
+  });
+
+  it('extração de documento (estruturado): sem ferramentas, sem resumo da conta e com título fixo', async () => {
+    const m = montar();
+    m.fetchImpl.mockResolvedValueOnce(sse(texto('{"inquilino":null}')));
+    const eventos = await rodar(m, corpo({ intent: 'contracts.extraction', output_mode: 'structured', file_context: 'contrato' }));
+    expect(eventos[0]).toEqual({ type: 'text', content: '{"inquilino":null}' });
+    const enviado = JSON.parse(m.fetchImpl.mock.calls[0][1].body);
+    expect(enviado.tools).toBeUndefined();
+    expect(enviado.messages[0].content).toContain('Responda só com o que o usuário pediu');
+    expect(textos(m.tx.$queryRaw, /from public\.clientes\) as clientes/)).toHaveLength(0);
+    const [titulo] = textos(m.tx.$executeRaw, /update public\.ai_conversations/);
+    expect(titulo.values).toEqual(['Extração de contrato', CONV]);
+  });
+
+  it('onboarding: sem ferramentas; chamada inventada pelo modelo não roda', async () => {
+    const m = montar();
+    m.fetchImpl
+      .mockResolvedValueOnce(sse(chamada('call_1', 'suggest_action', { action_type: 'create_alert' })))
+      .mockResolvedValueOnce(sse(texto('Cadastre o primeiro imóvel na tela Imóveis.')));
+    await rodar(m, corpo({ intent: 'onboarding.help', file_context: 'Persona: corretor. Etapa: imoveis.' }));
+    expect(JSON.parse(m.fetchImpl.mock.calls[0][1].body).tools).toBeUndefined();
+    expect((m.ferramentas.executar.mock.calls[0] as unknown[])[3]).toEqual([]);
   });
 
   it('chamadas fragmentadas com index (formato OpenAI) são remontadas', async () => {
@@ -284,11 +340,12 @@ describe('AssistenteService.transmitir', () => {
     expect(fim.values).toContain('provider_500');
   });
 
-  it('mais de 4 rodadas de ferramenta: bloqueia com o texto da função', async () => {
+  it('a última rodada pedindo mais ferramenta: bloqueia com o texto da função sem rodar a consulta', async () => {
     const m = montar();
     m.fetchImpl.mockImplementation(async () => sse(chamada('c', 'get_funnel_stats', {})));
     const eventos = await rodar(m);
-    expect(m.fetchImpl).toHaveBeenCalledTimes(4);
+    expect(m.fetchImpl).toHaveBeenCalledTimes(MAX_RODADAS_FERRAMENTA);
+    expect(m.ferramentas.executar).toHaveBeenCalledTimes(MAX_RODADAS_FERRAMENTA - 1);
     expect(eventos).toEqual([{ type: 'error', error: 'A solicitação exigiu ações demais. Reformule o pedido em uma etapa por vez.' }]);
     const [fim] = textos(m.prisma.$executeRaw, /update public\.ai_runs/);
     expect(fim.values[0]).toBe('blocked');
@@ -309,24 +366,39 @@ describe('AssistenteService.transmitir', () => {
     }
   });
 
-  it('Gemini parado depois de já ter mandado texto: não refaz (duplicaria) e avisa em português', async () => {
+  /** Primeiro pedaço chega; o seguinte estoura o tempo (o Response real troca o erro, então vai cru). */
+  function quebraDepoisDe(primeiro: string) {
+    let pedidos = 0;
+    return new ReadableStream<Uint8Array>({
+      pull(c) {
+        pedidos += 1;
+        if (pedidos === 1) c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(texto(primeiro))}\n\n`));
+        else c.error(new DOMException('tempo', 'TimeoutError'));
+      },
+    });
+  }
+
+  it('Gemini parado depois de já ter mostrado texto: não refaz (duplicaria) e avisa em português', async () => {
     process.env.LOTTI_AI_FALLBACK_MODEL = 'gemini-reserva';
     try {
       const m = montar();
-      // Primeiro pedaço chega; o seguinte estoura o tempo (o Response real troca o erro, então vai cru).
-      let pedidos = 0;
-      const corpoQuebrado = new ReadableStream<Uint8Array>({
-        pull(c) {
-          pedidos += 1;
-          if (pedidos === 1) c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(texto('Você tem '))}
-
-`));
-          else c.error(new DOMException('tempo', 'TimeoutError'));
-        },
-      });
-      m.fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, body: corpoQuebrado });
-      expect(await rodar(m)).toEqual([{ type: 'text', content: 'Você tem ' }, { type: 'error', error: ERRO_DEMOROU }]);
+      const mostrado = 'x'.repeat(LIMITE_PREAMBULO);
+      m.fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, body: quebraDepoisDe(mostrado) });
+      expect(await rodar(m)).toEqual([{ type: 'text', content: mostrado }, { type: 'error', error: ERRO_DEMOROU }]);
       expect(m.fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
+    }
+  });
+
+  it('Gemini parado com o texto ainda retido (nada mostrado): refaz com o reserva, sem duplicar', async () => {
+    process.env.LOTTI_AI_FALLBACK_MODEL = 'gemini-reserva';
+    try {
+      const m = montar();
+      m.fetchImpl
+        .mockResolvedValueOnce({ ok: true, status: 200, body: quebraDepoisDe('Você tem ') })
+        .mockResolvedValueOnce(sse(texto('Você tem 3 clientes.')));
+      expect(await rodar(m)).toEqual([{ type: 'text', content: 'Você tem 3 clientes.' }, expect.objectContaining({ type: 'done' })]);
     } finally {
       process.env.LOTTI_AI_FALLBACK_MODEL = 'off';
     }
@@ -368,7 +440,7 @@ describe('AssistenteService.transmitir', () => {
     });
     m.fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, body: devagar });
     const eventos = await rodar(m);
-    expect(eventos.map((e) => e.type)).toEqual(['text', 'text', 'done']);
+    expect(eventos).toEqual([{ type: 'text', content: 'Olá!' }, expect.objectContaining({ type: 'done' })]);
   });
 
   it('sem modelo reserva, o tempo esgotado chega em português', async () => {
@@ -377,10 +449,10 @@ describe('AssistenteService.transmitir', () => {
     expect(await rodar(m)).toEqual([{ type: 'error', error: ERRO_DEMOROU }]);
   });
 
-  it('erro inesperado vira "Internal error"; navegador que fechou não recebe nada', async () => {
+  it('erro inesperado vira erro interno em português; navegador que fechou não recebe nada', async () => {
     const m = montar();
     m.fetchImpl.mockRejectedValueOnce(new TypeError('rede'));
-    expect(await rodar(m)).toEqual([{ type: 'error', error: 'Internal error' }]);
+    expect(await rodar(m)).toEqual([{ type: 'error', error: ERRO_INTERNO }]);
 
     const n = montar();
     const controle = new AbortController();

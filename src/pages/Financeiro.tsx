@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MetricCard, SectionCard, abasSublinhadas } from '@/components/shell/primitivos';
-import { moeda, percentual, dataBR } from '@/lib/formato';
+import { moeda, percentual, dataBR, diaDoLancamento } from '@/lib/formato';
 import { montarCsv, baixarCsv, baixarXlsx, nomeArquivoCsv } from '@/lib/admin/csv';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { LancamentoCard } from '@/components/financeiro/LancamentoCard';
@@ -71,7 +71,7 @@ export default function Financeiro() {
    * abre no Excel sem "ImobiliÃ¡ria" e sem executar nada.
    */
   const colunasExportacao = [
-    { cabecalho: 'Data', valor: (l: LancamentoFinanceiro) => dataBR(l.data) },
+    { cabecalho: 'Data', valor: (l: LancamentoFinanceiro) => dataBR(diaDoLancamento(l.data)) },
     { cabecalho: 'Tipo', valor: (l: LancamentoFinanceiro) => l.tipo },
     { cabecalho: 'Categoria', valor: (l: LancamentoFinanceiro) => l.categoria },
     { cabecalho: 'Descrição', valor: (l: LancamentoFinanceiro) => l.descricao },

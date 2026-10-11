@@ -1,4 +1,4 @@
-import { Sparkles, Users, Building2, TrendingUp, FileText, ChevronRight } from 'lucide-react';
+import { Sparkles, Users, Target, TrendingUp, FileText, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -11,18 +11,20 @@ import { cn } from '@/lib/utils';
  * a pessoa adivinhe o que perguntar.
  */
 
+// Só perguntas que as consultas do Assistente respondem com os números das telas (o antigo "Gerar um
+// contrato" não tinha consulta nem ação por trás: a geração fica na tela Jurídico).
 const SUGESTOES = [
   {
     Icone: Users,
-    titulo: 'Quais clientes',
-    complemento: 'precisam de retorno?',
-    prompt: 'Quais clientes estão há mais tempo sem contato e precisam de retorno?',
+    titulo: 'Quem está sem retorno',
+    complemento: 'há mais de 30 dias?',
+    prompt: 'Quais clientes estão sem retorno há mais de 30 dias?',
   },
   {
-    Icone: Building2,
-    titulo: 'Buscar imóveis',
-    complemento: 'por faixa de preço',
-    prompt: 'Liste os imóveis disponíveis agrupados por faixa de preço.',
+    Icone: Target,
+    titulo: 'Como está meu',
+    complemento: 'funil de vendas?',
+    prompt: 'Como está meu funil de vendas? Faça uma análise.',
   },
   {
     Icone: TrendingUp,
@@ -32,9 +34,9 @@ const SUGESTOES = [
   },
   {
     Icone: FileText,
-    titulo: 'Gerar um contrato',
-    complemento: 'com IA',
-    prompt: 'Quero gerar um contrato. Quais informações você precisa de mim?',
+    titulo: 'Contratos que vencem',
+    complemento: 'nos próximos 30 dias',
+    prompt: 'Quais contratos vencem nos próximos 30 dias?',
   },
 ] as const;
 

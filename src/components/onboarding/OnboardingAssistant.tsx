@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Bot, Loader2, Send, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Markdown } from '@/components/ui/markdown';
 import { useAIChat } from '@/hooks/useAIChat';
 import { responderAjudaOnboarding } from '@/lib/onboarding/contexto';
 import type { PersonaOnboarding } from '@/lib/onboarding/regras';
@@ -36,10 +37,8 @@ export function OnboardingAssistant({ persona, etapa, onAction }: Props) {
       // Nenhum cadastro é confirmado por IA.
       onAction?.(resultado.acao.tipo, resultado.acao.destino);
     } else {
-      void ia.sendMessage(
-        texto,
-        `Modo de onboarding da Lotti. Persona: ${persona ?? 'não informada'}. Etapa atual: ${etapa}. Explique de forma curta, não alegue ter executado ações e peça confirmação antes de qualquer alteração.`,
-      );
+      // Modo onboarding da API: orienta em texto curto, sem consultar nem propor ações.
+      void ia.sendMessage(texto, `Persona: ${persona ?? 'não informada'}. Etapa atual: ${etapa}.`, { intent: 'onboarding.help' });
     }
     setPergunta('');
   };
@@ -58,10 +57,11 @@ export function OnboardingAssistant({ persona, etapa, onAction }: Props) {
           <p className="text-xs text-muted-foreground">Contexto da etapa atual</p>
         </div>
       </div>
-      <div className="mb-3 rounded-lg bg-card p-3 text-sm leading-6 shadow-sm">
-        <Sparkles className="mr-1 inline h-3.5 w-3.5 text-primary" aria-hidden="true" />
-        {ia.isStreaming && <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin text-primary" aria-hidden="true" />}
-        {resposta}
+      <div className="mb-3 flex items-start gap-2 rounded-lg bg-card p-3 text-sm leading-6 shadow-sm" aria-live="polite">
+        {ia.isStreaming
+          ? <Loader2 className="mt-1 h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-hidden="true" />
+          : <Sparkles className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />}
+        <Markdown className="min-w-0 flex-1">{resposta}</Markdown>
       </div>
       {ia.error && <p className="mb-3 text-xs text-muted-foreground">A IA está indisponível; a orientação segura desta etapa continua ativa.</p>}
       <div className="mb-3 flex flex-wrap gap-1.5">

@@ -1,9 +1,11 @@
 import { deflateRawSync } from 'node:zlib';
 import { AcaoInvalida, validarProposta } from './acoes';
-import { mensagensDoHistorico } from './assistente.service';
+import { mensagensDoHistorico, registrosDoHistorico, tituloDaConversa } from './assistente.service';
 import { extrair, textoDoDocx, textoDoPdf, textoDoXlsx, xmlNoZip } from './extracao';
-import { argUuid, filtroNumero, filtroTexto, limiteEntre, termoDeBusca } from './ferramentas';
-import { inicioDoPeriodo } from './ferramentas.service';
+import { argUuid, filtroNumero, filtroTexto, limiteEntre, palavrasDeBusca, telefoneDaBusca, termoDeBusca, tiposDeContrato } from './ferramentas';
+import { fimDoContrato, registrosCitados } from './ferramentas.service';
+import { agoraNoPrompt, diaNoFuso, diaValido, fusoValido, inicioDaSemana, periodoDaTela } from './periodo';
+import { rotulo, STATUS_CLIENTE } from './rotulos';
 import { limitarParametros, PARAMETROS_PADRAO, sanitizarClassificacao } from './fotos.service';
 import { estimarUso } from './gemini';
 import { validarEntradaSugestao } from './mensagens.service';
@@ -34,6 +36,10 @@ describe('normalizarPedidoIa (contracts.ts)', () => {
     expect(p.entityRefs).toEqual([{ type: 'cliente', id: CLIENTE }]);
   });
 
+  it('aceita fuso com dígitos, que o navegador pode mandar (Etc/GMT+3)', () => {
+    expect(normalizarPedidoIa({ message: 'a', timezone: 'Etc/GMT+3' }, AUT).timezone).toBe('Etc/GMT+3');
+  });
+
   it.each([
     [null, 'Corpo da solicitação inválido'],
     [{}, 'Mensagem obrigatória'],
@@ -41,6 +47,7 @@ describe('normalizarPedidoIa (contracts.ts)', () => {
     [{ message: 'a', intent: 'Maiúscula' }, 'Intenção de IA inválida'],
     [{ message: 'a', output_mode: 'xml' }, 'Modo de saída inválido'],
     [{ message: 'a', timezone: 'Fuso;drop' }, 'Fuso horário inválido'],
+    [{ message: 'a', timezone: 'x'.repeat(65) }, 'Fuso horário inválido'],
     [{ message: 'a', entity_refs: 'x' }, 'entity_refs deve ser uma lista'],
     [{ message: 'a', entity_refs: Array.from({ length: 11 }, () => ({ type: 't', id: '1' })) }, 'Máximo de 10 entidades por solicitação'],
     [{ message: 'a', entity_refs: [{ type: 'a b', id: '1' }] }, 'Referência de entidade inválida'],
@@ -65,6 +72,25 @@ describe('validarProposta (actions.ts sem zod)', () => {
       action_type: 'create_financial_entry', description: 'x',
       params: { tipo: 'DESPESA', categoria: 'OUTROS', descricao: 'Luz', valor: 10.5, data: '2026-10-06', recorrente: false },
     }).params).toEqual({ tipo: 'DESPESA', categoria: 'OUTROS', descricao: 'Luz', valor: 10.5, data: '2026-10-06', recorrente: false });
+  });
+
+  it('create_financial_entry: as categorias que a tela Financeiro oferece para cada tipo', () => {
+    const lancar = (tipo: string, categoria: string) => validarProposta({
+      action_type: 'create_financial_entry', description: 'x', params: { tipo, categoria, descricao: 'x', valor: 1 },
+    });
+    expect(lancar('RECEITA', 'TAXA_ADMINISTRACAO').params.categoria).toBe('TAXA_ADMINISTRACAO');
+    expect(lancar('DESPESA', 'CONTABILIDADE').params.categoria).toBe('CONTABILIDADE');
+    expect(lancar('RECEITA', 'OUTROS').params.categoria).toBe('OUTROS');
+    expect(() => lancar('RECEITA', 'CONTABILIDADE')).toThrow(AcaoInvalida);
+  });
+
+  it('o erro diz qual campo falhou', () => {
+    try {
+      validarProposta({ action_type: 'schedule_followup', params: { client_id: CLIENTE, date: '12/10/2026' }, description: 'x' });
+      throw new Error('deveria recusar');
+    } catch (e) {
+      expect((e as AcaoInvalida).campo).toBe('date');
+    }
   });
 
   it.each([
@@ -146,12 +172,83 @@ describe('auxiliares das ferramentas', () => {
     expect(argUuid({ client_id: '11111111-1111-1111-1111-111111111111' }, 'client_id')).toBeNull();
   });
 
-  it('início do período em UTC', () => {
-    const agora = new Date('2026-08-15T12:00:00Z');
-    expect(inicioDoPeriodo('month', agora)).toBe('2026-08-01');
-    expect(inicioDoPeriodo('quarter', agora)).toBe('2026-07-01');
-    expect(inicioDoPeriodo('year', agora)).toBe('2026-01-01');
-    expect(inicioDoPeriodo('semana', agora)).toBe('2026-08-01');
+  it('palavras da busca: sem curinga nem pontuação nas pontas, no máximo 6', () => {
+    expect(palavrasDeBusca(' Rua X, 120 ')).toEqual(['Rua', 'X', '120']);
+    expect(palavrasDeBusca('ana_%(62) 99999-0001.')).toEqual(['ana', '62', '99999-0001']);
+    expect(palavrasDeBusca('a b c d e f g h')).toHaveLength(6);
+    expect(palavrasDeBusca(undefined)).toEqual([]);
+  });
+
+  it('busca que é só telefone: dígitos sem o 55 do país; outra busca fica de fora', () => {
+    expect(telefoneDaBusca('+55 62 99999-0001')).toBe('62999990001');
+    expect(telefoneDaBusca('5562999990001')).toBe('62999990001');
+    expect(telefoneDaBusca('(62) 99999-0001')).toBe('62999990001');
+    expect(telefoneDaBusca('5532')).toBeNull();
+    expect(telefoneDaBusca('Ana 9999')).toBeNull();
+    expect(telefoneDaBusca(undefined)).toBeNull();
+  });
+
+  it('tipo de contrato: exato, grupo (LOCACAO, EXCLUSIVIDADE) ou inválido', () => {
+    expect(tiposDeContrato(undefined)).toBeNull();
+    expect(tiposDeContrato('compra_venda')).toEqual(['COMPRA_VENDA']);
+    expect(tiposDeContrato('LOCACAO')).toEqual(['LOCACAO_RESIDENCIAL', 'LOCACAO_COMERCIAL']);
+    expect(tiposDeContrato('Locação Residencial')).toEqual([]);
+  });
+
+  it('rótulos das telas; código sem rótulo vira texto legível, nunca o código cru', () => {
+    expect(rotulo(STATUS_CLIENTE, 'FECHADO_GANHO')).toBe('Fechado Ganho');
+    expect(rotulo(STATUS_CLIENTE, 'NOVO_STATUS')).toBe('Novo status');
+    expect(rotulo(STATUS_CLIENTE, null)).toBeNull();
+  });
+});
+
+describe('datas no fuso de quem conversa', () => {
+  it('"hoje" vira no fuso, não em UTC: 01/11 às 02h UTC ainda é 31/10 em São Paulo', () => {
+    expect(diaNoFuso(new Date('2026-11-01T02:00:00Z'), 'America/Sao_Paulo')).toBe('2026-10-31');
+    expect(diaNoFuso(new Date('2026-11-01T02:00:00Z'), 'UTC')).toBe('2026-11-01');
+  });
+
+  it('fuso inválido cai em São Paulo; dia inválido do calendário é recusado', () => {
+    expect(fusoValido('Etc/GMT+3')).toBe('Etc/GMT+3');
+    expect(fusoValido('Lugar/Nenhum')).toBe('America/Sao_Paulo');
+    expect(fusoValido(undefined)).toBe('America/Sao_Paulo');
+    expect(diaValido('2026-02-28')).toBe('2026-02-28');
+    expect(diaValido('2026-02-30')).toBeNull();
+    expect(diaValido('ontem')).toBeNull();
+  });
+
+  it('períodos da tela Financeiro: mês inteiro, três últimos meses e ano', () => {
+    expect(periodoDaTela('month', '2026-10-11')).toEqual({ de: '2026-10-01', ate: '2026-10-31' });
+    expect(periodoDaTela(undefined, '2026-02-10')).toEqual({ de: '2026-02-01', ate: '2026-02-28' });
+    expect(periodoDaTela('quarter', '2026-01-15')).toEqual({ de: '2025-11-01', ate: '2026-01-31' });
+    expect(periodoDaTela('year', '2026-10-11')).toEqual({ de: '2026-01-01', ate: '2026-12-31' });
+  });
+
+  it('bloco <agora> com as datas prontas (11/10/2026 é domingo)', () => {
+    expect(inicioDaSemana('2026-10-11')).toBe('2026-10-05');
+    const t = agoraNoPrompt(new Date('2026-10-11T17:32:00Z'), 'America/Sao_Paulo');
+    expect(t).toContain('domingo, 11/10/2026');
+    expect(t).toContain('14:32');
+    expect(t).toContain('horário de Brasília');
+    expect(t).toContain('Ontem: 10/10/2026. Amanhã: 12/10/2026.');
+    expect(t).toContain('Esta semana (segunda a domingo): 05/10/2026 a 11/10/2026. Semana passada: 28/09/2026 a 04/10/2026. Próxima semana: 12/10/2026 a 18/10/2026.');
+    expect(t).toContain('Próximos 14 dias: segunda 12/10/2026, terça 13/10/2026,');
+    expect(t).toContain('sábado 24/10/2026, domingo 25/10/2026.');
+    expect(t).toContain('Este mês: 01/10/2026 a 31/10/2026. Mês passado: 01/09/2026 a 30/09/2026. Este ano: 01/01/2026 a 31/12/2026.');
+  });
+
+  it('fim do contrato: coluna, depois o conteúdo da locação, depois início + prazo', () => {
+    expect(fimDoContrato({ fim: '2027-01-10', fim_conteudo: '2027-05-05', inicio: '2026-01-10', prazo_meses: 30 })).toBe('2027-01-10');
+    expect(fimDoContrato({ fim: null, fim_conteudo: '2027-05-05', inicio: '2026-01-10', prazo_meses: 30 })).toBe('2027-05-05');
+    expect(fimDoContrato({ fim: null, fim_conteudo: null, inicio: '2026-01-31', prazo_meses: 1 })).toBe('2026-02-28');
+    expect(fimDoContrato({ fim: null, fim_conteudo: 'lixo', inicio: '2026-01-10', prazo_meses: null })).toBeNull();
+  });
+
+  it('fim gravado como instante (cadastro manual, 00:00 UTC) sai no dia do fuso, como a tela Aluguéis mostra', () => {
+    const contrato = (fim_conteudo: string) => ({ fim: null, fim_conteudo, inicio: null, prazo_meses: null });
+    expect(fimDoContrato(contrato('2027-01-15T00:00:00.000Z'), 'America/Sao_Paulo')).toBe('2027-01-14');
+    expect(fimDoContrato(contrato('2027-01-15T15:00:00.000Z'), 'America/Sao_Paulo')).toBe('2027-01-15');
+    expect(fimDoContrato(contrato('2027-01-15T00:00:00.000Z'), 'UTC')).toBe('2027-01-15');
   });
 });
 
@@ -165,6 +262,61 @@ describe('prompts e auxiliares de resposta', () => {
     expect(p).toContain('Quando houver documento anexado:');
     expect(p).toContain('<external_data kind="uploaded_document">\ndoc\n</external_data>');
     expect(promptSistemaAssistente({ module: 'assistant', crmContext: 'c' })).not.toContain('Regra do módulo');
+  });
+
+  it('modo chat (molde do Oráculo): blocos fixos antes, agora e resumo da conta no fim, registros citados', () => {
+    const p = promptSistemaAssistente({
+      module: 'clients', crmContext: 'ctx', agora: new Date('2026-10-11T17:32:00Z'), timezone: 'America/Sao_Paulo',
+      registros: [{ tipo: 'cliente', id: CLIENTE, nome: 'Ana <b>' }],
+    });
+    for (const bloco of ['<persona>', '<evidencia>', '<apresentacao>', '<roteamento>', '<formato>', '<agora>']) expect(p).toContain(bloco);
+    const blocoAgora = p.indexOf('<agora>\nAgora:');
+    expect(p.indexOf('<formato>')).toBeLessThan(blocoAgora);
+    expect(blocoAgora).toBeLessThan(p.indexOf('kind="crm_context"'));
+    expect(p).toContain('domingo, 11/10/2026');
+    expect(p).toContain('nunca "no CRM"');
+    const blocoRegistros = '<external_data kind="registros_citados">';
+    expect(p).toContain(`Registros citados nas respostas anteriores desta conversa. Use os IDs só nos argumentos das ferramentas; nunca escreva IDs na resposta.\n${blocoRegistros}`);
+    expect(p).toContain(`"id":"${CLIENTE}","nome":"Ana &lt;b&gt;"`);
+    expect(p).toContain('Regra do módulo: Não confunda homônimos. Use IDs só nos argumentos');
+    expect(promptSistemaAssistente({ module: 'assistant', crmContext: 'c' })).not.toContain(blocoRegistros);
+  });
+
+  it('modo estruturado (extração de contrato): só o formato pedido, sem resumo da conta nem roteiro de documento', () => {
+    const p = promptSistemaAssistente({ module: 'contracts', crmContext: 'ctx', fileContext: 'contrato', outputMode: 'structured', intent: 'contracts.extraction' });
+    expect(p).toContain('Responda só com o que o usuário pediu, no formato pedido');
+    expect(p).toContain('<external_data kind="uploaded_document">\ncontrato\n</external_data>');
+    expect(p).not.toContain('crm_context');
+    expect(p).not.toContain('Quando houver documento anexado:');
+    expect(p).not.toContain('<formato>');
+  });
+
+  it('modo onboarding: orienta em texto simples, contexto da etapa como dado e sem roteiro de documento', () => {
+    const p = promptSistemaAssistente({ module: 'assistant', crmContext: 'ctx', fileContext: 'Persona: corretor. Etapa: imoveis.', intent: 'onboarding.help' });
+    expect(p).toContain('Você está ajudando a pessoa a configurar a conta (onboarding)');
+    expect(p).toContain('<external_data kind="onboarding_context">\nPersona: corretor. Etapa: imoveis.\n</external_data>');
+    expect(p).not.toContain('uploaded_document');
+    expect(p).not.toContain('crm_context');
+  });
+
+  it('título da conversa vem da pergunta; extração e onboarding têm título fixo', () => {
+    expect(tituloDaConversa('chat', 'assistant.chat', '\n## Como está **meu funil**?\nsegunda linha')).toBe('Como está meu funil?');
+    expect(tituloDaConversa('chat', 'assistant.chat', '   ')).toBe('Nova conversa');
+    expect(tituloDaConversa('estruturado', 'contracts.extraction', '{"cpf":"1"}')).toBe('Extração de contrato');
+    expect(tituloDaConversa('onboarding', 'onboarding.help', 'x')).toBe('Ajuda da configuração');
+  });
+
+  it('registros citados: saem dos resultados das consultas e voltam do histórico sem repetir', () => {
+    expect(registrosCitados('search_clients', { clientes: [{ id: 'c1', nome: 'Ana', telefone: '(62) 99999-0001' }] }))
+      .toEqual([{ tipo: 'cliente', id: 'c1', nome: 'Ana', telefone_final: '0001' }]);
+    expect(registrosCitados('get_contracts', { contratos: [{ id: 'k1', tipo: 'Locação Residencial', cliente: 'Bia', cliente_id: 'c2', imovel: 'Apto' }] }))
+      .toEqual([{ tipo: 'contrato', id: 'k1', nome: 'Locação Residencial · Bia · Apto' }, { tipo: 'cliente', id: 'c2', nome: 'Bia' }]);
+    expect(registrosCitados('get_alerts', { alertas: [] })).toEqual([]);
+    expect(registrosDoHistorico([
+      { role: 'assistant', content: 'b', tool_calls: null, tool_name: null, metadata: { registros: [{ tipo: 'cliente', id: 'c1', nome: 'Ana' }] } },
+      { role: 'user', content: 'x', tool_calls: null, tool_name: null, metadata: { registros: [{ tipo: 'cliente', id: 'u', nome: 'U' }] } },
+      { role: 'assistant', content: 'a', tool_calls: null, tool_name: null, metadata: { registros: [{ tipo: 'cliente', id: 'c1', nome: 'Velha' }] } },
+    ])).toEqual([{ tipo: 'cliente', id: 'c1', nome: 'Ana' }]);
   });
 
   it('prompt do WhatsApp traduz tipo e tom como a função', () => {

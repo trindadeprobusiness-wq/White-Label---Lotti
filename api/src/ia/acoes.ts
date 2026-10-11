@@ -1,8 +1,10 @@
 // Porte de supabase/functions/_shared/ai/actions.ts (validateActionProposal) sem zod: mesmas regras
 // (strings com trim antes de min/max, objetos estritos, opcional recusa null, default do telefone "").
+// Diferença: as categorias de lançamento são as que a tela Financeiro oferece para cada tipo.
+import { CATEGORIAS_DESPESA, CATEGORIAS_RECEITA } from './rotulos';
 
 export class AcaoInvalida extends Error {
-  constructor(campo: string) {
+  constructor(readonly campo: string) {
     super(`invalid_action_schema:${campo}`);
     this.name = 'AcaoInvalida';
   }
@@ -61,13 +63,8 @@ function objetoEstrito(forma: Record<string, Validador>) {
 
 const textoCurto = texto(1, 240);
 
-export const CATEGORIAS_FINANCEIRAS = [
-  'ANUNCIO_PORTAL', 'ANUNCIO_SOCIAL', 'ANUNCIO_TRADICIONAL',
-  'OPERACIONAL_ESCRITORIO', 'OPERACIONAL_TRANSPORTE', 'OPERACIONAL_SISTEMA',
-  'IMPOSTO_ISS', 'IMPOSTO_IR', 'TAXA_BANCARIA', 'COMISSAO_PARCEIRO',
-  'COMISSAO_VENDA', 'COMISSAO_LOCACAO', 'TAXA_INTERMEDIACAO',
-  'HONORARIO_AVALIACAO', 'CONSULTORIA', 'OUTROS',
-] as const;
+/** As categorias que a tela Financeiro oferece (src/types/financeiro.ts); cada tipo só aceita as suas. */
+export const CATEGORIAS_FINANCEIRAS = [...new Set([...CATEGORIAS_DESPESA, ...CATEGORIAS_RECEITA])];
 
 const ESQUEMAS = {
   create_client: objetoEstrito({
@@ -125,6 +122,10 @@ export interface PropostaValidada {
 export function validarProposta(valor: Record<string, unknown>): PropostaValidada {
   const tipo = umDe(TIPOS_ACAO_IA)(valor?.action_type, 'action_type') as TipoAcaoIa;
   const params = ESQUEMAS[tipo](valor.params);
+  if (tipo === 'create_financial_entry') {
+    const doTipo: readonly string[] = params.tipo === 'RECEITA' ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA;
+    if (!doTipo.includes(String(params.categoria))) throw new AcaoInvalida('categoria');
+  }
   const description = texto(1, 1000)(valor.description, 'description') as string;
   return { action_type: tipo, params, description };
 }

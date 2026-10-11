@@ -59,13 +59,19 @@ export interface LinhaHistorico {
   content: string;
   tool_calls: unknown;
   tool_name: string | null;
+  metadata?: unknown;
 }
 
-/** As últimas N mensagens, da mais nova para a mais antiga (como a Edge Function). */
+/**
+ * As últimas N falas (pergunta e resposta com texto), da mais nova para a mais antiga. Resultados de
+ * ferramenta e rodadas sem texto ficam de fora já no banco: o provedor não recebe nenhum dos dois, e contá-los
+ * no limite deixava o modelo com dois ou três turnos de memória.
+ */
 export async function historicoRecente(tx: Tx, conversationId: string, limite: number): Promise<LinhaHistorico[]> {
   return tx.$queryRaw<LinhaHistorico[]>(Prisma.sql`
-    select m.role, m.content, m.tool_calls, m.tool_name from public.ai_messages m
+    select m.role, m.content, m.tool_calls, m.tool_name, m.metadata from public.ai_messages m
     where m.conversation_id = ${conversationId}::uuid
+      and m.role in ('user', 'assistant') and coalesce(m.content, '') <> ''
     order by m.created_at desc nulls last, m.id desc
     limit ${limite}::int`);
 }

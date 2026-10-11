@@ -1,5 +1,70 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — Assistente IA no molde do Oráculo do Clix (2026-10-11)
+
+- Pedido do Rafael: o Assistente IA responder como o Oráculo da loja Usaflex.
+- Fluxo de tarefa complexa:
+  - plano;
+  - pesquisa com agentes;
+  - adversarial do plano;
+  - código;
+  - revisão do código em 4 lentes, com verificação adversarial: 26 achados confirmados, todos corrigidos;
+  - checagem adversarial das correções.
+- O que a adversarial mudou: a pesquisa mostrou que as ferramentas davam números diferentes das telas (contratos ativos 0 com 16 ATIVO; funil contando clientes). Por isso o escopo passou a incluir as consultas.
+- **Prompt** (`assistant.general@2026-10-11.4`):
+  - persona de sócia da operação;
+  - contrato de evidência;
+  - bloco `<agora>` com datas prontas no fuso, incluindo os próximos 14 dias com o dia da semana;
+  - sem nome técnico nem ID;
+  - leitura resolvida no mesmo turno;
+  - formato Leitura / Evidências / Próximas ações.
+- **Modos:** estruturado (extração de contrato) e onboarding, os dois sem ferramentas e sem resumo da conta.
+- **Ferramentas batem com as telas** (`periodo.ts`, `rotulos.ts`):
+  - funil = kanban (crm_oportunidades);
+  - contratos ativos = status ATIVO (Aluguéis), com o fim do contrato no fuso, como a tela mostra;
+  - financeiro = período da tela, por dia, separando lançado e previsto;
+  - sem retorno = aba da tela Clientes (30 dias);
+  - follow-ups = os marcados, como o Início, com `followup_ate`;
+  - rótulos e datas dd/mm/aaaa já prontos;
+  - busca por telefone com +55;
+  - tipo de contrato com grupos;
+  - situação do imóvel;
+  - ficha do imóvel sem colunas técnicas.
+- **Continuação sem ID na tela:** os registros citados ficam no metadata da resposta e voltam no turno seguinte como `external_data`.
+- **Stream:**
+  - o preâmbulo "vou consultar" não aparece;
+  - limite de 5 rodadas;
+  - rodapé "N consultas · X s";
+  - turno sem texto e sem ação vira erro com "Tentar novamente".
+- **Ações:**
+  - follow-up gravado ao meio-dia de Brasília, para cair no mesmo dia em todos os fusos do Brasil;
+  - lançamento aceita as categorias da tela Financeiro, conforme o tipo;
+  - proposta recusada diz o campo que falhou;
+  - o prompt avisa que mudar o status do cadastro não move o Funil de Vendas.
+- **Front:**
+  - tabela rola de lado;
+  - links aparecem com nome e abrem em outra aba;
+  - código técnico que escapar do prompt vira rótulo (sem lookbehind, que quebraria o Safari antes do 16.4);
+  - o cartão de ação mostra os campos legíveis;
+  - Expandir abre a mesma conversa e fica desabilitado durante o stream ou com ação pendente;
+  - apagar a conversa encerra o stream;
+  - extração de contrato e onboarding mandam o seu modo.
+- **Tela Financeiro:** a data do lançamento não volta mais um dia (`diaDoLancamento`) no card, no DRE, na edição e na exportação.
+- **Validações** (um arquivo por vez):
+  - jest: `ia.regras` 54, `ia.servicos` 34, `assistente.service` 25, `ia.controller` 8, `contratos/ia` 34;
+  - SQL real `ia.test` 16;
+  - vitest: `respostaIa` 8, `useAIChat.api` 10, `formato` 24, `contractExtractionService.assistente` 2, `PromptTab` 7, `telasIa.api` 3, `AIConversationList` 1, `lib/api/ia` 6, `AppLayout.render` 1, `AppLayout` 3, `Onboarding.becos` 4;
+  - tsc da API limpo; no front, nenhum erro novo (os de tipo do Supabase já existiam).
+- **Não verificado:**
+  - com o Gemini real: o prompt novo nunca foi ao modelo;
+  - no navegador logado.
+- **Pendências:**
+  - ferramentas de agenda/visitas e de leads do QR ou do WhatsApp;
+  - lançamento recorrente criado pela IA não gera as 12 linhas como a tela;
+  - lançamento sem data usa o hoje de Brasília;
+  - `welcomeMessage` morto em `Assistente.tsx`.
+- Diário — Claude: o Assistente IA responde no molde do Oráculo, com os mesmos números das telas.
+
 ## Claude — segurança, saída do Supabase, IA refeita no modelo do Clix, funil e agenda da IA (2026-10-10)
 
 - Segurança: API só aceita o login próprio (0eff23e); Clarity mascara a área logada; telefone sai da URL; senha do Postgres rotacionada (Codex).

@@ -19,7 +19,7 @@ interface UseAIChatReturn {
   activeConversation: string | null;
   isStreaming: boolean;
   error: string | null;
-  sendMessage: (text: string, fileContext?: string) => Promise<void>;
+  sendMessage: (text: string, fileContext?: string, opcoes?: OpcoesEnvio) => Promise<void>;
   uploadFile: (file: File) => Promise<{ extracted_text: string; file_name: string } | null>;
   startConversation: () => void;
   loadConversation: (id: string) => Promise<void>;
@@ -30,6 +30,29 @@ interface UseAIChatReturn {
   rejectAction: (actionId: string) => Promise<void>;
   retry: () => Promise<void>;
   pendingActions: AISuggestedAction[];
+}
+
+/** intent do pedido: 'assistant.chat' (padrão) ou outro modo do servidor, como 'onboarding.help'. */
+export interface OpcoesEnvio {
+  intent?: string;
+}
+
+/**
+ * Conversa reaberta: só falas com texto (as rodadas de consulta ficam gravadas sem texto) e respostas seguidas
+ * da IA viram uma só, como apareceram ao vivo, com o rodapé da última.
+ */
+export function mensagensVisiveis(linhas: AIMessage[]): AIMessage[] {
+  const saida: AIMessage[] = [];
+  for (const m of linhas) {
+    if ((m.role !== 'user' && m.role !== 'assistant') || !m.content?.trim()) continue;
+    const anterior = saida[saida.length - 1];
+    if (m.role === 'assistant' && anterior?.role === 'assistant') {
+      saida[saida.length - 1] = { ...m, id: anterior.id, content: `${anterior.content}\n\n${m.content}`, created_at: anterior.created_at };
+    } else {
+      saida.push(m);
+    }
+  }
+  return saida;
 }
 
 // Ordena fixadas primeiro; dentro de cada grupo o Array.sort estável do V8
@@ -67,7 +90,15 @@ export function useAIChat(): UseAIChatReturn {
   const [pendingActions, setPendingActions] = useState<AISuggestedAction[]>([]);
   const lastMessageRef = useRef<string>('');
   const lastFileContextRef = useRef<string | undefined>(undefined);
+  const lastOpcoesRef = useRef<OpcoesEnvio | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+
+  /** Trocar ou limpar a conversa encerra o stream em andamento: a resposta não cai na conversa errada. */
+  const encerrarStream = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsStreaming(false);
+  };
 
   const loadConversations = useCallback(async () => {
     if (apiDisponivel()) {
@@ -110,6 +141,7 @@ export function useAIChat(): UseAIChatReturn {
     // Otimista: some da lista imediatamente
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeConversation === id) {
+      encerrarStream();
       setActiveConversation(null);
       setMessages([]);
       setPendingActions([]);
@@ -131,6 +163,7 @@ export function useAIChat(): UseAIChatReturn {
   }, [conversations, activeConversation]);
 
   const loadConversation = useCallback(async (id: string) => {
+    encerrarStream();
     setActiveConversation(id);
     setError(null);
     setPendingActions([]);
@@ -147,25 +180,23 @@ export function useAIChat(): UseAIChatReturn {
       data = resposta.data as unknown as Array<{ role: string }> | null;
     }
 
-    const msgs = (data || []).filter(
-      (m: { role: string }) => m.role === 'user' || m.role === 'assistant'
-    ) as AIMessage[];
-
-    setMessages(msgs);
+    setMessages(mensagensVisiveis((data || []) as AIMessage[]));
   }, []);
 
   const startConversation = useCallback(() => {
+    encerrarStream();
     setActiveConversation(null);
     setMessages([]);
     setError(null);
     setPendingActions([]);
   }, []);
 
-  const sendMessage = useCallback(async (text: string, fileContext?: string) => {
+  const sendMessage = useCallback(async (text: string, fileContext?: string, opcoes?: OpcoesEnvio) => {
     if (!text.trim() && !fileContext) return;
     setError(null);
     lastMessageRef.current = text;
     lastFileContextRef.current = fileContext;
+    lastOpcoesRef.current = opcoes;
 
     const userMsg: AIMessage = {
       id: crypto.randomUUID(),
@@ -187,7 +218,12 @@ export function useAIChat(): UseAIChatReturn {
     setMessages(prev => [...prev, assistantMsg]);
 
     setIsStreaming(true);
-    abortRef.current = new AbortController();
+    const controle = new AbortController();
+    abortRef.current = controle;
+    // Envio que já não é o atual (a pessoa trocou de conversa no meio): os eventos dele são ignorados.
+    const atual = () => abortRef.current === controle;
+    // Turno que termina sem texto e sem ação não pode sumir calado: vira erro com "Tentar novamente".
+    let trouxeAlgo = false;
 
     try {
       const corpo = {
@@ -195,7 +231,7 @@ export function useAIChat(): UseAIChatReturn {
         conversation_id: activeConversation,
         file_context: fileContext,
         module: aiModuleFromPath(window.location.pathname),
-        intent: 'assistant.chat',
+        intent: opcoes?.intent ?? 'assistant.chat',
         locale: 'pt-BR',
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
         output_mode: 'text',
@@ -204,10 +240,10 @@ export function useAIChat(): UseAIChatReturn {
       let response: Response;
       if (apiDisponivel()) {
         // Mesmo stream e mesmos eventos da Edge Function; erro antes do stream vem como ErroApi.
-        response = await abrirAssistenteApi(corpo, abortRef.current.signal);
+        response = await abrirAssistenteApi(corpo, controle.signal);
       } else {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('Not authenticated');
+        if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
 
         response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
@@ -219,13 +255,13 @@ export function useAIChat(): UseAIChatReturn {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(corpo),
-            signal: abortRef.current.signal,
+            signal: controle.signal,
           }
         );
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
+          const errorData = await response.json().catch(() => ({ error: '' }));
+          throw new Error(errorData.error || `O assistente não respondeu (erro ${response.status}). Tente novamente.`);
         }
       }
 
@@ -246,10 +282,12 @@ export function useAIChat(): UseAIChatReturn {
           const raw = line.slice(6).trim();
           if (!raw) continue;
 
+          if (!atual()) break;
           try {
             const chunk: AIStreamChunk = JSON.parse(raw);
 
             if (chunk.type === 'text' && chunk.content) {
+              if (chunk.content.trim()) trouxeAlgo = true;
               setMessages(prev =>
                 prev.map(m =>
                   m.id === assistantId
@@ -260,19 +298,31 @@ export function useAIChat(): UseAIChatReturn {
             }
 
             if (chunk.type === 'action' && chunk.action) {
+              trouxeAlgo = true;
               setPendingActions(prev => [...prev, chunk.action!]);
             }
 
             if (chunk.type === 'done') {
-              const convId = (chunk as unknown as { conversation_id?: string }).conversation_id;
+              const convId = chunk.conversation_id;
               if (convId && !activeConversation) {
                 setActiveConversation(convId);
+              }
+              // Rodapé da resposta ao vivo; reaberta, a conversa traz o mesmo metadata gravado pela API.
+              if (typeof chunk.duracao_ms === 'number') {
+                const rodape = { consultas: chunk.consultas, duracao_ms: chunk.duracao_ms };
+                setMessages(prev => prev.map(m => (m.id === assistantId ? { ...m, metadata: { ...m.metadata, ...rodape } } : m)));
+              }
+              if (!trouxeAlgo) {
+                setError('O assistente não trouxe resposta. Tente novamente.');
+                setMessages(prev => prev.filter(m => m.id !== assistantId));
               }
               loadConversations();
             }
 
             if (chunk.type === 'error') {
-              setError(chunk.error || 'Unknown error');
+              setError(chunk.error || 'O assistente não conseguiu responder. Tente novamente.');
+              // Sem texto, a resposta vazia não fica na tela.
+              setMessages(prev => prev.filter(m => m.id !== assistantId || m.content.trim()));
             }
           } catch {
             // Skip malformed chunks
@@ -280,7 +330,7 @@ export function useAIChat(): UseAIChatReturn {
         }
       }
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
+      if ((err as Error).name === 'AbortError' || !atual()) return;
       // "Failed to fetch" = falha de rede/CORS (ex.: Edge Function fora do ar)
       const message =
         err instanceof TypeError
@@ -291,8 +341,10 @@ export function useAIChat(): UseAIChatReturn {
       setError(message);
       setMessages(prev => prev.filter(m => m.id !== assistantId));
     } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
+      if (atual()) {
+        setIsStreaming(false);
+        abortRef.current = null;
+      }
     }
   }, [activeConversation, loadConversations]);
 
@@ -300,7 +352,7 @@ export function useAIChat(): UseAIChatReturn {
     try {
       if (apiDisponivel()) return await enviarAnexoIaApi(file);
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
 
       const formData = new FormData();
       formData.append('file', file);
@@ -318,8 +370,8 @@ export function useAIChat(): UseAIChatReturn {
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
-        throw new Error(errorData.error);
+        const errorData = await response.json().catch(() => ({ error: '' }));
+        throw new Error(errorData.error || 'Não foi possível enviar o arquivo.');
       }
 
       return await response.json();
@@ -403,7 +455,7 @@ export function useAIChat(): UseAIChatReturn {
 
   const retry = useCallback(async () => {
     if (lastMessageRef.current) {
-      await sendMessage(lastMessageRef.current, lastFileContextRef.current);
+      await sendMessage(lastMessageRef.current, lastFileContextRef.current, lastOpcoesRef.current);
     }
   }, [sendMessage]);
 
