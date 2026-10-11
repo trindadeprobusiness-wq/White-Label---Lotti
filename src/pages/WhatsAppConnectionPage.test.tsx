@@ -40,7 +40,9 @@ it('mantém uma página de Conexão acessível quando o número já está conect
   expect(screen.getByTestId('connection-panels').className).toContain('space-y-4');
   expect(screen.getByTestId('status-details').className).toContain('space-y-4');
   expect(screen.getByTestId('status-details').className).not.toContain('sm:grid-cols');
-  expect(screen.getByTestId('connection-page').className).toContain('-mb-16');
+  // Folga embaixo: o último card não encosta na borda da tela do notebook.
+  expect(screen.getByTestId('connection-page').className).toContain('pb-10');
+  expect(screen.getByTestId('connection-page').className).not.toContain('-mb-16');
 });
 
 it('envia a mensagem de teste em português para o telefone informado', async () => {
@@ -98,7 +100,7 @@ it('oferece a reconexão na página Conexão sem depender do Inbox', async () =>
   expect(await screen.findByText('Desconectado')).not.toBeNull();
   expect(screen.queryByRole('button', { name: 'Desconectar' })).toBeNull();
   expect(await screen.findByText('Preparando QR Code…')).not.toBeNull();
-  expect(screen.getByText(/WhatsApp → Configurações → Aparelhos conectados/)).not.toBeNull();
+  expect(screen.getByText(/Entre em Aparelhos conectados/)).not.toBeNull();
   expect(screen.queryByRole('link', { name: 'Abrir Inbox' })).toBeNull();
   // Sem número conectado, só status e QR: o teste de envio aparece depois de conectar.
   expect(screen.queryByRole('heading', { name: 'Teste de envio' })).toBeNull();

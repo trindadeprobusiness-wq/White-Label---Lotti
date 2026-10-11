@@ -82,7 +82,7 @@ export default function WhatsAppConnectionPage() {
       return data;
     },
   });
-  return <div data-testid="connection-page" className="mx-auto -mb-16 max-w-4xl space-y-4 pb-0">
+  return <div data-testid="connection-page" className="mx-auto max-w-4xl space-y-4 pb-10">
     <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">WhatsApp</p>
       <h1 className="mt-2 text-2xl font-semibold">Conexão</h1>
       <p className="mt-1 text-sm text-muted-foreground">Acompanhe o número de atendimento conectado ao Inbox da imobiliária.</p></div>
