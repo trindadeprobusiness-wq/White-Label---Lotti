@@ -2609,3 +2609,8 @@ credencial); nao foi contornada.
 - Verificação: 25 testes direcionados passaram em sete arquivos; ESLint direcionado, bundle da Edge Function, build Vite e diff --check passaram. Parcial de abandono validado em testes; entrega de parcial real ainda não observada.
 - Diário — Codex: corrigida integração de autenticação do painel sem modificar o login existente; alterações do checkout original preservadas.
 
+## 2026-10-11 — Codex (WL Gate 0/1, descoberta local)
+- Gate 0: opção 1 adotada para preparação local. Clone candidato em `projetos/White-Label---Lotti`, `main` no SHA de origem `40d7e84e2a5b12a23b5a4de4c3fe33353a267a86`; `origin` aponta ao destino, sem refs visíveis no último `ls-remote`; `core` conserva a origem e 72 refs. Nenhum push/configuração remota. Cutover externo aguarda titularidade, escrita única, CI/acessos e triagem das 13 branches fora de `main`.
+- Gate 1 segue aberto: inventários estáticos de Produto/Frontend/Banco/QA concluídos; threat model do Orquestrador é preliminar; revisão independente de Segurança e análise de Backend não concluíram.
+- Baseline: build da SPA, build/typecheck da API passaram; `npm audit --omit=dev` encontrou 0 vulnerabilidades. Com env fictícia do CI, SPA teve 1 timeout; sem env, 9 arquivos/5 testes falharam. API: suíte incompleta, interrompida sem resumo Jest. Typecheck/lint da SPA falharam no snapshot.
+- Evidências locais de coordenação (fora do repositório, não acompanham o clone): `../../sistema/lotti-white-label/`. Próximo passo: destravar leitura restrita para Segurança/Backend; fechar multi-org, cadastro/convite, quota, assinatura e backoffice; concluir threat model. Sem migration, deploy, push ou dados reais.
