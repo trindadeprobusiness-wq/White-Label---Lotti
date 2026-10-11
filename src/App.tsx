@@ -83,6 +83,9 @@ const PaginaInicialPublica = lazy(() => import("@/pages/PublicInfo").then((m) =>
 const Diagnostic = lazy(() => import('@/pages/Diagnostic'));
 const DiagnosticPrivacy = lazy(() => import('@/pages/DiagnosticPrivacy'));
 const AdminDiagnostics = lazy(() => import('@/pages/admin/AdminDiagnostics'));
+const CentralComercial = lazy(() => import('@/pages/admin/CentralComercial'));
+const CentralFinanceiro = lazy(() => import('@/pages/admin/CentralFinanceiro'));
+const CentralRelatorios = lazy(() => import('@/pages/admin/CentralRelatorios'));
 const AdminDiagnosticDetail = lazy(() => import('@/pages/admin/AdminDiagnosticDetail'));
 const PoliticaPrivacidade = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.PoliticaPrivacidade })));
 const TermosUso = lazy(() => import("@/pages/PublicInfo").then((m) => ({ default: m.TermosUso })));
@@ -239,6 +242,9 @@ const App = () => (
           >
             <Route path="/admin" element={<AdminVisaoGeral />} />
             <Route path="/admin/diagnosticos" element={<AdminDiagnostics />} />
+            <Route path="/admin/central-comercial" element={<CentralComercial />} />
+            <Route path="/admin/central-comercial/financeiro" element={<CentralFinanceiro />} />
+            <Route path="/admin/central-comercial/relatorios" element={<CentralRelatorios />} />
             <Route path="/admin/diagnosticos/:id" element={<AdminDiagnosticDetail />} />
             <Route path="/admin/usuarios" element={<AdminUsuarios />} />
             <Route path="/admin/usuarios/:id" element={<AdminUsuarioDetalhe />} />

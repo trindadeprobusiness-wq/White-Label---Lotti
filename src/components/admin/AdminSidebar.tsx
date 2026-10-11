@@ -18,8 +18,7 @@ import {
   Send,
   Megaphone,
   PlugZap,
-  ClipboardList,
-} from 'lucide-react';
+  ClipboardList, PhoneCall } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LottiLogo } from '@/components/brand/LottiLogo';
 import { usePapeis } from '@/hooks/admin/usePapeis';
@@ -53,6 +52,7 @@ const GRUPOS: GrupoMenu[] = [
     itens: [
       { recurso: 'visao_geral', label: 'Visão geral', href: '/admin', icone: <LayoutDashboard className="h-4 w-4 flex-shrink-0" /> },
       { recurso: 'diagnosticos', label: 'Diagnósticos comerciais', href: '/admin/diagnosticos', icone: <ClipboardList className="h-4 w-4 flex-shrink-0" /> },
+      { recurso: 'diagnosticos', label: 'Central Comercial', href: '/admin/central-comercial', icone: <PhoneCall className="h-4 w-4 flex-shrink-0" /> },
     ],
   },
   {

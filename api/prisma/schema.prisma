@@ -623,6 +623,176 @@ model CancelamentoFeedback {
   @@map("cancelamento_feedback")
 }
 
+/// Tabela public.central_comercial_despesas — RLS ligado.
+/// 3 check constraint(s) só no SQL.
+model CentralComercialDespesa {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  ownerId         String    @map("owner_id") @db.Uuid
+  descricao       String
+  categoria       String
+  valor           Decimal   @db.Decimal(12, 2)
+  dataCompetencia DateTime  @default(dbgenerated("CURRENT_DATE")) @map("data_competencia") @db.Date
+  dataPagamento   DateTime? @map("data_pagamento") @db.Date
+  vendaId         String?   @map("venda_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  venda CentralComercialVenda? @relation("central_comercial_despesas_venda_id_fkey", fields: [vendaId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([ownerId, dataCompetencia(sort: Desc)], map: "central_comercial_despesas_owner_data_idx")
+  @@map("central_comercial_despesas")
+}
+
+/// Tabela public.central_comercial_interacoes — RLS ligado.
+/// 2 check constraint(s) só no SQL.
+model CentralComercialInteracao {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  ownerId       String    @map("owner_id") @db.Uuid
+  leadId        String    @map("lead_id") @db.Uuid
+  tipo          String
+  resultado     String?
+  observacoes   String?
+  ocorreuEm     DateTime  @default(now()) @map("ocorreu_em") @db.Timestamptz(6)
+  proximaAcao   String?   @map("proxima_acao")
+  proximaAcaoEm DateTime? @map("proxima_acao_em") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  roteiroId     String?   @map("roteiro_id") @db.Uuid
+
+  lead    CentralComercialLead     @relation("central_comercial_interacoes_lead_id_fkey", fields: [leadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  roteiro CentralComercialRoteiro? @relation("central_comercial_interacoes_roteiro_id_fkey", fields: [roteiroId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([id, ownerId], map: "central_comercial_interacao_id_owner_unique")
+  @@index([leadId, ocorreuEm(sort: Desc)], map: "central_comercial_interacoes_lead_time_idx")
+  @@index([ownerId, ocorreuEm(sort: Desc)], map: "central_comercial_interacoes_owner_time_idx")
+  @@index([roteiroId, ocorreuEm(sort: Desc)], map: "central_comercial_interacoes_roteiro_idx")
+  @@map("central_comercial_interacoes")
+}
+
+/// Tabela public.central_comercial_leads — RLS ligado.
+/// 6 check constraint(s) só no SQL.
+model CentralComercialLead {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  ownerId              String    @map("owner_id") @db.Uuid
+  nomeEmpresa          String    @map("nome_empresa")
+  segmento             String?
+  cidade               String?
+  bairro               String?
+  telefone             String?
+  telefoneNormalizado  String?   @map("telefone_normalizado")
+  site                 String?
+  verificacaoSite      String    @default("nao_informado") @map("verificacao_site")
+  redeSocial           String?   @map("rede_social")
+  notaAvaliacoes       Decimal?  @map("nota_avaliacoes") @db.Decimal(3, 2)
+  quantidadeAvaliacoes Int?      @map("quantidade_avaliacoes")
+  linkOrigem           String?   @map("link_origem")
+  dataImportacao       DateTime  @default(now()) @map("data_importacao") @db.Timestamptz(6)
+  score                Int       @default(0)
+  justificativaScore   String?   @map("justificativa_score")
+  observacoes          String?
+  responsavel          String?
+  statusContato        String    @default("novo") @map("status_contato")
+  proximaAcao          String?   @map("proxima_acao")
+  proximaAcaoEm        DateTime? @map("proxima_acao_em") @db.Timestamptz(6)
+  filaPausadaAte       DateTime? @map("fila_pausada_ate") @db.Timestamptz(6)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  centralComercialInteracoes CentralComercialInteracao[] @relation("central_comercial_interacoes_lead_id_fkey")
+  centralComercialVenda      CentralComercialVenda?      @relation("central_comercial_vendas_lead_id_fkey")
+
+  @@index([ownerId, telefoneNormalizado], map: "central_comercial_leads_owner_phone_idx")
+  @@index([ownerId, statusContato, proximaAcaoEm], map: "central_comercial_leads_owner_status_idx")
+  @@map("central_comercial_leads")
+}
+
+/// Tabela public.central_comercial_projecao_config — RLS ligado.
+/// 12 check constraint(s) só no SQL.
+model CentralComercialProjecaoConfig {
+  /// referencia auth.users(id)
+  ownerId              String   @id @map("owner_id") @db.Uuid
+  ligacoesDia          Int      @default(30) @map("ligacoes_dia")
+  diasUteis            Int      @default(22) @map("dias_uteis")
+  taxaAtendimento      Decimal  @default(35) @map("taxa_atendimento") @db.Decimal(5, 2)
+  taxaDecisor          Decimal  @default(50) @map("taxa_decisor") @db.Decimal(5, 2)
+  taxaAutorizacao      Decimal  @default(30) @map("taxa_autorizacao") @db.Decimal(5, 2)
+  taxaProposta         Decimal  @default(60) @map("taxa_proposta") @db.Decimal(5, 2)
+  taxaFechamento       Decimal  @default(25) @map("taxa_fechamento") @db.Decimal(5, 2)
+  ticketMedio          Decimal  @default(800) @map("ticket_medio") @db.Decimal(12, 2)
+  percentualEntrada    Decimal  @default(50) @map("percentual_entrada") @db.Decimal(5, 2)
+  prazoRecebimentoDias Int      @default(15) @map("prazo_recebimento_dias")
+  custoOperacional     Decimal  @default(0) @map("custo_operacional") @db.Decimal(12, 2)
+  metaMensal           Decimal  @default(10000) @map("meta_mensal") @db.Decimal(12, 2)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("central_comercial_projecao_config")
+}
+
+/// Tabela public.central_comercial_recebimentos — RLS ligado.
+/// 1 check constraint(s) só no SQL.
+model CentralComercialRecebimento {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  ownerId      String    @map("owner_id") @db.Uuid
+  vendaId      String    @map("venda_id") @db.Uuid
+  valor        Decimal   @db.Decimal(12, 2)
+  dataPrevista DateTime? @map("data_prevista") @db.Date
+  dataRecebida DateTime? @map("data_recebida") @db.Date
+  descricao    String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  venda CentralComercialVenda @relation("central_comercial_recebimentos_venda_id_fkey", fields: [vendaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([ownerId, dataPrevista], map: "central_comercial_receb_owner_due_idx")
+  @@map("central_comercial_recebimentos")
+}
+
+/// Tabela public.central_comercial_roteiros — RLS ligado.
+/// 2 check constraint(s) só no SQL.
+model CentralComercialRoteiro {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  ownerId   String   @map("owner_id") @db.Uuid
+  nome      String
+  versao    String   @default("A")
+  texto     String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  centralComercialInteracoes CentralComercialInteracao[] @relation("central_comercial_interacoes_roteiro_id_fkey")
+
+  @@unique([ownerId, nome, versao])
+  @@map("central_comercial_roteiros")
+}
+
+/// Tabela public.central_comercial_vendas — RLS ligado.
+/// 4 check constraint(s) só no SQL.
+model CentralComercialVenda {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// referencia auth.users(id)
+  ownerId              String    @map("owner_id") @db.Uuid
+  leadId               String    @unique @map("lead_id") @db.Uuid
+  valorContratado      Decimal   @map("valor_contratado") @db.Decimal(12, 2)
+  dataFechamento       DateTime  @default(dbgenerated("CURRENT_DATE")) @map("data_fechamento") @db.Date
+  percentualEntrada    Decimal   @default(50) @map("percentual_entrada") @db.Decimal(5, 2)
+  prazoRecebimentoDias Int       @default(0) @map("prazo_recebimento_dias")
+  statusProducao       String    @default("contrato_fechado") @map("status_producao")
+  prazoEntrega         DateTime? @map("prazo_entrega") @db.Date
+  linkDemonstracao     String?   @map("link_demonstracao")
+  linkFinal            String?   @map("link_final")
+  pendencias           String?
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  lead                         CentralComercialLead          @relation("central_comercial_vendas_lead_id_fkey", fields: [leadId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  centralComercialDespesas     CentralComercialDespesa[]     @relation("central_comercial_despesas_venda_id_fkey")
+  centralComercialRecebimentos CentralComercialRecebimento[] @relation("central_comercial_recebimentos_venda_id_fkey")
+
+  @@index([ownerId, dataFechamento(sort: Desc)], map: "central_comercial_vendas_owner_data_idx")
+  @@map("central_comercial_vendas")
+}
+
 /// Tabela public.checkout_orders — RLS ligado.
 /// Gatilhos: auditar_suporte, checkout_orders_updated_at.
 /// 5 check constraint(s) só no SQL.

@@ -23,6 +23,7 @@ import { RotinaModule } from './rotina/rotina.module';
 import { StorageModule } from './storage/storage.module';
 import { SuporteModule } from './suporte/suporte.module';
 import { VisitasModule } from './visitas/visitas.module';
+import { CentralComercialModule } from './central-comercial/central-comercial.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
@@ -45,6 +46,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     ParceirosModule,
     NotificacoesModule,
     VisitasModule,
+    CentralComercialModule,
     IaModule,
     AgendamentosModule,
     SuporteModule,
