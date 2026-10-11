@@ -104,6 +104,15 @@ export const AGENDAMENTOS: readonly Agendamento[] = [
     toleranciaMs: 5 * 60_000,
     depois: 'notificacoes-diagnostico',
   },
+  {
+    // A cada 15 min: visita que a IA reservou e começa em até 24 h sem confirmação avisa o corretor (uma vez).
+    nome: 'lembrete-visita-corretor',
+    schedulerId: 'agendamento-lembrete-visita-corretor',
+    padrao: '*/15 * * * *',
+    modo: 'valor',
+    sql: Prisma.sql`SELECT public.lotti_visita_lembrete_corretor() AS n`,
+    toleranciaMs: 15 * 60_000,
+  },
 ];
 
 export function agendamentoPorNome(nome: string): Agendamento | undefined {

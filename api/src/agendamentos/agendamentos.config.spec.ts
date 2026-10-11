@@ -31,8 +31,8 @@ describe('agendamentos (pg_cron → BullMQ)', () => {
   });
 
   it('os cinco jobs, com id de scheduler fixo e único', () => {
-    expect(AGENDAMENTOS.map((a) => a.nome)).toEqual([...Object.keys(ORIGEM), 'manutencao-diagnostico']);
-    expect(new Set(AGENDAMENTOS.map((a) => a.schedulerId)).size).toBe(5);
+    expect(AGENDAMENTOS.map((a) => a.nome)).toEqual([...Object.keys(ORIGEM), 'manutencao-diagnostico', 'lembrete-visita-corretor']);
+    expect(new Set(AGENDAMENTOS.map((a) => a.schedulerId)).size).toBe(6);
     for (const a of AGENDAMENTOS) expect(a.schedulerId).toBe(`agendamento-${a.nome}`);
     expect(agendamentoPorNome('sweeper-webhook-events')?.padrao).toBe('*/5 * * * *');
     expect(agendamentoPorNome('outro')).toBeUndefined();

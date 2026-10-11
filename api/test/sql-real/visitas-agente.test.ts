@@ -50,3 +50,24 @@ test('IA agenda visita: só horário livre, sem duas no mesmo horário, remarca 
     assert.equal((await servico.solicitar({ ...pedido, hora: '15:00', conversationId: c2 }, AGORA)).situacao, 'remarcada');
   } finally { await b.fechar(); }
 });
+
+test('lembrete ao corretor: visita da IA não confirmada nas próximas 24 h gera um alerta só, uma vez', async () => {
+  const b = await criarBanco();
+  try {
+    const [{ org }] = await b.sqlSuperusuario<{ org: string }>(`select organization_id::text as org from public.routine_memberships where user_id = $1::uuid and status = 'active' limit 1`, [b.contaA.userId]);
+    const cliente = (await b.inserir('clientes', { corretor_id: b.corretorA, nome: 'Ana Lead', telefone: '62981119999' })).id as string;
+    const evento = (status: string, horas: number) => b.sqlSuperusuario(`insert into public.routine_events
+      (organization_id, assigned_to, created_by, title, activity_type, status, priority, start_at, end_at, timezone, visibility, source, client_id, sync_status)
+      values ($1::uuid, $2::uuid, $2::uuid, 'Visita: Ana Lead', 'visita', $3, 'urgent', now() + make_interval(hours => $4), now() + make_interval(hours => $4 + 1),
+        'America/Sao_Paulo', 'team', 'ai', $5::uuid, 'pending')`, [org, b.contaA.userId, status, horas, cliente]);
+    await evento('pending_confirmation', 3);
+    await evento('confirmed', 4);
+    await evento('pending_confirmation', 48);
+    const rodar = async () => (await b.sqlSuperusuario<{ n: number }>(`select public.lotti_visita_lembrete_corretor() as n`))[0].n;
+    assert.equal(await rodar(), 1);
+    assert.equal(await rodar(), 0, 'não repete');
+    const [alerta] = await b.sqlSuperusuario<{ mensagem: string; corretor_id: string }>(`select mensagem, corretor_id from public.alertas where metadata->>'tipo' = 'visita_lembrete_corretor'`);
+    assert.equal(alerta.corretor_id, b.corretorA);
+    assert.match(alerta.mensagem, /^Visita ainda não confirmada: Ana Lead em \d\d\/\d\d às \d\d:\d\d\. Confirme com o cliente\.$/);
+  } finally { await b.fechar(); }
+});

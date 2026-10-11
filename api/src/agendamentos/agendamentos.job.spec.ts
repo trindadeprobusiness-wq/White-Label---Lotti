@@ -72,7 +72,7 @@ describe('AgendamentosJob: registro', () => {
     ]));
     expect(fila.upsertJobScheduler.mock.calls.map((c) => (c as unknown[])[0])).toEqual([
       'agendamento-gerar-faturas-mensais', 'agendamento-marcar-faturas-atrasadas',
-      'agendamento-sweeper-webhook-events', 'agendamento-gerar-alertas-vencimento', 'agendamento-manutencao-diagnostico',
+      'agendamento-sweeper-webhook-events', 'agendamento-gerar-alertas-vencimento', 'agendamento-manutencao-diagnostico', 'agendamento-lembrete-visita-corretor',
     ]);
     // Scheduler que saiu da lista é removido; os atuais não.
     expect(fila.removeJobScheduler.mock.calls).toEqual([['agendamento-velho']]);
