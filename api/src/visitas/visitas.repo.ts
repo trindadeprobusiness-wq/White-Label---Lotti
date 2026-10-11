@@ -115,4 +115,70 @@ export class VisitasRepo {
     await this.prisma.$executeRaw`
       update public.alertas set lido = true, read_at = now() where metadata->>'visita_id' = ${visitaId} and lido is not true`;
   }
+
+  /** Configuração do agente salva na tela (expediente e regras de visita). */
+  async configuracao(corretorId: string): Promise<unknown> {
+    const rows = await this.prisma.$queryRaw<Array<{ settings: unknown }>>`
+      select settings from public.lotti_agent_settings where corretor_id = ${corretorId}::uuid`;
+    return rows[0]?.settings ?? null;
+  }
+
+  /** Compromissos que ocupam a agenda do corretor no intervalo (inclui os da IA e os do Google sincronizados). */
+  ocupados(claims: SupabaseClaims, userId: string, de: Date, ate: Date, excluirId: string | null = null) {
+    return this.db.run(claims, async (tx) => (await tx.$queryRaw<Array<{ start_at: Date; end_at: Date }>>`
+      select e.start_at, e.end_at from public.routine_events e
+      where e.assigned_to = ${userId}::uuid and e.deleted_at is null and e.status <> 'cancelled'
+        and e.start_at < ${ate} and e.end_at > ${de} and (${excluirId}::uuid is null or e.id <> ${excluirId}::uuid)`)
+      .map((r) => ({ inicio: new Date(r.start_at), fim: new Date(r.end_at) })));
+  }
+
+  /** A visita futura que a IA marcou para este cliente com este corretor (para remarcar ou cancelar). */
+  async visitaFutura(userId: string, clienteId: string | null, agora: Date) {
+    if (!clienteId) return null;
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; start_at: Date }>>`
+      select id, start_at from public.routine_events
+      where assigned_to = ${userId}::uuid and source = 'ai' and activity_type = 'visita' and client_id = ${clienteId}::uuid
+        and deleted_at is null and status <> 'cancelled' and start_at > ${agora}
+      order by start_at limit 1`;
+    return rows[0] ? { id: rows[0].id, inicio: new Date(rows[0].start_at) } : null;
+  }
+
+  /**
+   * Marca (ou remarca, com `eventoId`) numa transação só, com trava por corretor: duas conversas pedindo
+   * o mesmo horário ao mesmo tempo não marcam as duas (como a exclusion constraint do Clix). Devolve o id
+   * do evento, ou null se o horário foi ocupado no meio do caminho.
+   */
+  reservar(claims: SupabaseClaims, e: NovoEvento, eventoId: string | null = null) {
+    return this.db.run(claims, async (tx) => {
+      await tx.$queryRaw`select pg_advisory_xact_lock(hashtext(${'visita:' + e.assignedTo}))::text as trava`;
+      const choque = await tx.$queryRaw<Array<{ id: string }>>`
+        select id from public.routine_events
+        where assigned_to = ${e.assignedTo}::uuid and deleted_at is null and status <> 'cancelled'
+          and start_at < ${e.fim} and end_at > ${e.inicio} and (${eventoId}::uuid is null or id <> ${eventoId}::uuid)
+        limit 1`;
+      if (choque.length) return null;
+      if (eventoId) {
+        const rows = await tx.$queryRaw<Array<{ id: string }>>`
+          update public.routine_events set start_at = ${e.inicio}, end_at = ${e.fim}, status = 'pending_confirmation', sync_status = 'pending'
+          where id = ${eventoId}::uuid and source = 'ai' and deleted_at is null returning id`;
+        return rows[0]?.id ?? null;
+      }
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        insert into public.routine_events
+          (organization_id, assigned_to, created_by, title, activity_type, status, priority, start_at, end_at,
+           timezone, visibility, source, client_id, property_id, sync_status)
+        values (${e.organizationId}::uuid, ${e.assignedTo}::uuid, ${e.createdBy}::uuid, ${e.titulo}, 'visita', ${e.status}, 'urgent',
+           ${e.inicio}, ${e.fim}, 'America/Sao_Paulo', 'team', 'ai', ${e.clienteId}::uuid, ${e.imovelId}::uuid, 'pending')
+        returning id`;
+      return rows[0].id;
+    });
+  }
+
+  /** Cancela a visita (libera o horário). */
+  cancelarEvento(claims: SupabaseClaims, eventoId: string) {
+    return this.db.run(claims, async (tx) => (await tx.$queryRaw<Array<{ id: string }>>`
+      update public.routine_events set status = 'cancelled', sync_status = 'pending'
+      where id = ${eventoId}::uuid and source = 'ai' and deleted_at is null and status <> 'cancelled' returning id`).length === 1);
+  }
+
 }

@@ -60,7 +60,7 @@ export function ScheduleTab({ settings, onChange, issues, stages }: AgentTabProp
 
     <SettingsSection
       title="Visitas"
-      description={schedule.visits.enabled ? 'A IA sugere horários e o corretor confirma.' : 'Desligado: pedidos de visita vão para o corretor.'}
+      description={schedule.visits.enabled ? 'A IA consulta a agenda, oferece só horários livres e marca; o corretor confirma.' : 'Desligado: pedidos de visita vão para o corretor.'}
       action={<Switch aria-label="Propor horários de visita" checked={schedule.visits.enabled} onCheckedChange={(enabled) => setVisits({ enabled })} />}
     >
       {schedule.visits.enabled && <>

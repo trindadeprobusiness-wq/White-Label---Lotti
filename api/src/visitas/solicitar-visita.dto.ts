@@ -7,3 +7,8 @@ export class SolicitarVisitaDto {
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) hora!: string;
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUUID() imovelId?: string | null;
 }
+
+export class ConversaDoAgenteDto {
+  @IsUUID() conversationId!: string;
+  @IsUUID() corretorId!: string;
+}

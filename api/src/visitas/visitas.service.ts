@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { SupabaseClaims } from '../prisma/tenant-db';
+import { horarioPermitido, horariosLivres, regraDasConfiguracoes } from './horarios';
 import { VisitasRepo } from './visitas.repo';
 
 export interface PedidoVisita {
@@ -11,7 +12,8 @@ export interface PedidoVisita {
   imovelId?: string | null;
 }
 
-const DURACAO_MS = 60 * 60 * 1000;
+const MIN_MS = 60 * 1000;
+const DIA_MS = 24 * 60 * MIN_MS;
 const SEM_NOME = 'Contato do WhatsApp';
 
 /** Brasília não tem horário de verão desde 2019: o fuso é sempre -03:00. */
@@ -32,16 +34,42 @@ const comoCorretor = (userId: string): SupabaseClaims => ({ sub: userId, role: '
 export class VisitasService {
   constructor(private readonly repo: VisitasRepo) {}
 
+  /** Conversa e corretor do pedido, conferindo que a conversa é desse corretor. */
+  private async contexto(conversationId: string, corretorId: string) {
+    const conversa = await this.repo.conversa(conversationId);
+    if (!conversa) throw new NotFoundException('conversa_inexistente');
+    if (conversa.corretorId !== corretorId) throw new ForbiddenException();
+    const corretor = await this.repo.corretor(corretorId);
+    if (!corretor) throw new NotFoundException('corretor_inexistente');
+    return { conversa, corretor, nome: conversa.nome?.trim() || SEM_NOME };
+  }
+
+  /**
+   * Horários livres para a IA oferecer (como o consultar_horarios do Clix): expediente e regras da tela do
+   * agente, menos a agenda do corretor. A visita que o cliente já tem não ocupa (para poder remarcar).
+   */
+  async horarios(p: { conversationId: string; corretorId: string }, agora = new Date()) {
+    const { conversa, corretor } = await this.contexto(p.conversationId, p.corretorId);
+    const regra = regraDasConfiguracoes(await this.repo.configuracao(p.corretorId));
+    const visita = await this.repo.visitaFutura(corretor.userId, conversa.clienteId, agora);
+    const ate = new Date(agora.getTime() + (regra.dias + 1) * DIA_MS);
+    const ocupados = await this.repo.ocupados(comoCorretor(corretor.userId), corretor.userId, agora, ate, visita?.id ?? null);
+    return {
+      horarios: horariosLivres(regra, ocupados, agora, { porDia: 4, limite: 14 }).map(({ id, rotulo }) => ({ id, rotulo })),
+      visitaMarcada: visita ? quando(visita.inicio) : null,
+      duracaoMin: regra.duracaoMin,
+    };
+  }
+
+  /**
+   * Marca a visita no horário escolhido (ou remarca a que o cliente já tem). Só vale horário que a IA
+   * poderia ter oferecido agora; a gravação confere de novo com trava, e ocupado no meio do caminho volta
+   * 'indisponivel' para a IA oferecer outro. Nasce pendente: o corretor confirma.
+   */
   async solicitar(p: PedidoVisita, agora = new Date()) {
     const inicio = inicioEmBrasilia(p.data, p.hora);
     if (!(inicio.getTime() > agora.getTime())) throw new UnprocessableEntityException('visita_no_passado');
-    const fim = new Date(inicio.getTime() + DURACAO_MS);
-
-    const conversa = await this.repo.conversa(p.conversationId);
-    if (!conversa) throw new NotFoundException('conversa_inexistente');
-    if (conversa.corretorId !== p.corretorId) throw new ForbiddenException();
-    const corretor = await this.repo.corretor(p.corretorId);
-    if (!corretor) throw new NotFoundException('corretor_inexistente');
+    const { conversa, corretor, nome } = await this.contexto(p.conversationId, p.corretorId);
     const visitaId = randomUUID();
 
     const repetida = await this.repo.existente(corretor.userId, inicio, conversa.clienteId);
@@ -49,26 +77,47 @@ export class VisitasService {
 
     const organizationId = await this.repo.organizacao(corretor.userId);
     if (!organizationId) throw new UnprocessableEntityException('visita_sem_organizacao');
-    const nome = conversa.nome?.trim() || SEM_NOME;
-    const ocupado = (await this.repo.conflitos(comoCorretor(corretor.userId), corretor.userId, inicio, fim)) > 0;
-    const routineEventId = ocupado ? null : await this.repo.criarEvento(comoCorretor(corretor.userId), {
+    const regra = regraDasConfiguracoes(await this.repo.configuracao(p.corretorId));
+    const fim = new Date(inicio.getTime() + regra.duracaoMin * MIN_MS);
+    const anterior = await this.repo.visitaFutura(corretor.userId, conversa.clienteId, agora);
+    const ocupados = await this.repo.ocupados(comoCorretor(corretor.userId), corretor.userId,
+      new Date(inicio.getTime() - DIA_MS), new Date(fim.getTime() + DIA_MS), anterior?.id ?? null);
+    const indisponivel = { visitaId, situacao: 'indisponivel' as const, routineEventId: null };
+    if (!horarioPermitido(regra, ocupados, agora, inicio)) return indisponivel;
+
+    const routineEventId = await this.repo.reservar(comoCorretor(corretor.userId), {
       organizationId, assignedTo: corretor.userId, createdBy: corretor.userId, titulo: `Visita: ${nome}`,
       inicio, fim, clienteId: conversa.clienteId, imovelId: p.imovelId ?? null, status: 'pending_confirmation',
-    });
+    }, anterior?.id ?? null);
+    if (!routineEventId) return indisponivel;
 
-    const metadata = {
-      prioridade: 'ALTA', tipo: ocupado ? 'visita_conflito' : 'visita_confirmar', visita_id: visitaId,
-      conversation_id: p.conversationId, inicio: inicio.toISOString(), fim: fim.toISOString(),
-      imovel_id: p.imovelId ?? null, routine_event_id: routineEventId, corretor_user_id: corretor.userId,
-    };
-    const mensagem = ocupado
-      ? `${nome} pediu visita em ${quando(inicio)}, mas a agenda de ${corretor.nome} está ocupada. Um gestor precisa confirmar ou remarcar.`
-      : `${nome} pediu visita em ${quando(inicio)}. Confirme o agendamento.`;
-    const destinos = ocupado ? [p.corretorId, ...(await this.repo.gestores(organizationId, corretor.userId))] : [p.corretorId];
-    await this.repo.criarAlertas(destinos.map((corretorId) => ({
-      corretorId, clienteId: conversa.clienteId, mensagem, metadata,
-    })));
-    return { visitaId, situacao: ocupado ? ('conflito' as const) : ('agendada' as const), routineEventId };
+    const remarcada = !!anterior;
+    await this.repo.criarAlertas([{
+      corretorId: p.corretorId, clienteId: conversa.clienteId,
+      mensagem: remarcada
+        ? `${nome} remarcou a visita de ${quando(anterior.inicio)} para ${quando(inicio)}. Confirme o agendamento.`
+        : `${nome} pediu visita em ${quando(inicio)}. Confirme o agendamento.`,
+      metadata: {
+        prioridade: 'ALTA', tipo: 'visita_confirmar', visita_id: visitaId, conversation_id: p.conversationId,
+        inicio: inicio.toISOString(), fim: fim.toISOString(), imovel_id: p.imovelId ?? null,
+        routine_event_id: routineEventId, corretor_user_id: corretor.userId,
+      },
+    }]);
+    return { visitaId, situacao: remarcada ? ('remarcada' as const) : ('agendada' as const), routineEventId };
+  }
+
+  /** Cliente desmarcou: cancela a visita futura que a IA marcou e libera o horário. */
+  async cancelar(p: { conversationId: string; corretorId: string }, agora = new Date()) {
+    const { conversa, corretor, nome } = await this.contexto(p.conversationId, p.corretorId);
+    const visita = await this.repo.visitaFutura(corretor.userId, conversa.clienteId, agora);
+    if (!visita) return { situacao: 'sem_visita' as const };
+    if (!(await this.repo.cancelarEvento(comoCorretor(corretor.userId), visita.id))) return { situacao: 'sem_visita' as const };
+    await this.repo.criarAlertas([{
+      corretorId: p.corretorId, clienteId: conversa.clienteId,
+      mensagem: `${nome} cancelou a visita de ${quando(visita.inicio)}.`,
+      metadata: { prioridade: 'ALTA', tipo: 'visita_cancelada', conversation_id: p.conversationId, routine_event_id: visita.id },
+    }]);
+    return { situacao: 'cancelada' as const };
   }
 
   async confirmar(claims: SupabaseClaims, visitaId: string) {
