@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useCRMStore } from '@/stores/crmStore';
@@ -67,6 +68,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
     bairro: '',
     cidade: 'Anápolis', // Changed default city per request
     proprietario_nome: '',
+    links_anuncio: '',
     suites: '',
     banheiros: ''
   });
@@ -104,6 +106,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
       bairro: '',
       cidade: 'Anápolis',
       proprietario_nome: '',
+    links_anuncio: '',
       suites: '',
       banheiros: ''
     });
@@ -125,6 +128,7 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
         bairro: imovelToEdit.bairro || '',
         cidade: imovelToEdit.cidade || 'Anápolis',
         proprietario_nome: imovelToEdit.proprietario_nome || '',
+        links_anuncio: (Array.isArray(imovelToEdit.links_anuncio) ? imovelToEdit.links_anuncio : []).join('\n'),
         suites: imovelToEdit.suites?.toString() || '',
         banheiros: imovelToEdit.banheiros?.toString() || ''
       });
@@ -182,6 +186,8 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
           bairro: form.bairro,
           cidade: form.cidade,
           proprietario_nome: form.proprietario_nome,
+          // Um link por linha; só o que começa com http(s) vai (a API recusa o resto).
+          links_anuncio: form.links_anuncio.split(/\s+/).map((l) => l.trim()).filter((l) => /^https?:\/\//i.test(l)).slice(0, 10),
           suites: numeroSeAplicavel(camposAplicaveis.suites, form.suites),
           banheiros: numeroSeAplicavel(camposAplicaveis.banheiros, form.banheiros),
         };
@@ -365,6 +371,13 @@ export function NovoImovelDialog({ open, onOpenChange, imovelToEdit, onCreated }
               />
             </div>
           )}
+
+          <div>
+            <Label>Links dos anúncios <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+            <Textarea rows={3} value={form.links_anuncio} onChange={(e) => setForm({ ...form, links_anuncio: e.target.value })}
+              placeholder={'Um link por linha: OLX, ImovelWeb, Zap...\nhttps://www.olx.com.br/...'} />
+            <p className="mt-1 text-xs text-muted-foreground">O Assistente IA mostra esses links quando listar o imóvel.</p>
+          </div>
 
           <Separator />
 

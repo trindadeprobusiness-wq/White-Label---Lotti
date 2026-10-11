@@ -167,7 +167,7 @@ describe('AssistenteService.preparar', () => {
 
     const [run] = textos(prisma.$queryRaw, /insert into public\.ai_runs/);
     expect(run.values).toEqual(['trace_teste_1', CORRETOR, USUARIO, 'clients', 'assistant.chat', 'gemini-3.1-flash-lite',
-      'assistant.general@2026-08-20.1', 'text', 'Quantos clientes?'.length + 'texto do PDF'.length, false, JSON.stringify({ entity_count: 1 })]);
+      'assistant.general@2026-10-11.1', 'text', 'Quantos clientes?'.length + 'texto do PDF'.length, false, JSON.stringify({ entity_count: 1 })]);
   });
 
   it('telemetria indisponível (tabela ausente) não derruba: runId null', async () => {
@@ -200,7 +200,7 @@ describe('AssistenteService.transmitir', () => {
     expect(eventos).toEqual([
       { type: 'text', content: 'Você tem ' },
       { type: 'text', content: '**3** clientes.' },
-      { type: 'done', conversation_id: CONV, trace_id: 'trace_teste_1', prompt_version: 'assistant.general@2026-08-20.1' },
+      { type: 'done', conversation_id: CONV, trace_id: 'trace_teste_1', prompt_version: 'assistant.general@2026-10-11.1' },
     ]);
     const [url, init] = m.fetchImpl.mock.calls[0];
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');

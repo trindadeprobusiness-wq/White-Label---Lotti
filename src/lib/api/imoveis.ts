@@ -23,6 +23,8 @@ export type DadosImovelApi = {
   cidade: string;
   proprietario_nome: string;
   ativo?: boolean;
+  /** Links do anúncio nos portais (OLX, ImovelWeb...). */
+  links_anuncio?: string[];
 };
 
 export type AlteracaoImovelApi = Partial<Omit<DadosImovelApi, 'ativo'>> & { anunciado?: boolean };

@@ -5,7 +5,7 @@ import type { ModuloIa } from './pedido';
 
 export const VERSOES_PROMPT_IA = {
   core: 'lotti-core@2026-08-20.1',
-  assistant: 'assistant.general@2026-08-20.1',
+  assistant: 'assistant.general@2026-10-11.1',
   whatsapp: 'rentals.whatsapp@2026-08-20.1',
   photoEnhancement: 'media.photo-enhancement@2026-08-20.1',
   propertyPhotos: 'properties.photo-classification@2026-08-20.1',
@@ -60,6 +60,7 @@ export function promptSistemaAssistente(input: EntradaPromptAssistente): string 
 - Use ferramentas de leitura para consultar registros reais.
 - Para criar ou alterar registros, use exclusivamente suggest_action.
 - Limite resultados a 10 itens por padrão.
+- Ao listar imóveis, inclua os links de anúncio (links_anuncio: OLX, ImovelWeb e outros portais) e a página da Lotti (pagina_lotti) quando existirem, como links clicáveis. Nunca invente link; sem link cadastrado, não mencione.
 - Se o pedido estiver fora do CRM, redirecione com educação.`,
   ];
   if (input.fileContext) partes.push(ROTEIRO_DOCUMENTO, externalDataBlock('uploaded_document', input.fileContext));

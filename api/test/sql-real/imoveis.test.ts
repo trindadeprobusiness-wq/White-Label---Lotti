@@ -35,7 +35,7 @@ const CHAVES_IMOVEL = [
   'endereco', 'bairro', 'cidade', 'estado', 'cep', 'descricao', 'exclusividade_ate',
   'proprietario_nome', 'proprietario_cpf', 'proprietario_telefone', 'proprietario_email',
   'ativo', 'created_at', 'updated_at', 'tracking_data', 'status_venda', 'anunciado', 'finalidade', 'banheiros',
-  'descricao_curta', 'proprietario_id', 'suites', 'is_sample_data',
+  'descricao_curta', 'proprietario_id', 'suites', 'is_sample_data', 'links_anuncio',
 ].sort();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** timestamptz pelo to_jsonb, como o PostgREST: ISO com fração opcional e fuso +00:00 (servidor em UTC). */

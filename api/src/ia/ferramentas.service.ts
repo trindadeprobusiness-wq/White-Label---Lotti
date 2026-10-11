@@ -129,7 +129,9 @@ export const CONSULTAS: Record<string, Consulta> = {
     const max = filtroNumero(args.preco_max);
     return linhas(await tx.$queryRaw<Array<{ linha: Linha }>>(Prisma.sql`
       select jsonb_build_object('id', i.id, 'titulo', i.titulo, 'tipo', i.tipo, 'valor', i.valor, 'area_m2', i.area_m2,
-        'dormitorios', i.dormitorios, 'garagem', i.garagem, 'endereco', i.endereco, 'bairro', i.bairro, 'cidade', i.cidade) as linha
+        'dormitorios', i.dormitorios, 'garagem', i.garagem, 'endereco', i.endereco, 'bairro', i.bairro, 'cidade', i.cidade,
+        'links_anuncio', i.links_anuncio,
+        'pagina_lotti', (select 'https://app.plataformalotti.com.br/p/' || f.id from public.fachadas f where f.imovel_id = i.id order by f.created_at desc limit 1)) as linha
       from public.imoveis i
       where (${busca}::text = '' or i.titulo ilike ${padrao}::text or i.endereco ilike ${padrao}::text)
         and (${tipo}::text is null or i.tipo::text = ${tipo}::text)

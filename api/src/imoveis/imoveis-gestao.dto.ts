@@ -1,17 +1,17 @@
 import {
-  IsBoolean, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateBy, ValidateIf, ValidationOptions,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsUrl, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateBy, ValidateIf, ValidationOptions,
 } from 'class-validator';
 import { FINALIDADES, TIPOS } from './busca-imoveis.dto';
 
 export const LIMITE_LISTA = 1000;
 export const COLUNAS_CRIACAO = [
   'titulo', 'tipo', 'finalidade', 'valor', 'area_m2', 'dormitorios', 'garagem', 'suites', 'banheiros',
-  'endereco', 'bairro', 'cidade', 'proprietario_nome', 'ativo',
+  'endereco', 'bairro', 'cidade', 'proprietario_nome', 'ativo', 'links_anuncio',
 ] as const;
 // descricao fica de fora de propósito: quem grava é o fluxo de fotos com IA (OrganizarFotosIA), ainda no Supabase.
 export const COLUNAS_EDICAO = [
   'titulo', 'tipo', 'finalidade', 'valor', 'area_m2', 'dormitorios', 'garagem', 'suites', 'banheiros',
-  'endereco', 'bairro', 'cidade', 'proprietario_nome', 'anunciado',
+  'endereco', 'bairro', 'cidade', 'proprietario_nome', 'anunciado', 'links_anuncio',
 ] as const;
 
 const definido = (_o: unknown, v: unknown) => v !== undefined;
@@ -55,6 +55,8 @@ export class CriarImovelDto {
   @IsString({ message: 'Informe a cidade.' }) @MaxLength(200, { message: 'A cidade pode ter até 200 caracteres.' }) @SemCaractereNulo(SEM_NUL.cidade) cidade!: string;
   @IsString({ message: 'Informe o nome do proprietário.' }) @MaxLength(300, { message: 'O nome do proprietário pode ter até 300 caracteres.' }) @SemCaractereNulo(SEM_NUL.proprietario_nome) proprietario_nome!: string;
   @ValidateIf(definido) @IsBoolean({ message: 'Valor inválido para ativo.' }) ativo?: boolean;
+  /** Links do anúncio nos portais (OLX, ImovelWeb...): só http(s), até 10. */
+  @IsOptional() @IsArray({ message: 'Links de anúncio inválidos.' }) @ArrayMaxSize(10, { message: 'Até 10 links de anúncio.' }) @IsUrl({ protocols: ['http', 'https'], require_protocol: true }, { each: true, message: 'Link de anúncio inválido. Use o endereço completo, com https://.' }) @MaxLength(500, { each: true, message: 'Link de anúncio muito longo.' }) links_anuncio?: string[];
 }
 
 export class AtualizarImovelDto {
@@ -72,6 +74,8 @@ export class AtualizarImovelDto {
   @ValidateIf(definido) @IsString({ message: 'Informe a cidade.' }) @MaxLength(200, { message: 'A cidade pode ter até 200 caracteres.' }) @SemCaractereNulo(SEM_NUL.cidade) cidade?: string;
   @ValidateIf(definido) @IsString({ message: 'Informe o nome do proprietário.' }) @MaxLength(300, { message: 'O nome do proprietário pode ter até 300 caracteres.' }) @SemCaractereNulo(SEM_NUL.proprietario_nome) proprietario_nome?: string;
   @ValidateIf(definido) @IsBoolean({ message: 'Valor inválido para anunciado.' }) anunciado?: boolean;
+  /** Links do anúncio nos portais (OLX, ImovelWeb...): só http(s), até 10. */
+  @IsOptional() @IsArray({ message: 'Links de anúncio inválidos.' }) @ArrayMaxSize(10, { message: 'Até 10 links de anúncio.' }) @IsUrl({ protocols: ['http', 'https'], require_protocol: true }, { each: true, message: 'Link de anúncio inválido. Use o endereço completo, com https://.' }) @MaxLength(500, { each: true, message: 'Link de anúncio muito longo.' }) links_anuncio?: string[];
 }
 
 export class RegistrarVendaDto {
