@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
 import { resumoLocacaoApi } from "@/lib/api/financeiro";
@@ -10,6 +10,7 @@ import { usePrivacidade } from '@/stores/privacidadeStore';
 export function DashboardCharts() {
   // O gráfico também expõe dinheiro: tooltip, legenda e totais.
   const oculto = usePrivacidade((s) => s.valoresOcultos);
+    const queryClient = useQueryClient();
     const { data: chartData, isLoading } = useQuery({
         queryKey: ["rental-charts"],
         queryFn: async () => {
@@ -17,7 +18,8 @@ export function DashboardCharts() {
             let contracts: Array<{ valor: number | null }> | null;
             if (apiDisponivel()) {
                 // A API devolve só a soma; os 10% abaixo dão o mesmo resultado sobre o total.
-                const resumo = await resumoLocacaoApi();
+                // Mesma chave dos cartões: os dois abrem juntos e o resumo vem numa ida só.
+                const resumo = await queryClient.fetchQuery({ queryKey: ["rental-resumo"], queryFn: resumoLocacaoApi, staleTime: 30_000 });
                 contracts = [{ valor: resumo.soma_valor }];
             } else {
                 const { data } = await supabase

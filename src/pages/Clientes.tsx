@@ -77,7 +77,7 @@ function semRetorno(cliente: Cliente, agora = new Date()): boolean {
 }
 
 export default function Clientes() {
-  const { clientes, removeCliente, updateClienteStatus, fetchImoveis } = useCRMStore();
+  const { clientes, imoveis, removeCliente, updateClienteStatus, fetchImoveis } = useCRMStore();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
@@ -129,7 +129,9 @@ export default function Clientes() {
     return () => window.clearTimeout(fim);
   }, [destacado, pagina]);
 
-  useEffect(() => { fetchImoveis(); }, [fetchImoveis]);
+  // O DataLoader já trouxe os imóveis ao entrar; só busca se a lista ainda estiver vazia.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir a tela
+  useEffect(() => { if (!imoveis?.length) fetchImoveis(); }, [fetchImoveis]);
 
   const contagens = useMemo(() => ({
     todos: clientes.length,

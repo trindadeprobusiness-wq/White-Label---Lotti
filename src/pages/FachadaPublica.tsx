@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { useFachadaPublica } from '@/hooks/useFachadaPublica';
 import { CTA_LABELS, TIPO_NEGOCIO_LABELS } from '@/types/fachada';
 import { formatarTelefone } from '@/lib/validators';
-import { imagemComFallback, imagemRedimensionada } from '@/lib/imagemOtimizada';
+import { fundoLeve, imagemComFallback } from '@/lib/imagemOtimizada';
 
 /* ───── Stagger variants ───── */
 const containerVariants = {
@@ -143,7 +143,10 @@ export default function FachadaPublica() {
       fotos?.find((f) => f.principal)?.arquivo_url ||
       fotos?.[0]?.arquivo_url ||
       fachada?.foto_principal_url;
-    if (!url) return;
+    // Sem versão leve (foto do Storage com a transformação desligada), o fundo fica só no gradiente, como já
+    // ficava depois do 403, sem o pedido à toa.
+    const leve = fundoLeve(url, 640, 35);
+    if (!leve) return;
     // `requestIdleCallback`: a foto de fundo só começa a baixar quando o
     // navegador estiver ocioso, ou seja, depois de o formulário estar pronto.
     // Sem isso ela disputa banda com o JS logo no primeiro segundo — no 4G,
@@ -152,7 +155,7 @@ export default function FachadaPublica() {
       const img = new Image();
       img.onload = () => setBgLoaded(true);
       img.onerror = () => setBgLoaded(false); // fica só o gradiente
-      img.src = imagemRedimensionada(url, { largura: 640, qualidade: 35 });
+      img.src = leve;
     };
 
     const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
@@ -249,7 +252,7 @@ export default function FachadaPublica() {
   const bgUrl = fotos?.find((f) => f.principal)?.arquivo_url || fotos?.[0]?.arquivo_url || fachada.foto_principal_url || '';
   // Versão leve do fundo. Vazio quando a URL não é do Storage — aí o gate
   // exibe apenas o gradiente, que é instantâneo.
-  const bgLeve = imagemRedimensionada(bgUrl, { largura: 640, qualidade: 35 });
+  const bgLeve = fundoLeve(bgUrl, 640, 35);
 
   // ═══════════════════════════════════════════════════════════
   // ETAPA 1 — Captura de Lead (Design Premium Glassmorphism)
@@ -293,6 +296,7 @@ export default function FachadaPublica() {
                   atrás de um formulário custaria 3 segundos ao visitante que
                   está de pé na frente do imóvel. A foto em tamanho real
                   continua disponível na galeria, depois do lead. */}
+              {bgLeve && (
               <img
                 src={bgLeve}
                 alt=""
@@ -309,6 +313,7 @@ export default function FachadaPublica() {
                   opacity: bgLoaded ? 1 : 0,
                 }}
               />
+              )}
               {/* `filter` na própria imagem, não `backdrop-filter` no overlay:
                   backdrop-filter recompõe a camada de baixo a cada frame e é
                   o efeito mais caro em GPU mobile. O scale de 1.06 esconde a

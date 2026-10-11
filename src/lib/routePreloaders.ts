@@ -2,7 +2,10 @@ export type RouteLoader = () => Promise<unknown>;
 
 export const dashboardLoader = () => import('@/pages/Dashboard');
 export const rotinaLoader = () => import('@/pages/Rotina');
+/** /whatsapp/demo (tela de demonstração). A tela de Conversas é a LiveAgentInbox. */
 export const whatsappLoader = () => import('@/pages/WhatsAppInbox');
+export const conversasLoader = () => import('@/features/whatsapp-inbox/LiveAgentInbox');
+export const disparosLoader = () => import('@/features/broadcasts/BroadcastsPage');
 export const whatsappConnectionLoader = () => import('@/pages/WhatsAppConnectionPage');
 export const clientesLoader = () => import('@/pages/Clientes');
 export const imoveisLoader = () => import('@/pages/Imoveis');
@@ -20,7 +23,8 @@ export const SIDEBAR_ROUTE_LOADERS: Record<string, RouteLoader> = {
   '/': dashboardLoader,
   '/planejamento': rotinaLoader,
   '/whatsapp/conexao': whatsappConnectionLoader,
-  '/whatsapp': whatsappLoader,
+  '/whatsapp': conversasLoader,
+  '/automacoes': disparosLoader,
   '/clientes': clientesLoader,
   '/imoveis': imoveisLoader,
   '/funil': funilLoader,
@@ -43,6 +47,18 @@ export async function preloadRoute(
   );
 
   if (entry) await entry[1]();
+}
+
+/**
+ * Na entrada (F5, link direto, login), a tela começa a baixar junto com a renovação da sessão, em vez de
+ * esperar sessão, onboarding e listas. Só a rota exata: /clientes/123 abre outra tela.
+ */
+export function preloadRotaDeEntrada(
+  pathname: string,
+  loaders: Record<string, RouteLoader> = SIDEBAR_ROUTE_LOADERS,
+): void {
+  const rota = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  void loaders[rota]?.().catch(() => undefined);
 }
 
 export async function preloadAllSidebarRoutes(): Promise<void> {

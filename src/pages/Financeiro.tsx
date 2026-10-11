@@ -125,9 +125,11 @@ export default function Financeiro() {
     // Só busca se tiver datas definidas (ou for 'todos')
     if (periodo === 'personalizado' && !dataInicio) return;
 
-    await fetchLancamentos({ dataInicio, dataFim });
-
-    const projecaoData = await calcularProjecaoAnual();
+    // As duas buscas não dependem uma da outra: juntas, a tela espera uma ida à API, não duas.
+    const [, projecaoData] = await Promise.all([
+      fetchLancamentos({ dataInicio, dataFim }),
+      calcularProjecaoAnual(),
+    ]);
     setProjecao(projecaoData);
   };
 

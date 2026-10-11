@@ -4,7 +4,7 @@
  * que não é Storage público precisa voltar intacto.
  */
 import { describe, it, expect } from 'vitest';
-import { imagemRedimensionada, imagemComFallback } from './imagemOtimizada';
+import { fundoLeve, imagemRedimensionada, imagemComFallback, TRANSFORMACAO_DE_IMAGEM_ATIVA } from './imagemOtimizada';
 
 const STORAGE = 'https://x.supabase.co/storage/v1/object/public/imoveis-fotos/a/b.jpg';
 
@@ -38,9 +38,19 @@ describe('imagemRedimensionada', () => {
   });
 });
 
+describe('fundoLeve (fundo desfocado da página do QR)', () => {
+  it('foto do Storage sem transformação: vazio (fica o gradiente); foto da API: a própria URL, como antes', () => {
+    expect(fundoLeve(STORAGE, 640, 35)).toBe('');
+    const daApi = 'https://api.plataformalotti.com.br/api/arquivos/publico/foto/abc.jpg';
+    expect(fundoLeve(daApi, 640, 35)).toBe(daApi);
+    expect(fundoLeve(null, 640, 35)).toBe('');
+  });
+});
+
 describe('imagemComFallback', () => {
-  it('devolve src transformado', () => {
-    expect(imagemComFallback(STORAGE, 480).src).toContain('render/image');
+  it('com a transformação desligada (403 no Supabase), já devolve a original: sem a ida só para receber o erro', () => {
+    expect(TRANSFORMACAO_DE_IMAGEM_ATIVA).toBe(false);
+    expect(imagemComFallback(STORAGE, 480).src).toBe(STORAGE);
   });
 
   it('no erro, volta para a original uma única vez', () => {

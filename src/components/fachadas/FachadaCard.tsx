@@ -107,7 +107,8 @@ export function FachadaCard({ fachada, onPreview, onEdit, onDeactivate, onViewLe
         {/* Imagem do imóvel */}
         <div className="relative h-48 shrink-0 overflow-hidden bg-muted lg:h-auto lg:w-64">
           {fotoPrincipal ? (
-            <img src={fotoPrincipal} alt="" className="h-full w-full object-cover" />
+            // Foto original (1 a 3 MB): só baixa quando o card chega perto da tela.
+            <img src={fotoPrincipal} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-surface-brand">
               <Building2 className="h-10 w-10 text-primary/40" />

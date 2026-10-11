@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiDisponivel } from "@/lib/api";
 import { resumoLocacaoApi } from "@/lib/api/financeiro";
@@ -7,11 +7,13 @@ import { ArrowUpRight, ArrowDownRight, Users, Wallet } from "lucide-react";
 import { Dinheiro } from "@/components/ui/dinheiro";
 
 export function DashboardKPICards() {
+    const queryClient = useQueryClient();
     const { data: stats, isLoading } = useQuery({
         queryKey: ["rental-kpis"],
         queryFn: async () => {
             if (apiDisponivel()) {
-                const resumo = await resumoLocacaoApi();
+                // Mesma chave dos gráficos: os dois abrem juntos e o resumo vem numa ida só.
+                const resumo = await queryClient.fetchQuery({ queryKey: ["rental-resumo"], queryFn: resumoLocacaoApi, staleTime: 30_000 });
                 const totalReceivable = resumo.soma_valor || 0;
                 return {
                     totalReceivable,

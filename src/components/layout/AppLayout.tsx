@@ -1,9 +1,15 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { Suspense, useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { MobileTopBar } from './MobileTopBar';
-import { AIChatWidget } from '../ai/AIChatWidget';
+// Sob demanda: o chat (com o leitor de Markdown) saiu do arquivo principal, que todas as telas esperam.
+// Se o arquivo do chat não carregar (rede, deploy no meio), só o chat some: a tela continua.
+const AIChatWidget = lazy(() =>
+  import('../ai/AIChatWidget')
+    .then((m) => ({ default: m.AIChatWidget }))
+    .catch(() => ({ default: () => null })),
+);
 import { OnboardingTour } from '../onboarding/OnboardingTour';
 import { useGoogleCalendarReturn } from '@/hooks/routine/useGoogleCalendarReturn';
 import { shouldShowAIChatWidget } from './appLayoutRules';
@@ -63,7 +69,12 @@ export function AppLayout() {
         </div>
       </main>
 
-      {showChatWidget && <AIChatWidget />}
+      {/* Suspense próprio: sem ele, o widget carregando trocaria a tela inteira pelo carregamento do App. */}
+      {showChatWidget && (
+        <Suspense fallback={null}>
+          <AIChatWidget />
+        </Suspense>
+      )}
       {!obterSuporte() && <OnboardingTour />}
     </div>
   );

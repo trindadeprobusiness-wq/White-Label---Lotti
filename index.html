@@ -12,6 +12,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
 
+    <!-- A primeira ida à API (renovar a sessão) já encontra a conexão aberta. Dois pools no Chrome: com
+         credencial (sessão) e sem (demais chamadas). -->
+    <link rel="preconnect" href="%VITE_API_URL%" />
+    <link rel="preconnect" href="%VITE_API_URL%" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -25,8 +29,9 @@
 
     <meta name="twitter:card" content="summary_large_image" />
 
-    <!-- Microsoft Clarity — analytics de comportamento -->
-    <script src="/clarity-init.js" defer></script>
+    <!-- Microsoft Clarity — analytics de comportamento. async, não defer: com defer o app esperava a
+         revalidação deste arquivo (uma ida aos EUA) a cada visita, mesmo já estando no cache. -->
+    <script src="/clarity-init.js" async></script>
   </head>
 
   <body>

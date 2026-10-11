@@ -26,8 +26,10 @@ import {
   assistenteLoader,
   clientesLoader,
   configuracoesLoader,
+  conversasLoader,
   crmLoader,
   dashboardLoader,
+  disparosLoader,
   fachadasLoader,
   financeiroLoader,
   funilLoader,
@@ -48,9 +50,9 @@ const InboxPreview = lazy(() => import('@/pages/dev/InboxPreview'));
 const Dashboard = lazy(dashboardLoader);
 const Rotina = lazy(rotinaLoader);
 const WhatsAppInbox = lazy(whatsappLoader);
-const LiveAgentInbox = lazy(() => import('@/features/whatsapp-inbox/LiveAgentInbox'));
+const LiveAgentInbox = lazy(conversasLoader);
 const AgentSettingsPage = lazy(() => import('@/features/ai-agent/AgentSettingsPage'));
-const BroadcastsPage = lazy(() => import('@/features/broadcasts/BroadcastsPage'));
+const BroadcastsPage = lazy(disparosLoader);
 const BroadcastRoute = lazy(() => import('@/features/broadcasts/BroadcastDetails'));
 const WhatsAppConnectionPage = lazy(whatsappConnectionLoader);
 const Clientes = lazy(clientesLoader);

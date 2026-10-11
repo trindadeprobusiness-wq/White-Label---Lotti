@@ -12,6 +12,26 @@
  * Ver `imagemComFallback`.
  */
 
+/**
+ * Desligado: o projeto do Supabase responde 403 "FeatureNotEnabled" para /render/image (medido em
+ * 11/10/2026). Cada foto pagava uma ida aos EUA só para receber o erro e então baixar a original.
+ * Com a transformação ligada no Storage, basta voltar para true.
+ */
+export const TRANSFORMACAO_DE_IMAGEM_ATIVA = false;
+
+const ehStorageSupabase = (url: string) => url.includes('/storage/v1/object/public/');
+
+/**
+ * Versão leve para o fundo desfocado, ou '' quando não há como pedir uma (foto do Storage com a
+ * transformação desligada): aí o fundo fica só no gradiente, sem baixar a original de 1 a 3 MB.
+ * Foto fora do Storage (as da API) volta intacta, como sempre voltou.
+ */
+export function fundoLeve(url: string | null | undefined, largura: number, qualidade: number): string {
+  if (!url) return '';
+  if (ehStorageSupabase(url) && !TRANSFORMACAO_DE_IMAGEM_ATIVA) return '';
+  return imagemRedimensionada(url, { largura, qualidade });
+}
+
 /** Converte /object/public/ em /render/image/public/ com os parâmetros. */
 export function imagemRedimensionada(
   url: string | null | undefined,
@@ -41,7 +61,7 @@ export function imagemComFallback(
 ) {
   const original = url ?? '';
   return {
-    src: imagemRedimensionada(original, { largura, qualidade }) || original,
+    src: (TRANSFORMACAO_DE_IMAGEM_ATIVA ? imagemRedimensionada(original, { largura, qualidade }) : original) || original,
     onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
       const img = e.currentTarget;
       // Uma tentativa só — sem isso, uma original quebrada entraria em laço.

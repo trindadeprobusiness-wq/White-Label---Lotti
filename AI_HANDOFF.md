@@ -1,5 +1,47 @@
 # Memória compartilhada — Codex ↔ Claude
 
+## Claude — diagnóstico da lentidão das páginas (2026-10-11)
+
+- Investigação só de leitura: workflow com 5 frentes (bundle, dados do front, API, medição em produção, infra), verificação adversarial de cada uma e síntese. Nada foi mudado.
+- **Medido:**
+  - todos os 9 serviços estão em us-west2 (Califórnia, segundo a documentação do Railway); a borda gru1 só repassa e o CDN do Railway está desligado;
+  - cada ida e volta custa cerca de 200 a 210 ms;
+  - a API processa em 14 ms de mediana (90% abaixo de 57 ms em 49 pedidos), então mais de 90% do tempo é rede;
+  - entrada com login real: cerca de 2,1 s só de chamadas à API, em 8 degraus seguidos;
+  - JS principal: 1,05 MB cru, cerca de 329 KB comprimido;
+  - 24% dos pedidos à API são OPTIONS (CORS com maxAge de 600 s);
+  - o clarity-init.js com `defer` segura cada visita com cache por 220 a 360 ms;
+  - o Planejamento tem 39 chunks, que o Chrome baixou de 3 em 3 (5,3 s);
+  - deploys do front: 21 a 25 por dia (cada um zera o cache de quem usa);
+  - página pública do QR: fotos originais de 1 a 3 MB; o render/image do Supabase dá 403.
+- **Descartado:** banco ou API lentos, serviço dormindo, falta de compressão na API, HTTP/2, autenticação consultando o banco.
+- **Plano proposto ao Rafael (aguardando OK):**
+  - Etapa 1: Clarity `async`, preload certo (Conversas e Disparos) e da tela na entrada, preconnect, CORS maxAge maior, Brotli no Caddy, chat de IA lazy, 404 em /assets que não existe, ajustes por tela.
+  - Etapa 2: entrada sem /me, onboarding e listas em paralelo, CDN do front (tarefa complexa, mexe em login).
+  - Etapa 3: API no mesmo domínio, JS principal menor, miniaturas de fotos, Conversas sem consulta a cada poucos segundos.
+  - Etapa 4: mudar para us-east4, só se ainda precisar (exige janela fora do ar).
+- **Não conferido:** fila no navegador logado, motivo dos chunks de 3 em 3, 4G e celular, tamanho real das listas, 401 do refresh às 14:36 e às 14:49.
+- **Etapa 1 feita só no código**, porque o Rafael pediu para não alterar nada já configurado.
+  - Ficaram de fora: CORS, Caddy/Brotli, 404 em /assets, CDN, `vite.config` e fontes.
+  - Mudanças:
+    - Clarity `async`;
+    - preconnect para `%VITE_API_URL%`;
+    - preload da tela da rota exata no boot;
+    - mapa do menu corrigido (/whatsapp e /automacoes);
+    - `AIChatWidget` lazy;
+    - Financeiro com `Promise.all`;
+    - Início e Clientes sem busca repetida;
+    - Aluguéis com um resumo só;
+    - `FachadaCard` com `loading=lazy`;
+    - transformação de imagem do Supabase desligada por constante (dava 403), mantendo o visual.
+  - Build local: JS principal de 1.050 KB para 849 KB crus; markdown em chunk próprio (158 KB).
+  - A revisão adversarial achou 4 pontos, corrigidos:
+    - o preload passou do `main.tsx` para o `ProtectedRoute`, só com sessão confirmada (deslogado não baixa tela protegida no login);
+    - chat lazy com `.catch` (se não carregar, só o chat some);
+    - fundo da página do QR mantido para fotos da API (`fundoLeve`); só as do Storage do Supabase ficam no gradiente, como já ficavam;
+    - `Clientes` usa o `imoveis` do store (o teste `Clientes.lote` simula o store sem `getState`).
+  - Testes: `routePreloaders` 5, `imagemOtimizada` 9, `AppLayout.render` 1, `Clientes.lote` 9, `Auth.retorno-convite` 1, `FachadaCard.api` 3, `Dashboard.inicio` 11, `FachadasInteligentes.api` 4, `FachadasInteligentes.leads` 1, `CRM.visual` 1, `PageTitle` 2.
+
 ## Claude — Assistente IA no molde do Oráculo do Clix (2026-10-11)
 
 - Pedido do Rafael: o Assistente IA responder como o Oráculo da loja Usaflex.

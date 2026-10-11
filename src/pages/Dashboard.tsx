@@ -82,7 +82,8 @@ export default function Dashboard() {
   const clientesReais = useMemo(() => clientes.filter((item) => !item.is_sample_data), [clientes]);
   const imoveisReais = useMemo(() => imoveis.filter((item) => !item.is_sample_data), [imoveis]);
 
-  useEffect(() => { fetchCorretor(); }, [fetchCorretor]);
+  // O DataLoader já trouxe o perfil ao entrar; só busca se ainda não houver (antes eram duas idas iguais).
+  useEffect(() => { if (!corretor) fetchCorretor(); }, [corretor, fetchCorretor]);
 
   // A tabela alertas tem prioridade, e os alertas do agente entram sem
   // informá-la — ou seja, BAIXA. A tela mostrava todos como "Ações críticas",
