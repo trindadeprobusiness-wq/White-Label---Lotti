@@ -18,6 +18,15 @@ test('WhatsApp respeita RLS e mantém as RPCs como fonte de verdade',async()=>{
   const rows=await service.listarConversas(b.claimsA) as Array<{id:string}>;
   assert.deepEqual(rows.map(r=>r.id),[conversationA]);
   assert.deepEqual(await service.esperando(b.claimsA),{esperando:1,urgentes:1});
+  // Número antigo arquivado e conversa só de histórico importado não contam como esperando resposta.
+  for(const extra of [{archived_at:new Date().toISOString()},{so_historico:true}]){
+   const id=randomUUID();
+   await b.inserir('lotti_agent_conversations',{id,channel_id:channelA,corretor_id:b.corretorA,phone:'55119999'+String(Math.random()).slice(2,7),mode:'human',...extra});
+   await b.inserir('lotti_agent_messages',{conversation_id:id,external_id:'msg-'+id,direction:'in',sender:'lead',content:'teste'});
+   // A mensagem ao vivo tira o so_historico (gatilho); o histórico importado é marcado depois, como na importação.
+   if(extra.so_historico)await b.sqlSuperusuario('update public.lotti_agent_conversations set so_historico=true where id=$1',[id]);
+  }
+  assert.deepEqual(await service.esperando(b.claimsA),{esperando:1,urgentes:1});
   assert.equal(await service.modo(b.claimsA,conversationA,'paused'),true);
   await assert.rejects(service.modo(b.claimsA,conversationB,'paused'),/forbidden/i);
   const state=await b.sqlSuperusuario<{id:string;mode:string}>('select id::text,mode from public.lotti_agent_conversations order by id');

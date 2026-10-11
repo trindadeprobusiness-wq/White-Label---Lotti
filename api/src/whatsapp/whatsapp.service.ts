@@ -159,7 +159,9 @@ export class WhatsappService {
 
   async esperando(claims: SupabaseClaims) {
     return this.db.run(claims, async tx => (await tx.$queryRaw<Array<{ esperando:number; urgentes:number }>>`
-      with conversations as (select id,mode,qualification from public.lotti_agent_conversations limit 100),
+      with conversations as (select id,mode,qualification from public.lotti_agent_conversations
+        -- Igual à lista do Inbox (Abertas): sem arquivadas (número antigo) nem conversa só de histórico importado.
+        where archived_at is null and not so_historico and status='open' limit 100),
       latest as (select distinct on(conversation_id) conversation_id,direction,created_at from public.lotti_agent_messages order by conversation_id,created_at desc,id desc),
       waiting as (select c.*,l.direction,l.created_at from conversations c join latest l on l.conversation_id=c.id
         where c.mode<>'ai' and l.direction='in')
