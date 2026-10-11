@@ -65,9 +65,6 @@ const Configuracoes = lazy(configuracoesLoader);
 const RentalManagement = lazy(alugueisLoader);
 const Assistente = lazy(assistenteLoader);
 const FachadasInteligentes = lazy(fachadasLoader);
-const CentralComercial = lazy(() => import('@/pages/CentralComercial'));
-const CentralFinanceiro = lazy(() => import('@/pages/CentralFinanceiro'));
-const CentralRelatorios = lazy(() => import('@/pages/CentralRelatorios'));
 const FachadaPublica = lazy(() => import("@/pages/FachadaPublica"));
 const CRM = lazy(crmLoader);
 // Assinatura/Planos. Passou a fazer sentido expor quando as cotas deixaram de
@@ -224,9 +221,6 @@ const App = () => (
             <Route path="/alugueis" element={<RentalManagement />} />
             <Route path="/assistente" element={<Assistente />} />
             <Route path="/fachadas" element={<FachadasInteligentes />} />
-            <Route path="/central-comercial" element={<CentralComercial />} />
-            <Route path="/central-comercial/financeiro" element={<CentralFinanceiro />} />
-            <Route path="/central-comercial/relatorios" element={<CentralRelatorios />} />
           </Route>
 
 

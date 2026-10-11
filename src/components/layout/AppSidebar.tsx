@@ -12,7 +12,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, Filter, KeyRound, Wallet, Scale, Video, QrCode,
   Sparkles, Settings, ChevronLeft, ChevronRight,
-  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Send, PhoneCall,
+  LogOut, Sun, Moon, KanbanSquare, CalendarCheck2, MessageCircle, Cable, Send,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -71,7 +71,6 @@ function montarGrupos(): GrupoNav[] {
       itens: [
         { label: 'Início', href: '/', icone: <Home className={ic} /> },
         { label: 'Planejamento', href: '/planejamento', icone: <CalendarCheck2 className={ic} /> },
-        { label: 'Central Comercial', href: '/central-comercial', icone: <PhoneCall className={ic} /> },
       ],
     },
     {
