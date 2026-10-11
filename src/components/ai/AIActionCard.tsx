@@ -45,7 +45,7 @@ export function AIActionCard({ action, onConfirm, onReject }: AIActionCardProps)
         )}
         {isDone ? (
           <p className="text-xs text-muted-foreground">
-            {action.status === 'confirmed' ? '✓ Ação executada' : '✗ Ação recusada'}
+            {action.status === 'confirmed' ? '✓ Ação executada' : action.status === 'failed' ? '✗ Ação não executada' : '✗ Ação recusada'}
           </p>
         ) : (
           <div className="space-y-2 pt-1">

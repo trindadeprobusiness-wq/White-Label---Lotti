@@ -56,7 +56,8 @@ export interface AISuggestedAction {
   action_type: AIActionType;
   params: Record<string, unknown>;
   description: string;
-  status: 'pending' | 'confirmed' | 'rejected';
+  /** failed: o servidor não executou e a proposta não pode mais ser decidida. */
+  status: 'pending' | 'confirmed' | 'rejected' | 'failed';
   /** Nome do cliente da proposta (a API lê pelo client_id), para o cartão nunca mostrar o ID. */
   cliente_nome?: string;
 }

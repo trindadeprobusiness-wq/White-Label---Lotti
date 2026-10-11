@@ -38,7 +38,9 @@ const ROTULOS: Record<string, string> = {
   data_inicio: 'início',
   date_from: 'data inicial',
   date_to: 'data final',
-  // códigos. De contrato e categoria, só os com _: OUTRO, DISTRATO, CONSULTORIA... são palavras comuns e ficam como vieram
+  // códigos. De contrato e categoria, só os com _: OUTRO, DISTRATO, CONSULTORIA... são palavras comuns e ficam como vieram.
+  // Exceção consciente: QUALIFICACAO e DOCUMENTACAO (status do cadastro) são trocados mesmo sem _, porque vazam do
+  // modelo com frequência; um título cadastrado em maiúsculas sem acento com essas palavras ganha o acento.
   ...STATUS_FUNIL_LABELS,
   ...comSublinhado(TIPO_CONTRATO_LABELS),
   ...comSublinhado(CATEGORIA_LABELS),

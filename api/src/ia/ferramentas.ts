@@ -7,7 +7,7 @@ import { CATEGORIA_FINANCEIRA, CATEGORIAS_DESPESA, CATEGORIAS_RECEITA, TIPO_CONT
 const STATUS_CONTRATO = ['RASCUNHO', 'ATIVO', 'VIGENTE', 'ENCERRANDO', 'ENCERRADO', 'CANCELADO', 'ARQUIVADO', 'RESCINDIDO'];
 const DIA = 'Dia no formato AAAA-MM-DD';
 /** Grupos aceitos no filtro de contrato, além dos tipos exatos. */
-const GRUPOS_CONTRATO: Record<string, string[]> = {
+export const GRUPOS_CONTRATO: Record<string, string[]> = {
   LOCACAO: ['LOCACAO_RESIDENCIAL', 'LOCACAO_COMERCIAL'],
   EXCLUSIVIDADE: ['EXCLUSIVIDADE_VENDA', 'EXCLUSIVIDADE_LOCACAO'],
 };
@@ -173,7 +173,7 @@ export const FERRAMENTAS_ASSISTENTE = [
     function: {
       name: 'get_funnel_stats',
       description:
-        'Funil de Vendas (o kanban da tela Funil): negócios e valor por etapa e o resumo (em aberto, ganhos, perdidos, taxa de conversão). ' +
+        'Funil de Vendas (o kanban da tela Funil de Vendas): negócios e valor por etapa e o resumo (em aberto, ganhos, perdidos, taxa de conversão). ' +
         'Com etapa, devolve também os negócios daquela etapa.',
       parameters: {
         type: 'object',

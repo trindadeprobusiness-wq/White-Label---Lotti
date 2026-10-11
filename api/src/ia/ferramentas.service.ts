@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseClaims, TenantDb } from '../prisma/tenant-db';
 import { AcaoInvalida, validarProposta } from './acoes';
 import type { ClienteSql } from './cotas';
-import { argUuid, filtroNumero, filtroTexto, limiteEntre, palavrasDeBusca, telefoneDaBusca, tiposDeContrato } from './ferramentas';
+import { argUuid, filtroNumero, filtroTexto, GRUPOS_CONTRATO, limiteEntre, palavrasDeBusca, telefoneDaBusca, tiposDeContrato } from './ferramentas';
 import { codigoDe } from './ia.erros';
 import { diaBr, diaNoFuso, diaValido, FUSO_PADRAO, fusoValido, periodoDaTela, somarDias } from './periodo';
 import type { RefEntidade } from './pedido';
@@ -233,9 +233,9 @@ export const CONSULTAS: Record<string, Consulta> = {
       total: rows[0]?.total ?? 0,
       mostrando: clientes.length,
       ...(rows[0]?.demonstracao ? { demonstracao: rows[0].demonstracao } : {}),
-      // A aba Sem retorno corta fixo em 30 dias: com outro corte, o número não é o da aba.
+      // A aba Sem retorno corta fixo em 30 dias e conta todos: com outro corte, busca ou filtro, o número não é o da aba.
       ...(ordem === 'sem_contato'
-        ? { criterio: `mais de ${dias} dias sem contato, sem os fechados${dias === 30 ? ' (aba Sem retorno da tela Clientes)' : ''}` }
+        ? { criterio: `mais de ${dias} dias sem contato, sem os fechados${dias === 30 && !args.query && !status && !interesse ? ' (aba Sem retorno da tela Clientes)' : ''}` }
         : {}),
       ...(ordem === 'proximo_followup'
         ? { criterio: `follow-ups marcados, sem os perdidos e sem demonstração${followupAte ? `, até ${diaBr(followupAte)}` : ''}` }
@@ -274,7 +274,10 @@ export const CONSULTAS: Record<string, Consulta> = {
   async search_properties(tx, args, r) {
     const tipo = filtroTexto(args.tipo);
     const finalidade = args.finalidade === 'VENDA' || args.finalidade === 'LOCACAO' ? args.finalidade : null;
-    const situacao = typeof args.situacao === 'string' && args.situacao in SITUACAO_IMOVEL ? args.situacao : null;
+    // Situação que não existe não vira "todos os imóveis" calado: o modelo recebe os valores válidos.
+    const pedida = filtroTexto(args.situacao)?.trim().toUpperCase() ?? null;
+    if (pedida && !Object.hasOwn(SITUACAO_IMOVEL, pedida)) return { error: 'invalid_situacao', situacoes_validas: Object.keys(SITUACAO_IMOVEL) };
+    const situacao = pedida;
     const cidade = filtroTexto(args.cidade);
     const min = filtroNumero(args.preco_min);
     const max = filtroNumero(args.preco_max);
@@ -436,7 +439,7 @@ export const CONSULTAS: Record<string, Consulta> = {
   async get_contracts(tx, args, r) {
     const status = filtroTexto(args.status);
     const tipos = tiposDeContrato(args.tipo);
-    if (tipos && !tipos.length) return { error: 'invalid_tipo', tipos_validos: Object.keys(TIPO_CONTRATO) };
+    if (tipos && !tipos.length) return { error: 'invalid_tipo', tipos_validos: [...Object.keys(TIPO_CONTRATO), ...Object.keys(GRUPOS_CONTRATO)] };
     const cliente = argUuid(args, 'client_id');
     const rows = await tx.$queryRaw<Array<{
       id: string; tipo: string; status: string; valor: number; inicio: string | null; fim: string | null; fim_conteudo: string | null;
@@ -501,7 +504,7 @@ export const CONSULTAS: Record<string, Consulta> = {
   },
 
   /**
-   * O Funil de Vendas da tela Funil: etapas ativas na ordem do kanban, com a contagem de cada coluna (inclui os
+   * O Funil de Vendas (tela Funil de Vendas): etapas ativas na ordem do kanban, com a contagem de cada coluna (inclui os
    * negócios de demonstração, como o kanban, e diz quantos são). O resumo segue o painel do CRM (sem demonstração).
    */
   async get_funnel_stats(tx, args, r) {

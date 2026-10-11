@@ -11,6 +11,7 @@ import {
   listarConversasIaApi,
   listarMensagensIaApi,
 } from '@/lib/api/ia';
+import { ErroApi } from '@/lib/api/http';
 import type { AIConversation, AIMessage, AISuggestedAction, AIStreamChunk } from '@/types/ai';
 
 interface UseAIChatReturn {
@@ -62,6 +63,12 @@ function sortConversations(list: AIConversation[]): AIConversation[] {
     (a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false)
   );
 }
+
+/**
+ * A API já não aceita decidir esta proposta: 409 (expirou ou já foi processada) ou 500 (falhou e ficou como
+ * failed no servidor). O cartão sai de "pendente"; erro de rede deixa pendente para tentar de novo.
+ */
+const propostaEncerrada = (err: unknown) => err instanceof ErroApi && (err.status === 409 || err.status >= 500);
 
 function aiModuleFromPath(pathname: string): string {
   const routes: Array<[string, string]> = [
@@ -417,6 +424,9 @@ export function useAIChat(): UseAIChatReturn {
         : 'Ação executada com sucesso.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao executar ação';
+      if (propostaEncerrada(err)) {
+        setPendingActions(prev => prev.map(a => (a.id === action.id ? { ...a, status: 'failed' as const } : a)));
+      }
       setError(msg);
       toast.error(msg);
     }
@@ -448,6 +458,9 @@ export function useAIChat(): UseAIChatReturn {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível recusar a ação.';
+      if (propostaEncerrada(err)) {
+        setPendingActions(prev => prev.map(a => (a.id === actionId ? { ...a, status: 'failed' as const } : a)));
+      }
       setError(message);
       toast.error(message);
     }

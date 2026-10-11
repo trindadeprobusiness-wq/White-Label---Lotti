@@ -154,12 +154,15 @@ describe('FerramentasIaService', () => {
     // Follow-ups: só os marcados (total = quantos follow-ups), sem perdidos e sem demonstração, como o Início.
     expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'proximo_followup' }, ctxHoje)))
       .toMatchObject({ criterio: 'follow-ups marcados, sem os perdidos e sem demonstração' });
+    // Com filtro (interesse, status ou busca) também não: a aba conta todos.
+    expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'sem_contato', tipo_interesse: 'LOCACAO' }, ctxHoje)).criterio)
+      .toBe('mais de 30 dias sem contato, sem os fechados');
     const f = sqls(m.tx.$queryRaw, /from public\.clientes c/)[2];
     expect(uma(f)).toContain("c.status_funil::text <> 'FECHADO_PERDIDO' and c.proximo_followup is not null and not c.is_sample_data");
     expect(uma(f)).toMatch(/order by c\.proximo_followup asc nulls last, c\.ultimo_contato asc nulls first, c\.id/);
     expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'proximo_followup', followup_ate: '2026-10-11' }, ctxHoje)).criterio)
       .toBe('follow-ups marcados, sem os perdidos e sem demonstração, até 11/10/2026');
-    expect(sqls(m.tx.$queryRaw, /from public\.clientes c/)[3].values).toContain('2026-10-11');
+    expect(sqls(m.tx.$queryRaw, /from public\.clientes c/)[4].values).toContain('2026-10-11');
     expect(JSON.parse(await m.s.executar('search_clients', { ordem: 'proximo_followup', followup_ate: 'hoje' }, ctxHoje)).error).toBe('invalid_date');
   });
 
@@ -177,10 +180,14 @@ describe('FerramentasIaService', () => {
     expect(uma(q)).toContain('where f.imovel_id = i.id and f.ativo');
     expect(q.values).toEqual(expect.arrayContaining(['VENDA', true, '%Anápolis%', 500000]));
 
-    await m.s.executar('search_properties', { situacao: 'VENDIDO' }, ctxHoje);
+    await m.s.executar('search_properties', { situacao: 'vendido' }, ctxHoje);
     const [, vendidos] = sqls(m.tx.$queryRaw, /from public\.imoveis i/);
     expect(uma(vendidos)).toMatch(/i\.status_venda::text = \$\d+::text/);
     expect(vendidos.values).toContain('VENDIDO');
+    // Situação que não existe não vira "todos os imóveis" calado.
+    expect(JSON.parse(await m.s.executar('search_properties', { situacao: 'Vendido recentemente' }, ctxHoje)))
+      .toEqual({ error: 'invalid_situacao', situacoes_validas: ['DISPONIVEL', 'VENDIDO', 'ALUGADO'] });
+    expect(JSON.parse(await m.s.executar('search_properties', { situacao: 'constructor' }, ctxHoje)).error).toBe('invalid_situacao');
   });
 
   it('ficha do imóvel: mesmos nomes da busca, inativo e "não anunciado" visíveis, sem colunas técnicas', async () => {
@@ -263,7 +270,9 @@ describe('FerramentasIaService', () => {
     const porTipo = sqls(m.tx.$queryRaw, /from public\.contratos c/).at(-1)!;
     expect(uma(porTipo)).toMatch(/c\.tipo::text in \(\$\d+,\$\d+\)/);
     expect(porTipo.values).toEqual(expect.arrayContaining(['LOCACAO_RESIDENCIAL', 'LOCACAO_COMERCIAL']));
-    expect(JSON.parse(await m.s.executar('get_contracts', { tipo: 'Locação Residencial' }, ctxHoje)).error).toBe('invalid_tipo');
+    const invalido = JSON.parse(await m.s.executar('get_contracts', { tipo: 'Locação Residencial' }, ctxHoje));
+    expect(invalido.error).toBe('invalid_tipo');
+    expect(invalido.tipos_validos).toEqual(expect.arrayContaining(['LOCACAO_RESIDENCIAL', 'LOCACAO', 'EXCLUSIVIDADE']));
   });
 
   it('contratos: fim gravado como instante (cadastro manual) sai no dia que a tela Aluguéis mostra', async () => {

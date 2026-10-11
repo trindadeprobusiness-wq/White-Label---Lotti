@@ -9,7 +9,13 @@
   - adversarial do plano;
   - código;
   - revisão do código em 4 lentes, com verificação adversarial: 26 achados confirmados, todos corrigidos;
-  - checagem adversarial das correções.
+  - checagem adversarial das correções: mais 6 pontos, corrigidos em seguida:
+    - situação de imóvel inválida devolve erro;
+    - tipos válidos de contrato incluem os grupos;
+    - a aba Sem retorno só é citada sem filtro;
+    - "tela Funil de Vendas";
+    - cartão de ação que falhou no servidor vira "não executada" e não trava o Expandir;
+    - exceção QUALIFICACAO/DOCUMENTACAO documentada no humanizador.
 - O que a adversarial mudou: a pesquisa mostrou que as ferramentas davam números diferentes das telas (contratos ativos 0 com 16 ATIVO; funil contando clientes). Por isso o escopo passou a incluir as consultas.
 - **Prompt** (`assistant.general@2026-10-11.4`):
   - persona de sócia da operação;

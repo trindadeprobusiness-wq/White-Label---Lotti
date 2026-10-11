@@ -151,6 +151,8 @@ describe('useAIChat com a API Lotti', () => {
     m.decidirAcaoIaApi.mockRejectedValueOnce(new ErroApi(500, 'acao_nao_executada', 'Não foi possível executar a ação.'));
     await act(() => result.current.confirmAction(acao));
     expect(toast.error).toHaveBeenCalledWith('Não foi possível executar a ação.');
+    // O servidor marcou como falha: o cartão sai de "pendente" (o Expandir do widget não fica travado).
+    expect(result.current.pendingActions.map((a) => a.status)).toEqual(['failed', 'rejected']);
   });
 
   it('fixar com falha recarrega a lista; apagar avisa; abrir conversa mostra só usuário e assistente', async () => {
