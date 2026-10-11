@@ -117,3 +117,17 @@ it('não pede conexão quando o estado não pôde ser consultado',async()=>{
  mount({autoStart:true});await advance(5000);
  expect(invoke.mock.calls.filter(call=>call[1].body.action==='connect')).toHaveLength(0);
 });
+it('passados 2 minutos sem leitura, gera outro QR sozinho (até 10 minutos) e só então mostra o aviso',async()=>{
+ invoke.mockImplementation((_name,options)=>Promise.resolve({data:options.body.action==='connect'?{state:'connecting',agentEnabled:false,qr:'data:image/png;base64,test',qrExpiresAt:Date.now()+60000}:{state:'disconnected',agentEnabled:false},error:null}));
+ mount();await advance();fireEvent.click(screen.getByText('Conectar WhatsApp'));await advance();
+ const conexoes=()=>invoke.mock.calls.filter(c=>c[1].body.action==='connect').length;
+ expect(conexoes()).toBe(1);
+ await advance(121000);
+ expect(conexoes()).toBe(2);
+ expect(screen.queryByText(/não confirmou a conexão em dois minutos/)).toBeNull();
+ for(let i=0;i<3;i++)await advance(121000);
+ expect(conexoes()).toBe(5);
+ await advance(121000);
+ expect(conexoes()).toBe(5);
+ expect(screen.getByText(/não confirmou a conexão em dois minutos/)).not.toBeNull();
+});

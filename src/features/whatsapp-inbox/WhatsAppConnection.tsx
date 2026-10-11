@@ -18,6 +18,9 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
  const [starting,setStarting]=useState(false);const [startError,setStartError]=useState(false);
  const attempt=useRef(0);const [now,setNow]=useState(Date.now());
  const autoStarted=useRef(false);
+ const renovacoes=useRef(0);
+ // Muda a cada renovação: reinicia o prazo de 2 min mesmo quando o QR novo chega no mesmo instante.
+ const [rodada,setRodada]=useState(0);
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[]);
  useEffect(()=>()=>{attempt.current++},[user?.id]);
  const connection=useWhatsAppConnectionQuery(user?.id);
@@ -40,10 +43,18 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
  useEffect(()=>{
    if(!pairing||previewPairing)return;
    if(connected){setPairing(false);return;}
-   const timer=setTimeout(()=>{setPairing(false);setExpired(true);},120000);
+   // Venceu os 2 minutos com a tela aberta e visível: gera outro QR sozinho (até 10 minutos no
+   // total), sem a pessoa precisar clicar. Aba escondida ou limite batido: para e mostra o aviso.
+   const timer=setTimeout(()=>{
+     setPairing(false);
+     const visivel=typeof document==='undefined'||document.visibilityState==='visible';
+     if(visivel&&renovacoes.current<4){renovacoes.current++;setRodada(r=>r+1);void begin();}
+     else setExpired(true);
+   },120000);
    return()=>clearTimeout(timer);
- },[pairing,connected,previewPairing]);
- const cancelar=()=>{attempt.current++;setPairing(false);setStarting(false);setVisibleQr(null)};
+ },[pairing,connected,previewPairing,begin,rodada]);
+ useEffect(()=>{if(connected)renovacoes.current=0;},[connected]);
+ const cancelar=()=>{attempt.current++;renovacoes.current=0;setPairing(false);setStarting(false);setVisibleQr(null)};
  const restante=visibleQr?Math.max(0,Math.ceil((visibleQr.expiresAt-now)/1000)):0;
  const passos=['Abra o WhatsApp no celular.','Toque em Configurações (ou nos três pontinhos). Entre em Aparelhos conectados.','Toque em Conectar aparelho.','Aponte a câmera para este código.'];
  // Visual no estilo do WhatsApp Web: passos de um lado, o código grande do outro. O fluxo (gerar,
@@ -56,7 +67,7 @@ export function WhatsAppConnection({autoStart=false,previewPairing=false}:WhatsA
      {/* Com autoStart a tela não oferecia botão nenhum: se o connect falhasse,
          sumia o único caminho de conectar. Enquanto não houver pareamento em
          curso, sempre sobra como pedir o QR de novo. */}
-     {!connected&&!pairing&&!starting&&<Button disabled={connection.isPending} onClick={begin}>{autoStart?'Gerar QR Code':'Conectar WhatsApp'}</Button>}
+     {!connected&&!pairing&&!starting&&<Button disabled={connection.isPending} onClick={()=>{renovacoes.current=0;void begin();}}>{autoStart?'Gerar QR Code':'Conectar WhatsApp'}</Button>}
    </div>
    {/* São dois erros diferentes: falhar ao consultar o estado e falhar ao pedir
        o QR. Tentar de novo precisa refazer o que falhou — repetir o status
