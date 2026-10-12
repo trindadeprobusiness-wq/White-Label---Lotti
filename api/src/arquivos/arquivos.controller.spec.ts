@@ -209,6 +209,72 @@ describe('ArquivosController', () => {
     expect(storage.apagar).toHaveBeenCalledWith('documentos', 'meu/x.pdf');
   });
 
+  describe('H1: vídeo/foto na origem da API nunca vira HTML ativo', () => {
+    it('upload de vídeo recusa tipo fora da allowlist (HTML com nome .mp4, SVG, XHTML, octet-stream) → 415 sem tocar no S3', async () => {
+      repo.corretorId.mockResolvedValue('owner');
+      for (const tipo of ['text/html', 'text/html; charset=utf-8', 'image/svg+xml', 'application/xhtml+xml', 'application/octet-stream', 'video/html']) {
+        const req = fakeReq('<script>alert(1)</script>', { 'content-type': tipo });
+        await expect(ctrl.subirVideo(claims, { '0': 'owner/geral/tour.mp4' }, req)).rejects.toMatchObject({
+          status: 415,
+          response: { codigo: 'tipo_nao_permitido' },
+        });
+      }
+      const semTipo = fakeReq('<script>alert(1)</script>');
+      await expect(ctrl.subirVideo(claims, { '0': 'owner/geral/tour.mp4' }, semTipo)).rejects.toMatchObject({ status: 415 });
+      expect(storage.enviar).not.toHaveBeenCalled();
+    });
+
+    it('upload de vídeo aceita os tipos que o front envia e grava o tipo normalizado', async () => {
+      repo.corretorId.mockResolvedValue('owner');
+      storage.enviar.mockResolvedValue(undefined);
+      for (const tipo of ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']) {
+        await ctrl.subirVideo(claims, { '0': 'owner/geral/v' }, fakeReq('x', { 'content-type': tipo }));
+        expect(storage.enviar).toHaveBeenLastCalledWith('videos', 'owner/geral/v', expect.anything(), tipo);
+      }
+      await ctrl.subirVideo(claims, { '0': 'owner/geral/v' }, fakeReq('x', { 'content-type': 'Video/MP4; codecs=avc1' }));
+      expect(storage.enviar).toHaveBeenLastCalledWith('videos', 'owner/geral/v', expect.anything(), 'video/mp4');
+    });
+
+    it('vídeo público legado com metadata text/html sai como download inerte (octet-stream + attachment + CSP sandbox)', async () => {
+      storage.obter.mockResolvedValueOnce(objeto({ contentType: 'text/html' }));
+      const res = fakeRes();
+      await ctrl.videoPublico({ '0': 'owner/geral/x.mp4' }, undefined, res as unknown as Response);
+      expect(res.headers['content-type']).toBe('application/octet-stream');
+      expect(res.headers['content-disposition']).toBe('attachment');
+      expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    });
+
+    it('vídeo público com tipo permitido segue tocável, com Range e CSP, sem attachment', async () => {
+      storage.obter.mockResolvedValueOnce(objeto({ statusCode: 206, contentRange: 'bytes 0-1/500', contentType: 'video/webm' }));
+      const res = fakeRes();
+      await ctrl.videoPublico({ '0': 'v.webm' }, 'bytes=0-1', res as unknown as Response);
+      expect(res.codigo).toBe(206);
+      expect(res.headers['content-type']).toBe('video/webm');
+      expect(res.headers['content-range']).toBe('bytes 0-1/500');
+      expect(res.headers['content-disposition']).toBeUndefined();
+      expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    });
+
+    it('foto pública legada com metadata text/html ou SVG sai como download inerte', async () => {
+      for (const tipo of ['text/html', 'image/svg+xml']) {
+        storage.obter.mockResolvedValueOnce(objeto({ contentType: tipo }));
+        const res = fakeRes();
+        await ctrl.fotoPublica({ '0': 'imovel/1/f.jpg' }, undefined, res as unknown as Response);
+        expect(res.headers['content-type']).toBe('application/octet-stream');
+        expect(res.headers['content-disposition']).toBe('attachment');
+      }
+    });
+
+    it('download privado também sai com CSP sandbox', async () => {
+      repo.donoDocumento.mockResolvedValueOnce(true);
+      storage.obter.mockResolvedValueOnce(objeto({ contentType: 'text/html' }));
+      const res = fakeRes();
+      await ctrl.baixarDocumento(claims, { '0': 'meu/x.html' }, undefined, res as unknown as Response);
+      expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    });
+  });
+
   it('key inválida no splat → 400 key_invalida', async () => {
     const res = fakeRes();
     await expect(ctrl.fotoPublica({ '0': '../segredo' }, undefined, res as unknown as Response)).rejects.toMatchObject({

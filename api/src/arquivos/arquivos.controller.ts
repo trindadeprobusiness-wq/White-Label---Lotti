@@ -55,6 +55,12 @@ function tipoDoUpload(req: Request): string {
 /** Fotos são servidas em público pela origem da API: só imagem raster, nunca HTML/SVG. */
 const TIPOS_FOTO = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif']);
 
+/** Vídeos também saem em público pela origem da API: só os contêineres que o front envia. */
+const TIPOS_VIDEO = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']);
+
+/** Resposta de arquivo nunca é documento ativo: sem script, sem recurso, sem origem (vale até para HTML legado). */
+const CSP_ARQUIVO = "default-src 'none'; sandbox";
+
 /**
  * Limita o corpo recebido ao teto do grupo. O teto é conferido primeiro pelo Content-Length (413
  * antes de ler um byte) e depois pelo próprio stream, para um Content-Length mentiroso não furar o
@@ -102,7 +108,7 @@ export class ArquivosController {
     const key = splat(params);
     const obj = await this.storage.obter(BUCKET_FOTOS, key);
     res.setHeader('Cache-Control', 'public, max-age=300');
-    this.servir(res, obj, ifNoneMatch);
+    this.servir(res, obj, ifNoneMatch, TIPOS_FOTO);
   }
 
   @Get('publico/video/*')
@@ -114,7 +120,7 @@ export class ArquivosController {
     const key = splat(params);
     const obj = await this.storage.obter(BUCKET_VIDEOS, key, range);
     res.setHeader('Cache-Control', 'public, max-age=300');
-    this.servir(res, obj);
+    this.servir(res, obj, undefined, TIPOS_VIDEO);
   }
 
   // ------------------------------------------------------------ upload (guard, binário cru)
@@ -142,8 +148,10 @@ export class ArquivosController {
     @Req() req: Request,
   ): Promise<{ ok: true; key: string }> {
     const key = splat(params);
+    const tipo = tipoDoUpload(req).toLowerCase();
+    if (!TIPOS_VIDEO.has(tipo)) throw ERROS_ARQUIVO.tipoNaoPermitido();
     await this.exigirPrefixo(claims, key);
-    await this.storage.enviar(BUCKET_VIDEOS, key, corpoLimitado(req, MAX_VIDEO), tipoDoUpload(req));
+    await this.storage.enviar(BUCKET_VIDEOS, key, corpoLimitado(req, MAX_VIDEO), tipo);
     return { ok: true, key };
   }
 
@@ -273,13 +281,26 @@ export class ArquivosController {
     if (!corretor || !key.startsWith(`${corretor}/`)) throw ERROS_ARQUIVO.deOutraConta();
   }
 
-  /** Escreve cabeçalhos antes do primeiro byte e faz pipe do stream do S3 para a resposta. */
-  private servir(res: Response, obj: ObjetoLido, ifNoneMatch?: string): void {
+  /**
+   * Escreve cabeçalhos antes do primeiro byte e faz pipe do stream do S3 para a resposta. Com
+   * `permitidos` (rotas públicas), um tipo gravado fora da lista — objeto legado com text/html, SVG —
+   * sai como octet-stream em attachment: nosniff sozinho não impede o navegador de renderizar um
+   * text/html declarado.
+   */
+  private servir(res: Response, obj: ObjetoLido, ifNoneMatch?: string, permitidos?: ReadonlySet<string>): void {
     if (obj.etag) res.setHeader('ETag', obj.etag);
-    res.setHeader('Content-Type', obj.contentType ?? 'application/octet-stream');
+    const tipo = obj.contentType ?? 'application/octet-stream';
+    const tipoBase = tipo.split(';')[0].trim().toLowerCase();
+    if (permitidos && !permitidos.has(tipoBase)) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment');
+    } else {
+      res.setHeader('Content-Type', tipo);
+    }
     res.setHeader('Accept-Ranges', 'bytes');
     // O navegador não adivinha o tipo: um objeto antigo com tipo errado não vira página na origem da API.
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', CSP_ARQUIVO);
     if (ifNoneMatch && obj.etag && ifNoneMatch === obj.etag) {
       obj.corpo.destroy();
       res.status(304).end();
