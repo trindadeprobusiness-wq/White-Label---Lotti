@@ -1,0 +1,72 @@
+﻿core	40d7e84e2a5b12a23b5a4de4c3fe33353a267a86	2026-10-11 13:30:30 -0300	perf(front): páginas mais rápidas sem mudar configuração (Etapa 1)
+core/ajustes-site	00ed1dd65b6a8eea07255a6ffd7bea54732a92a2	2026-08-11 14:54:22 -0300	feat: deploy manual sem CLI, imovel dentro do wizard de fachada, ordem das fotos
+core/claude/agente-ia-configuracao-real	080529c6d3e70d37d5020156c8949a4efb49b61c	2026-09-27 16:47:50 -0300	docs: record AI agent stage 1 (settings drive the real agent)
+core/claude/audit-brace-expansion	bd04d2a976c01bf17a4082808283d6ee8279e1ba	2026-09-30 12:57:01 -0300	chore(deps): update brace-expansion to clear the new advisory
+core/claude/casamento-contrato-pitch-tlfxp1	f1e2deda564148c29d5759412cc6748e37f83c82	2026-08-14 02:20:13 +0000	docs: pesquisa de mercado de Anapolis e modelo de conversao por qualificacao
+core/claude/inbox-adicionar-ao-crm	f031bec666357a8763a0dd941a2be28652bdcdd4	2026-09-29 10:44:19 -0300	fix(inbox): sair do envio sem confirmação sem recarregar a página
+core/claude/jira-andamento-2026-09-27	24f46cba78c2afffec6214a74bd7d02b12c09ba9	2026-09-27 14:26:46 -0300	docs(jira): history origin and date (SCRUM-49) and cost per user (SCRUM-50)
+core/claude/jira-andamento-sobre-pr22	b25e7c30da1c03569d153fe3681ab10b4a7a0ce9	2026-09-27 14:31:50 -0300	docs: note the in-progress branch is stacked on PR #22
+core/claude/jira-sprint-2026-09-27	b632eaaa49916d4d1968d3c464aff2a4c930433e	2026-09-27 12:59:13 -0300	docs: record Jira sprint on current main and agent fixes
+core/claude/project-changes-mobile-anv72w	fd0c3c1fe618e96747ac5bd7b36dcac571547058	2026-07-06 20:31:39 +0000	chore: ignora artefatos *.tsbuildinfo do TypeScript
+core/claude/whatsapp-account-scope	fb4f1b4a8399c144e3a2525e735039d2d18dd487	2026-09-22 23:55:39 -0300	fix(whatsapp): separar conversas pelo número conectado e fixar a ponte
+core/codex/asaas-homologacao-evidencias	327ac59d2fa0be407b764da8f571daaff77c376c	2026-09-26 09:32:25 -0300	docs: preserve existing handoff formatting
+core/codex/asaas-plan-limits	e16c4db7ed256453b934588729a19e0b862d4468	2026-09-25 19:40:35 -0300	feat: enforce paid plan quotas and record Asaas payment periods
+core/codex/auth-one-screen	351a971072f15f775fd65723e2ff87a0ac8488f9	2026-08-26 10:46:09 -0300	fix(auth): aplica degrade ao titulo
+core/codex/central-rotina	994e0f7f8f1f87e758b7dd3c632c294a30d1f989	2026-08-21 07:37:46 -0300	feat: adicionar central de rotina e Google Agenda
+core/codex/commercial-diagnostic	c80dd821b2658731fcfc7ccfaef9dc157a8a5d48	2026-09-30 17:23:30 -0300	docs: normalize diagnostic handoff line endings
+core/codex/commercial-diagnostic-release	f4cece819003f3ed04a32b37ed84a7be361a5f36	2026-09-30 17:33:11 -0300	docs: record commercial diagnostic production verification
+core/codex/demo-user-lotti	dcdffa012c96b2970083d4276fd8a7b81bd55b28	2026-08-30 17:39:33 -0300	feat: add isolated demo account provisioning
+core/codex/diagnostic-email-abandonment	a92b22e1680d9a5a4f4465962017f3878d6e16dd	2026-10-08 12:14:16 -0300	Merge remote-tracking branch 'origin/main' into codex/diagnostic-email-abandonment
+core/codex/diagnostic-public-release	4812afa8bb49eaeda560d122c527fdafd13ae7c6	2026-10-07 16:17:42 -0300	Merge branch 'main' of https://github.com/Lotti-ADM/casa-mente-contrato into codex/diagnostic-public-release
+core/codex/favicon-tab-brand-visual	f0f32c8c667838f79f620a583805ffedf46e805b	2026-08-17 17:35:25 -0300	fix(branding): atualiza favicon da Lotti
+core/codex/fix-main-front-tests	ef04db41e1491eb38b0e04dacd17fdcc946b0bdd	2026-10-05 09:02:37 -0300	fix: restore front test compatibility
+core/codex/fix-xlsx-security	585dc00f5a0a19027fef09d4b36138fe931ec65a	2026-09-27 15:03:31 -0300	fix(security): use SheetJS release from official CDN
+core/codex/google-auth-lotti-ai-gateway	820f474105173301595f0ead9bfe289c254b68c2	2026-08-21 07:35:45 -0300	feat(ai): centraliza o Lotti AI Gateway com governança
+core/codex/lotti-agent-runtime	5c367072438f01710658522f3061f1daf2f09aa6	2026-09-12 14:23:52 -0300	feat: connect Lotti agent runtime and live WhatsApp inbox
+core/codex/lotti-auth-email-templates	76a89321f55e902883ab4057ae4c02f97871e571	2026-09-26 09:13:02 -0300	docs: record Asaas sandbox gateway validation
+core/codex/redesign-page-headers	fd516c2404d9f317d570f6f792e0533d0083399e	2026-09-09 17:30:44 -0300	merge: integrar main preservando catalogo atual e contas legadas
+core/codex/security-hardening	af6b1cce122e2a7c26836589b7c63519403529d3	2026-09-16 09:09:32 -0300	docs: registrar CI de seguranca e bloqueio de deploy na Vercel
+core/codex/whatsapp-connection	1ef7f464aac6319400beaa56eac1e03644bfa846	2026-09-16 11:07:12 -0300	style: remover rolagem excedente da conexao
+core/codex/whatsapp-history-composer	25bfc6c27e6002c3229b0574c9edd43e4096594c	2026-09-22 18:14:20 -0300	fix(whatsapp): alinhar MIME de anexos
+core/codex/whatsapp-inbox-actions	b24583eafef9982460dc8e22e10a8cb552edc210	2026-09-22 14:23:08 -0300	feat(whatsapp): restaurar conexão guiada do Inbox
+core/codex/whatsapp-inbox-compact	3c39eb0b923866af82da735fe0f6a52d9bd6de81	2026-09-25 10:38:55 -0300	fix: compact WhatsApp inbox header and message spacing
+core/codex/whatsapp-inbox-disconnected-layout	93fe26f066e7a63242eef49964c7ef80c7597df4	2026-09-20 16:22:27 -0300	feat(whatsapp): habilitar envio manual no Inbox conectado
+core/codex/whatsapp-inbox-history-visible	14b27dce7e9b6c9930460abafe46881a77f213f0	2026-09-19 17:14:25 -0300	fix(whatsapp): keep received conversations visible offline
+core/codex/whatsapp-inbox-polish	af2f40ea82ceddede11a3a0bc718cfdadbe2ec45	2026-09-24 14:28:32 -0300	Add interactive local WhatsApp Inbox preview
+core/codex/whatsapp-inbox-reliability	fb9fd894f22e76c3dc0af5155659f6c1773d6980	2026-09-25 09:38:38 -0300	fix: use Sao Paulo timezone in inbox message timestamps
+core/codex/whatsapp-live-connection	3a41bde927627102dd7dce94d88bbadcee79983a	2026-09-19 11:28:21 -0300	fix(whatsapp): show live conversations and wire disconnect
+core/codex/whatsapp-live-only-attachments	fd53c92f643a32dc7c220a2e2c26210d5c2fa1a1	2026-09-23 18:08:31 -0300	fix: polish WhatsApp inbox sending and contact editing
+core/codex/whatsapp-qr-stable	6732e946962853ec2d1baf5c6b0af1ad34d402ad	2026-09-23 11:13:33 -0300	perf(whatsapp): atualizar Inbox em menos de dois segundos
+core/docs/plano-api-lotti	b3f4e00099edf2c50f6aa92044ff77ea34f5d1a0	2026-10-04 17:48:04 -0300	docs(plano): API Lotti, Etapa 1 — fundação no padrão do Clix
+core/feat/agente-ia-nas-configuracoes	3b55e09b15a30495791b50c143125a30cb47d2e6	2026-10-01 12:46:38 -0300	feat(crm): conversa com número abre negócio na primeira etapa do funil
+core/feat/api-lotti-fundacao	40d7e84e2a5b12a23b5a4de4c3fe33353a267a86	2026-10-11 13:30:30 -0300	perf(front): páginas mais rápidas sem mudar configuração (Etapa 1)
+core/feat/auth-multiusuario	150d68e0c885434f32dd76ce21a18b92b459549a	2026-08-16 22:38:27 -0300	merge: integra os fixes de segurança de origin/main
+core/feat/cores-ajustes	155b77da7ba364508be25cac946e39cddbed10ec	2026-09-30 12:35:31 -0300	fix: tirar o banho de verde do cartão do Asaas
+core/feat/design-lotti	7bc23de1fc007d076ef294008dde109c67dba1ff	2026-09-30 15:34:56 -0300	fix: contar quem espera resposta, não só quem já atrasou
+core/feat/form-imovel-inteligente	7a73021bb439da33e29ac6a63375a3f0c686d567	2026-09-30 11:58:26 -0300	feat: no celular, hambúrguer abrindo o menu inteiro como no Clix
+core/feat/funil-conversas	7a0cb9fb4208a1c49e05db03c070dd493f47045b	2026-09-30 12:36:17 -0300	fix: dar corpo ao verde da coluna de destino no funil
+core/feat/ia-pausa-automatica	a40a31a0baf72791f73605d6e00b3807061ddca8	2026-10-01 23:30:27 -0300	fix(agente): o expediente vem da aba Agendamento, não de um horário fixo
+core/feat/imovel-cadastro	0adf3039c5b546bf86d272586d6d00520de747d7	2026-09-30 12:33:43 -0300	fix: manter .sh com quebra LF para o bash da VPS não quebrar
+core/feat/logo-lotti-icone	87371bbb461e716436d57dced7bd8a45f94dfe69	2026-08-06 20:20:55 -0300	Revert "feat: logo Lotti - icone com laminas de topo arredondado"
+core/feat/notificacoes-asaas	bfdef3f7b068698b4993915fbb27f1f4442e63fd	2026-08-17 16:45:39 -0300	feat(notificacoes): eventos do Asaas no sino e baixa automática de repasse
+core/feat/railway-front	cdac25a61337152631e37a7a1b86ef8d260d83f6	2026-10-04 15:33:21 -0300	fix(ci): classificar plugin Tailwind como dependencia de build
+core/feat/sino-asaas-ao-vivo	fca40596a4df35e8773d2a1a106a595d3b228c48	2026-08-19 12:24:00 -0300	feat(ajuda): gaveta contextual no lugar do botao morto do cabecalho
+core/feat/tela-inicial-menu	579fc308b2fadf1774f87d12b2c1132a2be9db15	2026-09-30 12:38:40 -0300	feat: dar um cabeçalho de verdade à tela inicial
+core/feat/telas-clientes-assistente	1829a989863532f9d13ac3bff3438fe55af6e1f2	2026-08-18 11:44:25 -0300	feat(fachadas): editar imóvel dentro do wizard e QR travado no banco
+core/fix/assinatura-e-fachada	9aae2ad8949f54ee8c1296565b2fb3a1493ccb08	2026-10-02 10:51:02 -0300	refactor(agente): o fim da conversa copia o Clix — duas decisões, não uma
+core/fix/aviso-ao-excluir-cliente	8d81db9b2aa15981b3f27b5bc89101e70898bbb2	2026-10-03 12:07:35 -0300	Merge remote-tracking branch 'origin/main' into fix/aviso-ao-excluir-cliente
+core/fix/conta-antiga-sem-limite-no-teste	23a1737e5c97b733de4d6c54d5a9a9ddc30b158d	2026-10-03 11:36:02 -0300	fix(cota): conta antiga continua sem limite durante o período de teste
+core/fix/falha-de-envio-com-certeza	9abdb184c34dfece9144247c6cab3a7079e2f0e0	2026-10-02 15:52:10 -0300	fix(agente): o freio conta toda falha, e o motivo não promete botão sem envio
+core/fix/google-agenda-oauth	55125afd20cafede804a5a25b85980905e52f80c	2026-09-16 10:36:18 -0300	fix: consertar a volta do OAuth do Google Agenda
+core/fix/inbox-acabamento	6c3914b00c4bd72ef6068ecb41ae4f844b3157d1	2026-10-01 11:39:57 -0300	fix(início): juntar alertas repetidos e aliviar o bloco de ações críticas
+core/fix/inbox-envio-travado	63d31d771072af83b8371f8f1ac87252d7b30c02	2026-09-29 23:38:56 -0300	test: congelar o relógio da Central de Rotina
+core/fix/inbox-lead-e-historico	a339fa1333c7188c597f8eab34e6b678b094a3ed	2026-10-02 12:39:24 -0300	fix(crm): cartão de contato sem nome mostra o número
+core/fix/inbox-lote-lotti	c451f9c413f011654712643580dd79fff6ec7e15	2026-09-30 22:26:53 -0300	docs: registrar a migration aplicada e conferida em produção
+core/fix/inbox-polimento	397aadbcf91aa90c9ea60d21fb63814ba5e111f3	2026-10-02 17:10:58 -0300	fix(agente): religar a IA faz ela responder, em vez de só armá-la
+core/fix/inbox-resto	ea6e835028badaa0a6907b4aa2bdd9b9ce32a76f	2026-10-01 11:55:58 -0300	Merge branch 'fix/inbox-acabamento' into fix/inbox-resto
+core/fix/lote-2-telas	44c39f8ef662b1a144ab21e8e2d24c590946ecf6	2026-10-01 17:15:15 -0300	fix(clientes): uma busca só na tela
+core/fix/qr-nao-some	8e03cb7faf7289a7b8cc63d41d9f79c8e249bdb7	2026-10-01 09:50:31 -0300	fix(conexão): o caminho de gerar o QR não some mais quando o connect falha
+core/main	40d7e84e2a5b12a23b5a4de4c3fe33353a267a86	2026-10-11 13:30:30 -0300	perf(front): páginas mais rápidas sem mudar configuração (Etapa 1)
+core/security/close-crm-buscar-imoveis-leak-and-fachada-select	8d343620e6f6fac33e612ed63255280c3442acc7	2026-08-13 20:20:04 -0300	fix(security): fecha vazamento cross-tenant e select(*) em endpoints service_role
+core/security/fix-search-path-generate-monthly-rent-bills	de0c06090a943f5152a7bd4243a73cf068998634	2026-08-13 21:29:59 -0300	fix(security): restaura SET search_path em generate_monthly_rent_bills
+core/security/npm-audit-fix	c4790d537a3e98743f523007389e8ffdd264c1f4	2026-08-14 09:54:32 -0300	fix(security): npm audit fix — 5 vulns transitivas

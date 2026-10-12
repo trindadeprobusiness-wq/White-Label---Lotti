@@ -1,0 +1,66 @@
+{
+    "objective":  "Gate 0/1 Lotti White Label",
+    "mode":  "read-only source snapshot",
+    "origin":  "https://github.com/Lotti-ADM/casa-mente-contrato.git",
+    "upstreamMain":  "40d7e84e2a5b12a23b5a4de4c3fe33353a267a86",
+    "branch":  "main",
+    "head":  "40d7e84e2a5b12a23b5a4de4c3fe33353a267a86",
+    "status":  [
+
+               ],
+    "remoteRefs":  72,
+    "localTags":  [
+
+                  ],
+    "submodules":  [
+
+                   ],
+    "lfsFiles":  [
+
+                 ],
+    "worktrees":  [
+                      "C:/Users/Gabri/Documents/Codex/Engenharia/projetos/lotti-white-label 40d7e84 [main]"
+                  ],
+    "capturedAt":  "2026-10-11T13:34:10.9721905-03:00",
+    "preparedLocalCandidate":  {
+                                   "path":  "C:/Users/Gabri/Documents/Codex/Engenharia/projetos/White-Label---Lotti",
+                                   "branch":  "main",
+                                   "head":  "40d7e84e2a5b12a23b5a4de4c3fe33353a267a86",
+                                   "status":  "clean",
+                                   "targetOrigin":  "https://github.com/trindadeprobusiness-wq/White-Label---Lotti.git",
+                                   "sourceRemote":  "https://github.com/Lotti-ADM/casa-mente-contrato.git",
+                                   "sourceRefs":  72,
+                                   "sourceRefsMergedIntoMain":  59,
+                                   "sourceRefsNotMergedIntoMain":  13,
+                                   "localUpstreamConfigured":  false,
+                                   "pushPerformed":  false,
+                                   "capturedAt":  "2026-10-11T14:16:56.4285761-03:00"
+                               },
+    "localHandoffUpdate":  {
+                               "branch":  "docs/wl-g0-g1-handoff",
+                               "commit":  "88832f550e7335ec1e3b199fc7fd55e55f517500",
+                               "parent":  "40d7e84e2a5b12a23b5a4de4c3fe33353a267a86",
+                               "files":  [
+                                             "AI_HANDOFF.md"
+                                         ],
+                               "status":  "clean",
+                               "mainRemainsAt":  "40d7e84e2a5b12a23b5a4de4c3fe33353a267a86",
+                               "pushed":  false,
+                               "review":  "Revisão de Código aprovou o conteúdo; diff --check passou",
+                               "capturedAt":  "2026-10-11T14:25:22.9850142-03:00"
+                           },
+    "latestLocalHandoffUpdate":  {
+                                     "branch":  "docs/wl-g0-g1-handoff",
+                                     "commit":  "ec4c928a15143de71df8beb29654d37d5acffdd0",
+                                     "parent":  "c561d091718972de5be3662b234fabb7943c8740",
+                                     "previousHandoffCommit":  "c561d091718972de5be3662b234fabb7943c8740",
+                                     "files":  [
+                                                   "AI_HANDOFF.md"
+                                               ],
+                                     "status":  "clean",
+                                     "mainRemainsAt":  "40d7e84e2a5b12a23b5a4de4c3fe33353a267a86",
+                                     "pushed":  false,
+                                     "review":  "Revisão independente aprovada; diff --check e git show --check passaram",
+                                     "capturedAt":  "2026-10-11T19:40:26.6494876-03:00"
+                                 }
+}
